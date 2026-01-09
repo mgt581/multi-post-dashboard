@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Posting Page</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="app">
+
+  <header class="header">
+    <span class="title">My Posting Page</span>
+    <a href="index.html" class="gear">←</a>
+  </header>
+
+  <section class="cards">
+
+    <div class="card">
+      <div class="card-text">
+        <strong>Folders</strong>
+        <span>Create and manage posting folders</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <input id="newFolderName" placeholder="New folder name" />
+      <button onclick="createFolder()">Create Folder</button>
+    </div>
+
+    <div id="folderList"></div>
+
+  </section>
+
+</div>
+
+<script>
+  let folders = JSON.parse(localStorage.getItem("folders")) || [];
+
+  function saveFolders() {
+    localStorage.setItem("folders", JSON.stringify(folders));
+  }
+
+  function createFolder() {
+    const name = document.getElementById("newFolderName").value.trim();
+    if (!name) return;
+
+    folders.push({
+      name,
+      accounts: []
+    });
+
+    saveFolders();
+    renderFolders();
+    document.getElementById("newFolderName").value = "";
+  }
+
+  function renderFolders() {
+    const list = document.getElementById("folderList");
+    list.innerHTML = "";
+
+    folders.forEach((folder, i) => {
+      const div = document.createElement("div");
+      div.className = "card";
+      div.innerHTML = `
+        <div class="card-text">
+          <strong>${folder.name}</strong>
+          <span>${folder.accounts.length} connected accounts</span>
+        </div>
+      `;
+      list.appendChild(div);
+    });
+  }
+
+  renderFolders();
+</script>
+
+</body>
+</html>
