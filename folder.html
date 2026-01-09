@@ -28,13 +28,11 @@
   </section>
 
   <!-- ACCOUNTS LIST -->
-  <section class="cards" id="accountList">
-    <!-- Accounts injected here -->
-  </section>
+  <section class="cards" id="accountList"></section>
 
-  <!-- ADD ACCOUNT -->
+  <!-- ADD ACCOUNT BUTTON -->
   <section class="cards">
-    <div class="card green" onclick="showAddAccount()">
+    <div class="card green" onclick="showPlatformPicker()">
       <div class="icon green">+</div>
       <div class="card-text">
         <strong>Add Account</strong>
@@ -46,17 +44,33 @@
 
 </div>
 
+<!-- PLATFORM PICKER MODAL -->
+<div id="platformModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.4);">
+  <div style="background:#fff; margin:20% auto; padding:20px; max-width:320px; border-radius:14px;">
+    <strong>Select platform</strong>
+    <div style="margin-top:10px;">
+      <button onclick="addAccount('facebook')">Facebook</button><br><br>
+      <button onclick="addAccount('tiktok')">TikTok</button><br><br>
+      <button onclick="addAccount('instagram')">Instagram</button><br><br>
+      <button onclick="addAccount('youtube')">YouTube</button><br><br>
+      <button onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script>
-  // Load folders
+  // -----------------------------
+  // LOAD DATA
+  // -----------------------------
   let folders = JSON.parse(localStorage.getItem("folders")) || [];
   let activeFolderIndex = localStorage.getItem("activeFolder");
-
-  const folder = folders[activeFolderIndex];
+  let folder = folders[activeFolderIndex];
 
   const folderNameEl = document.getElementById("folderName");
   const folderTitleEl = document.getElementById("folderTitle");
   const accountCountEl = document.getElementById("accountCount");
   const accountListEl = document.getElementById("accountList");
+  const modal = document.getElementById("platformModal");
 
   if (!folder) {
     folderNameEl.textContent = "Folder not found";
@@ -66,6 +80,9 @@
     renderAccounts();
   }
 
+  // -----------------------------
+  // RENDER ACCOUNTS
+  // -----------------------------
   function renderAccounts() {
     accountListEl.innerHTML = "";
     accountCountEl.textContent = `${folder.accounts.length} connected accounts`;
@@ -96,14 +113,27 @@
     });
   }
 
-  function showAddAccount() {
-    alert(
-      "Next step:\n\n" +
-      "• Choose platform\n" +
-      "• Authorise account\n" +
-      "• Add to this folder\n\n" +
-      "We’ll wire this next."
-    );
+  // -----------------------------
+  // ADD ACCOUNT FLOW
+  // -----------------------------
+  function showPlatformPicker() {
+    modal.style.display = "block";
+  }
+
+  function closeModal() {
+    modal.style.display = "none";
+  }
+
+  function addAccount(platform) {
+    folder.accounts.push({
+      platform: platform,
+      name: `Connected ${platform} account`,
+      addedAt: Date.now()
+    });
+
+    localStorage.setItem("folders", JSON.stringify(folders));
+    closeModal();
+    renderAccounts();
   }
 </script>
 
