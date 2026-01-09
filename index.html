@@ -2,97 +2,114 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Content Hub</title>
   <link rel="stylesheet" href="styles.css" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 </head>
 <body>
 
-  <!-- TOP BAR -->
-  <header class="top-bar">
-    <h1>Content Hub</h1>
-  </header>
+  <!-- PHONE FRAME (keeps it looking like Pic 1 on desktop too) -->
+  <div class="phone">
 
-  <!-- MAIN LAYOUT -->
-  <div class="container">
+    <!-- TOP BAR -->
+    <header class="topbar">
+      <div class="topbar-title">Cloud Storage</div>
+      <button class="icon-btn" aria-label="Settings">
+        <!-- Gear icon -->
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.1 7.1 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.23-1.12.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 7.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.83 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.3.6.22l2.39-.96c.5.4 1.05.71 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.58-.23 1.12-.54 1.63-.94l2.39.96c.22.09.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/>
+        </svg>
+      </button>
+    </header>
 
-    <!-- SIDEBAR -->
-    <aside class="sidebar">
-      <button class="btn btn-post">My Posting Page</button>
+    <!-- HERO PANEL -->
+    <section class="hero">
+      <div class="cloud-wrap">
+        <div class="cloud-circle">
+          <!-- Cloud icon -->
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M19 18H7a4 4 0 0 1 0-8 5 5 0 0 1 9.7-1.6A3.5 3.5 0 0 1 19 18Z"/>
+          </svg>
+          <div class="mini-folder"></div>
+        </div>
+      </div>
+      <div class="hero-text">
+        <div class="hero-big">12 GB available</div>
+      </div>
+    </section>
 
-      <button class="btn btn-facebook">Add Facebook Accounts</button>
-      <button class="btn btn-tiktok">Add TikTok Accounts</button>
-      <button class="btn btn-youtube">Add YouTube Accounts</button>
-      <button class="btn btn-instagram">Add Instagram Accounts</button>
-    </aside>
+    <!-- UPLOAD TITLE -->
+    <section class="upload-title">
+      <div class="upload-icon">
+        <!-- upload cloud icon -->
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M19 18H7a4 4 0 0 1 0-8 5 5 0 0 1 9.7-1.6A3.5 3.5 0 0 1 19 18Z"/>
+          <path d="M12 16V10m0 0 2 2m-2-2-2 2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="upload-label">Upload</div>
+    </section>
 
-    <!-- MAIN CONTENT -->
-    <main class="main">
+    <!-- CARDS (YOUR BUTTONS, styled like Pic 1) -->
+    <section class="cards">
 
-      <!-- FOLDERS SECTION -->
-      <section class="storage">
-        <div class="storage-header">
-          <h2>Folders</h2>
-          <div class="folder-actions">
-            <button class="small-btn">+ New Folder</button>
-            <button class="small-btn">Rename</button>
-            <button class="small-btn danger">Delete</button>
+      <button class="card card-post">
+        <div class="card-left">
+          <div class="card-icon">🟩</div>
+          <div class="card-text">
+            <div class="card-title">My Posting Page</div>
+            <div class="card-sub">Open your posting dashboard</div>
           </div>
         </div>
+        <div class="chev">›</div>
+      </button>
 
-        <div class="folder-grid">
-          <div class="folder-card">
-            <span class="folder-icon">📁</span>
-            <p>Teeth Whitening</p>
-          </div>
-
-          <div class="folder-card">
-            <span class="folder-icon">📁</span>
-            <p>Gaming Clips</p>
-          </div>
-
-          <div class="folder-card">
-            <span class="folder-icon">📁</span>
-            <p>Cleaning Business</p>
+      <button class="card card-facebook">
+        <div class="card-left">
+          <div class="card-icon">f</div>
+          <div class="card-text">
+            <div class="card-title">Add Facebook Accounts</div>
+            <div class="card-sub">Pages + profiles (later)</div>
           </div>
         </div>
-      </section>
+        <div class="chev">›</div>
+      </button>
 
-      <!-- UPLOAD / ACTION SECTION -->
-      <section class="upload">
-        <h2>Upload Content</h2>
-
-        <select class="dropdown">
-          <option>Select Folder</option>
-          <option>Teeth Whitening</option>
-          <option>Gaming Clips</option>
-          <option>Cleaning Business</option>
-        </select>
-
-        <div class="upload-actions">
-          <button class="btn btn-upload">Upload Media</button>
-          <button class="btn btn-generate">Generate SEO</button>
+      <button class="card card-tiktok">
+        <div class="card-left">
+          <div class="card-icon">♪</div>
+          <div class="card-text">
+            <div class="card-title">Add TikTok Accounts</div>
+            <div class="card-sub">Connect your TikTok profiles</div>
+          </div>
         </div>
+        <div class="chev">›</div>
+      </button>
 
-        <!-- SEO PREVIEW -->
-        <div class="seo-box">
-          <h3>Generated SEO</h3>
-          <p>Title, description, hashtags will appear here…</p>
+      <button class="card card-youtube">
+        <div class="card-left">
+          <div class="card-icon">▶</div>
+          <div class="card-text">
+            <div class="card-title">Add YouTube Accounts</div>
+            <div class="card-sub">Channels + upload settings</div>
+          </div>
         </div>
+        <div class="chev">›</div>
+      </button>
 
-        <!-- PLATFORM CHECKLIST -->
-        <div class="platform-checklist">
-          <label><input type="checkbox" checked /> Facebook</label>
-          <label><input type="checkbox" checked /> Instagram</label>
-          <label><input type="checkbox" /> TikTok</label>
-          <label><input type="checkbox" /> YouTube</label>
+      <button class="card card-instagram">
+        <div class="card-left">
+          <div class="card-icon">◎</div>
+          <div class="card-text">
+            <div class="card-title">Add Instagram Accounts</div>
+            <div class="card-sub">Connect IG business accounts</div>
+          </div>
         </div>
+        <div class="chev">›</div>
+      </button>
 
-        <button class="btn btn-publish">Publish</button>
-      </section>
+    </section>
 
-    </main>
   </div>
-
 </body>
 </html>
