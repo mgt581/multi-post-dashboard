@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Multi-Platform Post Tool</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <div class="app">
+    <aside class="sidebar">
+      <h2>Groups</h2>
+      <ul id="groupList"></ul>
+      <button id="addGroupBtn">+ Add Group</button>
+    </aside>
+
+    <main class="main">
+      <h1>Create Post</h1>
+
+      <input id="postIdea" placeholder="What is this post about?" />
+
+      <textarea id="output" placeholder="Generated captions will appear here..."></textarea>
+
+      <div class="actions">
+        <button id="generateBtn">Generate Captions</button>
+        <button id="copyBtn">Copy</button>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
