@@ -1,0 +1,162 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f1f5f9;
+}
+
+/* TOP BAR */
+.top-bar {
+  background: #0f172a;
+  color: white;
+  padding: 15px 20px;
+}
+
+/* LAYOUT */
+.container {
+  display: flex;
+  height: calc(100vh - 60px);
+}
+
+/* SIDEBAR */
+.sidebar {
+  width: 260px;
+  background: #020617;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* BUTTON BASE */
+.btn {
+  padding: 12px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+/* PLATFORM BUTTONS */
+.btn-post {
+  background: #16a34a;
+  color: white;
+}
+
+.btn-facebook {
+  background: #1877f2;
+  color: white;
+}
+
+.btn-tiktok {
+  background: #000;
+  color: white;
+}
+
+.btn-youtube {
+  background: white;
+  color: #dc2626;
+  border: 2px solid #dc2626;
+}
+
+.btn-instagram {
+  background: linear-gradient(45deg,#f58529,#dd2a7b,#8134af,#515bd4);
+  color: white;
+}
+
+/* MAIN */
+.main {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+/* STORAGE */
+.storage {
+  background: white;
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
+
+.storage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.folder-actions .small-btn {
+  padding: 6px 10px;
+  margin-left: 5px;
+}
+
+.small-btn.danger {
+  background: #dc2626;
+  color: white;
+}
+
+.folder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.folder-card {
+  background: #e5e7eb;
+  padding: 15px;
+  text-align: center;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.folder-icon {
+  font-size: 32px;
+}
+
+/* UPLOAD */
+.upload {
+  background: white;
+  padding: 15px;
+  border-radius: 10px;
+}
+
+.dropdown {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.btn-upload {
+  background: #2563eb;
+  color: white;
+  margin-right: 10px;
+}
+
+.btn-generate {
+  background: #9333ea;
+  color: white;
+}
+
+.seo-box {
+  margin-top: 15px;
+  padding: 10px;
+  background: #f8fafc;
+  border: 1px dashed #94a3b8;
+}
+
+.platform-checklist {
+  margin: 15px 0;
+  display: flex;
+  gap: 15px;
+}
+
+.btn-publish {
+  background: #16a34a;
+  color: white;
+  width: 100%;
+  font-size: 16px;
+}
