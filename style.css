@@ -1,4 +1,3 @@
- /* RESET */
 * {
   box-sizing: border-box;
 }
@@ -6,45 +5,66 @@
 body {
   margin: 0;
   font-family: Arial, sans-serif;
-  background: #f5f7fa;
+  background: #f1f5f9;
+}
+
+/* TOP BAR */
+.top-bar {
+  background: #0f172a;
+  color: white;
+  padding: 15px 20px;
 }
 
 /* LAYOUT */
-.app {
+.container {
   display: flex;
-  height: 100vh;
+  height: calc(100vh - 60px);
 }
 
+/* SIDEBAR */
 .sidebar {
-  width: 240px;
-  background: #0f172a;
-  color: white;
+  width: 260px;
+  background: #020617;
   padding: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-.sidebar h2 {
-  margin-top: 0;
-}
-
-.sidebar ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.sidebar li {
-  padding: 6px 0;
+/* BUTTON BASE */
+.btn {
+  padding: 12px;
+  border: none;
+  font-weight: bold;
   cursor: pointer;
+  border-radius: 6px;
 }
 
-.sidebar li:hover {
-  text-decoration: underline;
+/* PLATFORM BUTTONS */
+.btn-post {
+  background: #16a34a;
+  color: white;
 }
 
-.sidebar button {
-  width: 100%;
-  margin-top: 10px;
-  padding: 8px;
+.btn-facebook {
+  background: #1877f2;
+  color: white;
+}
+
+.btn-tiktok {
+  background: #000;
+  color: white;
+}
+
+.btn-youtube {
+  background: white;
+  color: #dc2626;
+  border: 2px solid #dc2626;
+}
+
+.btn-instagram {
+  background: linear-gradient(45deg,#f58529,#dd2a7b,#8134af,#515bd4);
+  color: white;
 }
 
 /* MAIN */
@@ -54,68 +74,89 @@ body {
   overflow-y: auto;
 }
 
-input,
-textarea,
-select {
-  width: 100%;
-  padding: 10px;
-  margin-bottom: 10px;
-  font-size: 14px;
+/* STORAGE */
+.storage {
+  background: white;
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 20px;
 }
 
-textarea {
-  min-height: 180px;
-  resize: vertical;
-}
-
-/* BRAND SETTINGS */
-.brand-settings {
+.storage-header {
   display: flex;
-  gap: 10px;
-  margin-bottom: 10px;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.brand-settings input,
-.brand-settings select {
-  flex: 1;
+.folder-actions .small-btn {
+  padding: 6px 10px;
+  margin-left: 5px;
 }
 
-/* TABS */
-.tabs {
-  display: flex;
-  margin-bottom: 10px;
-}
-
-.tab {
-  padding: 8px 14px;
-  border: none;
-  background: #e5e7eb;
-  cursor: pointer;
-  margin-right: 5px;
-}
-
-.tab.active {
-  background: #0f172a;
+.small-btn.danger {
+  background: #dc2626;
   color: white;
 }
 
-/* OUTPUTS */
-.platform-output {
+.folder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.folder-card {
+  background: #e5e7eb;
+  padding: 15px;
+  text-align: center;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.folder-icon {
+  font-size: 32px;
+}
+
+/* UPLOAD */
+.upload {
+  background: white;
+  padding: 15px;
+  border-radius: 10px;
+}
+
+.dropdown {
   width: 100%;
+  padding: 10px;
   margin-bottom: 10px;
 }
 
-.hidden {
-  display: none;
+.btn-upload {
+  background: #2563eb;
+  color: white;
+  margin-right: 10px;
 }
 
-/* ACTIONS */
-.actions {
+.btn-generate {
+  background: #9333ea;
+  color: white;
+}
+
+.seo-box {
+  margin-top: 15px;
+  padding: 10px;
+  background: #f8fafc;
+  border: 1px dashed #94a3b8;
+}
+
+.platform-checklist {
+  margin: 15px 0;
   display: flex;
-  gap: 10px;
+  gap: 15px;
 }
 
-.actions button {
-  padding: 10px 14px;
-  cursor: pointer;
+.btn-publish {
+  background: #16a34a;
+  color: white;
+  width: 100%;
+  font-size: 16px;
 }
