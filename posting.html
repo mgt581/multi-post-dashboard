@@ -10,69 +10,119 @@
 
 <div class="app">
 
+  <!-- HEADER -->
   <header class="header">
-    <span class="title">My Posting Page</span>
     <a href="index.html" class="gear">←</a>
+    <span class="title">My Posting Page</span>
+    <span></span>
   </header>
 
+  <!-- INTRO CARD -->
   <section class="cards">
-
     <div class="card">
       <div class="card-text">
         <strong>Folders</strong>
         <span>Create and manage posting folders</span>
       </div>
     </div>
+  </section>
 
+  <!-- CREATE FOLDER -->
+  <section class="cards">
     <div class="card">
-      <input id="newFolderName" placeholder="New folder name" />
+      <input
+        id="newFolderName"
+        type="text"
+        placeholder="New folder name"
+        style="flex:1; margin-right:10px;"
+      />
       <button onclick="createFolder()">Create Folder</button>
     </div>
+  </section>
 
-    <div id="folderList"></div>
-
+  <!-- FOLDER LIST -->
+  <section class="cards" id="folderList">
+    <!-- folders render here -->
   </section>
 
 </div>
 
 <script>
+  // -----------------------------
+  // DATA
+  // -----------------------------
   let folders = JSON.parse(localStorage.getItem("folders")) || [];
 
   function saveFolders() {
     localStorage.setItem("folders", JSON.stringify(folders));
   }
 
+  // -----------------------------
+  // CREATE FOLDER
+  // -----------------------------
   function createFolder() {
-    const name = document.getElementById("newFolderName").value.trim();
+    const input = document.getElementById("newFolderName");
+    const name = input.value.trim();
+
     if (!name) return;
 
     folders.push({
-      name,
+      name: name,
       accounts: []
     });
 
     saveFolders();
+    input.value = "";
     renderFolders();
-    document.getElementById("newFolderName").value = "";
   }
 
+  // -----------------------------
+  // RENDER FOLDERS
+  // -----------------------------
   function renderFolders() {
     const list = document.getElementById("folderList");
     list.innerHTML = "";
 
-    folders.forEach((folder, i) => {
-      const div = document.createElement("div");
-      div.className = "card";
-      div.innerHTML = `
-        <div class="card-text">
-          <strong>${folder.name}</strong>
-          <span>${folder.accounts.length} connected accounts</span>
+    if (folders.length === 0) {
+      list.innerHTML = `
+        <div class="card">
+          <div class="card-text">
+            <strong>No folders yet</strong>
+            <span>Create your first folder above</span>
+          </div>
         </div>
       `;
-      list.appendChild(div);
+      return;
+    }
+
+    folders.forEach((folder, i) => {
+      const wrapper = document.createElement("div");
+
+      wrapper.innerHTML = `
+        <div class="card" onclick="openFolder(${i})">
+          <div class="card-text">
+            <strong>${folder.name}</strong>
+            <span>${folder.accounts.length} connected accounts</span>
+          </div>
+          <div class="arrow">›</div>
+        </div>
+      `;
+
+      list.appendChild(wrapper);
     });
   }
 
+  // -----------------------------
+  // OPEN FOLDER
+  // -----------------------------
+  function openFolder(index) {
+    localStorage.setItem("activeFolder", index);
+    window.location.href = "folder.html";
+  }
+
+  // -----------------------------
+  // INIT
+  // -----------------------------
   renderFolders();
 </script>
 
