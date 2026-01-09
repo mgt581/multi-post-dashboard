@@ -18,72 +18,88 @@ const outputs = {
   youtube: document.getElementById("youtube"),
 };
 
-// STATE
-let groups = JSON.parse(localStorage.getItem("groups")) || [];
-let activeGroupIndex = null;
+// STATE — ONE SOURCE OF TRUTH
+let folders = JSON.parse(localStorage.getItem("folders")) || [];
+let activeFolderIndex = null;
 let activePlatform = "facebook";
 
 // HELPERS
-function saveGroups() {
-  localStorage.setItem("groups", JSON.stringify(groups));
+function saveFolders() {
+  localStorage.setItem("folders", JSON.stringify(folders));
 }
 
-function renderGroups() {
+// RENDER FOLDERS
+function renderFolders() {
+  if (!groupList) return;
+
   groupList.innerHTML = "";
-  groups.forEach((group, index) => {
+
+  folders.forEach((folder, index) => {
     const li = document.createElement("li");
-    li.textContent = group.name;
-    li.onclick = () => selectGroup(index);
+    li.textContent = folder.name;
+    li.onclick = () => selectFolder(index);
     groupList.appendChild(li);
   });
 }
 
-function selectGroup(index) {
-  activeGroupIndex = index;
-  const group = groups[index];
+// SELECT FOLDER
+function selectFolder(index) {
+  activeFolderIndex = index;
+  const folder = folders[index];
 
   document.querySelector(".main h1").textContent =
-    `Create Post – ${group.name}`;
+    `Create Post – ${folder.name}`;
 
-  brandCTA.value = group.cta || "";
-  brandHashtags.value = group.hashtags || "";
-  brandTone.value = group.tone || "professional";
+  brandCTA.value = folder.brand?.cta || "";
+  brandHashtags.value = folder.brand?.hashtags || "";
+  brandTone.value = folder.brand?.tone || "professional";
 }
 
-// ADD GROUP
-addGroupBtn.onclick = () => {
-  const name = prompt("Group name?");
-  if (!name) return;
+// ADD FOLDER (from post creator page)
+if (addGroupBtn) {
+  addGroupBtn.onclick = () => {
+    const name = prompt("Folder name?");
+    if (!name) return;
 
-  groups.push({
-    name,
-    cta: "",
-    hashtags: "",
-    tone: "professional",
-  });
+    folders.push({
+      name,
+      brand: {
+        cta: "",
+        hashtags: "",
+        tone: "professional",
+      },
+      accounts: [],
+    });
 
-  saveGroups();
-  renderGroups();
-};
+    saveFolders();
+    renderFolders();
+  };
+}
 
 // BRAND SETTINGS SAVE
-brandCTA.oninput = () => {
-  if (activeGroupIndex === null) return;
-  groups[activeGroupIndex].cta = brandCTA.value;
-  saveGroups();
-};
+if (brandCTA) {
+  brandCTA.oninput = () => {
+    if (activeFolderIndex === null) return;
+    folders[activeFolderIndex].brand.cta = brandCTA.value;
+    saveFolders();
+  };
+}
 
-brandHashtags.oninput = () => {
-  if (activeGroupIndex === null) return;
-  groups[activeGroupIndex].hashtags = brandHashtags.value;
-  saveGroups();
-};
+if (brandHashtags) {
+  brandHashtags.oninput = () => {
+    if (activeFolderIndex === null) return;
+    folders[activeFolderIndex].brand.hashtags = brandHashtags.value;
+    saveFolders();
+  };
+}
 
-brandTone.onchange = () => {
-  if (activeGroupIndex === null) return;
-  groups[activeGroupIndex].tone = brandTone.value;
-  saveGroups();
-};
+if (brandTone) {
+  brandTone.onchange = () => {
+    if (activeFolderIndex === null) return;
+    folders[activeFolderIndex].brand.tone = brandTone.value;
+    saveFolders();
+  };
+}
 
 // TAB SWITCHING
 tabs.forEach(tab => {
@@ -102,67 +118,69 @@ tabs.forEach(tab => {
 });
 
 // GENERATE CONTENT
-generateBtn.onclick = () => {
-  const idea = postIdea.value.trim();
-  if (!idea) return;
+if (generateBtn) {
+  generateBtn.onclick = () => {
+    const idea = postIdea.value.trim();
+    if (!idea) return;
 
-  const group =
-    groups[activeGroupIndex] || {
-      name: "Your Brand",
-      cta: "",
-      hashtags: "",
-      tone: "professional",
+    const folder =
+      folders[activeFolderIndex] || {
+        name: "Your Brand",
+        brand: { cta: "", hashtags: "", tone: "professional" },
+      };
+
+    const toneMap = {
+      professional: "Clear, professional, trustworthy tone.",
+      casual: "Relaxed, friendly, human tone.",
+      aggressive: "Direct, confident, sales-focused tone.",
     };
 
-  const toneMap = {
-    professional: "Clear, professional, trustworthy tone.",
-    casual: "Relaxed, friendly, human tone.",
-    aggressive: "Direct, confident, sales-focused tone.",
-  };
+    const tags = folder.brand.hashtags
+      .split(",")
+      .map(t => t.trim())
+      .filter(Boolean)
+      .map(t => `#${t.replace(/\s+/g, "")}`)
+      .join(" ");
 
-  const tags = group.hashtags
-    .split(",")
-    .map(t => t.trim())
-    .filter(Boolean)
-    .map(t => `#${t.replace(/\s+/g, "")}`)
-    .join(" ");
-
-  outputs.facebook.value =
-`${group.name}
+    outputs.facebook.value =
+`${folder.name}
 ${idea}
 
-${toneMap[group.tone]}
-${group.cta}
+${toneMap[folder.brand.tone]}
+${folder.brand.cta}
 
 ${tags}`;
 
-  outputs.instagram.value =
+    outputs.instagram.value =
 `${idea} 🔥
 
-${group.cta}
+${folder.brand.cta}
 
 ${tags}`;
 
-  outputs.tiktok.value =
+    outputs.tiktok.value =
 `${idea} 😮
-${group.cta}
+${folder.brand.cta}
 
 ${tags}`;
 
-  outputs.youtube.value =
-`${idea} | ${group.name}
+    outputs.youtube.value =
+`${idea} | ${folder.name}
 
-${toneMap[group.tone]}
-${group.cta}
+${toneMap[folder.brand.tone]}
+${folder.brand.cta}
 
-Keywords: ${idea.toLowerCase()}, ${group.name.toLowerCase()}`;
-};
+Keywords: ${idea.toLowerCase()}, ${folder.name.toLowerCase()}`;
+  };
+}
 
 // COPY BUTTON
-copyBtn.onclick = () => {
-  outputs[activePlatform].select();
-  document.execCommand("copy");
-};
+if (copyBtn) {
+  copyBtn.onclick = () => {
+    outputs[activePlatform].select();
+    document.execCommand("copy");
+  };
+}
 
 // INIT
-renderGroups();
+renderFolders();
