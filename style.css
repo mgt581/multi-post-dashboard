@@ -1,16 +1,22 @@
+/* RESET */
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   font-family: Arial, sans-serif;
   background: #f5f7fa;
 }
 
+/* LAYOUT */
 .app {
   display: flex;
   height: 100vh;
 }
 
 .sidebar {
-  width: 250px;
+  width: 240px;
   background: #0f172a;
   color: white;
   padding: 15px;
@@ -23,33 +29,93 @@ body {
 .sidebar ul {
   list-style: none;
   padding: 0;
+  margin: 0;
 }
 
 .sidebar li {
   padding: 6px 0;
+  cursor: pointer;
+}
+
+.sidebar li:hover {
+  text-decoration: underline;
 }
 
 .sidebar button {
   width: 100%;
   margin-top: 10px;
+  padding: 8px;
 }
 
+/* MAIN */
 .main {
   flex: 1;
   padding: 20px;
+  overflow-y: auto;
 }
 
-input, textarea {
+input,
+textarea,
+select {
   width: 100%;
-  margin-bottom: 10px;
   padding: 10px;
+  margin-bottom: 10px;
   font-size: 14px;
 }
 
 textarea {
-  height: 200px;
+  min-height: 180px;
+  resize: vertical;
+}
+
+/* BRAND SETTINGS */
+.brand-settings {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.brand-settings input,
+.brand-settings select {
+  flex: 1;
+}
+
+/* TABS */
+.tabs {
+  display: flex;
+  margin-bottom: 10px;
+}
+
+.tab {
+  padding: 8px 14px;
+  border: none;
+  background: #e5e7eb;
+  cursor: pointer;
+  margin-right: 5px;
+}
+
+.tab.active {
+  background: #0f172a;
+  color: white;
+}
+
+/* OUTPUTS */
+.platform-output {
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.hidden {
+  display: none;
+}
+
+/* ACTIONS */
+.actions {
+  display: flex;
+  gap: 10px;
 }
 
 .actions button {
-  margin-right: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
 }
