@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Multi-Platform Posting Tool</title>
+  <title>Content Hub</title>
   <link rel="stylesheet" href="styles.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 </head>
 <body>
 
@@ -12,10 +13,10 @@
     <h1>Content Hub</h1>
   </header>
 
-  <!-- MAIN WRAPPER -->
+  <!-- MAIN LAYOUT -->
   <div class="container">
 
-    <!-- LEFT PANEL -->
+    <!-- SIDEBAR -->
     <aside class="sidebar">
       <button class="btn btn-post">My Posting Page</button>
 
@@ -28,7 +29,7 @@
     <!-- MAIN CONTENT -->
     <main class="main">
 
-      <!-- STORAGE / FOLDERS -->
+      <!-- FOLDERS SECTION -->
       <section class="storage">
         <div class="storage-header">
           <h2>Folders</h2>
@@ -44,10 +45,12 @@
             <span class="folder-icon">📁</span>
             <p>Teeth Whitening</p>
           </div>
+
           <div class="folder-card">
             <span class="folder-icon">📁</span>
             <p>Gaming Clips</p>
           </div>
+
           <div class="folder-card">
             <span class="folder-icon">📁</span>
             <p>Cleaning Business</p>
@@ -55,7 +58,7 @@
         </div>
       </section>
 
-      <!-- UPLOAD AREA -->
+      <!-- UPLOAD / ACTION SECTION -->
       <section class="upload">
         <h2>Upload Content</h2>
 
@@ -66,8 +69,10 @@
           <option>Cleaning Business</option>
         </select>
 
-        <button class="btn btn-upload">Upload Media</button>
-        <button class="btn btn-generate">Generate SEO</button>
+        <div class="upload-actions">
+          <button class="btn btn-upload">Upload Media</button>
+          <button class="btn btn-generate">Generate SEO</button>
+        </div>
 
         <!-- SEO PREVIEW -->
         <div class="seo-box">
@@ -84,7 +89,6 @@
         </div>
 
         <button class="btn btn-publish">Publish</button>
-
       </section>
 
     </main>
