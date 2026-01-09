@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Folder</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<div class="app">
+
+  <!-- HEADER -->
+  <header class="header">
+    <a href="posting.html" class="gear">←</a>
+    <span class="title" id="folderTitle">Folder</span>
+    <span></span>
+  </header>
+
+  <!-- FOLDER SUMMARY -->
+  <section class="cards">
+    <div class="card">
+      <div class="card-text">
+        <strong id="folderName">Loading…</strong>
+        <span id="accountCount">0 connected accounts</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ACCOUNTS LIST -->
+  <section class="cards" id="accountList">
+    <!-- Accounts injected here -->
+  </section>
+
+  <!-- ADD ACCOUNT -->
+  <section class="cards">
+    <div class="card green" onclick="showAddAccount()">
+      <div class="icon green">+</div>
+      <div class="card-text">
+        <strong>Add Account</strong>
+        <span>Facebook, TikTok, Instagram, YouTube</span>
+      </div>
+      <div class="arrow">›</div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+  // Load folders
+  let folders = JSON.parse(localStorage.getItem("folders")) || [];
+  let activeFolderIndex = localStorage.getItem("activeFolder");
+
+  const folder = folders[activeFolderIndex];
+
+  const folderNameEl = document.getElementById("folderName");
+  const folderTitleEl = document.getElementById("folderTitle");
+  const accountCountEl = document.getElementById("accountCount");
+  const accountListEl = document.getElementById("accountList");
+
+  if (!folder) {
+    folderNameEl.textContent = "Folder not found";
+  } else {
+    folderNameEl.textContent = folder.name;
+    folderTitleEl.textContent = folder.name;
+    renderAccounts();
+  }
+
+  function renderAccounts() {
+    accountListEl.innerHTML = "";
+    accountCountEl.textContent = `${folder.accounts.length} connected accounts`;
+
+    if (folder.accounts.length === 0) {
+      accountListEl.innerHTML = `
+        <div class="card">
+          <div class="card-text">
+            <strong>No accounts yet</strong>
+            <span>Add a platform account to get started</span>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    folder.accounts.forEach(acc => {
+      const div = document.createElement("div");
+      div.className = "card";
+      div.innerHTML = `
+        <div class="icon ${acc.platform}">${acc.platform[0].toUpperCase()}</div>
+        <div class="card-text">
+          <strong>${acc.name}</strong>
+          <span>${acc.platform} account</span>
+        </div>
+      `;
+      accountListEl.appendChild(div);
+    });
+  }
+
+  function showAddAccount() {
+    alert(
+      "Next step:\n\n" +
+      "• Choose platform\n" +
+      "• Authorise account\n" +
+      "• Add to this folder\n\n" +
+      "We’ll wire this next."
+    );
+  }
+</script>
+
+</body>
+</html>
