@@ -16,3 +16,74 @@
 
     <main class="main">
       <h1>Create Post</h1>
+
+      <input
+        id="postIdea"
+        placeholder="What is this post about?"
+        type="text"
+      />
+
+      <!-- BRAND SETTINGS -->
+      <div class="brand-settings">
+        <input
+          id="brandCTA"
+          placeholder="Default CTA (e.g. Book now / DM us)"
+          type="text"
+        />
+
+        <input
+          id="brandHashtags"
+          placeholder="Hashtags (comma separated)"
+          type="text"
+        />
+
+        <select id="brandTone">
+          <option value="professional">Professional</option>
+          <option value="casual">Casual</option>
+          <option value="aggressive">Direct / Sales</option>
+        </select>
+      </div>
+
+      <!-- PLATFORM TABS -->
+      <div class="tabs">
+        <button class="tab active" data-platform="facebook">Facebook</button>
+        <button class="tab" data-platform="instagram">Instagram</button>
+        <button class="tab" data-platform="tiktok">TikTok</button>
+        <button class="tab" data-platform="youtube">YouTube</button>
+      </div>
+
+      <!-- PLATFORM OUTPUTS -->
+      <textarea
+        id="facebook"
+        class="platform-output"
+        placeholder="Facebook caption..."
+      ></textarea>
+
+      <textarea
+        id="instagram"
+        class="platform-output hidden"
+        placeholder="Instagram caption..."
+      ></textarea>
+
+      <textarea
+        id="tiktok"
+        class="platform-output hidden"
+        placeholder="TikTok caption..."
+      ></textarea>
+
+      <textarea
+        id="youtube"
+        class="platform-output hidden"
+        placeholder="YouTube title & description..."
+      ></textarea>
+
+      <div class="actions">
+        <button id="generateBtn">Generate Captions</button>
+        <button id="copyBtn">Copy Current Tab</button>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
