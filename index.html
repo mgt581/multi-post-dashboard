@@ -2,88 +2,93 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Multi-Platform Post Tool</title>
+  <title>Multi-Platform Posting Tool</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 
-  <div class="app">
+  <!-- TOP BAR -->
+  <header class="top-bar">
+    <h1>Content Hub</h1>
+  </header>
+
+  <!-- MAIN WRAPPER -->
+  <div class="container">
+
+    <!-- LEFT PANEL -->
     <aside class="sidebar">
-      <h2>Groups</h2>
-      <ul id="groupList"></ul>
-      <button id="addGroupBtn">+ Add Group</button>
+      <button class="btn btn-post">My Posting Page</button>
+
+      <button class="btn btn-facebook">Add Facebook Accounts</button>
+      <button class="btn btn-tiktok">Add TikTok Accounts</button>
+      <button class="btn btn-youtube">Add YouTube Accounts</button>
+      <button class="btn btn-instagram">Add Instagram Accounts</button>
     </aside>
 
+    <!-- MAIN CONTENT -->
     <main class="main">
-      <h1>Create Post</h1>
 
-      <input
-        id="postIdea"
-        placeholder="What is this post about?"
-        type="text"
-      />
+      <!-- STORAGE / FOLDERS -->
+      <section class="storage">
+        <div class="storage-header">
+          <h2>Folders</h2>
+          <div class="folder-actions">
+            <button class="small-btn">+ New Folder</button>
+            <button class="small-btn">Rename</button>
+            <button class="small-btn danger">Delete</button>
+          </div>
+        </div>
 
-      <!-- BRAND SETTINGS -->
-      <div class="brand-settings">
-        <input
-          id="brandCTA"
-          placeholder="Default CTA (e.g. Book now / DM us)"
-          type="text"
-        />
+        <div class="folder-grid">
+          <div class="folder-card">
+            <span class="folder-icon">📁</span>
+            <p>Teeth Whitening</p>
+          </div>
+          <div class="folder-card">
+            <span class="folder-icon">📁</span>
+            <p>Gaming Clips</p>
+          </div>
+          <div class="folder-card">
+            <span class="folder-icon">📁</span>
+            <p>Cleaning Business</p>
+          </div>
+        </div>
+      </section>
 
-        <input
-          id="brandHashtags"
-          placeholder="Hashtags (comma separated)"
-          type="text"
-        />
+      <!-- UPLOAD AREA -->
+      <section class="upload">
+        <h2>Upload Content</h2>
 
-        <select id="brandTone">
-          <option value="professional">Professional</option>
-          <option value="casual">Casual</option>
-          <option value="aggressive">Direct / Sales</option>
+        <select class="dropdown">
+          <option>Select Folder</option>
+          <option>Teeth Whitening</option>
+          <option>Gaming Clips</option>
+          <option>Cleaning Business</option>
         </select>
-      </div>
 
-      <!-- PLATFORM TABS -->
-      <div class="tabs">
-        <button class="tab active" data-platform="facebook">Facebook</button>
-        <button class="tab" data-platform="instagram">Instagram</button>
-        <button class="tab" data-platform="tiktok">TikTok</button>
-        <button class="tab" data-platform="youtube">YouTube</button>
-      </div>
+        <button class="btn btn-upload">Upload Media</button>
+        <button class="btn btn-generate">Generate SEO</button>
 
-      <!-- PLATFORM OUTPUTS -->
-      <textarea
-        id="facebook"
-        class="platform-output"
-        placeholder="Facebook caption..."
-      ></textarea>
+        <!-- SEO PREVIEW -->
+        <div class="seo-box">
+          <h3>Generated SEO</h3>
+          <p>Title, description, hashtags will appear here…</p>
+        </div>
 
-      <textarea
-        id="instagram"
-        class="platform-output hidden"
-        placeholder="Instagram caption..."
-      ></textarea>
+        <!-- PLATFORM CHECKLIST -->
+        <div class="platform-checklist">
+          <label><input type="checkbox" checked /> Facebook</label>
+          <label><input type="checkbox" checked /> Instagram</label>
+          <label><input type="checkbox" /> TikTok</label>
+          <label><input type="checkbox" /> YouTube</label>
+        </div>
 
-      <textarea
-        id="tiktok"
-        class="platform-output hidden"
-        placeholder="TikTok caption..."
-      ></textarea>
+        <button class="btn btn-publish">Publish</button>
 
-      <textarea
-        id="youtube"
-        class="platform-output hidden"
-        placeholder="YouTube title & description..."
-      ></textarea>
+      </section>
 
-      <div class="actions">
-        <button id="generateBtn">Generate Captions</button>
-        <button id="copyBtn">Copy Current Tab</button>
-      </div>
     </main>
   </div>
 
-  <script src="app.js"></script>
 </body>
 </html>
