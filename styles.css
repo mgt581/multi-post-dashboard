@@ -1,162 +1,203 @@
-* {
-  box-sizing: border-box;
-}
-
+/* Base */
+* { box-sizing: border-box; }
+html, body { height: 100%; }
 body {
   margin: 0;
-  font-family: Arial, sans-serif;
-  background: #f1f5f9;
-}
-
-/* TOP BAR */
-.top-bar {
-  background: #0f172a;
-  color: white;
-  padding: 15px 20px;
-}
-
-/* LAYOUT */
-.container {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  background: #e9f6fb; /* light cyan like Pic 1 */
   display: flex;
-  height: calc(100vh - 60px);
+  justify-content: center;
+  padding: 18px;
 }
 
-/* SIDEBAR */
-.sidebar {
-  width: 260px;
-  background: #020617;
-  padding: 15px;
+/* Phone frame */
+.phone{
+  width: 100%;
+  max-width: 420px;
+  background: #e9f6fb;
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0,0,0,.08);
+}
+
+/* Top bar */
+.topbar{
+  height: 54px;
+  background: #ffffff;
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 2px solid #d9f0f7;
 }
-
-/* BUTTON BASE */
-.btn {
-  padding: 12px;
+.topbar-title{
+  font-weight: 700;
+  color: #2b7dbb;
+  letter-spacing: .2px;
+}
+.icon-btn{
+  width: 38px; height: 38px;
   border: none;
-  font-weight: bold;
+  background: transparent;
+  display: grid;
+  place-items: center;
   cursor: pointer;
+}
+.icon-btn svg{
+  width: 22px; height: 22px;
+  fill: #2b7dbb;
+}
+
+/* Hero */
+.hero{
+  background: #3aa7e6; /* Pic 1 blue */
+  padding: 22px 18px 18px;
+  text-align: center;
+}
+.cloud-wrap{ display:flex; justify-content:center; }
+.cloud-circle{
+  width: 120px; height: 120px;
+  background: #fff;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  position: relative;
+  box-shadow: inset 0 0 0 6px rgba(255,255,255,.35);
+}
+.cloud-circle svg{
+  width: 70px; height: 70px;
+  fill: #5ab5ea;
+  opacity: .95;
+}
+.mini-folder{
+  width: 34px; height: 26px;
+  background: #ff9f2f;
   border-radius: 6px;
+  position: absolute;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  box-shadow: 0 2px 0 rgba(0,0,0,.08);
+}
+.hero-text{ margin-top: 10px; }
+.hero-big{
+  color: #fff;
+  font-weight: 700;
+  font-size: 18px;
+  opacity: .95;
 }
 
-/* PLATFORM BUTTONS */
-.btn-post {
+/* Upload label area */
+.upload-title{
+  padding: 16px 18px 10px;
+  text-align: center;
+}
+.upload-icon{
+  width: 50px; height: 50px;
+  margin: 0 auto 6px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: #ff9f2f;
+}
+.upload-icon svg{
+  width: 40px; height: 40px;
+  fill: #ff9f2f;
+}
+.upload-label{
+  font-weight: 700;
+  color: #2b7dbb;
+}
+
+/* Cards section */
+.cards{
+  padding: 6px 14px 18px;
+  display: grid;
+  gap: 14px;
+}
+
+/* Card button base (Pic 1 style) */
+.card{
+  border: 3px solid #74bfe6;
+  background: #e9f6fb;
+  border-radius: 16px;
+  padding: 14px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  text-align: left;
+}
+
+.card-left{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.card-icon{
+  width: 52px; height: 52px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 22px;
+}
+
+/* Text */
+.card-title{
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.card-sub{
+  font-size: 12px;
+  margin-top: 4px;
+  opacity: .75;
+  font-weight: 600;
+}
+
+/* Chevron */
+.chev{
+  font-size: 28px;
+  font-weight: 900;
+  color: #ff6a6a; /* matches the red chevron vibe */
+  padding-left: 8px;
+}
+
+/* Your button colours (as requested) */
+.card-post .card-icon{
   background: #16a34a;
-  color: white;
+  color: #fff;
 }
+.card-post .card-title{ color:#0b3d1d; }
 
-.btn-facebook {
+.card-facebook .card-icon{
   background: #1877f2;
-  color: white;
+  color: #fff;
+  font-family: Arial, sans-serif;
 }
+.card-facebook .card-title{ color:#0b3a7a; }
 
-.btn-tiktok {
+.card-tiktok .card-icon{
   background: #000;
-  color: white;
+  color: #fff;
 }
+.card-tiktok .card-title{ color:#111; }
 
-.btn-youtube {
-  background: white;
+.card-youtube{
+  background: #fff;
+  border-color: #74bfe6;
+}
+.card-youtube .card-icon{
+  background: #fff;
   color: #dc2626;
   border: 2px solid #dc2626;
 }
+.card-youtube .card-title{ color:#dc2626; }
 
-.btn-instagram {
+.card-instagram .card-icon{
   background: linear-gradient(45deg,#f58529,#dd2a7b,#8134af,#515bd4);
-  color: white;
+  color: #fff;
 }
-
-/* MAIN */
-.main {
-  flex: 1;
-  padding: 20px;
-  overflow-y: auto;
-}
-
-/* STORAGE */
-.storage {
-  background: white;
-  padding: 15px;
-  border-radius: 10px;
-  margin-bottom: 20px;
-}
-
-.storage-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.folder-actions .small-btn {
-  padding: 6px 10px;
-  margin-left: 5px;
-}
-
-.small-btn.danger {
-  background: #dc2626;
-  color: white;
-}
-
-.folder-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 15px;
-  margin-top: 15px;
-}
-
-.folder-card {
-  background: #e5e7eb;
-  padding: 15px;
-  text-align: center;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.folder-icon {
-  font-size: 32px;
-}
-
-/* UPLOAD */
-.upload {
-  background: white;
-  padding: 15px;
-  border-radius: 10px;
-}
-
-.dropdown {
-  width: 100%;
-  padding: 10px;
-  margin-bottom: 10px;
-}
-
-.btn-upload {
-  background: #2563eb;
-  color: white;
-  margin-right: 10px;
-}
-
-.btn-generate {
-  background: #9333ea;
-  color: white;
-}
-
-.seo-box {
-  margin-top: 15px;
-  padding: 10px;
-  background: #f8fafc;
-  border: 1px dashed #94a3b8;
-}
-
-.platform-checklist {
-  margin: 15px 0;
-  display: flex;
-  gap: 15px;
-}
-
-.btn-publish {
-  background: #16a34a;
-  color: white;
-  width: 100%;
-  font-size: 16px;
-}
+.card-instagram .card-title{ color:#2b1b4d; }
