@@ -2,114 +2,87 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Content Hub</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Cloud Storage</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 
-  <!-- PHONE FRAME (keeps it looking like Pic 1 on desktop too) -->
-  <div class="phone">
+  <div class="app">
 
-    <!-- TOP BAR -->
-    <header class="topbar">
-      <div class="topbar-title">Cloud Storage</div>
-      <button class="icon-btn" aria-label="Settings">
-        <!-- Gear icon -->
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.1 7.1 0 0 0-1.63-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.23-1.12.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 7.84a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.83 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.3.6.22l2.39-.96c.5.4 1.05.71 1.63.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.58-.23 1.12-.54 1.63-.94l2.39.96c.22.09.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"/>
-        </svg>
-      </button>
+    <!-- HEADER -->
+    <header class="header">
+      <span class="title">Cloud Storage</span>
+      <span class="gear">⚙️</span>
     </header>
 
-    <!-- HERO PANEL -->
+    <!-- HERO -->
     <section class="hero">
       <div class="cloud-wrap">
-        <div class="cloud-circle">
-          <!-- Cloud icon -->
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M19 18H7a4 4 0 0 1 0-8 5 5 0 0 1 9.7-1.6A3.5 3.5 0 0 1 19 18Z"/>
-          </svg>
-          <div class="mini-folder"></div>
+        <div class="cloud">
+          <div class="folder"></div>
         </div>
-      </div>
-      <div class="hero-text">
-        <div class="hero-big">12 GB available</div>
+        <div class="storage-text">12 Gb avaible</div>
       </div>
     </section>
 
-    <!-- UPLOAD TITLE -->
+    <!-- UPLOAD -->
     <section class="upload-title">
-      <div class="upload-icon">
-        <!-- upload cloud icon -->
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M19 18H7a4 4 0 0 1 0-8 5 5 0 0 1 9.7-1.6A3.5 3.5 0 0 1 19 18Z"/>
-          <path d="M12 16V10m0 0 2 2m-2-2-2 2" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
-      <div class="upload-label">Upload</div>
+      <div class="upload-icon">☁️⬆️</div>
+      <div class="upload-text">Upload</div>
     </section>
 
-    <!-- CARDS (YOUR BUTTONS, styled like Pic 1) -->
+    <!-- ACTION CARDS -->
     <section class="cards">
 
-      <button class="card card-post">
-        <div class="card-left">
-          <div class="card-icon">🟩</div>
-          <div class="card-text">
-            <div class="card-title">My Posting Page</div>
-            <div class="card-sub">Open your posting dashboard</div>
-          </div>
+      <div class="card post">
+        <div class="icon green"></div>
+        <div class="card-text">
+          <strong>My Posting Page</strong>
+          <span>Open your posting dashboard</span>
         </div>
-        <div class="chev">›</div>
-      </button>
+        <div class="arrow">›</div>
+      </div>
 
-      <button class="card card-facebook">
-        <div class="card-left">
-          <div class="card-icon">f</div>
-          <div class="card-text">
-            <div class="card-title">Add Facebook Accounts</div>
-            <div class="card-sub">Pages + profiles (later)</div>
-          </div>
+      <div class="card facebook">
+        <div class="icon blue">f</div>
+        <div class="card-text">
+          <strong>Add Facebook Accounts</strong>
+          <span>Pages + profiles</span>
         </div>
-        <div class="chev">›</div>
-      </button>
+        <div class="arrow">›</div>
+      </div>
 
-      <button class="card card-tiktok">
-        <div class="card-left">
-          <div class="card-icon">♪</div>
-          <div class="card-text">
-            <div class="card-title">Add TikTok Accounts</div>
-            <div class="card-sub">Connect your TikTok profiles</div>
-          </div>
+      <div class="card tiktok">
+        <div class="icon black">♪</div>
+        <div class="card-text">
+          <strong>Add TikTok Accounts</strong>
+          <span>Connect TikTok profiles</span>
         </div>
-        <div class="chev">›</div>
-      </button>
+        <div class="arrow">›</div>
+      </div>
 
-      <button class="card card-youtube">
-        <div class="card-left">
-          <div class="card-icon">▶</div>
-          <div class="card-text">
-            <div class="card-title">Add YouTube Accounts</div>
-            <div class="card-sub">Channels + upload settings</div>
-          </div>
+      <div class="card youtube">
+        <div class="icon red">▶</div>
+        <div class="card-text">
+          <strong>Add YouTube Accounts</strong>
+          <span>Channels + uploads</span>
         </div>
-        <div class="chev">›</div>
-      </button>
+        <div class="arrow">›</div>
+      </div>
 
-      <button class="card card-instagram">
-        <div class="card-left">
-          <div class="card-icon">◎</div>
-          <div class="card-text">
-            <div class="card-title">Add Instagram Accounts</div>
-            <div class="card-sub">Connect IG business accounts</div>
-          </div>
+      <div class="card instagram">
+        <div class="icon insta">◎</div>
+        <div class="card-text">
+          <strong>Add Instagram Accounts</strong>
+          <span>IG business accounts</span>
         </div>
-        <div class="chev">›</div>
-      </button>
+        <div class="arrow">›</div>
+      </div>
 
     </section>
 
   </div>
+
 </body>
 </html>
