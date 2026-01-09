@@ -201,3 +201,15 @@ a {
   text-decoration: none;
   color: inherit;
 }
+
+/* Ensure platform icons are visible */
+.icon {
+  font-size: 20px;
+}
+
+.icon.facebook { background: #1877f2; }
+.icon.tiktok { background: #000000; }
+.icon.youtube { background: #ff0000; }
+.icon.instagram {
+  background: linear-gradient(45deg, #f58529, #dd2a7b, #8134af);
+}
