@@ -2,188 +2,171 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Create Post</title>
-  <link rel="stylesheet" href="styles.css" />
+
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #eef7fb;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .card {
+      background: #e8f5fb;
+      border: 2px solid #9fd3ea;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      margin: 0 0 8px 0;
+    }
+
+    textarea, input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 10px;
+      border: 2px solid #9fd3ea;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+
+    textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #19a84b;
+      color: white;
+      padding: 16px;
+      border-radius: 16px;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      width: 100%;
+    }
+
+    .btn span {
+      font-size: 22px;
+    }
+
+    .btn.secondary {
+      background: #1fa3dc;
+    }
+
+    .loading {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+  </style>
 </head>
+
 <body>
 
-<div class="app">
+  <div class="card">
+    <h2>Tell us about your video</h2>
+    <textarea id="videoPrompt" placeholder="e.g. Highlights of AFC Bournemouth football goals"></textarea>
+  </div>
 
-  <!-- HEADER -->
-  <header class="header">
-    <a href="folder.html" class="gear">←</a>
-    <span class="title" id="pageTitle">Create Post</span>
-    <span></span>
-  </header>
+  <div class="card">
+    <button class="btn" id="generateBtn">
+      ✨ Generate SEO
+      <span>›</span>
+    </button>
+  </div>
 
-  <!-- FOLDER CONTEXT -->
-  <section class="cards">
-    <div class="card">
-      <div class="card-text">
-        <strong id="folderName">Folder</strong>
-        <span>Posting into this folder</span>
-      </div>
-    </div>
-  </section>
+  <div class="card">
+    <h2>YouTube Title</h2>
+    <input id="ytTitle" placeholder="Auto-generated title"/>
+  </div>
 
-  <!-- UPLOAD -->
-  <section class="cards">
-    <div class="card">
-      <div class="card-text">
-        <strong>Upload Media</strong>
-        <span>Video for YouTube (image later)</span>
-      </div>
-      <input type="file" id="mediaFile" accept="video/*" />
-    </div>
-  </section>
+  <div class="card">
+    <h2>YouTube Description</h2>
+    <textarea id="ytDescription" placeholder="Auto-generated description"></textarea>
+  </div>
 
-  <!-- POST IDEA -->
-  <section class="cards">
-    <div class="card">
-      <textarea
-        id="postIdea"
-        placeholder="What is this post about?"
-        style="width:100%; min-height:80px;"
-      ></textarea>
-    </div>
-  </section>
+  <div class="card">
+    <h2>Hashtags</h2>
+    <input id="ytHashtags" placeholder="#hashtags"/>
+  </div>
 
-  <!-- ACTIONS -->
-  <section class="cards">
-    <div class="card post green" onclick="generateSEO()">
-      <div class="icon green">✨</div>
-      <div class="card-text">
-        <strong>Generate SEO</strong>
-        <span>Title, description & hashtags</span>
-      </div>
-      <div class="arrow">›</div>
-    </div>
-  </section>
-
-  <!-- SEO OUTPUT -->
-  <section class="cards">
-    <div class="card">
-      <div class="card-text">
-        <strong>YouTube Title</strong>
-      </div>
-      <textarea id="ytTitle"></textarea>
-    </div>
-
-    <div class="card">
-      <div class="card-text">
-        <strong>YouTube Description</strong>
-      </div>
-      <textarea id="ytDescription" style="min-height:120px;"></textarea>
-    </div>
-
-    <div class="card">
-      <div class="card-text">
-        <strong>Hashtags</strong>
-      </div>
-      <textarea id="ytHashtags"></textarea>
-    </div>
-  </section>
-
-  <!-- PUBLISH -->
-  <section class="cards">
-    <div class="card post green" onclick="publishPost()">
-      <div class="icon green">🚀</div>
-      <div class="card-text">
-        <strong>Publish</strong>
-        <span>YouTube (MVP mode)</span>
-      </div>
-      <div class="arrow">›</div>
-    </div>
-  </section>
-
-</div>
+  <div class="card">
+    <button class="btn secondary">
+      🚀 Publish (YouTube MVP)
+      <span>›</span>
+    </button>
+  </div>
 
 <script>
-  // -----------------------------
-  // LOAD CONTEXT
-  // -----------------------------
-  const folders = JSON.parse(localStorage.getItem("folders")) || [];
-  const activeFolderIndex = localStorage.getItem("activeFolder");
-  const folder = folders[activeFolderIndex];
-
-  if (!folder) {
-    alert("Folder not found");
-    window.location.href = "posting.html";
+async function generateSEO() {
+  const prompt = document.getElementById("videoPrompt").value.trim();
+  if (!prompt) {
+    alert("Please describe your video first.");
+    return;
   }
 
-  document.getElementById("folderName").textContent = folder.name;
-  document.getElementById("pageTitle").textContent =
-    `Create Post – ${folder.name}`;
+  const btn = document.getElementById("generateBtn");
+  btn.classList.add("loading");
+  btn.innerText = "Generating…";
 
-  // Ensure drafts array exists
-  folder.drafts = folder.drafts || [];
+  try {
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer YOUR_OPENAI_API_KEY_HERE"
+      },
+      body: JSON.stringify({
+        model: "gpt-5-nano",
+        input: `
+Generate high-quality YouTube SEO content.
 
-  // -----------------------------
-  // GENERATE SEO (MVP)
-  // -----------------------------
-  function generateSEO() {
-    const idea = document.getElementById("postIdea").value.trim();
-    if (!idea) {
-      alert("Enter a post idea first");
-      return;
-    }
+Topic:
+${prompt}
 
-    const title = `${idea} | ${folder.name}`;
-    const description =
-`${idea}
+Return exactly this format:
 
-${folder.brand?.cta || ""}
+TITLE:
+<one compelling YouTube title>
 
-Subscribe for more from ${folder.name}`;
+DESCRIPTION:
+<SEO-optimised description with keywords naturally included>
 
-    const hashtags =
-      (folder.brand?.hashtags || "")
-        .split(",")
-        .map(t => t.trim())
-        .filter(Boolean)
-        .map(t => `#${t.replace(/\s+/g, "")}`)
-        .join(" ");
+HASHTAGS:
+<#hashtag #hashtag #hashtag>
+        `
+      })
+    });
 
-    document.getElementById("ytTitle").value = title;
-    document.getElementById("ytDescription").value = description;
-    document.getElementById("ytHashtags").value = hashtags;
+    const data = await response.json();
+    const text = data.output_text || "";
+
+    const title = text.match(/TITLE:\s*(.*)/)?.[1] || "";
+    const description = text.match(/DESCRIPTION:\s*([\s\S]*?)HASHTAGS:/)?.[1] || "";
+    const hashtags = text.match(/HASHTAGS:\s*(.*)/)?.[1] || "";
+
+    document.getElementById("ytTitle").value = title.trim();
+    document.getElementById("ytDescription").value = description.trim();
+    document.getElementById("ytHashtags").value = hashtags.trim();
+
+  } catch (err) {
+    console.error(err);
+    alert("SEO generation failed. Check API key.");
   }
 
-  // -----------------------------
-  // PUBLISH (MVP MODE)
-  // -----------------------------
-  function publishPost() {
-    const fileInput = document.getElementById("mediaFile");
-    const title = document.getElementById("ytTitle").value;
-    const description = document.getElementById("ytDescription").value;
-    const hashtags = document.getElementById("ytHashtags").value;
+  btn.classList.remove("loading");
+  btn.innerHTML = "✨ Generate SEO <span>›</span>";
+}
 
-    if (!fileInput.files.length) {
-      alert("Please select a video file");
-      return;
-    }
-
-    if (!title || !description) {
-      alert("Generate SEO before publishing");
-      return;
-    }
-
-    const draft = {
-      idea: document.getElementById("postIdea").value,
-      seo: { title, description, hashtags },
-      fileName: fileInput.files[0].name,
-      createdAt: Date.now()
-    };
-
-    folder.drafts.push(draft);
-    folders[activeFolderIndex] = folder;
-    localStorage.setItem("folders", JSON.stringify(folders));
-
-    // MVP publish action
-    alert("Draft saved. Opening YouTube Studio…");
-    window.open("https://studio.youtube.com", "_blank");
-  }
+document.getElementById("generateBtn").addEventListener("click", generateSEO);
 </script>
 
 </body>
