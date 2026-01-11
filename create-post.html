@@ -60,7 +60,8 @@
     <h2>Tell us about your video</h2>
     <textarea
       id="videoPrompt"
-      placeholder="Describe your video content, topic, audience, and goal…"></textarea>
+      placeholder="Describe your video content, topic, audience, and goal…">
+    </textarea>
   </div>
 
   <div class="card">
@@ -93,14 +94,6 @@
   </div>
 
 <script>
-const WORKER_URL = "https://multipost-seo-worker.alexbryantwork3234.workers.dev";
-
-function extractSection(text, label) {
-  const regex = new RegExp(label + ":([\\s\\S]*?)(\\n\\n|$)", "i");
-  const match = text.match(regex);
-  return match ? match[1].trim() : "";
-}
-
 async function generateSEO() {
   const prompt = document.getElementById("videoPrompt").value.trim();
   if (!prompt) {
@@ -110,41 +103,43 @@ async function generateSEO() {
 
   const btn = document.getElementById("generateBtn");
   btn.classList.add("loading");
-  btn.textContent = "Generating…";
+  btn.innerText = "Generating…";
 
   try {
-    const res = await fetch(WORKER_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt })
-    });
+    const res = await fetch(
+      "https://multipost-seo-worker.alexbryantwork3234.workers.dev",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt })
+      }
+    );
 
     if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(errText);
+      const text = await res.text();
+      throw new Error(text);
     }
 
     const data = await res.json();
 
-    const outputText =
-      data.output_text ||
-      data.output?.[0]?.content?.[0]?.text ||
+    // Extract OpenAI text safely
+    const output =
+      data?.output_text ||
+      data?.output?.[0]?.content?.[0]?.text ||
       "";
 
-    if (!outputText) throw new Error("No output from AI");
+    // Simple parsing
+    const title = output.match(/TITLE:\s*(.*)/)?.[1] || "";
+    const description = output.match(/DESCRIPTION:\s*([\s\S]*?)HASHTAGS:/)?.[1]?.trim() || "";
+    const hashtags = output.match(/HASHTAGS:\s*(.*)/)?.[1] || "";
 
-    document.getElementById("ytTitle").value =
-      extractSection(outputText, "TITLE");
-
-    document.getElementById("ytDescription").value =
-      extractSection(outputText, "DESCRIPTION");
-
-    document.getElementById("ytHashtags").value =
-      extractSection(outputText, "HASHTAGS");
+    document.getElementById("ytTitle").value = title;
+    document.getElementById("ytDescription").value = description;
+    document.getElementById("ytHashtags").value = hashtags;
 
   } catch (err) {
-    console.error(err);
-    alert("SEO generation failed.");
+    console.error("SEO ERROR:", err);
+    alert("SEO generation failed. Check console.");
   }
 
   btn.classList.remove("loading");
