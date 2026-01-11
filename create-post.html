@@ -21,12 +21,9 @@
       margin-bottom: 16px;
     }
 
-    h2 {
-      margin: 0 0 8px 0;
-    }
+    h2 { margin: 0 0 8px 0; }
 
-    textarea,
-    input {
+    textarea, input {
       width: 100%;
       padding: 12px;
       border-radius: 10px;
@@ -35,10 +32,7 @@
       box-sizing: border-box;
     }
 
-    textarea {
-      min-height: 80px;
-      resize: vertical;
-    }
+    textarea { min-height: 80px; }
 
     .btn {
       display: flex;
@@ -55,14 +49,8 @@
       width: 100%;
     }
 
-    .btn.secondary {
-      background: #1fa3dc;
-    }
-
-    .btn.loading {
-      opacity: 0.6;
-      pointer-events: none;
-    }
+    .btn.secondary { background: #1fa3dc; }
+    .btn.loading { opacity: 0.6; pointer-events: none; }
   </style>
 </head>
 
@@ -72,8 +60,7 @@
     <h2>Tell us about your video</h2>
     <textarea
       id="videoPrompt"
-      placeholder="Describe your video content, topic, audience, and goal…">
-    </textarea>
+      placeholder="Describe your video content, topic, audience, and goal…"></textarea>
   </div>
 
   <div class="card">
@@ -106,9 +93,16 @@
   </div>
 
 <script>
+const WORKER_URL = "https://multipost-seo-worker.alexbryantwork3234.workers.dev";
+
+function extractSection(text, label) {
+  const regex = new RegExp(label + ":([\\s\\S]*?)(\\n\\n|$)", "i");
+  const match = text.match(regex);
+  return match ? match[1].trim() : "";
+}
+
 async function generateSEO() {
   const prompt = document.getElementById("videoPrompt").value.trim();
-
   if (!prompt) {
     alert("Please describe your video first.");
     return;
@@ -116,43 +110,37 @@ async function generateSEO() {
 
   const btn = document.getElementById("generateBtn");
   btn.classList.add("loading");
-  btn.innerText = "Generating…";
+  btn.textContent = "Generating…";
 
   try {
-    const res = await fetch(
-      "https://multipost-seo-worker.alexbryantwork3234.workers.dev",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ prompt })
-      }
-    );
+    const res = await fetch(WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt })
+    });
 
     if (!res.ok) {
-      throw new Error("Worker error");
+      const errText = await res.text();
+      throw new Error(errText);
     }
 
     const data = await res.json();
 
-    const text =
+    const outputText =
       data.output_text ||
       data.output?.[0]?.content?.[0]?.text ||
       "";
 
-    const title =
-      text.match(/TITLE:\s*(.*)/i)?.[1] || "";
+    if (!outputText) throw new Error("No output from AI");
 
-    const description =
-      text.match(/DESCRIPTION:\s*([\s\S]*?)HASHTAGS:/i)?.[1] || "";
+    document.getElementById("ytTitle").value =
+      extractSection(outputText, "TITLE");
 
-    const hashtags =
-      text.match(/HASHTAGS:\s*(.*)/i)?.[1] || "";
+    document.getElementById("ytDescription").value =
+      extractSection(outputText, "DESCRIPTION");
 
-    document.getElementById("ytTitle").value = title.trim();
-    document.getElementById("ytDescription").value = description.trim();
-    document.getElementById("ytHashtags").value = hashtags.trim();
+    document.getElementById("ytHashtags").value =
+      extractSection(outputText, "HASHTAGS");
 
   } catch (err) {
     console.error(err);
