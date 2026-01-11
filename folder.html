@@ -28,8 +28,20 @@
   </section>
 
   <!-- ACCOUNTS LIST -->
-  <section class="cards" id="accountList">
-    <!-- accounts render here -->
+  <section class="cards" id="accountList"></section>
+
+  <!-- ADD ACCOUNT -->
+  <section class="cards">
+    <div class="card">
+      <select id="platformSelect" style="flex:1; margin-right:10px;">
+        <option value="">Select platform</option>
+        <option value="facebook">Facebook</option>
+        <option value="instagram">Instagram</option>
+        <option value="tiktok">TikTok</option>
+        <option value="youtube">YouTube</option>
+      </select>
+      <button onclick="addAccount()">Add</button>
+    </div>
   </section>
 
   <!-- CREATE POST -->
@@ -38,16 +50,6 @@
     <div class="card-text">
       <strong>Create Post</strong>
       <span>Generate content for this folder</span>
-    </div>
-    <div class="arrow">›</div>
-  </div>
-
-  <!-- ADD ACCOUNT -->
-  <div class="card post green" onclick="openPlatformPicker()">
-    <div class="icon">＋</div>
-    <div class="card-text">
-      <strong>Add Account</strong>
-      <span>Facebook, TikTok, Instagram, YouTube</span>
     </div>
     <div class="arrow">›</div>
   </div>
@@ -66,6 +68,7 @@
   const folderTitleEl = document.getElementById("folderTitle");
   const folderCountEl = document.getElementById("folderCount");
   const accountList = document.getElementById("accountList");
+  const platformSelect = document.getElementById("platformSelect");
 
   if (!folder) {
     alert("Folder not found");
@@ -87,7 +90,7 @@
         <div class="card">
           <div class="card-text">
             <strong>No accounts yet</strong>
-            <span>Add a platform account below</span>
+            <span>Add a platform below</span>
           </div>
         </div>
       `;
@@ -99,9 +102,11 @@
       div.className = "card";
 
       div.innerHTML = `
-        <div class="icon ${acc.platform}">${acc.platform[0].toUpperCase()}</div>
+        <div class="icon ${acc.platform}">
+          ${acc.platform[0].toUpperCase()}
+        </div>
         <div class="card-text">
-          <strong>Connected ${acc.platform} account</strong>
+          <strong>Connected ${acc.platform}</strong>
           <span>${acc.platform} account</span>
         </div>
       `;
@@ -111,16 +116,17 @@
   }
 
   // -----------------------------
-  // ADD ACCOUNT (FAKE FOR MVP)
+  // ADD ACCOUNT (MVP)
   // -----------------------------
-  function openPlatformPicker() {
-    const platform = prompt("Type platform: facebook, tiktok, instagram, youtube");
+  function addAccount() {
+    const platform = platformSelect.value;
     if (!platform) return;
 
     folder.accounts.push({ platform });
     folders[activeFolderIndex] = folder;
     localStorage.setItem("folders", JSON.stringify(folders));
 
+    platformSelect.value = "";
     folderCountEl.textContent = `${folder.accounts.length} connected accounts`;
     renderAccounts();
   }
@@ -129,7 +135,7 @@
   // CREATE POST
   // -----------------------------
   function goToPostCreator() {
-    window.location.href = "app.html";
+    window.location.href = "create-post.html";
   }
 
   renderAccounts();
