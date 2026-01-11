@@ -21,9 +21,7 @@
       margin-bottom: 16px;
     }
 
-    h2 {
-      margin: 0 0 8px 0;
-    }
+    h2 { margin: 0 0 8px 0; }
 
     textarea, input {
       width: 100%;
@@ -34,10 +32,7 @@
       box-sizing: border-box;
     }
 
-    textarea {
-      min-height: 80px;
-      resize: vertical;
-    }
+    textarea { min-height: 80px; }
 
     .btn {
       display: flex;
@@ -54,18 +49,8 @@
       width: 100%;
     }
 
-    .btn span {
-      font-size: 22px;
-    }
-
-    .btn.secondary {
-      background: #1fa3dc;
-    }
-
-    .loading {
-      opacity: 0.6;
-      pointer-events: none;
-    }
+    .btn.secondary { background: #1fa3dc; }
+    .btn.loading { opacity: 0.6; pointer-events: none; }
   </style>
 </head>
 
@@ -73,7 +58,10 @@
 
   <div class="card">
     <h2>Tell us about your video</h2>
-    <textarea id="videoPrompt" placeholder="e.g. Highlights of AFC Bournemouth football goals"></textarea>
+    <textarea
+      id="videoPrompt"
+      placeholder="Describe your video content, topic, audience, and goal…">
+    </textarea>
   </div>
 
   <div class="card">
@@ -85,7 +73,7 @@
 
   <div class="card">
     <h2>YouTube Title</h2>
-    <input id="ytTitle" placeholder="Auto-generated title"/>
+    <input id="ytTitle" placeholder="Auto-generated title" />
   </div>
 
   <div class="card">
@@ -95,7 +83,7 @@
 
   <div class="card">
     <h2>Hashtags</h2>
-    <input id="ytHashtags" placeholder="#hashtags"/>
+    <input id="ytHashtags" placeholder="#hashtags" />
   </div>
 
   <div class="card">
@@ -118,48 +106,23 @@ async function generateSEO() {
   btn.innerText = "Generating…";
 
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const res = await fetch("/api/generate-seo", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer YOUR_OPENAI_API_KEY_HERE"
-      },
-      body: JSON.stringify({
-        model: "gpt-5-nano",
-        input: `
-Generate high-quality YouTube SEO content.
-
-Topic:
-${prompt}
-
-Return exactly this format:
-
-TITLE:
-<one compelling YouTube title>
-
-DESCRIPTION:
-<SEO-optimised description with keywords naturally included>
-
-HASHTAGS:
-<#hashtag #hashtag #hashtag>
-        `
-      })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt })
     });
 
-    const data = await response.json();
-    const text = data.output_text || "";
+    if (!res.ok) throw new Error("API error");
 
-    const title = text.match(/TITLE:\s*(.*)/)?.[1] || "";
-    const description = text.match(/DESCRIPTION:\s*([\s\S]*?)HASHTAGS:/)?.[1] || "";
-    const hashtags = text.match(/HASHTAGS:\s*(.*)/)?.[1] || "";
+    const data = await res.json();
 
-    document.getElementById("ytTitle").value = title.trim();
-    document.getElementById("ytDescription").value = description.trim();
-    document.getElementById("ytHashtags").value = hashtags.trim();
+    document.getElementById("ytTitle").value = data.title || "";
+    document.getElementById("ytDescription").value = data.description || "";
+    document.getElementById("ytHashtags").value = data.hashtags || "";
 
   } catch (err) {
     console.error(err);
-    alert("SEO generation failed. Check API key.");
+    alert("SEO generation failed.");
   }
 
   btn.classList.remove("loading");
