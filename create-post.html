@@ -21,9 +21,12 @@
       margin-bottom: 16px;
     }
 
-    h2 { margin: 0 0 8px 0; }
+    h2 {
+      margin: 0 0 8px 0;
+    }
 
-    textarea, input {
+    textarea,
+    input {
       width: 100%;
       padding: 12px;
       border-radius: 10px;
@@ -32,7 +35,10 @@
       box-sizing: border-box;
     }
 
-    textarea { min-height: 80px; }
+    textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
 
     .btn {
       display: flex;
@@ -49,8 +55,14 @@
       width: 100%;
     }
 
-    .btn.secondary { background: #1fa3dc; }
-    .btn.loading { opacity: 0.6; pointer-events: none; }
+    .btn.secondary {
+      background: #1fa3dc;
+    }
+
+    .btn.loading {
+      opacity: 0.6;
+      pointer-events: none;
+    }
   </style>
 </head>
 
@@ -96,6 +108,7 @@
 <script>
 async function generateSEO() {
   const prompt = document.getElementById("videoPrompt").value.trim();
+
   if (!prompt) {
     alert("Please describe your video first.");
     return;
@@ -106,19 +119,40 @@ async function generateSEO() {
   btn.innerText = "Generating…";
 
   try {
-    const res = await fetch("/api/generate-seo", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt })
-    });
+    const res = await fetch(
+      "https://multipost-seo-worker.alexbryantwork3234.workers.dev",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ prompt })
+      }
+    );
 
-    if (!res.ok) throw new Error("API error");
+    if (!res.ok) {
+      throw new Error("Worker error");
+    }
 
     const data = await res.json();
 
-    document.getElementById("ytTitle").value = data.title || "";
-    document.getElementById("ytDescription").value = data.description || "";
-    document.getElementById("ytHashtags").value = data.hashtags || "";
+    const text =
+      data.output_text ||
+      data.output?.[0]?.content?.[0]?.text ||
+      "";
+
+    const title =
+      text.match(/TITLE:\s*(.*)/i)?.[1] || "";
+
+    const description =
+      text.match(/DESCRIPTION:\s*([\s\S]*?)HASHTAGS:/i)?.[1] || "";
+
+    const hashtags =
+      text.match(/HASHTAGS:\s*(.*)/i)?.[1] || "";
+
+    document.getElementById("ytTitle").value = title.trim();
+    document.getElementById("ytDescription").value = description.trim();
+    document.getElementById("ytHashtags").value = hashtags.trim();
 
   } catch (err) {
     console.error(err);
@@ -129,7 +163,9 @@ async function generateSEO() {
   btn.innerHTML = "✨ Generate SEO <span>›</span>";
 }
 
-document.getElementById("generateBtn").addEventListener("click", generateSEO);
+document
+  .getElementById("generateBtn")
+  .addEventListener("click", generateSEO);
 </script>
 
 </body>
