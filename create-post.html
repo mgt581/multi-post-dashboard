@@ -1,147 +1,65 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Create Post</title>
-
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #eef7fb;
-      margin: 0;
-      padding: 20px;
-    }
-
-    .card {
-      background: #e8f5fb;
-      border: 2px solid #9fd3ea;
-      border-radius: 16px;
-      padding: 16px;
-      margin-bottom: 16px;
-    }
-
-    h2 { margin: 0 0 8px 0; }
-
-    textarea, input {
-      width: 100%;
-      padding: 12px;
-      border-radius: 10px;
-      border: 2px solid #9fd3ea;
-      font-size: 16px;
-      box-sizing: border-box;
-    }
-
-    textarea { min-height: 90px; }
-
-    .btn {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #19a84b;
-      color: white;
-      padding: 16px;
-      border-radius: 16px;
-      font-size: 18px;
-      font-weight: 600;
-      cursor: pointer;
-      border: none;
-      width: 100%;
-    }
-
-    .btn.loading { opacity: 0.6; pointer-events: none; }
-  </style>
-</head>
-
-<body>
-
-  <div class="card">
-    <h2>Describe your content</h2>
-    <textarea
-      id="videoPrompt"
-      placeholder="Topic, audience, tone, and goal…">
-    </textarea>
-  </div>
-
-  <div class="card">
-    <button class="btn" id="generateBtn">
-      ✨ Generate Multi-Platform Content
-      <span>›</span>
-    </button>
-  </div>
-
-  <div class="card">
-    <h2>YouTube</h2>
-    <input id="ytTitle" placeholder="Title" />
-    <textarea id="ytDescription" placeholder="Description"></textarea>
-    <input id="ytHashtags" placeholder="#hashtags" />
-  </div>
-
-  <div class="card">
-    <h2>TikTok</h2>
-    <textarea id="ttCaption" placeholder="Caption"></textarea>
-    <input id="ttHashtags" placeholder="#hashtags" />
-  </div>
-
-  <div class="card">
-    <h2>Instagram</h2>
-    <textarea id="igCaption" placeholder="Caption"></textarea>
-    <input id="igHashtags" placeholder="#hashtags" />
-  </div>
-
 <script>
-async function generateContent() {
+async function generateSEO() {
   const prompt = document.getElementById("videoPrompt").value.trim();
   if (!prompt) {
-    alert("Please describe your content first.");
+    alert("Please describe your video first.");
     return;
   }
 
   const btn = document.getElementById("generateBtn");
   btn.classList.add("loading");
-  btn.innerHTML = "Generating…";
+  btn.innerText = "Generating…";
 
   try {
     const res = await fetch(
       "https://multipost-seo-worker.alexbryantwork3234.workers.dev",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({ prompt })
       }
     );
 
-    const data = await res.json();
-    if (!data.success) throw new Error("API failure");
+    const json = await res.json();
 
-    const out = JSON.parse(data.text);
+    if (!json.success) {
+      throw new Error(json.error || "Worker failed");
+    }
+
+    const data = json.data;
 
     // YouTube
-    document.getElementById("ytTitle").value = out.youtube.title;
-    document.getElementById("ytDescription").value = out.youtube.description;
-    document.getElementById("ytHashtags").value = out.youtube.hashtags;
+    document.getElementById("ytTitle").value =
+      data.youtube.title || "";
+    document.getElementById("ytDescription").value =
+      data.youtube.description || "";
+    document.getElementById("ytHashtags").value =
+      data.youtube.hashtags || "";
 
     // TikTok
-    document.getElementById("ttCaption").value = out.tiktok.caption;
-    document.getElementById("ttHashtags").value = out.tiktok.hashtags;
+    document.getElementById("ttCaption").value =
+      data.tiktok.caption || "";
+    document.getElementById("ttHashtags").value =
+      data.tiktok.hashtags || "";
 
     // Instagram
-    document.getElementById("igCaption").value = out.instagram.caption;
-    document.getElementById("igHashtags").value = out.instagram.hashtags;
+    document.getElementById("igCaption").value =
+      data.instagram.caption || "";
+    document.getElementById("igHashtags").value =
+      data.instagram.hashtags || "";
 
   } catch (err) {
-    console.error(err);
+    console.error("SEO ERROR:", err);
     alert("Generation failed — check console.");
   }
 
   btn.classList.remove("loading");
-  btn.innerHTML = "✨ Generate Multi-Platform Content <span>›</span>";
+  btn.innerHTML = "✨ Generate SEO <span>›</span>";
 }
 
 document
   .getElementById("generateBtn")
-  .addEventListener("click", generateContent);
+  .addEventListener("click", generateSEO);
 </script>
-
-</body>
-</html>
