@@ -1,16 +1,63 @@
 export default {
   async fetch(request, env) {
-    // Handle CORS preflight
+    const url = new URL(request.url);
+
+    // ----------------------------
+    // CORS preflight
+    // ----------------------------
     if (request.method === "OPTIONS") {
       return new Response(null, {
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type",
-        },
+        headers: corsHeaders(),
       });
     }
 
+    // ----------------------------
+    // OAuth START
+    // ----------------------------
+    if (request.method === "GET" && url.pathname === "/oauth/start") {
+      const params = new URLSearchParams({
+        client_id: env.GOOGLE_CLIENT_ID,
+        redirect_uri: env.GOOGLE_REDIRECT_URI,
+        response_type: "code",
+        scope: [
+          "https://www.googleapis.com/auth/youtube.upload",
+          "https://www.googleapis.com/auth/youtube.readonly",
+        ].join(" "),
+        access_type: "offline",
+        prompt: "consent",
+      });
+
+      return Response.redirect(
+        `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
+        302
+      );
+    }
+
+    // ----------------------------
+    // OAuth CALLBACK
+    // ----------------------------
+    if (request.method === "GET" && url.pathname === "/oauth/callback") {
+      const code = url.searchParams.get("code");
+      const error = url.searchParams.get("error");
+
+      if (error) {
+        return new Response(`OAuth error: ${error}`, { status: 400 });
+      }
+
+      if (!code) {
+        return new Response("Missing code", { status: 400 });
+      }
+
+      // For now: just confirm OAuth worked
+      return new Response(
+        `OAuth success 🎉\n\nAuth code:\n${code}`,
+        { status: 200 }
+      );
+    }
+
+    // ----------------------------
+    // SEO GENERATOR (existing logic)
+    // ----------------------------
     if (request.method !== "POST") {
       return new Response(
         JSON.stringify({ success: false, error: "POST only" }),
@@ -71,7 +118,6 @@ ${prompt}
         "";
 
       let structured;
-
       try {
         structured = JSON.parse(text);
       } catch {
@@ -83,30 +129,16 @@ ${prompt}
       }
 
       return new Response(
-        JSON.stringify({
-          success: true,
-          data: structured,
-        }),
-        {
-          status: 200,
-          headers: corsHeaders(),
-        }
+        JSON.stringify({ success: true, data: structured }),
+        { status: 200, headers: corsHeaders() }
       );
     } catch (err) {
       return new Response(
         JSON.stringify({
           success: false,
           error: err.message || "Worker error",
-          data: {
-            youtube: { title: "", description: "", hashtags: "" },
-            tiktok: { caption: "", hashtags: "" },
-            instagram: { caption: "", hashtags: "" },
-          },
         }),
-        {
-          status: 200,
-          headers: corsHeaders(),
-        }
+        { status: 200, headers: corsHeaders() }
       );
     }
   },
