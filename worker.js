@@ -2,76 +2,35 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // ----------------------------
-    // CORS preflight
-    // ----------------------------
+    // ---------- CORS ----------
     if (request.method === "OPTIONS") {
       return new Response(null, {
-        headers: corsHeaders(),
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
       });
     }
 
-    // ----------------------------
-    // OAuth START
-    // ----------------------------
+    // ---------- ROUTING ----------
     if (request.method === "GET" && url.pathname === "/oauth/start") {
-      const params = new URLSearchParams({
-        client_id: env.GOOGLE_CLIENT_ID,
-        redirect_uri: env.GOOGLE_REDIRECT_URI,
-        response_type: "code",
-        scope: [
-          "https://www.googleapis.com/auth/youtube.upload",
-          "https://www.googleapis.com/auth/youtube.readonly",
-        ].join(" "),
-        access_type: "offline",
-        prompt: "consent",
-      });
-
-      return Response.redirect(
-        `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
-        302
-      );
+      return oauthStart(env);
     }
 
-    // ----------------------------
-    // OAuth CALLBACK
-    // ----------------------------
     if (request.method === "GET" && url.pathname === "/oauth/callback") {
-      const code = url.searchParams.get("code");
-      const error = url.searchParams.get("error");
-
-      if (error) {
-        return new Response(`OAuth error: ${error}`, { status: 400 });
-      }
-
-      if (!code) {
-        return new Response("Missing code", { status: 400 });
-      }
-
-      // For now: just confirm OAuth worked
-      return new Response(
-        `OAuth success 🎉\n\nAuth code:\n${code}`,
-        { status: 200 }
-      );
+      return oauthCallback(url);
     }
 
-    // ----------------------------
-    // SEO GENERATOR (existing logic)
-    // ----------------------------
+    // ---------- SEO GENERATOR ----------
     if (request.method !== "POST") {
-      return new Response(
-        JSON.stringify({ success: false, error: "POST only" }),
-        { status: 405, headers: corsHeaders() }
-      );
+      return json({ success: false, error: "POST only" }, 405);
     }
 
     try {
       const body = await request.json();
       const prompt = body?.prompt?.trim();
-
-      if (!prompt) {
-        throw new Error("Missing prompt");
-      }
+      if (!prompt) throw new Error("Missing prompt");
 
       const openaiResponse = await fetch(
         "https://api.openai.com/v1/responses",
@@ -85,22 +44,11 @@ export default {
             model: "gpt-4.1-mini",
             input: `
 Return ONLY valid JSON in this exact structure.
-Do not include markdown. Do not include commentary.
 
 {
-  "youtube": {
-    "title": "",
-    "description": "",
-    "hashtags": ""
-  },
-  "tiktok": {
-    "caption": "",
-    "hashtags": ""
-  },
-  "instagram": {
-    "caption": "",
-    "hashtags": ""
-  }
+  "youtube": { "title": "", "description": "", "hashtags": "" },
+  "tiktok": { "caption": "", "hashtags": "" },
+  "instagram": { "caption": "", "hashtags": "" }
 }
 
 Topic:
@@ -111,7 +59,6 @@ ${prompt}
       );
 
       const raw = await openaiResponse.json();
-
       const text =
         raw?.output_text ||
         raw?.output?.[0]?.content?.[0]?.text ||
@@ -128,25 +75,66 @@ ${prompt}
         };
       }
 
-      return new Response(
-        JSON.stringify({ success: true, data: structured }),
-        { status: 200, headers: corsHeaders() }
-      );
+      return json({ success: true, data: structured });
+
     } catch (err) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: err.message || "Worker error",
-        }),
-        { status: 200, headers: corsHeaders() }
-      );
+      return json({
+        success: false,
+        error: err.message || "Worker error",
+        data: {
+          youtube: { title: "", description: "", hashtags: "" },
+          tiktok: { caption: "", hashtags: "" },
+          instagram: { caption: "", hashtags: "" },
+        },
+      });
     }
   },
 };
 
-function corsHeaders() {
-  return {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
-  };
+// ---------- OAUTH START ----------
+function oauthStart(env) {
+  const params = new URLSearchParams({
+    client_id: env.GOOGLE_CLIENT_ID,
+    redirect_uri: env.GOOGLE_REDIRECT_URI,
+    response_type: "code",
+    scope: "https://www.googleapis.com/auth/youtube.upload",
+    access_type: "offline",
+    prompt: "consent",
+  });
+
+  const googleUrl =
+    "https://accounts.google.com/o/oauth2/v2/auth?" + params.toString();
+
+  return Response.redirect(googleUrl, 302);
+}
+
+// ---------- OAUTH CALLBACK ----------
+function oauthCallback(url) {
+  const code = url.searchParams.get("code");
+  const error = url.searchParams.get("error");
+
+  if (error) {
+    return new Response(`OAuth error: ${error}`, { status: 400 });
+  }
+
+  if (!code) {
+    return new Response("Missing authorization code", { status: 400 });
+  }
+
+  // TEMP: just prove flow works
+  return new Response(
+    `OAuth success. Code received:\n\n${code}`,
+    { status: 200 }
+  );
+}
+
+// ---------- HELPERS ----------
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
 }
