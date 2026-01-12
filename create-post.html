@@ -32,7 +32,7 @@
       box-sizing: border-box;
     }
 
-    textarea { min-height: 80px; }
+    textarea { min-height: 90px; }
 
     .btn {
       display: flex;
@@ -49,7 +49,6 @@
       width: 100%;
     }
 
-    .btn.secondary { background: #1fa3dc; }
     .btn.loading { opacity: 0.6; pointer-events: none; }
   </style>
 </head>
@@ -57,53 +56,50 @@
 <body>
 
   <div class="card">
-    <h2>Tell us about your video</h2>
+    <h2>Describe your content</h2>
     <textarea
       id="videoPrompt"
-      placeholder="Describe your video content, topic, audience, and goal…">
+      placeholder="Topic, audience, tone, and goal…">
     </textarea>
   </div>
 
   <div class="card">
     <button class="btn" id="generateBtn">
-      ✨ Generate SEO
+      ✨ Generate Multi-Platform Content
       <span>›</span>
     </button>
   </div>
 
   <div class="card">
-    <h2>YouTube Title</h2>
-    <input id="ytTitle" placeholder="Auto-generated title" />
-  </div>
-
-  <div class="card">
-    <h2>YouTube Description</h2>
-    <textarea id="ytDescription" placeholder="Auto-generated description"></textarea>
-  </div>
-
-  <div class="card">
-    <h2>Hashtags</h2>
+    <h2>YouTube</h2>
+    <input id="ytTitle" placeholder="Title" />
+    <textarea id="ytDescription" placeholder="Description"></textarea>
     <input id="ytHashtags" placeholder="#hashtags" />
   </div>
 
   <div class="card">
-    <button class="btn secondary">
-      🚀 Publish (YouTube MVP)
-      <span>›</span>
-    </button>
+    <h2>TikTok</h2>
+    <textarea id="ttCaption" placeholder="Caption"></textarea>
+    <input id="ttHashtags" placeholder="#hashtags" />
+  </div>
+
+  <div class="card">
+    <h2>Instagram</h2>
+    <textarea id="igCaption" placeholder="Caption"></textarea>
+    <input id="igHashtags" placeholder="#hashtags" />
   </div>
 
 <script>
-async function generateSEO() {
+async function generateContent() {
   const prompt = document.getElementById("videoPrompt").value.trim();
   if (!prompt) {
-    alert("Please describe your video first.");
+    alert("Please describe your content first.");
     return;
   }
 
   const btn = document.getElementById("generateBtn");
   btn.classList.add("loading");
-  btn.innerText = "Generating…";
+  btn.innerHTML = "Generating…";
 
   try {
     const res = await fetch(
@@ -115,40 +111,36 @@ async function generateSEO() {
       }
     );
 
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text);
-    }
-
     const data = await res.json();
+    if (!data.success) throw new Error("API failure");
 
-    // Extract OpenAI text safely
-    const output =
-      data?.output_text ||
-      data?.output?.[0]?.content?.[0]?.text ||
-      "";
+    const out = JSON.parse(data.text);
 
-    // Simple parsing
-    const title = output.match(/TITLE:\s*(.*)/)?.[1] || "";
-    const description = output.match(/DESCRIPTION:\s*([\s\S]*?)HASHTAGS:/)?.[1]?.trim() || "";
-    const hashtags = output.match(/HASHTAGS:\s*(.*)/)?.[1] || "";
+    // YouTube
+    document.getElementById("ytTitle").value = out.youtube.title;
+    document.getElementById("ytDescription").value = out.youtube.description;
+    document.getElementById("ytHashtags").value = out.youtube.hashtags;
 
-    document.getElementById("ytTitle").value = title;
-    document.getElementById("ytDescription").value = description;
-    document.getElementById("ytHashtags").value = hashtags;
+    // TikTok
+    document.getElementById("ttCaption").value = out.tiktok.caption;
+    document.getElementById("ttHashtags").value = out.tiktok.hashtags;
+
+    // Instagram
+    document.getElementById("igCaption").value = out.instagram.caption;
+    document.getElementById("igHashtags").value = out.instagram.hashtags;
 
   } catch (err) {
-    console.error("SEO ERROR:", err);
-    alert("SEO generation failed. Check console.");
+    console.error(err);
+    alert("Generation failed — check console.");
   }
 
   btn.classList.remove("loading");
-  btn.innerHTML = "✨ Generate SEO <span>›</span>";
+  btn.innerHTML = "✨ Generate Multi-Platform Content <span>›</span>";
 }
 
 document
   .getElementById("generateBtn")
-  .addEventListener("click", generateSEO);
+  .addEventListener("click", generateContent);
 </script>
 
 </body>
