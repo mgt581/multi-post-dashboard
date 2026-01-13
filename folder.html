@@ -1,43 +1,145 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html lang="en">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Folder View</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Folder</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="app">
-    <header class="header"><a href="index.html">←</a> <span class="title" id="title">Folder</span></header>
-    <div class="card" style="margin:20px;"><strong id="name">Name</strong><br><span id="count">0 accounts</span></div>
-    <section class="cards" id="accountList"></section>
-    <div class="card" style="display:flex; gap:10px; margin:20px;">
-      <select id="platformSelect" style="flex:1;"><option value="tiktok">TikTok</option><option value="youtube">YouTube</option><option value="facebook">Facebook</option></select>
+
+<div class="app">
+
+  <!-- HEADER -->
+  <header class="header">
+    <a href="posting.html" class="gear">←</a>
+    <span class="title" id="folderTitle">Folder</span>
+    <span></span>
+  </header>
+
+  <!-- FOLDER INFO -->
+  <section class="cards">
+    <div class="card">
+      <div class="card-text">
+        <strong id="folderName">Folder</strong>
+        <span id="folderCount">0 connected accounts</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ACCOUNTS LIST -->
+  <section class="cards" id="accountList"></section>
+
+  <!-- ADD ACCOUNT -->
+  <section class="cards">
+    <div class="card">
+      <select id="platformSelect" style="flex:1; margin-right:10px;">
+        <option value="">Select platform</option>
+        <option value="facebook">Facebook</option>
+        <option value="instagram">Instagram</option>
+        <option value="tiktok">TikTok</option>
+        <option value="youtube">YouTube</option>
+      </select>
       <button onclick="addAccount()">Add</button>
     </div>
-    <button class="card" style="width:90%; margin: 0 auto; display:block; background:#2fa84f; color:white;" onclick="location.href='create-post.html'">✏️ Create Post</button>
+  </section>
+
+  <!-- CREATE POST -->
+  <div class="card post" onclick="goToPostCreator()">
+    <div class="icon green">✏️</div>
+    <div class="card-text">
+      <strong>Create Post</strong>
+      <span>Generate content for this folder</span>
+    </div>
+    <div class="arrow">›</div>
   </div>
-  <script>
-    const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
-    const fId = localStorage.getItem("activeFolderId");
-    document.getElementById("title").innerText = localStorage.getItem("activeFolderName");
-    document.getElementById("name").innerText = localStorage.getItem("activeFolderName");
 
-    async function render() {
-      const res = await fetch(`${apiBase}/get-accounts?folder_id=${fId}`);
-      const accs = await res.json();
-      document.getElementById("count").innerText = `${accs.length} accounts`;
-      document.getElementById("accountList").innerHTML = accs.map(a => `
-        <div class="card"><div class="icon">${a.platform[0]}</div><div class="card-text"><strong>${a.nickname}</strong><span>${a.platform}</span></div></div>
-      `).join('');
+</div>
+
+<script>
+  // -----------------------------
+  // LOAD DATA
+  // -----------------------------
+  const folders = JSON.parse(localStorage.getItem("folders")) || [];
+  const activeFolderIndex = localStorage.getItem("activeFolder");
+  const folder = folders[activeFolderIndex];
+
+  const folderNameEl = document.getElementById("folderName");
+  const folderTitleEl = document.getElementById("folderTitle");
+  const folderCountEl = document.getElementById("folderCount");
+  const accountList = document.getElementById("accountList");
+  const platformSelect = document.getElementById("platformSelect");
+
+  if (!folder) {
+    alert("Folder not found");
+    window.location.href = "posting.html";
+  }
+
+  folderNameEl.textContent = folder.name;
+  folderTitleEl.textContent = folder.name;
+  folderCountEl.textContent = `${folder.accounts.length} connected accounts`;
+
+  // -----------------------------
+  // RENDER ACCOUNTS
+  // -----------------------------
+  function renderAccounts() {
+    accountList.innerHTML = "";
+
+    if (folder.accounts.length === 0) {
+      accountList.innerHTML = `
+        <div class="card">
+          <div class="card-text">
+            <strong>No accounts yet</strong>
+            <span>Add a platform below</span>
+          </div>
+        </div>
+      `;
+      return;
     }
 
-    async function addAccount() {
-      const platform = document.getElementById("platformSelect").value;
-      const nickname = prompt("Nickname:");
-      await fetch(`${apiBase}/add-account`, { method: "POST", body: JSON.stringify({ folder_id: fId, platform, nickname }) });
-      render();
-    }
-    window.onload = render;
-  </script>
+    folder.accounts.forEach(acc => {
+      const div = document.createElement("div");
+      div.className = "card";
+
+      div.innerHTML = `
+        <div class="icon ${acc.platform}">
+          ${acc.platform[0].toUpperCase()}
+        </div>
+        <div class="card-text">
+          <strong>Connected ${acc.platform}</strong>
+          <span>${acc.platform} account</span>
+        </div>
+      `;
+
+      accountList.appendChild(div);
+    });
+  }
+
+  // -----------------------------
+  // ADD ACCOUNT (MVP)
+  // -----------------------------
+  function addAccount() {
+    const platform = platformSelect.value;
+    if (!platform) return;
+
+    folder.accounts.push({ platform });
+    folders[activeFolderIndex] = folder;
+    localStorage.setItem("folders", JSON.stringify(folders));
+
+    platformSelect.value = "";
+    folderCountEl.textContent = `${folder.accounts.length} connected accounts`;
+    renderAccounts();
+  }
+
+  // -----------------------------
+  // CREATE POST
+  // -----------------------------
+  function goToPostCreator() {
+    window.location.href = "create-post.html";
+  }
+
+  renderAccounts();
+</script>
+
 </body>
 </html>
