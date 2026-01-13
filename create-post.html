@@ -108,11 +108,11 @@
     </div>
 
     <div class="card">
-      <div class="section-title">Instagram</div>
-      <textarea id="igCaption" placeholder="Instagram caption"></textarea>
-      <input id="igHashtags" placeholder="#hashtags" />
-      <button class="btn secondary" onclick="copyPlatform('Instagram', 'igCaption', 'igHashtags', 'https://www.instagram.com/')">
-        📸 Copy & Go to Instagram
+      <div class="section-title">Facebook</div>
+      <textarea id="fbCaption" placeholder="Facebook caption"></textarea>
+      <input id="fbHashtags" placeholder="#hashtags" />
+      <button class="btn secondary" onclick="copyPlatform('Facebook', 'fbCaption', 'fbHashtags', 'https://www.facebook.com/reels/create')">
+        💙 Copy & Go to Facebook Reels
       </button>
     </div>
 
@@ -131,8 +131,8 @@
   const ytHashtags = document.getElementById("ytHashtags");
   const ttCaption = document.getElementById("ttCaption");
   const ttHashtags = document.getElementById("ttHashtags");
-  const igCaption = document.getElementById("igCaption");
-  const igHashtags = document.getElementById("igHashtags");
+  const fbCaption = document.getElementById("fbCaption");
+  const fbHashtags = document.getElementById("fbHashtags");
 
   const ytUploadBtn = document.getElementById("ytUploadBtn");
 
@@ -170,8 +170,10 @@
       ytHashtags.value = d.youtube?.hashtags || "";
       ttCaption.value = d.tiktok?.caption || "";
       ttHashtags.value = d.tiktok?.hashtags || "";
-      igCaption.value = d.instagram?.caption || "";
-      igHashtags.value = d.instagram?.hashtags || "";
+      
+      // Safety: Uses facebook data, but falls back to instagram data if the AI is stubborn
+      fbCaption.value = d.facebook?.caption || d.instagram?.caption || "";
+      fbHashtags.value = d.facebook?.hashtags || d.instagram?.hashtags || "";
 
     } catch (err) {
       console.error(err);
@@ -182,7 +184,6 @@
     }
   }
 
-  // Unified Copy Function for TikTok and Instagram
   function copyPlatform(name, captionId, tagId, url) {
     const caption = document.getElementById(captionId).value;
     const tags = document.getElementById(tagId).value;
@@ -202,7 +203,6 @@
     });
   }
 
-  // YouTube Specific Copy Logic
   ytUploadBtn.addEventListener("click", () => {
     if (!ytTitle.value) {
       alert("Generate SEO first!");
