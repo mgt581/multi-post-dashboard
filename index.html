@@ -233,7 +233,7 @@
         }
 
         container.innerHTML = folders.map(f => `
-          <div class="folder-card" onclick="openFolder(${f.id}, '${f.name}')">
+          <div class="folder-card" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">
             <div class="f-info">
               <div class="f-icon-wrap">📁</div>
               <div>
@@ -265,9 +265,12 @@
     }
 
     function openFolder(id, name) {
+      // 1. Save to localStorage for the Folder UI to use
       localStorage.setItem("activeFolderId", id);
       localStorage.setItem("activeFolderName", name);
-      window.location.href = "folder.html";
+      
+      // 2. Navigate with the ID in the URL to ensure OAuth redirects work correctly
+      window.location.href = `folder.html?id=${id}`;
     }
 
     window.onload = loadFolders;
