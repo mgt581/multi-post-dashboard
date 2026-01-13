@@ -1,36 +1,267 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Multipost App</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Multipost | Pro Dashboard</title>
+  <style>
+    :root {
+      --primary: #2fa84f;
+      --primary-dark: #248a3f;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --glass: rgba(255, 255, 255, 0.7);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, system-ui, sans-serif;
+      background-color: var(--bg);
+      background-image: radial-gradient(at 0% 0%, rgba(47, 168, 79, 0.05) 0px, transparent 50%),
+                        radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.05) 0px, transparent 50%);
+      color: var(--text-main);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }
+
+    .app {
+      padding: 24px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    /* --- GORGEOUS HEADER --- */
+    .header {
+      padding: 40px 0 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header-content h1 {
+      font-size: 32px;
+      margin: 0;
+      font-weight: 800;
+      letter-spacing: -1px;
+      background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .header-content p {
+      color: var(--text-muted);
+      margin: 5px 0 0;
+      font-size: 15px;
+      font-weight: 500;
+    }
+    .profile-icon {
+      width: 45px;
+      height: 45px;
+      background: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+      font-size: 20px;
+    }
+
+    /* --- STATS BAR --- */
+    .stats-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 30px;
+    }
+    .stat-pill {
+      background: var(--glass);
+      backdrop-filter: blur(10px);
+      padding: 8px 16px;
+      border-radius: 100px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      border: 1px solid rgba(255,255,255,0.5);
+    }
+
+    /* --- THE ADD BUTTON --- */
+    .add-btn {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 16px;
+      box-shadow: 0 20px 25px -5px rgba(47, 168, 79, 0.25);
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      margin-bottom: 40px;
+      border: none;
+      width: 100%;
+    }
+    .add-btn:active { transform: scale(0.95); box-shadow: 0 10px 15px -5px rgba(47, 168, 79, 0.2); }
+
+    /* --- FOLDER CARDS --- */
+    .section-label {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 15px;
+      display: block;
+    }
+
+    .folder-grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .folder-card {
+      background: var(--card-bg);
+      padding: 20px;
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid rgba(0,0,0,0.03);
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02), 0 2px 4px -2px rgba(0,0,0,0.02);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .folder-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.05);
+    }
+
+    .f-info {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+    .f-icon-wrap {
+      width: 52px;
+      height: 52px;
+      background: #f1f5f9;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      transition: background 0.3s;
+    }
+    .folder-card:hover .f-icon-wrap { background: #eafaf1; }
+
+    .f-name {
+      display: block;
+      font-weight: 700;
+      font-size: 18px;
+      color: var(--text-main);
+    }
+    .f-sub {
+      font-size: 14px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .arrow-icon {
+      width: 32px;
+      height: 32px;
+      background: #f8fafc;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #94a3b8;
+      transition: all 0.2s;
+    }
+    .folder-card:hover .arrow-icon { background: var(--primary); color: white; }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+    }
+  </style>
 </head>
 <body>
+
   <div class="app">
-    <header class="header"><span class="title">My Clients</span></header>
-    <div style="padding:20px;"><button class="card" style="width:100%; background:#2fa84f; color:white; border:none; font-weight:bold; padding:15px; border-radius:12px;" onclick="createNewFolder()">+ Create Client Folder</button></div>
-    <section id="folderContainer" class="cards"></section>
+    <header class="header">
+      <div class="header-content">
+        <h1>Workspaces</h1>
+        <p>13 Jan 2026 • Welcome Back</p>
+      </div>
+      <div class="profile-icon">👤</div>
+    </header>
+
+    <div class="stats-bar">
+      <div class="stat-pill" id="folderCountPill">0 Folders</div>
+      <div class="stat-pill">Cloud Active</div>
+    </div>
+
+    <button class="add-btn" onclick="createNewFolder()">
+      <span>+ Create New Workspace</span>
+    </button>
+
+    <span class="section-label">Your Clients</span>
+    <div class="folder-grid" id="folderContainer">
+      <div class="empty-state">Loading your cloud storage...</div>
+    </div>
   </div>
+
   <script>
-    const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api"; // UPDATE THIS
+    const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
 
     async function loadFolders() {
-      const res = await fetch(`${apiBase}/get-folders`);
-      const folders = await res.json();
       const container = document.getElementById("folderContainer");
-      container.innerHTML = folders.map(f => `
-        <div class="card" onclick="openFolder(${f.id}, '${f.name}')">
-          <div class="icon">📁</div>
-          <div class="card-text"><strong>${f.name}</strong><span>Client Workspace</span></div>
-          <div class="arrow">›</div>
-        </div>`).join('');
+      const pill = document.getElementById("folderCountPill");
+      
+      try {
+        const res = await fetch(`${apiBase}/get-folders`);
+        const folders = await res.json();
+        
+        pill.innerText = `${folders.length} Workspaces`;
+
+        if (folders.length === 0) {
+          container.innerHTML = `<div class="empty-state">No workspaces yet. Click the button above to start.</div>`;
+          return;
+        }
+
+        container.innerHTML = folders.map(f => `
+          <div class="folder-card" onclick="openFolder(${f.id}, '${f.name}')">
+            <div class="f-info">
+              <div class="f-icon-wrap">📁</div>
+              <div>
+                <span class="f-name">${f.name}</span>
+                <span class="f-sub">Managed Workspace</span>
+              </div>
+            </div>
+            <div class="arrow-icon">›</div>
+          </div>`).join('');
+      } catch (err) {
+        container.innerHTML = `<div class="empty-state" style="color:red">Failed to connect to Cloudflare DB.</div>`;
+      }
     }
 
     async function createNewFolder() {
-      const name = prompt("Enter Client Name:");
+      const name = prompt("Enter Brand or Client Name:");
       if (!name) return;
-      await fetch(`${apiBase}/add-folder`, { method: "POST", body: JSON.stringify({ name }) });
-      loadFolders();
+
+      try {
+        const res = await fetch(`${apiBase}/add-folder`, { 
+          method: "POST", 
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({ name }) 
+        });
+        if (res.ok) loadFolders();
+      } catch (err) {
+        alert("Error saving folder");
+      }
     }
 
     function openFolder(id, name) {
@@ -38,6 +269,7 @@
       localStorage.setItem("activeFolderName", name);
       window.location.href = "folder.html";
     }
+
     window.onload = loadFolders;
   </script>
 </body>
