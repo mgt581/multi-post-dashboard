@@ -214,14 +214,6 @@
     </div>
   </div>
 
-  <footer style="margin-top: 50px; padding: 20px; border-top: 1px solid #eee; text-align: center; font-size: 14px;">
-      <p style="color: #666;">&copy; 2026 Multipost SEO</p>
-      <div style="display: flex; justify-content: center; gap: 20px;">
-          <a href="/privacy" target="_blank" style="color: #ef4444; text-decoration: none; font-weight: bold;">Privacy Policy</a>
-          <a href="/terms" target="_blank" style="color: #ef4444; text-decoration: none; font-weight: bold;">Terms of Service</a>
-      </div>
-  </footer>
-
   <script>
     const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
 
@@ -241,7 +233,7 @@
         }
 
         container.innerHTML = folders.map(f => `
-          <div class="folder-card" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">
+          <div class="folder-card" onclick="openFolder(${f.id}, '${f.name}')">
             <div class="f-info">
               <div class="f-icon-wrap">📁</div>
               <div>
@@ -275,7 +267,7 @@
     function openFolder(id, name) {
       localStorage.setItem("activeFolderId", id);
       localStorage.setItem("activeFolderName", name);
-      window.location.href = `folder.html?id=${id}`;
+      window.location.href = "folder.html";
     }
 
     window.onload = loadFolders;
