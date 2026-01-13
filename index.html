@@ -215,79 +215,24 @@
   </div>
 
   <script>
-    const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
-
-    async function loadFolders() {
-      const container = document.getElementById("folderContainer");
-      const pill = document.getElementById("folderCountPill");
-      
-      try {
-        const res = await fetch(`${apiBase}/get-folders`);
-        const folders = await res.json();
-        
-        pill.innerText = `${folders.length} Workspaces`;
-
-        if (folders.length === 0) {
-          container.innerHTML = `<div class="empty-state">No workspaces yet. Click the button above to start.</div>`;
-          return;
-        }
-
-        container.innerHTML = folders.map(f => `
-          <div class="folder-card" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">
-            <div class="f-info">
-              <div class="f-icon-wrap">📁</div>
-              <div>
-                <span class="f-name">${f.name}</span>
-                <span class="f-sub">Managed Workspace</span>
-              </div>
-            </div>
-            <div class="arrow-icon">›</div>
-          </div>`).join('');
-      } catch (err) {
-        container.innerHTML = `<div class="empty-state" style="color:red">Failed to connect to Cloudflare DB.</div>`;
-      }
-    }
-
-    async function createNewFolder() {
-      const name = prompt("Enter Brand or Client Name:");
-      if (!name) return;
-
-      try {
-        const res = await fetch(`${apiBase}/add-folder`, { 
-          method: "POST", 
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({ name }) 
-        });
-        if (res.ok) loadFolders();
-      } catch (err) {
-        alert("Error saving folder");
-      }
-    }
+    // ... all your existing script functions above ...
 
     function openFolder(id, name) {
-      // 1. Save to localStorage for the Folder UI to use
       localStorage.setItem("activeFolderId", id);
       localStorage.setItem("activeFolderName", name);
-      
-      // 2. Navigate with the ID in the URL to ensure OAuth redirects work correctly
       window.location.href = `folder.html?id=${id}`;
     }
 
-    276:    window.onload = loadFolders;
-277: </script>
-278: 
-279: <footer style="margin-top: 50px; padding: 20px; border-top: 1px solid #eee; text-align: center; font-size: 14px;">
-280:     <p style="color: #666;">&copy; 2026 Multipost SEO</p>
-281:     <div style="display: flex; justify-content: center; gap: 20px;">
-282:         <a href="/privacy" target="_blank" style="color: #ef4444; text-decoration: none; font-weight: bold;">Privacy Policy</a>
-283:         <a href="/terms" target="_blank" style="color: #ef4444; text-decoration: none; font-weight: bold;">Terms of Service</a>
-284:     </div>
-285: </footer>
-286: 
-287: </body>
-288: </html>
-
     window.onload = loadFolders;
   </script>
+
+  <footer style="margin-top: 50px; padding: 20px; border-top: 1px solid #eee; text-align: center; font-size: 14px;">
+      <p style="color: #666;">&copy; 2026 Multipost SEO</p>
+      <div style="display: flex; justify-content: center; gap: 20px;">
+          <a href="/privacy" target="_blank" style="color: #ef4444; text-decoration: none; font-weight: bold;">Privacy Policy</a>
+          <a href="/terms" target="_blank" style="color: #ef4444; text-decoration: none; font-weight: bold;">Terms of Service</a>
+      </div>
+  </footer>
+
 </body>
 </html>
