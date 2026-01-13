@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Multipost Pro SEO</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #eef7fb; margin: 0; padding: 0; }
+    .app { padding: 20px; max-width: 600px; margin: 0 auto; }
+    .header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: #e8f5fb; border-bottom: 2px solid #9fd3ea; position: sticky; top: 0; z-index: 100; }
+    .header a { text-decoration: none; font-size: 20px; color: #333; }
+    .header .title { font-weight: 700; font-size: 18px; }
+    .card { background: #e8f5fb; border: 2px solid #9fd3ea; border-radius: 16px; padding: 16px; margin-bottom: 16px; }
+    .section-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+    textarea, input { width: 100%; padding: 12px; border-radius: 10px; border: 2px solid #9fd3ea; font-size: 16px; box-sizing: border-box; margin-bottom: 8px; background: white; }
+    textarea { min-height: 110px; resize: vertical; }
+    .btn { width: 100%; display: flex; align-items: center; justify-content: center; padding: 14px 16px; border-radius: 12px; border: 0; cursor: pointer; font-size: 16px; font-weight: 700; background: #2fa84f; color: white; transition: transform 0.1s, opacity 0.2s; }
+    .btn:active { transform: scale(0.98); }
+    .btn.secondary { background: #1b74e4; margin-top: 10px; }
+    .btn.loading { opacity: 0.7; cursor: progress; pointer-events: none; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <a href="folder.html">←</a>
+    <div class="title">Multipost Pro SEO</div>
+    <div style="width: 24px;"></div>
+  </div>
+
+  <div class="app">
+    <div class="card">
+      <div class="section-title">Tell us about your video</div>
+      <textarea id="videoPrompt" placeholder="Describe your video for Pro SEO generation..."></textarea>
+      <button class="btn" id="generateBtn">✨ Generate Pro SEO</button>
+    </div>
+
+    <div class="card">
+      <div class="section-title">YouTube</div>
+      <input id="ytTitle" placeholder="YouTube Title" />
+      <textarea id="ytDesc" placeholder="Full Description"></textarea>
+      <textarea id="ytKeywords" placeholder="20 Trending Keywords"></textarea>
+      <button class="btn secondary" onclick="copyYoutube()">🚀 Copy & Go to YouTube</button>
+    </div>
+
+    <div class="card">
+      <div class="section-title">TikTok</div>
+      <textarea id="ttAllInOne" placeholder="Title, Desc, Tags & Keywords combined"></textarea>
+      <button class="btn secondary" onclick="copyGeneric('ttAllInOne', 'TikTok', 'https://www.tiktok.com/upload')">📱 Copy & Go to TikTok</button>
+    </div>
+
+    <div class="card">
+      <div class="section-title">Facebook Reels</div>
+      <input id="fbTitle" placeholder="Reel Title" />
+      <textarea id="fbDetails" placeholder="Description, Tags & Keywords"></textarea>
+      <button class="btn secondary" onclick="copyFB()">📸 Copy & Go to Facebook</button>
+    </div>
+  </div>
+
+<script>
+  // 1. UPDATE THIS URL TO YOUR WORKER ADDRESS
+  const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
+
+  async function generateSEO() {
+    const prompt = document.getElementById("videoPrompt").value.trim();
+    if (!prompt) return alert("Please describe your video!");
+
+    const btn = document.getElementById("generateBtn");
+    btn.innerText = "Analyzing Trends...";
+    btn.classList.add("loading");
+
+    try {
+      const res = await fetch(`${apiBase}/generate-seo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt })
+      });
+      
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "AI Error");
+
+      const d = json.data;
+
+      // FIX: Using Optional Chaining (?.) to prevent 'undefined' crashes
+      document.getElementById("ytTitle").value = d.youtube?.title || "";
+      document.getElementById("ytDesc").value = d.youtube?.description || "";
+      document.getElementById("ytKeywords").value = d.youtube?.keywords || "";
+      
+      document.getElementById("ttAllInOne").value = d.tiktok?.allInOne || "";
+      
+      document.getElementById("fbTitle").value = d.facebook?.title || "";
+      document.getElementById("fbDetails").value = d.facebook?.descriptionAndTags || "";
+
+    } catch (err) {
+      console.error(err);
+      alert("Format Error: The AI response was incomplete. Try a more detailed description.");
+    } finally {
+      btn.innerText = "✨ Generate Pro SEO";
+      btn.classList.remove("loading");
+    }
+  }
+
+  function copyYoutube() {
+    const text = `TITLE:\n${document.getElementById("ytTitle").value}\n\nDESC:\n${document.getElementById("ytDesc").value}\n\nKEYWORDS:\n${document.getElementById("ytKeywords").value}`;
+    navigator.clipboard.writeText(text).then(() => {
+      alert("YouTube SEO Copied!");
+      window.open("https://www.youtube.com/upload", "_blank");
+    });
+  }
+
+  function copyFB() {
+    const text = `TITLE:\n${document.getElementById("fbTitle").value}\n\nDETAILS:\n${document.getElementById("fbDetails").value}`;
+    navigator.clipboard.writeText(text).then(() => {
+      alert("Facebook SEO Copied!");
+      window.open("https://www.facebook.com/reels/create", "_blank");
+    });
+  }
+
+  function copyGeneric(id, name, url) {
+    const text = document.getElementById(id).value;
+    navigator.clipboard.writeText(text).then(() => {
+      alert(name + " SEO Copied!");
+      window.open(url, "_blank");
+    });
+  }
+
+  document.getElementById("generateBtn").addEventListener("click", generateSEO);
+</script>
+</body>
+</html>
