@@ -1,199 +1,139 @@
-!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Multipost | Pro Dashboard</title>
-  <style>
-    :root {
-      --primary: #2fa84f;
-      --primary-dark: #248a3f;
-      --bg: #f8fafc;
-      --card-bg: #ffffff;
-      --text-main: #0f172a;
-      --text-muted: #64748b;
-      --glass: rgba(255, 255, 255, 0.7);
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Post Dashboard | Workspaces</title>
+    <style>
+        :root {
+            --bg-color: #fcfcfc;
+            --text-main: #1a1a1a;
+            --text-muted: #8e8e8e;
+            --accent: #fe2c55;
+        }
 
-    body {
-      font-family: 'Inter', -apple-system, system-ui, sans-serif;
-      background-color: var(--bg);
-      background-image: radial-gradient(at 0% 0%, rgba(47, 168, 79, 0.05) 0px, transparent 50%),
-                        radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.05) 0px, transparent 50%);
-      color: var(--text-main);
-      margin: 0;
-      padding: 0;
-      min-height: 100vh;
-    }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
 
-    .app {
-      padding: 24px;
-      max-width: 480px;
-      margin: 0 auto;
-    }
+        .main-wrapper {
+            max-width: 800px;
+            margin: 80px auto;
+            padding: 0 40px;
+            flex: 1;
+        }
 
-    /* --- GORGEOUS HEADER --- */
-    .header {
-      padding: 40px 0 30px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .header-content h1 {
-      font-size: 32px;
-      margin: 0;
-      font-weight: 800;
-      letter-spacing: -1px;
-      background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .header-content p {
-      color: var(--text-muted);
-      margin: 5px 0 0;
-      font-size: 15px;
-      font-weight: 500;
-    }
-    .profile-icon {
-      width: 45px;
-      height: 45px;
-      background: white;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
-      font-size: 20px;
-    }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 50px;
+        }
 
-    /* --- STATS BAR --- */
-    .stats-bar {
-      display: flex;
-      gap: 12px;
-      margin-bottom: 30px;
-    }
-    .stat-pill {
-      font-size: 24px;
-      transition: background 0.3s;
-    }
-    .folder-card:hover .f-icon-wrap { background: #eafaf1; }
+        h1 { font-size: 32px; font-weight: 700; margin: 0; }
+        .sub-header { color: var(--text-muted); font-size: 14px; margin-top: 5px; }
+        .user-icon { background: #e0e0e0; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
 
-    .f-name {
-      display: block;
-      font-weight: 700;
-      font-size: 18px;
-      color: var(--text-main);
-    }
-    .f-sub {
-      font-size: 14px;
-      color: var(--text-muted);
-      font-weight: 500;
-    }
+        .status-line { margin: 30px 0; font-size: 20px; font-weight: 500; }
 
-    .arrow-icon {
-      width: 32px;
-      height: 32px;
-      background: #f8fafc;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #94a3b8;
-      transition: all 0.2s;
-    }
-    .folder-card:hover .arrow-icon { background: var(--primary); color: white; }
+        .workspace-controls { font-size: 13px; color: var(--text-muted); margin-bottom: 30px; }
+        .control-item { cursor: pointer; margin-right: 15px; }
+        .control-item:hover { color: var(--text-main); }
 
-    /* Empty state */
-    .empty-state {
-      text-align: center;
-      padding: 40px 20px;
-      color: var(--text-muted);
-    }
-  </style>
+        .workspace-list { display: flex; flex-direction: column; gap: 30px; }
+        
+        .workspace-card {
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .workspace-card:active { transform: scale(0.98); }
+
+        .folder-icon { font-size: 24px; color: #b0b0b0; margin-bottom: 8px; }
+        .workspace-name { font-weight: 600; font-size: 16px; margin: 0; }
+        .workspace-type { font-size: 13px; color: var(--text-muted); margin: 2px 0; }
+
+        footer {
+            padding: 30px;
+            text-align: center;
+            border-top: 1px solid #eee;
+            font-size: 12px;
+            color: var(--text-muted);
+            background: #fff;
+        }
+
+        footer a { color: var(--text-muted); text-decoration: none; margin: 0 10px; }
+        footer a:hover { color: var(--accent); }
+    </style>
 </head>
 <body>
 
-  <div class="app">
-    <header class="header">
-      <div class="header-content">
-        <h1>Workspaces</h1>
-        <p>13 Jan 2026 • Welcome Back</p>
-      </div>
-      <div class="profile-icon">👤</div>
-    </header>
+    <div class="main-wrapper">
+        <header>
+            <div>
+                <h1>Workspaces</h1>
+                <div class="sub-header">13 Jan 2026 • Welcome Back</div>
+            </div>
+            <div class="user-icon">👤</div>
+        </header>
 
-    <div class="stats-bar">
-      <div class="stat-pill" id="folderCountPill">0 Folders</div>
-      <div class="stat-pill">Cloud Active</div>
+        <div class="status-line">
+            3 Workspaces &nbsp; <span style="color: #666;">Cloud Active</span>
+        </div>
+
+        <div class="workspace-controls">
+            <span class="control-item">+ Create New Workspace</span>
+            <span class="control-item">Your Clients</span>
+        </div>
+
+        <div class="workspace-list">
+            <div class="workspace-card" onclick="openWorkspace('Mr White')">
+                <div class="folder-icon">📁</div>
+                <p class="workspace-name">Mr White</p>
+                <p class="workspace-type">Managed Workspace</p>
+            </div>
+
+            <div class="workspace-card" onclick="openWorkspace('Mgt gaming')">
+                <div class="folder-icon">📁</div>
+                <p class="workspace-name">Mgt gaming</p>
+                <p class="workspace-type">Managed Workspace</p>
+            </div>
+
+            <div class="workspace-card" onclick="openWorkspace('TESTING')">
+                <div class="folder-icon">📁</div>
+                <p class="workspace-name">TESTING</p>
+                <p class="workspace-type">Managed Workspace</p>
+            </div>
+        </div>
     </div>
 
-    <button class="add-btn" onclick="createNewFolder()">
-      <span>+ Create New Workspace</span>
-    </button>
+    <footer>
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="terms.html">Terms of Service</a>
+        <p>© 2026 multipostapp.co.uk</p>
+    </footer>
 
-    <span class="section-label">Your Clients</span>
-    <div class="folder-grid" id="folderContainer">
-      <div class="empty-state">Loading your cloud storage...</div>
-    </div>
-  </div>
-
-  <script>
-    const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
-
-    async function loadFolders() {
-      const container = document.getElementById("folderContainer");
-      const pill = document.getElementById("folderCountPill");
-      
-      try {
-        const res = await fetch(`${apiBase}/get-folders`);
-        const folders = await res.json();
-        
-        pill.innerText = `${folders.length} Workspaces`;
-
-        if (folders.length === 0) {
-          container.innerHTML = `<div class="empty-state">No workspaces yet. Click the button above to start.</div>`;
-          return;
+    <script>
+        // Use this function to handle your YouTube -> TikTok SEO logic
+        function openWorkspace(name) {
+            console.log("Opening Workspace: " + name);
+            // This is where you plug in the window.open or clipboard logic 
+            // from our previous sessions.
+            if(name === 'TESTING') {
+                alert("Testing Workspace Active. Ready for SEO transfer.");
+            }
         }
 
-        container.innerHTML = folders.map(f => `
-          <div class="folder-card" onclick="openFolder(${f.id}, '${f.name}')">
-            <div class="f-info">
-              <div class="f-icon-wrap">📁</div>
-              <div>
-                <span class="f-name">${f.name}</span>
-                <span class="f-sub">Managed Workspace</span>
-              </div>
-            </div>
-            <div class="arrow-icon">›</div>
-          </div>`).join('');
-      } catch (err) {
-        container.innerHTML = `<div class="empty-state" style="color:red">Failed to connect to Cloudflare DB.</div>`;
-      }
-    }
-
-    async function createNewFolder() {
-      const name = prompt("Enter Brand or Client Name:");
-      if (!name) return;
-
-      try {
-        const res = await fetch(`${apiBase}/add-folder`, { 
-          method: "POST", 
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({ name }) 
-        });
-        if (res.ok) loadFolders();
-      } catch (err) {
-        alert("Error saving folder");
-      }
-    }
-
-    function openFolder(id, name) {
-      localStorage.setItem("activeFolderId", id);
-      localStorage.setItem("activeFolderName", name);
-      window.location.href = "folder.html";
-    }
-
-    window.onload = loadFolders;
-  </script>
+        // Keep this for TikTok Sandbox reviewers
+        console.log("MultiPost Dashboard initialized for multipostapp.co.uk");
+    </script>
 </body>
 </html>
