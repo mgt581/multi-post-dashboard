@@ -43,7 +43,7 @@
         .status-line { margin: 30px 0; font-size: 20px; font-weight: 500; }
 
         .workspace-controls { font-size: 13px; color: var(--text-muted); margin-bottom: 30px; }
-        .control-item { cursor: pointer; margin-right: 15px; }
+        .control-item { cursor: pointer; margin-right: 15px; transition: color 0.2s; }
         .control-item:hover { color: var(--text-main); }
 
         .workspace-list { display: flex; flex-direction: column; gap: 30px; }
@@ -53,8 +53,11 @@
             flex-direction: column;
             cursor: pointer;
             transition: transform 0.1s;
+            padding: 10px;
+            border-radius: 8px;
         }
 
+        .workspace-card:hover { background: #f5f5f5; }
         .workspace-card:active { transform: scale(0.98); }
 
         .folder-icon { font-size: 24px; color: #b0b0b0; margin-bottom: 8px; }
@@ -68,6 +71,7 @@
             font-size: 12px;
             color: var(--text-muted);
             background: #fff;
+            margin-top: 40px;
         }
 
         footer a { color: var(--text-muted); text-decoration: none; margin: 0 10px; }
@@ -86,32 +90,16 @@
         </header>
 
         <div class="status-line">
-            3 Workspaces &nbsp; <span style="color: #666;">Cloud Active</span>
+            <span id="workspaceCount">0</span> Workspaces &nbsp; <span style="color: #666;">Cloud Active</span>
         </div>
 
         <div class="workspace-controls">
-            <span class="control-item">+ Create New Workspace</span>
+            <span class="control-item" onclick="createNewWorkspace()" style="font-weight:bold; color:var(--accent);">+ Create New Workspace</span>
             <span class="control-item">Your Clients</span>
         </div>
 
-        <div class="workspace-list">
-            <div class="workspace-card" onclick="openWorkspace('Mr White')">
-                <div class="folder-icon">📁</div>
-                <p class="workspace-name">Mr White</p>
-                <p class="workspace-type">Managed Workspace</p>
-            </div>
-
-            <div class="workspace-card" onclick="openWorkspace('Mgt gaming')">
-                <div class="folder-icon">📁</div>
-                <p class="workspace-name">Mgt gaming</p>
-                <p class="workspace-type">Managed Workspace</p>
-            </div>
-
-            <div class="workspace-card" onclick="openWorkspace('TESTING')">
-                <div class="folder-icon">📁</div>
-                <p class="workspace-name">TESTING</p>
-                <p class="workspace-type">Managed Workspace</p>
-            </div>
+        <div id="workspaceList" class="workspace-list">
+            <p style="color:var(--text-muted);">Loading workspaces...</p>
         </div>
     </div>
 
@@ -122,18 +110,66 @@
     </footer>
 
     <script>
-        // Use this function to handle your YouTube -> TikTok SEO logic
-        function openWorkspace(name) {
-            console.log("Opening Workspace: " + name);
-            // This is where you plug in the window.open or clipboard logic 
-            // from our previous sessions.
-            if(name === 'TESTING') {
-                alert("Testing Workspace Active. Ready for SEO transfer.");
+        // 1. CHANGE THIS TO YOUR ACTUAL WORKER URL (e.g., https://name.subdomain.workers.dev)
+        const API_URL = "https://multipost-seo-worker.your-subdomain.workers.dev";
+
+        // 2. Fetch Workspaces from Cloudflare D1 on Load
+        async function loadWorkspaces() {
+            try {
+                const response = await fetch(`${API_URL}/api/get-folders`);
+                const folders = await response.json();
+                
+                const listElement = document.getElementById('workspaceList');
+                const countElement = document.getElementById('workspaceCount');
+                
+                listElement.innerHTML = ''; // Clear loading text
+                countElement.innerText = folders.length;
+
+                if (folders.length === 0) {
+                    listElement.innerHTML = '<p style="color:var(--text-muted);">No workspaces found. Create your first one!</p>';
+                    return;
+                }
+
+                folders.forEach(folder => {
+                    const card = document.createElement('div');
+                    card.className = 'workspace-card';
+                    // This assumes you have a folder.html file to handle the specific workspace
+                    card.onclick = () => window.location.href = `folder.html?id=${folder.id}`;
+                    card.innerHTML = `
+                        <div class="folder-icon">📁</div>
+                        <p class="workspace-name">${folder.name}</p>
+                        <p class="workspace-type">Managed Workspace</p>
+                    `;
+                    listElement.appendChild(card);
+                });
+            } catch (err) {
+                console.error("Failed to load:", err);
+                document.getElementById('workspaceList').innerHTML = '<p style="color:red;">Error connecting to Cloud Active. Check Worker URL.</p>';
             }
         }
 
-        // Keep this for TikTok Sandbox reviewers
-        console.log("MultiPost Dashboard initialized for multipostapp.co.uk");
+        // 3. Make the Create Button Work
+        async function createNewWorkspace() {
+            const name = prompt("Enter Workspace Name:");
+            if (!name) return;
+
+            try {
+                const res = await fetch(`${API_URL}/api/add-folder`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    loadWorkspaces(); // Refresh the list without reloading the whole page
+                }
+            } catch (err) {
+                alert("Could not create workspace. Ensure your Worker is running.");
+            }
+        }
+
+        // Initial load
+        loadWorkspaces();
     </script>
 </body>
 </html>
