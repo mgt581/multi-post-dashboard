@@ -186,6 +186,37 @@
       padding: 40px 20px;
       color: var(--text-muted);
     }
+
+    /* Footer Button Styles */
+    .footer-container {
+      margin-top: 40px;
+      padding: 20px 0;
+      border-top: 1px solid rgba(0,0,0,0.05);
+      text-align: center;
+    }
+
+    .footer-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+    }
+
+    .footer-btn {
+      font-size: 12px;
+      color: #888;
+      text-decoration: none;
+      padding: 6px 12px;
+      border: 1px solid #eee;
+      border-radius: 6px;
+      font-family: sans-serif;
+      transition: all 0.2s;
+    }
+
+    .footer-btn:hover {
+      background: #f8f9fa;
+      color: #007bff;
+      border-color: #007bff;
+    }
   </style>
 </head>
 <body>
@@ -212,6 +243,13 @@
     <div class="folder-grid" id="folderContainer">
       <div class="empty-state">Loading your cloud storage...</div>
     </div>
+
+    <footer class="footer-container">
+      <div class="footer-buttons">
+        <a href="privacy-policy.html" class="footer-btn">Privacy Policy</a>
+        <a href="terms-of-service.html" class="footer-btn">Terms of Service</a>
+      </div>
+    </footer>
   </div>
 
   <script>
@@ -265,11 +303,8 @@
     }
 
     function openFolder(id, name) {
-      // 1. Save to localStorage for the Folder UI to use
       localStorage.setItem("activeFolderId", id);
       localStorage.setItem("activeFolderName", name);
-      
-      // 2. Navigate with the ID in the URL to ensure OAuth redirects work correctly
       window.location.href = `folder.html?id=${id}`;
     }
 
@@ -277,3 +312,4 @@
   </script>
 </body>
 </html>
+   
