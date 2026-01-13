@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en"> 
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -46,6 +46,12 @@
       background: #3fa9f5;
       color: white;
       font-weight: bold;
+      transition: opacity 0.2s;
+    }
+
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
     }
   </style>
 </head>
@@ -55,12 +61,12 @@
 
   <div class="card">
     <textarea id="prompt" placeholder="Describe your video..."></textarea>
-    <button onclick="generateSEO()">✨ Generate SEO</button>
+    <button id="genBtn" onclick="generateSEO()">✨ Generate SEO</button>
   </div>
 
   <div class="card">
     <input id="ytTitle" placeholder="YouTube Title">
-    <textarea id="ytDescription" placeholder="YouTube Description"></textarea>
+    <textarea id="ytDescription" rows="5" placeholder="YouTube Description"></textarea>
     <input id="ytHashtags" placeholder="#hashtags">
   </div>
 
@@ -68,29 +74,50 @@
 
 <script>
 async function generateSEO() {
-  const prompt = document.getElementById("prompt").value.trim();
-  if (!prompt) {
+  const promptInput = document.getElementById("prompt");
+  const genBtn = document.getElementById("genBtn");
+  const titleField = document.getElementById("ytTitle");
+  const descField = document.getElementById("ytDescription");
+  const hashField = document.getElementById("ytHashtags");
+
+  const promptValue = promptInput.value.trim();
+  
+  if (!promptValue) {
     alert("Enter a description first");
     return;
   }
 
-  const res = await fetch("https://multipostapp.co.uk", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt })
-  });
+  // Visual feedback: disable button while loading
+  genBtn.disabled = true;
+  genBtn.innerText = "Generating...";
 
-  const json = await res.json();
+  try {
+    const res = await fetch("https://multipostapp.co.uk", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: promptValue })
+    });
 
-  if (!json.success) {
-    alert("SEO generation failed");
-    console.error(json);
-    return;
+    if (!res.ok) throw new Error("Server error: " + res.status);
+
+    const json = await res.json();
+
+    if (json.success && json.data) {
+      // Safely assign values from the JSON structure
+      titleField.value = json.data.youtube.title || "";
+      descField.value = json.data.youtube.description || "";
+      hashField.value = json.data.youtube.hashtags || "";
+    } else {
+      alert("SEO generation failed: " + (json.message || "Unknown error"));
+    }
+  } catch (error) {
+    console.error("Fetch Error:", error);
+    alert("Could not connect to the server. Check console for details.");
+  } finally {
+    // Re-enable button
+    genBtn.disabled = false;
+    genBtn.innerText = "✨ Generate SEO";
   }
-
-  ytTitle.value = json.data.youtube.title;
-  ytDescription.value = json.data.youtube.description;
-  ytHashtags.value = json.data.youtube.hashtags;
 }
 </script>
 
