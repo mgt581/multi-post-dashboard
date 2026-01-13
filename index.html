@@ -1,85 +1,44 @@
 <!DOCTYPE html>
-<html lang="en"> 
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Cloud Storage</title>
-  <link rel="stylesheet" href="styles.css" />
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multipost App</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-
   <div class="app">
-
-    <!-- HEADER -->
-    <header class="header">
-      <span class="title">Cloud Storage</span>
-      <span class="gear">⚙️</span>
-    </header>
-
-    <!-- HERO -->
-    <section class="hero">
-      <div class="cloud-wrap">
-        <div class="cloud">
-          <div class="folder"></div>
-        </div>
-        <div class="storage-text">12 Gb avaible</div>
-      </div>
-    </section>
-
-    <!-- UPLOAD -->
-    <section class="upload-title">
-      <div class="upload-icon">☁️⬆️</div>
-      <div class="upload-text">Upload</div>
-    </section>
-
-    <a href="create-post.html" class="card post" style="text-decoration:none; color:inherit;">
-  <div class="icon green"></div>
-  <div class="card-text">
-    <strong>My Posting Page</strong>
-    <span>Open your posting dashboard</span>
+    <header class="header"><span class="title">My Clients</span></header>
+    <div style="padding:20px;"><button class="card" style="width:100%; background:#2fa84f; color:white; border:none; font-weight:bold; padding:15px; border-radius:12px;" onclick="createNewFolder()">+ Create Client Folder</button></div>
+    <section id="folderContainer" class="cards"></section>
   </div>
-  <div class="arrow">›</div>
-</a>
+  <script>
+    const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api"; // UPDATE THIS
 
-      <div class="card facebook">
-        <div class="icon blue">f</div>
-        <div class="card-text">
-          <strong>Add Facebook Accounts</strong>
-          <span>Pages + profiles</span>
-        </div>
-        <div class="arrow">›</div>
-      </div>
+    async function loadFolders() {
+      const res = await fetch(`${apiBase}/get-folders`);
+      const folders = await res.json();
+      const container = document.getElementById("folderContainer");
+      container.innerHTML = folders.map(f => `
+        <div class="card" onclick="openFolder(${f.id}, '${f.name}')">
+          <div class="icon">📁</div>
+          <div class="card-text"><strong>${f.name}</strong><span>Client Workspace</span></div>
+          <div class="arrow">›</div>
+        </div>`).join('');
+    }
 
-      <div class="card tiktok">
-        <div class="icon black">♪</div>
-        <div class="card-text">
-          <strong>Add TikTok Accounts</strong>
-          <span>Connect TikTok profiles</span>
-        </div>
-        <div class="arrow">›</div>
-      </div>
+    async function createNewFolder() {
+      const name = prompt("Enter Client Name:");
+      if (!name) return;
+      await fetch(`${apiBase}/add-folder`, { method: "POST", body: JSON.stringify({ name }) });
+      loadFolders();
+    }
 
-      <div class="card youtube">
-        <div class="icon red">▶</div>
-        <div class="card-text">
-          <strong>Add YouTube Accounts</strong>
-          <span>Channels + uploads</span>
-        </div>
-        <div class="arrow">›</div>
-      </div>
-
-      <div class="card instagram">
-        <div class="icon insta">◎</div>
-        <div class="card-text">
-          <strong>Add Instagram Accounts</strong>
-          <span>IG business accounts</span>
-        </div>
-        <div class="arrow">›</div>
-      </div>
-
-    </section>
-
-  </div>
-
+    function openFolder(id, name) {
+      localStorage.setItem("activeFolderId", id);
+      localStorage.setItem("activeFolderName", name);
+      window.location.href = "folder.html";
+    }
+    window.onload = loadFolders;
+  </script>
 </body>
 </html>
