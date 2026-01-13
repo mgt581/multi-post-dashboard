@@ -1,4 +1,4 @@
-// ELEMENTS 
+// ELEMENTS
 const groupList = document.getElementById("groupList");
 const addGroupBtn = document.getElementById("addGroupBtn");
 const generateBtn = document.getElementById("generateBtn");
