@@ -7,12 +7,12 @@ binding = "AI"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "multipost_db" 
-database_id = "xxxx-xxxx-xxxx" # Get this from Cloudflare Dashboard > D1
+database_name = "multi-post-db" # Make sure this matches your DB name on Cloudflare
+database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
 
 [vars]
-# Add these names so the worker knows they exist, 
-# but set the actual values in the Cloudflare Dashboard Secrets
-GOOGLE_CLIENT_ID = ""
-TIKTOK_CLIENT_KEY = ""
-FB_CLIENT_ID = ""
+# These are the variables your code expects. 
+# You should set the actual values in the Cloudflare Dashboard under Settings > Variables.
+GOOGLE_CLIENT_ID = "YOUR_GOOGLE_ID"
+TIKTOK_CLIENT_KEY = "YOUR_TIKTOK_KEY"
+FB_CLIENT_ID = "YOUR_FB_ID"
