@@ -3,142 +3,142 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Folder</title>
+  <title>Workspace Details | MultiPost</title>
   <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* Adding some inline safety styles in case styles.css is missing */
+    .icon.youtube { background: #ff0000; color: white; }
+    .icon.tiktok { background: #000000; color: white; }
+    .icon.facebook { background: #1877f2; color: white; }
+    .icon.instagram { background: #e4405f; color: white; }
+    .card { cursor: pointer; transition: background 0.2s; }
+    .card:hover { background: #f9f9f9; }
+  </style>
 </head>
 <body>
 
 <div class="app">
 
-  <!-- HEADER -->
   <header class="header">
-    <a href="posting.html" class="gear">←</a>
-    <span class="title" id="folderTitle">Folder</span>
+    <a href="index.html" class="gear" style="text-decoration:none; font-size:20px;">←</a>
+    <span class="title" id="folderTitle">Loading...</span>
     <span></span>
   </header>
 
-  <!-- FOLDER INFO -->
   <section class="cards">
-    <div class="card">
+    <div class="card" style="cursor: default;">
       <div class="card-text">
-        <strong id="folderName">Folder</strong>
-        <span id="folderCount">0 connected accounts</span>
+        <strong id="folderName">Workspace</strong>
+        <span id="folderCount">Checking cloud...</span>
       </div>
     </div>
   </section>
 
-  <!-- ACCOUNTS LIST -->
   <section class="cards" id="accountList"></section>
 
-  <!-- ADD ACCOUNT -->
   <section class="cards">
-    <div class="card">
-      <select id="platformSelect" style="flex:1; margin-right:10px;">
+    <div class="card" style="cursor: default;">
+      <select id="platformSelect" style="flex:1; margin-right:10px; padding: 8px; border-radius: 6px;">
         <option value="">Select platform</option>
         <option value="facebook">Facebook</option>
-        <option value="instagram">Instagram</option>
         <option value="tiktok">TikTok</option>
         <option value="youtube">YouTube</option>
       </select>
-      <button onclick="addAccount()">Add</button>
+      <button onclick="addAccount()" style="padding: 8px 16px; background: #fe2c55; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer;">Link</button>
     </div>
   </section>
 
-  <!-- CREATE POST -->
-  <div class="card post" onclick="goToPostCreator()">
-    <div class="icon green">✏️</div>
+  <div class="card post" onclick="goToPostCreator()" style="margin-top: 20px; border: 2px solid #2fa84f;">
+    <div class="icon green" style="background: #2fa84f; color: white; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; margin-right: 15px;">✏️</div>
     <div class="card-text">
-      <strong>Create Post</strong>
-      <span>Generate content for this folder</span>
+      <strong>Create Viral Post</strong>
+      <span>Generate AI SEO for this workspace</span>
     </div>
-    <div class="arrow">›</div>
   </div>
 
 </div>
 
 <script>
-  // -----------------------------
-  // LOAD DATA
-  // -----------------------------
-  const folders = JSON.parse(localStorage.getItem("folders")) || [];
-  const activeFolderIndex = localStorage.getItem("activeFolder");
-  const folder = folders[activeFolderIndex];
+  // 1. SET YOUR WORKER URL
+  const API_URL = "https://multipost-seo-worker.alexbryant.workers.dev";
+  
+  // 2. GET ID FROM URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const folderId = urlParams.get('id');
 
-  const folderNameEl = document.getElementById("folderName");
-  const folderTitleEl = document.getElementById("folderTitle");
-  const folderCountEl = document.getElementById("folderCount");
-  const accountList = document.getElementById("accountList");
-  const platformSelect = document.getElementById("platformSelect");
-
-  if (!folder) {
-    alert("Folder not found");
-    window.location.href = "posting.html";
+  if (!folderId) {
+    alert("No Workspace ID found. Returning to Dashboard.");
+    window.location.href = "index.html";
   }
 
-  folderNameEl.textContent = folder.name;
-  folderTitleEl.textContent = folder.name;
-  folderCountEl.textContent = `${folder.accounts.length} connected accounts`;
+  // 3. LOAD DATA FROM CLOUDFLARE
+  async function loadData() {
+    try {
+      // Get accounts linked to this folder from D1
+      const response = await fetch(`${API_URL}/api/get-accounts?folder_id=${folderId}`);
+      const accounts = await response.json();
 
-  // -----------------------------
-  // RENDER ACCOUNTS
-  // -----------------------------
-  function renderAccounts() {
+      document.getElementById("folderTitle").textContent = "Workspace Manager";
+      document.getElementById("folderName").textContent = "Workspace #" + folderId;
+      document.getElementById("folderCount").textContent = `${accounts.length} connected accounts`;
+
+      renderAccounts(accounts);
+    } catch (err) {
+      console.error("Cloud Error:", err);
+      document.getElementById("accountList").innerHTML = `<p style="color:red; text-align:center;">Failed to connect to Cloud Database.</p>`;
+    }
+  }
+
+  // 4. RENDER ACCOUNTS
+  function renderAccounts(accounts) {
+    const accountList = document.getElementById("accountList");
     accountList.innerHTML = "";
 
-    if (folder.accounts.length === 0) {
+    if (accounts.length === 0) {
       accountList.innerHTML = `
-        <div class="card">
+        <div class="card" style="cursor: default;">
           <div class="card-text">
-            <strong>No accounts yet</strong>
-            <span>Add a platform below</span>
+            <strong>No accounts linked</strong>
+            <span>Select a platform below to start</span>
           </div>
         </div>
       `;
       return;
     }
 
-    folder.accounts.forEach(acc => {
+    accounts.forEach(acc => {
       const div = document.createElement("div");
       div.className = "card";
+      div.style.cursor = "default";
 
       div.innerHTML = `
-        <div class="icon ${acc.platform}">
+        <div class="icon ${acc.platform}" style="width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 15px; font-weight: bold;">
           ${acc.platform[0].toUpperCase()}
         </div>
         <div class="card-text">
-          <strong>Connected ${acc.platform}</strong>
-          <span>${acc.platform} account</span>
+          <strong>${acc.nickname || 'Linked Account'}</strong>
+          <span>Verified ${acc.platform}</span>
         </div>
       `;
-
       accountList.appendChild(div);
     });
   }
 
-  // -----------------------------
-  // ADD ACCOUNT (MVP)
-  // -----------------------------
+  // 5. REDIRECT TO AUTH (No more local push)
   function addAccount() {
-    const platform = platformSelect.value;
+    const platform = document.getElementById("platformSelect").value;
     if (!platform) return;
-
-    folder.accounts.push({ platform });
-    folders[activeFolderIndex] = folder;
-    localStorage.setItem("folders", JSON.stringify(folders));
-
-    platformSelect.value = "";
-    folderCountEl.textContent = `${folder.accounts.length} connected accounts`;
-    renderAccounts();
+    
+    // Redirects user to the Cloudflare Worker OAuth initiation path
+    window.location.href = `${API_URL}/api/auth/${platform}?folder_id=${folderId}`;
   }
 
-  // -----------------------------
-  // CREATE POST
-  // -----------------------------
   function goToPostCreator() {
-    window.location.href = "create-post.html";
+    window.location.href = `create-post.html?folder_id=${folderId}`;
   }
 
-  renderAccounts();
+  // Run on load
+  loadData();
 </script>
 
 </body>
