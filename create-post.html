@@ -4,122 +4,56 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Create Post</title>
-
   <style>
-    body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: #eef7fb;
-      margin: 0;
-    }
-
-    .app {
-      padding: 20px;
-      max-width: 700px;
-      margin: auto;
-    }
-
-    .card {
-      background: #e8f5fb;
-      border: 2px solid #9fd3ea;
-      border-radius: 16px;
-      padding: 16px;
-      margin-bottom: 16px;
-    }
-
-    textarea, input {
-      width: 100%;
-      padding: 12px;
-      border-radius: 10px;
-      border: 2px solid #9fd3ea;
-      font-size: 16px;
-      box-sizing: border-box;
-      margin-bottom: 10px;
-    }
-
-    button {
-      width: 100%;
-      padding: 14px;
-      font-size: 16px;
-      border-radius: 12px;
-      border: none;
-      cursor: pointer;
-      background: #3fa9f5;
-      color: white;
-      font-weight: bold;
-      transition: opacity 0.2s;
-    }
-
-    button:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
+    body { font-family: sans-serif; background: #eef7fb; margin: 0; padding: 20px; }
+    .app { max-width: 700px; margin: auto; }
+    .card { background: white; border: 2px solid #9fd3ea; border-radius: 16px; padding: 16px; margin-bottom: 16px; }
+    textarea, input { width: 100%; padding: 12px; border-radius: 10px; border: 2px solid #9fd3ea; box-sizing: border-box; margin-bottom: 10px; }
+    button { width: 100%; padding: 14px; border-radius: 12px; border: none; cursor: pointer; background: #3fa9f5; color: white; font-weight: bold; }
+    button:disabled { background: #ccc; }
   </style>
 </head>
-
 <body>
 <div class="app">
-
   <div class="card">
     <textarea id="prompt" placeholder="Describe your video..."></textarea>
     <button id="genBtn" onclick="generateSEO()">✨ Generate SEO</button>
   </div>
-
   <div class="card">
     <input id="ytTitle" placeholder="YouTube Title">
     <textarea id="ytDescription" rows="5" placeholder="YouTube Description"></textarea>
     <input id="ytHashtags" placeholder="#hashtags">
   </div>
-
 </div>
 
 <script>
 async function generateSEO() {
-  const promptInput = document.getElementById("prompt");
-  const genBtn = document.getElementById("genBtn");
-  const titleField = document.getElementById("ytTitle");
-  const descField = document.getElementById("ytDescription");
-  const hashField = document.getElementById("ytHashtags");
+  const btn = document.getElementById("genBtn");
+  const prompt = document.getElementById("prompt").value.trim();
+  if (!prompt) return alert("Enter a description");
 
-  const promptValue = promptInput.value.trim();
-  
-  if (!promptValue) {
-    alert("Enter a description first");
-    return;
-  }
-
-  // Visual feedback: disable button while loading
-  genBtn.disabled = true;
-  genBtn.innerText = "Generating...";
+  btn.disabled = true;
+  btn.innerText = "Generating...";
 
   try {
-    const res = await fetch("https://multipostapp.co.uk", {
+    const res = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: promptValue })
+      body: JSON.stringify({ prompt })
     });
-
-    if (!res.ok) throw new Error("Server error: " + res.status);
-
     const json = await res.json();
-
-    if (json.success && json.data) {
-      // Safely assign values from the JSON structure
-      titleField.value = json.data.youtube.title || "";
-      descField.value = json.data.youtube.description || "";
-      hashField.value = json.data.youtube.hashtags || "";
-    } else {
-      alert("SEO generation failed: " + (json.message || "Unknown error"));
+    if (json.success) {
+      document.getElementById("ytTitle").value = json.data.youtube.title;
+      document.getElementById("ytDescription").value = json.data.youtube.description;
+      document.getElementById("ytHashtags").value = json.data.youtube.hashtags;
     }
-  } catch (error) {
-    console.error("Fetch Error:", error);
-    alert("Could not connect to the server. Check console for details.");
+  } catch (e) {
+    alert("Connection error. Check console.");
   } finally {
-    // Re-enable button
-    genBtn.disabled = false;
-    genBtn.innerText = "✨ Generate SEO";
+    btn.disabled = false;
+    btn.innerText = "✨ Generate SEO";
   }
 }
 </script>
-
 </body>
 </html>
