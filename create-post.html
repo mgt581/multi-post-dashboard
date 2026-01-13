@@ -5,55 +5,81 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Create Post</title>
   <style>
-    body { font-family: sans-serif; background: #eef7fb; margin: 0; padding: 20px; }
+    body { font-family: system-ui, sans-serif; background: #eef7fb; margin: 0; padding: 20px; }
     .app { max-width: 700px; margin: auto; }
-    .card { background: white; border: 2px solid #9fd3ea; border-radius: 16px; padding: 16px; margin-bottom: 16px; }
-    textarea, input { width: 100%; padding: 12px; border-radius: 10px; border: 2px solid #9fd3ea; box-sizing: border-box; margin-bottom: 10px; }
-    button { width: 100%; padding: 14px; border-radius: 12px; border: none; cursor: pointer; background: #3fa9f5; color: white; font-weight: bold; }
-    button:disabled { background: #ccc; }
+    .card { background: white; border: 2px solid #9fd3ea; border-radius: 16px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    textarea, input { width: 100%; padding: 12px; border-radius: 10px; border: 2px solid #9fd3ea; box-sizing: border-box; margin-bottom: 10px; font-size: 14px; }
+    button { width: 100%; padding: 14px; border-radius: 12px; border: none; cursor: pointer; background: #3fa9f5; color: white; font-weight: bold; transition: background 0.2s; }
+    button:hover { background: #3598dc; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
   </style>
 </head>
 <body>
+
 <div class="app">
   <div class="card">
-    <textarea id="prompt" placeholder="Describe your video..."></textarea>
+    <textarea id="prompt" rows="3" placeholder="Describe your video idea..."></textarea>
     <button id="genBtn" onclick="generateSEO()">✨ Generate SEO</button>
   </div>
+
   <div class="card">
-    <input id="ytTitle" placeholder="YouTube Title">
-    <textarea id="ytDescription" rows="5" placeholder="YouTube Description"></textarea>
+    <label style="font-size: 12px; color: #666;">YouTube Title</label>
+    <input id="ytTitle" placeholder="Title will appear here...">
+    
+    <label style="font-size: 12px; color: #666;">YouTube Description</label>
+    <textarea id="ytDescription" rows="5" placeholder="Description will appear here..."></textarea>
+    
+    <label style="font-size: 12px; color: #666;">Hashtags</label>
     <input id="ytHashtags" placeholder="#hashtags">
   </div>
 </div>
 
 <script>
+/** * Note: If you are using Cloudflare Workers, the 'export default' 
+ * handler should stay in your app.js. This script handles the browser-side.
+ */
 async function generateSEO() {
   const btn = document.getElementById("genBtn");
-  const prompt = document.getElementById("prompt").value.trim();
-  if (!prompt) return alert("Enter a description");
+  const promptInput = document.getElementById("prompt");
+  const prompt = promptInput.value.trim();
 
+  if (!prompt) {
+    alert("Please enter a description first.");
+    return;
+  }
+
+  // UI Feedback
   btn.disabled = true;
-  btn.innerText = "Generating...";
+  btn.innerText = "Generating SEO...";
 
   try {
+    // We point to /api/generate which should be handled by your app.js worker
     const res = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt })
     });
+
+    if (!res.ok) throw new Error("Server Error");
+
     const json = await res.json();
+
     if (json.success) {
-      document.getElementById("ytTitle").value = json.data.youtube.title;
-      document.getElementById("ytDescription").value = json.data.youtube.description;
-      document.getElementById("ytHashtags").value = json.data.youtube.hashtags;
+      document.getElementById("ytTitle").value = json.data.youtube.title || "";
+      document.getElementById("ytDescription").value = json.data.youtube.description || "";
+      document.getElementById("ytHashtags").value = json.data.youtube.hashtags || "";
+    } else {
+      alert("Failed to generate SEO. Please try again.");
     }
-  } catch (e) {
-    alert("Connection error. Check console.");
+  } catch (error) {
+    console.error("Error:", error);
+    alert("Could not connect to generator. Ensure your Worker is running.");
   } finally {
     btn.disabled = false;
     btn.innerText = "✨ Generate SEO";
   }
 }
 </script>
+
 </body>
 </html>
