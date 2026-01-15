@@ -52,8 +52,8 @@
         </div>
 
         <div class="flex bg-slate-900/60 p-1.5 rounded-2xl mb-8 border border-slate-800/50">
-            <button id="tab-login" onclick="switchMode('login')" class="flex-1 py-3 rounded-xl bg-blue-600 text-xs font-bold uppercase tracking-widest shadow-lg transition-all duration-300">Sign In</button>
-            <button id="tab-signup" onclick="switchMode('signup')" class="flex-1 py-3 rounded-xl text-slate-500 text-xs font-bold uppercase tracking-widest hover:text-white transition-all duration-300">Sign Up</button>
+            <button id="tab-login" onclick="switchMode('login')" class="flex-1 py-3 rounded-xl bg-blue-600 text-sm font-bold uppercase tracking-widest shadow-lg transition-all duration-300">Sign In</button>
+            <button id="tab-signup" onclick="switchMode('signup')" class="flex-1 py-3 rounded-xl text-slate-500 text-sm font-bold uppercase tracking-widest hover:text-white transition-all duration-300">Sign Up</button>
         </div>
 
         <div class="space-y-6">
@@ -107,7 +107,7 @@
             onAuthStateChanged 
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // Your Corrected Config with the Verified API Key
+        // Your Corrected Config with the Verified API Key from the Google Snippet
         const firebaseConfig = {
             apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09ckZa_2Y4UGM",
             authDomain: "multi-post-daefc.firebaseapp.com",
@@ -205,8 +205,6 @@
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 console.log("Active session detected:", user.uid);
-                // Optionally auto-redirect if session is active
-                // window.location.href = `index.html?uid=${user.uid}`;
             }
         });
     </script>
