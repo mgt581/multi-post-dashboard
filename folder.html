@@ -3,96 +3,134 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Folder View</title>
-  <link rel="stylesheet" href="styles.css">
+  <title>Multipost | Workspace View</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: #0f172a; color: white; font-family: 'Inter', sans-serif; }
+    .glass-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+  </style>
 </head>
-<body>
-  <div class="app">
-    <header class="header">
-      <a href="index.html">←</a> 
-      <span class="title" id="title">Folder</span>
-    </header>
+<body class="min-h-screen p-4">
+  <div class="max-w-md mx-auto">
     
-    <div class="card" style="margin:20px;">
-      <strong id="name">Name</strong><br>
-      <span id="count">0 accounts</span>
+    <header class="flex justify-between items-center py-6">
+      <button onclick="goBack()" class="text-2xl text-slate-400 hover:text-white">←</button> 
+      <h1 class="text-xl font-black tracking-tight" id="title">Workspace</h1>
+      <div class="w-8"></div> </header>
+    
+    <div class="glass-card rounded-3xl p-6 mb-6 shadow-xl">
+      <strong id="name" class="text-2xl block mb-1">Loading...</strong>
+      <span id="count" class="text-slate-400 font-medium">0 accounts linked</span>
     </div>
 
-    <section class="cards" id="accountList"></section>
+    <h2 class="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4 ml-1">Connected Platforms</h2>
+    <section id="accountsContainer" class="space-y-3 mb-8">
+        <div class="animate-pulse flex space-x-4 p-4">
+            <div class="flex-1 space-y-4 py-1">
+                <div class="h-4 bg-slate-700 rounded w-3/4"></div>
+            </div>
+        </div>
+    </section>
 
-    <div class="card" style="display:flex; gap:10px; margin:20px;">
-      <select id="platformSelect" style="flex:1;">
+    <div class="glass-card p-4 rounded-2xl flex gap-3 mb-6">
+      <select id="platformSelect" class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
         <option value="tiktok">TikTok</option>
         <option value="youtube">YouTube</option>
         <option value="facebook">Facebook</option>
       </select>
-      <button onclick="addAccount()">Add</button>
+      <button onclick="addAccount()" class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-xl font-bold transition">Link</button>
     </div>
 
-    <button class="card" style="width:90%; margin: 0 auto; display:block; background:#2fa84f; color:white;" onclick="location.href='create-post.html'">✏️ Create Post</button>
+    <button onclick="goToCreatePost()" class="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-green-900/20 transition-all flex items-center justify-center gap-2">
+      ✏️ Create Viral Post
+    </button>
+
   </div>
 
   <script>
-    // --- CONFIGURATION ---
+    // 1. Get IDs from the URL (Passed from index.html)
+    const urlParams = new URLSearchParams(window.location.search);
+    const folderId = urlParams.get('id');
+    const userId = urlParams.get('uid'); 
     const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
-    // Using localStorage for folder data as per your current setup
-    const fId = localStorage.getItem("activeFolderId");
-    
-    // UI Initialization
-    document.getElementById("title").innerText = localStorage.getItem("activeFolderName") || "Folder";
-    document.getElementById("name").innerText = localStorage.getItem("activeFolderName") || "Name";
 
-    /**
-     * Renders the accounts linked to this folder
-     */
-    async function render() {
-      if (!fId) {
-        console.error("No active folder ID found in localStorage.");
-        return;
-      }
-      
-      try {
-        const res = await fetch(`${apiBase}/get-accounts?folder_id=${fId}`);
-        const accs = await res.json();
-        
-        document.getElementById("count").innerText = `${accs.length} accounts`;
-        
-        document.getElementById("accountList").innerHTML = accs.map(a => `
-          <div class="card">
-            <div class="icon">${a.platform[0].toUpperCase()}</div>
-            <div class="card-text">
-              <strong>${a.nickname || 'Linked Account'}</strong>
-              <span>${a.platform}</span>
-            </div>
-          </div>
-        `).join('');
-      } catch (err) {
-        console.error("Failed to render accounts:", err);
-      }
+    // Initialize UI Text from LocalStorage
+    document.getElementById("title").innerText = localStorage.getItem("activeFolderName") || "Workspace";
+    document.getElementById("name").innerText = localStorage.getItem("activeFolderName") || "Active Brand";
+
+    // 2. Security: Redirect if IDs are missing
+    if (!userId || !folderId) {
+        window.location.href = 'auth.html';
+    }
+
+    // 3. Navigation Helpers
+    function goBack() {
+        window.location.href = `index.html?uid=${userId}`;
+    }
+
+    function goToCreatePost() {
+        window.location.href = `create-post.html?id=${folderId}&uid=${userId}`;
     }
 
     /**
-     * Triggers the OAuth flow for the selected platform
+     * Triggers the OAuth flow via the Master Worker
+     * We pass both folderId and userId in the request
      */
     async function addAccount() {
-      const platform = document.getElementById("platformSelect").value;
-      
-      if (!fId) {
-        alert("Error: No Workspace ID found. Please go back to the home screen.");
-        return;
-      }
-
-      // We redirect to the Worker's auth endpoint. 
-      // The Worker handles the login and redirects back here automatically.
-      // We pass folder_id as 'state' to keep track of where the user belongs.
-      const authUrl = `${apiBase}/auth/${platform}?folder_id=${fId}`;
-      
-      // Navigate to the platform login (YouTube/TikTok/Facebook)
-      window.location.href = authUrl;
+        const platform = document.getElementById("platformSelect").value;
+        // The Worker will use state="${folderId}:${userId}" to keep this private
+        window.location.href = `${apiBase}/auth/${platform}?folder_id=${folderId}&user_id=${userId}`;
     }
 
-    // Run render on page load
-    window.onload = render;
+    /**
+     * Loads accounts that only belong to this specific workspace
+     */
+    async function loadAccounts() {
+        const container = document.getElementById("accountsContainer");
+        const countDisplay = document.getElementById("count");
+
+        try {
+            const res = await fetch(`${apiBase}/get-accounts?folder_id=${folderId}`);
+            const accounts = await res.json();
+
+            countDisplay.innerText = `${accounts.length} accounts linked`;
+
+            if (accounts.length === 0) {
+                container.innerHTML = `<div class="text-center p-8 bg-slate-900/50 rounded-2xl border border-dashed border-slate-800 text-slate-500 font-medium">No platforms linked yet. Link one above!</div>`;
+                return;
+            }
+
+            container.innerHTML = accounts.map(acc => `
+                <div class="flex justify-between items-center p-4 glass-card rounded-2xl shadow-sm border border-slate-800/50">
+                    <div class="flex items-center gap-4">
+                        <div class="text-2xl bg-slate-900 w-12 h-12 flex items-center justify-center rounded-xl border border-slate-800">
+                            ${getIcon(acc.platform)}
+                        </div>
+                        <div>
+                            <div class="font-bold text-slate-200">${acc.nickname || 'Linked Account'}</div>
+                            <div class="text-[10px] text-slate-500 uppercase tracking-tighter font-black">${acc.platform}</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-1.5 bg-green-500/10 px-3 py-1 rounded-full border border-green-500/20">
+                        <span class="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                        <span class="text-[10px] text-green-500 font-bold uppercase tracking-wider">Active</span>
+                    </div>
+                </div>
+            `).join('');
+        } catch (err) {
+            container.innerHTML = `<div class="text-red-400 text-center p-4">Error connecting to Cloud DB.</div>`;
+        }
+    }
+
+    function getIcon(platform) {
+        if (platform === 'tiktok') return '📱';
+        if (platform === 'youtube') return '🎥';
+        if (platform === 'facebook') return '👥';
+        return '🔗';
+    }
+
+    // Run on Load
+    window.onload = loadAccounts;
   </script>
 </body>
 </html>
