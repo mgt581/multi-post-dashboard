@@ -53,6 +53,26 @@
       font-size: 15px;
       font-weight: 500;
     }
+    
+    /* Login/Auth Button Styles */
+    .auth-nav {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .signin-btn {
+      background: #0f172a;
+      color: white;
+      padding: 10px 18px;
+      border-radius: 12px;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 700;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+    }
+    .signin-btn:hover { background: #1e293b; transform: translateY(-1px); }
+    
     .profile-icon {
       width: 45px;
       height: 45px;
@@ -63,7 +83,9 @@
       justify-content: center;
       box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
       font-size: 20px;
+      cursor: pointer;
     }
+    .hidden { display: none !important; }
 
     /* --- STATS BAR --- */
     .stats-bar {
@@ -179,14 +201,12 @@
     }
     .folder-card:hover .arrow-icon { background: var(--primary); color: white; }
 
-        /* Empty state */
     .empty-state {
       text-align: center;
       padding: 40px 20px;
       color: var(--text-muted);
     }
 
-    /* --- ADDED FOOTER STYLES --- */
     .footer-container {
       margin-top: 40px;
       padding: 20px 0;
@@ -224,14 +244,20 @@
     <header class="header">
       <div class="header-content">
         <h1>Workspaces</h1>
-        <p>13 Jan 2026 • Welcome Back</p>
+        <p id="dateLabel">Welcome Back</p>
       </div>
-      <div class="profile-icon">👤</div>
+      
+      <div class="auth-nav">
+        <a href="auth.html" id="signin-btn" class="signin-btn">Sign In</a>
+        <div id="profile-wrap" class="hidden" onclick="handleLogout()">
+            <div class="profile-icon">👤</div>
+        </div>
+      </div>
     </header>
 
     <div class="stats-bar">
       <div class="stat-pill" id="folderCountPill">0 Folders</div>
-      <div class="stat-pill">Cloud Active</div>
+      <div class="stat-pill" id="statusPill">Cloud Active</div>
     </div>
 
     <button class="add-btn" onclick="createNewFolder()">
@@ -253,13 +279,34 @@
 
   <script>
     const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
+    const urlParams = new URLSearchParams(window.location.search);
+    const userUID = urlParams.get('uid');
+
+    // Update Header based on Auth Status
+    function initAuthHeader() {
+        const signinBtn = document.getElementById('signin-btn');
+        const profileWrap = document.getElementById('profile-wrap');
+        const statusPill = document.getElementById('statusPill');
+        const dateLabel = document.getElementById('dateLabel');
+
+        dateLabel.innerText = `${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} • Welcome`;
+
+        if (userUID) {
+            signinBtn.classList.add('hidden');
+            profileWrap.classList.remove('hidden');
+            statusPill.innerText = "User Verified";
+            statusPill.style.color = "#2fa84f";
+        }
+    }
 
     async function loadFolders() {
       const container = document.getElementById("folderContainer");
       const pill = document.getElementById("folderCountPill");
       
       try {
-        const res = await fetch(`${apiBase}/get-folders`);
+        // We pass the UID to the API so it knows whose folders to fetch
+        const fetchUrl = userUID ? `${apiBase}/get-folders?uid=${userUID}` : `${apiBase}/get-folders`;
+        const res = await fetch(fetchUrl);
         const folders = await res.json();
         
         pill.innerText = `${folders.length} Workspaces`;
@@ -286,6 +333,12 @@
     }
 
     async function createNewFolder() {
+      if (!userUID) {
+          alert("Please Sign In to create a workspace.");
+          window.location.href = "auth.html";
+          return;
+      }
+      
       const name = prompt("Enter Brand or Client Name:");
       if (!name) return;
 
@@ -293,7 +346,7 @@
         const res = await fetch(`${apiBase}/add-folder`, { 
           method: "POST", 
           headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({ name }) 
+          body: JSON.stringify({ name, user_id: userUID }) 
         });
         if (res.ok) loadFolders();
       } catch (err) {
@@ -304,12 +357,20 @@
     function openFolder(id, name) {
       localStorage.setItem("activeFolderId", id);
       localStorage.setItem("activeFolderName", name);
-      window.location.href = `folder.html?id=${id}`;
+      // Keep UID in the URL when moving between pages
+      window.location.href = `folder.html?id=${id}&uid=${userUID || ''}`;
     }
 
-    window.onload = loadFolders;
+    function handleLogout() {
+        if(confirm("Logout of Multipost?")) {
+            window.location.href = "index-2.html";
+        }
+    }
+
+    window.onload = () => {
+        initAuthHeader();
+        loadFolders();
+    };
   </script>
 </body>
 </html>
-
-    
