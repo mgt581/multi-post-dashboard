@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multipost App | Access Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: radial-gradient(circle at top left, #1e293b, #0f172a); }
+        .glass-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+    </style>
+</head>
+<body class="text-white min-h-screen flex items-center justify-center p-6">
+
+    <div class="glass-card w-full max-w-md p-8 rounded-3xl shadow-2xl">
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-black tracking-tight bg-gradient-to-br from-blue-400 to-indigo-500 bg-clip-text text-transparent">
+                Multipost
+            </h1>
+            <p id="form-hint" class="text-slate-400 mt-2 font-medium">Secure access to your workspaces</p>
+        </div>
+
+        <div class="flex bg-slate-900/50 p-1.5 rounded-2xl mb-8 border border-slate-800">
+            <button id="tab-login" onclick="switchMode('login')" class="flex-1 py-2.5 rounded-xl bg-blue-600 text-sm font-bold shadow-lg transition-all">Sign In</button>
+            <button id="tab-signup" onclick="switchMode('signup')" class="flex-1 py-2.5 rounded-xl text-slate-400 text-sm font-bold hover:text-white transition-all">Sign Up</button>
+        </div>
+
+        <div class="space-y-5">
+            <div class="group">
+                <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Email Address</label>
+                <input type="email" id="email" placeholder="you@example.com" 
+                    class="w-full bg-slate-950/50 border border-slate-800 rounded-xl p-4 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all">
+            </div>
+            
+            <div class="group">
+                <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Password</label>
+                <input type="password" id="password" placeholder="••••••••" 
+                    class="w-full bg-slate-950/50 border border-slate-800 rounded-xl p-4 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all">
+            </div>
+
+            <button id="submit-btn" onclick="mockSubmit()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black py-4 rounded-xl shadow-xl shadow-blue-900/20 transition-all transform active:scale-[0.98] mt-4">
+                Enter Workspace
+            </button>
+        </div>
+
+        <div class="relative my-10">
+            <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-800"></div></div>
+            <div class="relative flex justify-center text-xs uppercase"><span class="bg-[#162032] px-4 text-slate-500 font-bold tracking-widest">Third Party Access</span></div>
+        </div>
+
+        <button onclick="mockGoogle()" class="w-full bg-slate-200 hover:bg-white text-slate-900 font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all transform active:scale-[0.98]">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5">
+            Continue with Google
+        </button>
+
+        <p class="text-center text-slate-500 text-xs mt-8">
+            By continuing, you agree to the Multipost Terms of Service.
+        </p>
+    </div>
+
+    <script>
+        let currentMode = 'login';
+
+        function switchMode(mode) {
+            currentMode = mode;
+            const hint = document.getElementById('form-hint');
+            const btn = document.getElementById('submit-btn');
+            const tabLogin = document.getElementById('tab-login');
+            const tabSignup = document.getElementById('tab-signup');
+
+            if (mode === 'signup') {
+                hint.innerText = "Start multi-posting in minutes";
+                btn.innerText = "Create Free Account";
+                tabSignup.className = "flex-1 py-2.5 rounded-xl bg-blue-600 text-sm font-bold shadow-lg transition-all";
+                tabLogin.className = "flex-1 py-2.5 rounded-xl text-slate-400 text-sm font-bold hover:text-white transition-all";
+            } else {
+                hint.innerText = "Secure access to your workspaces";
+                btn.innerText = "Enter Workspace";
+                tabLogin.className = "flex-1 py-2.5 rounded-xl bg-blue-600 text-sm font-bold shadow-lg transition-all";
+                tabSignup.className = "flex-1 py-2.5 rounded-xl text-slate-400 text-sm font-bold hover:text-white transition-all";
+            }
+        }
+
+        function mockSubmit() {
+            const email = document.getElementById('email').value || "user@test.com";
+            alert(`MOCK: ${currentMode === 'login' ? 'Logging in' : 'Signing up'} ${email}...`);
+        }
+
+        function mockGoogle() {
+            alert("MOCK: Redirecting to Google Auth...");
+        }
+    </script>
+</body>
+</html>
