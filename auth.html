@@ -6,71 +6,108 @@
     <title>Multipost App | Access Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background: radial-gradient(circle at top left, #1e293b, #0f172a); }
-        .glass-card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        body { 
+            background: radial-gradient(circle at top left, #1e293b, #0f172a); 
+            font-family: 'Inter', sans-serif;
+        }
+        .glass-card { 
+            background: rgba(30, 41, 59, 0.7); 
+            backdrop-filter: blur(16px); 
+            border: 1px solid rgba(255, 255, 255, 0.1); 
+        }
         .error-shake { animation: shake 0.4s; }
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-5px); }
-            75% { transform: translateX(5px); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
+        .input-focus {
+            transition: all 0.3s ease;
+        }
+        .input-focus:focus {
+            background: rgba(15, 23, 42, 0.8);
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+        }
+        /* Custom Loader */
+        .loader-dot { animation: dot-pulse 1.5s infinite ease-in-out; }
+        @keyframes dot-pulse {
+            0%, 100% { opacity: 0.2; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
         }
     </style>
 </head>
 <body class="text-white min-h-screen flex items-center justify-center p-6">
 
-    <div id="auth-container" class="glass-card w-full max-w-md p-8 rounded-3xl shadow-2xl">
+    <div id="auth-container" class="glass-card w-full max-w-md p-10 rounded-[2.5rem] shadow-2xl transition-all duration-500">
         <div class="text-center mb-10">
-            <h1 class="text-4xl font-black tracking-tight bg-gradient-to-br from-blue-400 to-indigo-500 bg-clip-text text-transparent">
+            <div class="inline-block p-3 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 mb-4 shadow-lg shadow-blue-500/20">
+                <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
+                </svg>
+            </div>
+            <h1 class="text-4xl font-black tracking-tighter bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-500 bg-clip-text text-transparent">
                 Multipost
             </h1>
-            <p id="form-hint" class="text-slate-400 mt-2 font-medium">Secure access to your workspaces</p>
+            <p id="form-hint" class="text-slate-400 mt-3 font-medium text-sm tracking-wide">Secure access to your multi-channel dashboard</p>
         </div>
 
-        <div class="flex bg-slate-900/50 p-1.5 rounded-2xl mb-8 border border-slate-800">
-            <button id="tab-login" onclick="switchMode('login')" class="flex-1 py-2.5 rounded-xl bg-blue-600 text-sm font-bold shadow-lg transition-all">Sign In</button>
-            <button id="tab-signup" onclick="switchMode('signup')" class="flex-1 py-2.5 rounded-xl text-slate-400 text-sm font-bold hover:text-white transition-all">Sign Up</button>
+        <div class="flex bg-slate-900/60 p-1.5 rounded-2xl mb-8 border border-slate-800/50">
+            <button id="tab-login" onclick="switchMode('login')" class="flex-1 py-3 rounded-xl bg-blue-600 text-xs font-bold uppercase tracking-widest shadow-lg transition-all duration-300">Sign In</button>
+            <button id="tab-signup" onclick="switchMode('signup')" class="flex-1 py-3 rounded-xl text-slate-500 text-xs font-bold uppercase tracking-widest hover:text-white transition-all duration-300">Sign Up</button>
         </div>
 
-        <div class="space-y-5">
+        <div class="space-y-6">
             <div class="group">
-                <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Email Address</label>
-                <input type="email" id="email" placeholder="you@example.com" 
-                    class="w-full bg-slate-950/50 border border-slate-800 rounded-xl p-4 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all">
+                <label class="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 ml-1">Account Email</label>
+                <input type="email" id="email" placeholder="name@company.com" 
+                    class="input-focus w-full bg-slate-950/40 border border-slate-800/80 rounded-2xl p-4 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/50">
             </div>
             
-            <div class="group">
-                <label class="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Password</label>
+            <div class="group relative">
+                <label class="block text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mb-2 ml-1">Secure Password</label>
                 <input type="password" id="password" placeholder="••••••••" 
-                    class="w-full bg-slate-950/50 border border-slate-800 rounded-xl p-4 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all">
+                    class="input-focus w-full bg-slate-950/40 border border-slate-800/80 rounded-2xl p-4 text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500/50">
             </div>
 
-            <button id="submit-btn" onclick="handleAuthSubmit()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black py-4 rounded-xl shadow-xl shadow-blue-900/20 transition-all transform active:scale-[0.98] mt-4 flex justify-center items-center">
-                <span id="btn-text">Enter Workspace</span>
-                <div id="btn-loader" class="hidden animate-spin rounded-full h-5 w-5 border-t-2 border-white"></div>
+            <button id="submit-btn" onclick="handleAuthSubmit()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold py-4.5 rounded-2xl shadow-xl shadow-blue-900/30 transition-all transform active:scale-[0.97] mt-4 flex justify-center items-center group">
+                <span id="btn-text" class="tracking-wide">Enter Workspace</span>
+                <div id="btn-loader" class="hidden flex gap-1">
+                    <div class="w-2 h-2 bg-white rounded-full loader-dot"></div>
+                    <div class="w-2 h-2 bg-white rounded-full loader-dot" style="animation-delay: 0.2s"></div>
+                    <div class="w-2 h-2 bg-white rounded-full loader-dot" style="animation-delay: 0.4s"></div>
+                </div>
             </button>
         </div>
 
         <div class="relative my-10">
-            <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-800"></div></div>
-            <div class="relative flex justify-center text-xs uppercase"><span class="bg-[#162032] px-4 text-slate-500 font-bold tracking-widest">Third Party Access</span></div>
+            <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-800/60"></div></div>
+            <div class="relative flex justify-center text-[10px] uppercase tracking-[0.3em]"><span class="bg-[#10192d] px-4 text-slate-600 font-bold">Identity Verification</span></div>
         </div>
 
-        <button onclick="handleGoogleSignIn()" class="w-full bg-slate-200 hover:bg-white text-slate-900 font-bold py-4 rounded-xl flex items-center justify-center gap-3 transition-all transform active:scale-[0.98]">
+        <button onclick="handleGoogleSignIn()" class="w-full bg-white hover:bg-slate-100 text-slate-900 font-bold py-4 rounded-2xl flex items-center justify-center gap-3 transition-all transform active:scale-[0.97] shadow-lg">
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5">
             Continue with Google
         </button>
 
-        <p class="text-center text-slate-500 text-xs mt-8">
-            By continuing, you agree to the Multipost Terms of Service.
+        <p class="text-center text-slate-600 text-[10px] mt-10 leading-relaxed">
+            By accessing Multipost, you confirm you are an authorized user.<br>
+            Protected by Firebase Security Services.
         </p>
     </div>
 
     <script type="module">
-        // Import Firebase SDKs
+        // --- FIREBASE ENGINE INITIALIZATION ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+        import { 
+            getAuth, 
+            createUserWithEmailAndPassword, 
+            signInWithEmailAndPassword, 
+            GoogleAuthProvider, 
+            signInWithPopup,
+            onAuthStateChanged 
+        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-        // Your Exact Config from Screenshot
+        // Your Corrected Config with the Verified API Key
         const firebaseConfig = {
             apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09ckZa_2Y4UGM",
             authDomain: "multi-post-daefc.firebaseapp.com",
@@ -81,14 +118,13 @@
             measurementId: "G-NY0N8KKH0N"
         };
 
-        // Initialize Firebase
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const provider = new GoogleAuthProvider();
 
         let currentMode = 'login';
 
-        // Switch between Login and Signup UI
+        // UI State Controller
         window.switchMode = (mode) => {
             currentMode = mode;
             const hint = document.getElementById('form-hint');
@@ -97,19 +133,19 @@
             const tabSignup = document.getElementById('tab-signup');
 
             if (mode === 'signup') {
-                hint.innerText = "Start multi-posting in minutes";
+                hint.innerText = "Start your multi-posting journey today";
                 btnText.innerText = "Create Free Account";
-                tabSignup.className = "flex-1 py-2.5 rounded-xl bg-blue-600 text-sm font-bold shadow-lg transition-all";
-                tabLogin.className = "flex-1 py-2.5 rounded-xl text-slate-400 text-sm font-bold hover:text-white transition-all";
+                tabSignup.className = "flex-1 py-3 rounded-xl bg-blue-600 text-xs font-bold uppercase tracking-widest shadow-lg transition-all duration-300";
+                tabLogin.className = "flex-1 py-3 rounded-xl text-slate-500 text-xs font-bold uppercase tracking-widest hover:text-white transition-all duration-300";
             } else {
-                hint.innerText = "Secure access to your workspaces";
+                hint.innerText = "Secure access to your multi-channel dashboard";
                 btnText.innerText = "Enter Workspace";
-                tabLogin.className = "flex-1 py-2.5 rounded-xl bg-blue-600 text-sm font-bold shadow-lg transition-all";
-                tabSignup.className = "flex-1 py-2.5 rounded-xl text-slate-400 text-sm font-bold hover:text-white transition-all";
+                tabLogin.className = "flex-1 py-3 rounded-xl bg-blue-600 text-xs font-bold uppercase tracking-widest shadow-lg transition-all duration-300";
+                tabSignup.className = "flex-1 py-3 rounded-xl text-slate-500 text-xs font-bold uppercase tracking-widest hover:text-white transition-all duration-300";
             }
         };
 
-        // Handle Email/Password Auth
+        // Core Authentication Logic
         window.handleAuthSubmit = async () => {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
@@ -117,12 +153,12 @@
             const btnLoader = document.getElementById('btn-loader');
             const container = document.getElementById('auth-container');
 
-            if (!email || !password) {
-                alert("Please fill in all fields.");
+            if (!email || password.length < 6) {
+                alert("Please enter a valid email and a password of at least 6 characters.");
                 return;
             }
 
-            // Show Loading State
+            // Visual Loading Trigger
             btnText.classList.add('hidden');
             btnLoader.classList.remove('hidden');
 
@@ -134,27 +170,45 @@
                     userCredential = await createUserWithEmailAndPassword(auth, email, password);
                 }
                 
-                // Redirect with Real UID
+                // Redirect on success with secure UID hand-off
                 const user = userCredential.user;
                 window.location.href = `index.html?uid=${user.uid}`;
+
             } catch (error) {
+                // UI Feedback for Failure
                 container.classList.add('error-shake');
                 setTimeout(() => container.classList.remove('error-shake'), 400);
-                alert("Authentication Failed: " + error.message);
+                
+                let friendlyMessage = "Auth failed: Check your credentials.";
+                if (error.code === 'auth/user-not-found') friendlyMessage = "User not found. Try signing up!";
+                if (error.code === 'auth/wrong-password') friendlyMessage = "Incorrect password.";
+                if (error.code === 'auth/email-already-in-use') friendlyMessage = "Email already exists. Try logging in.";
+                
+                alert(friendlyMessage);
+                
                 btnText.classList.remove('hidden');
                 btnLoader.classList.add('hidden');
             }
         };
 
-        // Handle Google Auth
+        // Google Authentication Logic
         window.handleGoogleSignIn = async () => {
             try {
                 const result = await signInWithPopup(auth, provider);
                 window.location.href = `index.html?uid=${result.user.uid}`;
             } catch (error) {
-                alert("Google Sign-In Failed: " + error.message);
+                alert("Google Access Denied: " + error.message);
             }
         };
+
+        // Check for existing session on page load
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                console.log("Active session detected:", user.uid);
+                // Optionally auto-redirect if session is active
+                // window.location.href = `index.html?uid=${user.uid}`;
+            }
+        });
     </script>
 </body>
 </html>
