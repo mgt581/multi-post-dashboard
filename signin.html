@@ -213,7 +213,26 @@ onAuthStateChanged(auth, (user) => {
         if (window.location.pathname.includes("signin.html") || window.location.pathname === "/") {
             window.location.href = "index.html";
         }
+        // Optionally, store login state in localStorage
+        localStorage.setItem("userEmail", user.email || "");
+    } else {
+        // If not signed in, clear login state
+        localStorage.removeItem("userEmail");
     }
+</script>
+<script>
+// Optional: Add sign out button if you want to allow users to log out
+// Example usage: <button onclick="signOutUser()">Sign Out</button>
+function signOutUser() {
+    import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js').then(({ getAuth, signOut }) => {
+        const auth = getAuth();
+        signOut(auth).then(() => {
+            localStorage.removeItem("userEmail");
+            window.location.href = "signin.html";
+        });
+    });
+}
+</script>
 });
 
 </script>
