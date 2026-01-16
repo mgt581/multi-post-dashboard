@@ -79,14 +79,21 @@
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "AI Error");
 
-      const d = json.data;
+      // Parse the nested JSON string in 'response'
+      let d = json.data;
+      if (typeof d.response === "string") {
+        try {
+          d = JSON.parse(d.response);
+        } catch (e) {
+          throw new Error("AI returned invalid SEO data format.");
+        }
+      }
 
-      // FIX: Using Optional Chaining (?.) to prevent 'undefined' crashes
       document.getElementById("ytTitle").value = d.youtube?.title || "";
       document.getElementById("ytDesc").value = d.youtube?.description || "";
       document.getElementById("ytKeywords").value = d.youtube?.keywords || "";
       
-      document.getElementById("ttAllInOne").value = d.tiktok?.allInOne || "";
+      document.getElementById("ttAllInOne").value = d.tiktok?.AllInOne || d.tiktok?.allInOne || "";
       
       document.getElementById("fbTitle").value = d.facebook?.title || "";
       document.getElementById("fbDetails").value = d.facebook?.descriptionAndTags || "";
