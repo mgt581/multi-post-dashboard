@@ -1,26 +1,34 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Folder View</title>
   <link rel="stylesheet" href="styles.css">
+  <style>
+    body{font-family:Inter,system-ui,Arial,sans-serif;margin:0;background:#fff;color:#0f172a}
+    .app{max-width:980px;margin:28px auto;padding:18px}
+    .header{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+    .header a{color:#64748b;text-decoration:none}
+    .title{font-weight:700}
+    .card{background:#fff;border:1px solid #f1f5f9;border-radius:10px;padding:14px;margin-bottom:12px}
+  </style>
 </head>
 <body>
   <div class="app">
     <header class="header">
-      <a href="index.html">←</a> 
+      <a href="index.html">←</a>
       <span class="title" id="title">Folder</span>
     </header>
-    
-    <div class="card" style="margin:20px;">
+
+    <div class="card" style="margin:0 0 12px;">
       <strong id="name">Name</strong><br>
       <span id="count">0 accounts</span>
     </div>
 
     <section class="cards" id="accountList"></section>
 
-    <div class="card" style="display:flex; gap:10px; margin:20px;">
+    <div class="card" style="display:flex; gap:10px; margin-top:14px;">
       <select id="platformSelect" style="flex:1;">
         <option value="tiktok">TikTok</option>
         <option value="youtube">YouTube</option>
@@ -29,69 +37,74 @@
       <button onclick="addAccount()">Add</button>
     </div>
 
-    <button class="card" style="width:90%; margin: 0 auto; display:block; background:#2fa84f; color:white;" onclick="location.href='create-post.html'">✏️ Create Post</button>
+    <button class="card" style="width:90%; margin: 16px auto 0; display:block; background:#2fa84f; color:white;" onclick="location.href='create-post.html'">✏️ Create Post</button>
   </div>
 
   <script>
-    // --- CONFIGURATION ---
     const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
-    // Using localStorage for folder data as per your current setup
     const fId = localStorage.getItem("activeFolderId");
-    
-    // UI Initialization
-    document.getElementById("title").innerText = localStorage.getItem("activeFolderName") || "Folder";
-    document.getElementById("name").innerText = localStorage.getItem("activeFolderName") || "Name";
 
-    /**
-     * Renders the accounts linked to this folder
-     */
+    // Set initial UI from localStorage
+    function updateNamesFromStorage() {
+      const name = localStorage.getItem("activeFolderName") || "Folder";
+      document.getElementById("title").innerText = name;
+      document.getElementById("name").innerText = name;
+    }
+    updateNamesFromStorage();
+
+    // Listen for storage changes (in case rename happened elsewhere)
+    window.addEventListener('storage', (e) => {
+      if (e.key === 'activeFolderName') updateNamesFromStorage();
+    });
+
     async function render() {
       if (!fId) {
         console.error("No active folder ID found in localStorage.");
         return;
       }
-      
       try {
         const res = await fetch(`${apiBase}/get-accounts?folder_id=${fId}`);
+        if (!res.ok) throw new Error('Failed to fetch accounts');
         const accs = await res.json();
-        
-        document.getElementById("count").innerText = `${accs.length} accounts`;
-        
-        document.getElementById("accountList").innerHTML = accs.map(a => `
-          <div class="card">
-            <div class="icon">${a.platform[0].toUpperCase()}</div>
-            <div class="card-text">
-              <strong>${a.nickname || 'Linked Account'}</strong>
-              <span>${a.platform}</span>
-            </div>
-          </div>
-        `).join('');
+
+        document.getElementById("count").innerText = \\`
+        ${accs.length} accounts\n        \\
+        const list = document.getElementById("accountList");
+        list.innerHTML = '';
+        if (accs.length === 0) {
+          list.innerHTML = '<div class="card">No linked accounts yet.</div>';
+        } else {
+          accs.forEach(a => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.style.display = 'flex';
+            card.style.gap = '12px';
+            card.innerHTML = `
+              <div style="width:46px;height:46px;border-radius:10px;background:#f8fafc;display:flex;align-items:center;justify-content:center;font-weight:700">${a.platform[0].toUpperCase()}</div>
+              <div style="flex:1">
+                <strong>${a.nickname || 'Linked Account'}</strong><br>
+                <span style="color:#64748b">${a.platform}</span>
+              </div>
+            `;
+            list.appendChild(card);
+          });
+        }
+
       } catch (err) {
         console.error("Failed to render accounts:", err);
       }
     }
 
-    /**
-     * Triggers the OAuth flow for the selected platform
-     */
     async function addAccount() {
       const platform = document.getElementById("platformSelect").value;
-      
       if (!fId) {
         alert("Error: No Workspace ID found. Please go back to the home screen.");
         return;
       }
-
-      // We redirect to the Worker's auth endpoint. 
-      // The Worker handles the login and redirects back here automatically.
-      // We pass folder_id as 'state' to keep track of where the user belongs.
       const authUrl = `${apiBase}/auth/${platform}?folder_id=${fId}`;
-      
-      // Navigate to the platform login (YouTube/TikTok/Facebook)
       window.location.href = authUrl;
     }
 
-    // Run render on page load
     window.onload = render;
   </script>
 </body>
