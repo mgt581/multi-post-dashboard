@@ -45,8 +45,10 @@
 
     <div class="card">
       <div class="section-title">TikTok</div>
-      <textarea id="ttAllInOne" placeholder="Title, Desc, Tags & Keywords combined"></textarea>
-      <button class="btn secondary" onclick="copyGeneric('ttAllInOne', 'TikTok', 'https://www.tiktok.com/upload')">📱 Copy & Go to TikTok</button>
+      <input id="ttTitle" placeholder="TikTok Title" />
+      <textarea id="ttDesc" placeholder="Description"></textarea>
+      <textarea id="ttTags" placeholder="Tags & Keywords"></textarea>
+      <button class="btn secondary" onclick="copyTikTok()">📱 Copy & Go to TikTok</button>
     </div>
 
     <div class="card">
@@ -93,14 +95,10 @@
       document.getElementById("ytDesc").value = d.youtube?.description || "";
       document.getElementById("ytKeywords").value = d.youtube?.keywords || "";
       
-      // Ensure TikTok box is pre-filled and never just a link
-        // TikTok SEO: Always fill, even for short prompts
-        let tiktokSEO = d.tiktok?.AllInOne || d.tiktok?.allInOne || "";
-        if (!tiktokSEO) {
-          // Fallback: Compose a basic TikTok SEO from YouTube or Facebook if available
-          tiktokSEO = `${d.youtube?.title || prompt}\n${d.youtube?.description || d.facebook?.descriptionAndTags || prompt}\n#tiktok #seo`;
-        }
-        document.getElementById("ttAllInOne").value = tiktokSEO;
+      // TikTok SEO: Fill separate fields for title, description, and tags
+      document.getElementById("ttTitle").value = d.tiktok?.title || d.youtube?.title || "";
+      document.getElementById("ttDesc").value = d.tiktok?.description || d.youtube?.description || d.facebook?.descriptionAndTags || prompt || "";
+      document.getElementById("ttTags").value = d.tiktok?.tags || d.tiktok?.keywords || d.youtube?.keywords || "#tiktok #seo";
       
       document.getElementById("fbTitle").value = d.facebook?.title || "";
       document.getElementById("fbDetails").value = d.facebook?.descriptionAndTags || "";
@@ -130,11 +128,12 @@
     });
   }
 
-  function copyGeneric(id, name, url) {
-    const text = document.getElementById(id).value;
+
+  function copyTikTok() {
+    const text = `TITLE:\n${document.getElementById("ttTitle").value}\n\nDESC:\n${document.getElementById("ttDesc").value}\n\nTAGS:\n${document.getElementById("ttTags").value}`;
     navigator.clipboard.writeText(text).then(() => {
-      alert(name + " SEO Copied!");
-      window.open(url, "_blank");
+      alert("TikTok SEO Copied!");
+      window.open("https://www.tiktok.com/upload", "_blank");
     });
   }
 
