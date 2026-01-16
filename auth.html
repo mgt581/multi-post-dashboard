@@ -30,14 +30,15 @@
       getRedirectResult
     } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-    // 🔐 SAME Firebase config as signin.html
+    // 🔐 MUST MATCH signin.html EXACTLY
     const firebaseConfig = {
-      apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09ckZa_2Y4UGM",
+      apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
       authDomain: "multi-post-daefc.firebaseapp.com",
       projectId: "multi-post-daefc",
-      storageBucket: "multi-post-daefc.firebasestorage.app",
+      storageBucket: "multi-post-daefc.appspot.com",
       messagingSenderId: "1099160429576",
-      appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd"
+      appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd",
+      measurementId: "G-NY0N8KKH0N"
     };
 
     const app = initializeApp(firebaseConfig);
@@ -48,16 +49,12 @@
       .then((result) => {
         if (result && result.user) {
           console.log("OAuth success:", result.user.uid);
-
-          // Logged in → dashboard
           window.location.replace("/index.html");
         } else {
-          // No login → back to sign in
           window.location.replace("/signin.html");
         }
       })
       .catch((error) => {
-        // Fail loudly during dev
         document.body.innerHTML =
           "<pre style='white-space:pre-wrap; padding:2rem;'>" +
           error.code + "\n\n" + error.message +
