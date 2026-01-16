@@ -94,14 +94,13 @@
       document.getElementById("ytKeywords").value = d.youtube?.keywords || "";
       
       // Ensure TikTok box is pre-filled and never just a link
-      let tiktokText = d.tiktok?.AllInOne || d.tiktok?.allInOne || "";
-      // Remove TikTok URLs if present
-      tiktokText = tiktokText.replace(/https?:\/\/(vm\.)?tiktok\.com\/[\w\/?=&.-]+/gi, "").trim();
-      // If empty after removing links, use a default template
-      if (!tiktokText) {
-        tiktokText = "TITLE:\n[Your TikTok Title Here]\n\nDESC:\n[Description or hashtags here]\n\nKEYWORDS:\n[Keywords or tags here]";
-      }
-      document.getElementById("ttAllInOne").value = tiktokText;
+        // TikTok SEO: Always fill, even for short prompts
+        let tiktokSEO = d.tiktok?.AllInOne || d.tiktok?.allInOne || "";
+        if (!tiktokSEO) {
+          // Fallback: Compose a basic TikTok SEO from YouTube or Facebook if available
+          tiktokSEO = `${d.youtube?.title || prompt}\n${d.youtube?.description || d.facebook?.descriptionAndTags || prompt}\n#tiktok #seo`;
+        }
+        document.getElementById("ttAllInOne").value = tiktokSEO;
       
       document.getElementById("fbTitle").value = d.facebook?.title || "";
       document.getElementById("fbDetails").value = d.facebook?.descriptionAndTags || "";
