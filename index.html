@@ -220,6 +220,15 @@
   <script>
     const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
 
+    function hideMenus() {
+      document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
+    }
+
+    function getActiveFolderId() {
+      const id = Number(localStorage.getItem('activeFolderId'));
+      return Number.isFinite(id) ? id : null;
+    }
+
     async function loadFolders() {
       const container = document.getElementById("folderContainer");
       const pill = document.getElementById("folderCountPill");
@@ -284,14 +293,15 @@
     }
 
     window.toggleMenu = function(event, id) {
-      document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
+      hideMenus();
       const menu = document.getElementById('menu-' + id);
       if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
       event.stopPropagation();
     };
 
     window.renameFolder = async function(id, oldName) {
-      const name = prompt('Rename folder:', oldName);
+      const input = prompt('Rename folder:', oldName);
+      const name = input ? input.trim() : '';
       if (!name || name === oldName) return;
       try {
         const res = await fetch(`${apiBase}/rename-folder`, {
@@ -299,10 +309,19 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id, name })
         });
-        if (res.ok) loadFolders();
-        else alert('Error renaming folder');
+        if (!res.ok) {
+          const msg = await res.text();
+          throw new Error(msg || 'Error renaming folder');
+        }
+
+        if (getActiveFolderId() === id) {
+          localStorage.setItem('activeFolderName', name);
+        }
+
+        hideMenus();
+        await loadFolders();
       } catch (err) {
-        alert('Error renaming folder');
+        alert(err.message || 'Error renaming folder');
       }
     };
 
@@ -314,15 +333,25 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id })
         });
-        if (res.ok) loadFolders();
-        else alert('Error deleting folder');
+        if (!res.ok) {
+          const msg = await res.text();
+          throw new Error(msg || 'Error deleting folder');
+        }
+
+        if (getActiveFolderId() === id) {
+          localStorage.removeItem('activeFolderId');
+          localStorage.removeItem('activeFolderName');
+        }
+
+        hideMenus();
+        await loadFolders();
       } catch (err) {
-        alert('Error deleting folder');
+        alert(err.message || 'Error deleting folder');
       }
     };
 
     document.addEventListener('click', () => {
-      document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
+      hideMenus();
     });
 
     function updateAuthBtn() {
