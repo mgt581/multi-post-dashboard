@@ -1,0 +1,32 @@
+name = "multipost-seo-worker"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "multipost-db"
+database_id = "your-database-id-here"
+
+# AI Binding for Llama Model
+[ai]
+binding = "AI"
+
+# Environment Variables (Secrets)
+# Set these using: wrangler secret put <SECRET_NAME>
+# 
+# Required secrets:
+# - GOOGLE_CLIENT_ID
+# - GOOGLE_CLIENT_SECRET
+# - TIKTOK_CLIENT_KEY
+# - TIKTOK_CLIENT_SECRET
+# - FB_CLIENT_ID
+# - FB_CLIENT_SECRET
+
+# Example commands to set secrets:
+# wrangler secret put GOOGLE_CLIENT_ID
+# wrangler secret put GOOGLE_CLIENT_SECRET
+# wrangler secret put TIKTOK_CLIENT_KEY
+# wrangler secret put TIKTOK_CLIENT_SECRET
+# wrangler secret put FB_CLIENT_ID
+# wrangler secret put FB_CLIENT_SECRET
