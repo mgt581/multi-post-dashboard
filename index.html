@@ -236,15 +236,15 @@
         }
 
         container.innerHTML = folders.map(f => `
-          <div class="folder-card" style="position:relative;">
-            <div class="f-info" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">
+          <div class="folder-card" style="position:relative;display:flex;align-items:center;gap:12px;padding-right:48px;">
+            <div class="f-info" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')" style="flex:1;min-width:0;">
               <div class="f-icon-wrap">📁</div>
               <div>
                 <span class="f-name">${f.name}</span>
                 <span class="f-sub">Managed Workspace</span>
               </div>
             </div>
-            <div class="arrow-icon" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">›</div>
+            <div class="arrow-icon" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')" style="margin-left:8px;">›</div>
             <div class="dots-menu-wrap" style="position:absolute;top:18px;right:18px;z-index:2;">
               <button class="dots-btn" onclick="event.stopPropagation();toggleMenu(event, ${f.id})" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 6px;">⋯</button>
               <div class="dropdown-menu" id="menu-${f.id}" style="display:none;position:absolute;right:0;top:28px;background:white;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.10);min-width:120px;overflow:hidden;">
@@ -301,7 +301,16 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id, name })
         });
-        if (res.ok) loadFolders();
+        if (res.ok) {
+          loadFolders();
+          // If this folder is open, update its name in localStorage
+          if (localStorage.getItem('activeFolderId') == id) {
+            localStorage.setItem('activeFolderName', name);
+          }
+        } else {
+          const errMsg = await res.text();
+          alert('Error renaming folder: ' + errMsg);
+        }
       } catch (err) {
         alert('Error renaming folder');
       }
@@ -315,7 +324,17 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id })
         });
-        if (res.ok) loadFolders();
+        if (res.ok) {
+          // If the deleted folder is open, clear localStorage
+          if (localStorage.getItem('activeFolderId') == id) {
+            localStorage.removeItem('activeFolderId');
+            localStorage.removeItem('activeFolderName');
+          }
+          loadFolders();
+        } else {
+          const errMsg = await res.text();
+          alert('Error deleting folder: ' + errMsg);
+        }
       } catch (err) {
         alert('Error deleting folder');
       }
