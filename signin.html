@@ -108,9 +108,39 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
+
+const STATE_KEYS = ["folders", "activeFolder", "activeFolderId", "activeFolderName"];
+const SCOPED_PREFIXES = ["folders:", "activeFolder:", "activeFolderId:", "activeFolderName:"];
+
+const clearWorkspaceState = () => {
+    STATE_KEYS.forEach(key => localStorage.removeItem(key));
+    SCOPED_PREFIXES.forEach(prefix => {
+        Object.keys(localStorage).forEach(k => {
+            if (k.startsWith(prefix)) {
+                localStorage.removeItem(k);
+            }
+        });
+    });
+};
+
+const setActiveUserScope = (user) => {
+    const scope = (user && (user.uid || user.email)) || "guest";
+    const previous = localStorage.getItem("currentUserKey");
+
+    if (previous && previous !== scope) {
+        clearWorkspaceState();
+    }
+
+    localStorage.setItem("currentUserKey", scope);
+    if (user && user.email) {
+        localStorage.setItem("userEmail", user.email);
+    }
+};
+
 getRedirectResult(auth)
     .then((result) => {
         if (result && result.user) {
+            setActiveUserScope(result.user);
             window.location.href = "index.html";
         }
     })
@@ -151,6 +181,7 @@ window.handleAuthSubmit = async () => {
         } else {
             await createUserWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
         }
+        setActiveUserScope(auth.currentUser);
         window.location.href = "index.html";
     } catch (err) {
         alert(err.message);
@@ -163,16 +194,23 @@ window.handleGoogleSignIn = () => {
 };
 onAuthStateChanged(auth, (user) => {
     if (user) {
+        setActiveUserScope(user);
         if (window.location.pathname.includes("signin.html") || window.location.pathname === "/") {
             window.location.href = "index.html";
         }
-        localStorage.setItem("userEmail", user.email || "");
     } else {
+        clearWorkspaceState();
+        localStorage.removeItem("currentUserKey");
         localStorage.removeItem("userEmail");
+        if (!window.location.pathname.includes("signin")) {
+            window.location.href = "signin.html";
+        }
     }
 });
 window.signOutUser = () => {
     signOut(auth).then(() => {
+        clearWorkspaceState();
+        localStorage.removeItem("currentUserKey");
         localStorage.removeItem("userEmail");
         window.location.href = "signin.html";
     });

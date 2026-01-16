@@ -35,12 +35,33 @@
   <script>
     // --- CONFIGURATION ---
     const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
-    // Using localStorage for folder data as per your current setup
-    const fId = localStorage.getItem("activeFolderId");
-    
+    const userScope = localStorage.getItem("currentUserKey") || "guest";
+    const scopedKey = name => `${name}:${userScope}`;
+
+    // Migrate legacy unscoped keys so existing users keep their context
+    const legacyId = localStorage.getItem("activeFolderId");
+    if (!localStorage.getItem(scopedKey("activeFolderId")) && legacyId) {
+      localStorage.setItem(scopedKey("activeFolderId"), legacyId);
+      localStorage.removeItem("activeFolderId");
+    }
+
+    const legacyName = localStorage.getItem("activeFolderName");
+    if (!localStorage.getItem(scopedKey("activeFolderName")) && legacyName) {
+      localStorage.setItem(scopedKey("activeFolderName"), legacyName);
+      localStorage.removeItem("activeFolderName");
+    }
+
+    const fId = localStorage.getItem(scopedKey("activeFolderId"));
+    const activeFolderName = localStorage.getItem(scopedKey("activeFolderName")) || "Folder";
+
     // UI Initialization
-    document.getElementById("title").innerText = localStorage.getItem("activeFolderName") || "Folder";
-    document.getElementById("name").innerText = localStorage.getItem("activeFolderName") || "Name";
+    document.getElementById("title").innerText = activeFolderName;
+    document.getElementById("name").innerText = activeFolderName;
+
+    if (!fId) {
+      alert("No workspace selected for this account. Please pick a workspace from the home screen.");
+      window.location.href = "index.html";
+    }
 
     /**
      * Renders the accounts linked to this folder
