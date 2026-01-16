@@ -6,14 +6,23 @@
     <title>Multipost App | Access Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        :root {
+            --bg: #f5f7fb;
+            --text: #0f172a;
+            --muted: #64748b;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --grad: linear-gradient(135deg, #4f46e5, #06b6d4);
+        }
         body {
-            background: radial-gradient(circle at top left, #1e293b, #0f172a);
+            background: var(--bg);
             font-family: 'Inter', sans-serif;
+            color: var(--text);
         }
         .glass-card {
-            background: rgba(30, 41, 59, 0.7);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--card);
+            border: 1px solid var(--border);
+            box-shadow: 0 18px 40px rgba(15,23,42,0.08);
         }
         .error-shake { animation: shake 0.4s; }
         @keyframes shake {
@@ -23,50 +32,63 @@
         }
         .input-focus { transition: all 0.3s ease; }
         .input-focus:focus {
-            background: rgba(15, 23, 42, 0.8);
-            box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+            background: #f8fafc;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
         }
         .loader-dot { animation: dot-pulse 1.5s infinite ease-in-out; }
         @keyframes dot-pulse {
             0%, 100% { opacity: 0.2; transform: scale(0.8); }
             50% { opacity: 1; transform: scale(1.2); }
         }
+        .btn-grad {
+            background: var(--grad);
+            color: #fff;
+            font-weight: 800;
+            border: none;
+            border-radius: 16px;
+            padding: 14px;
+            box-shadow: 0 18px 32px rgba(79, 70, 229, 0.22);
+        }
+        .tab-btn {
+            border-radius: 14px;
+            font-weight: 800;
+        }
     </style>
 </head>
-<body class="text-white min-h-screen flex items-center justify-center p-6">
+<body class="min-h-screen flex items-center justify-center p-6">
 <div id="auth-container"
-     class="glass-card w-full max-w-md p-10 rounded-[2.5rem] shadow-2xl transition-all duration-500">
+     class="glass-card w-full max-w-md p-10 rounded-[2.5rem] transition-all duration-500">
     <div class="text-center mb-10">
         <div class="inline-block p-3 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 mb-4 shadow-lg shadow-blue-500/20">
             <img src="logo.png" alt="Multipost logo" class="w-16 h-16 rounded-2xl">
         </div>
-        <h1 class="text-4xl font-black tracking-tighter bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-500 bg-clip-text text-transparent">
+        <h1 class="text-4xl font-black tracking-tighter text-transparent bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 bg-clip-text">
             Multipost
         </h1>
         <p id="form-hint"
-           class="text-slate-400 mt-3 font-medium text-sm tracking-wide">
+           class="text-slate-500 mt-3 font-medium text-sm tracking-wide">
             Secure access to your multi-channel dashboard
         </p>
     </div>
-    <div class="flex bg-slate-900/60 p-1.5 rounded-2xl mb-8 border border-slate-800/50">
+    <div class="flex bg-white p-1.5 rounded-2xl mb-8 border border-slate-200 shadow-sm">
         <button id="tab-login"
                 onclick="switchMode('login')"
-                class="flex-1 py-3 rounded-xl bg-blue-600 text-sm font-bold uppercase tracking-widest shadow-lg">
+                class="tab-btn flex-1 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-bold uppercase tracking-widest text-white shadow-lg">
             Sign In
         </button>
         <button id="tab-signup"
                 onclick="switchMode('signup')"
-                class="flex-1 py-3 rounded-xl text-slate-500 text-sm font-bold uppercase tracking-widest hover:text-white">
+                class="tab-btn flex-1 py-3 rounded-xl text-slate-500 text-sm font-bold uppercase tracking-widest hover:text-blue-600">
             Sign Up
         </button>
     </div>
     <div class="space-y-6">
         <input id="email" type="email" placeholder="name@company.com"
-               class="input-focus w-full bg-slate-950/40 border border-slate-800 rounded-2xl p-4">
+               class="input-focus w-full bg-white border border-slate-200 rounded-2xl p-4 text-slate-900">
         <input id="password" type="password" placeholder="••••••••"
-               class="input-focus w-full bg-slate-950/40 border border-slate-800 rounded-2xl p-4">
+               class="input-focus w-full bg-white border border-slate-200 rounded-2xl p-4 text-slate-900">
         <button onclick="handleAuthSubmit()"
-                class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 py-4 rounded-2xl flex justify-center items-center">
+                class="btn-grad w-full py-4 rounded-2xl flex justify-center items-center">
             <span id="btn-text">Enter Workspace</span>
             <div id="btn-loader" class="hidden flex gap-1">
                 <div class="w-2 h-2 bg-white rounded-full loader-dot"></div>
@@ -76,7 +98,7 @@
         </button>
     </div>
     <button onclick="handleGoogleSignIn()"
-            class="mt-10 w-full bg-white text-black py-4 rounded-2xl flex justify-center gap-3">
+            class="mt-10 w-full bg-white text-black py-4 rounded-2xl flex justify-center gap-3 border border-slate-200 shadow-sm">
         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5">
         Continue with Google
     </button>
