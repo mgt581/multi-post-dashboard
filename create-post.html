@@ -93,7 +93,15 @@
       document.getElementById("ytDesc").value = d.youtube?.description || "";
       document.getElementById("ytKeywords").value = d.youtube?.keywords || "";
       
-      document.getElementById("ttAllInOne").value = d.tiktok?.AllInOne || d.tiktok?.allInOne || "";
+      // Ensure TikTok box is pre-filled and never just a link
+      let tiktokText = d.tiktok?.AllInOne || d.tiktok?.allInOne || "";
+      // Remove TikTok URLs if present
+      tiktokText = tiktokText.replace(/https?:\/\/(vm\.)?tiktok\.com\/[\w\/?=&.-]+/gi, "").trim();
+      // If empty after removing links, use a default template
+      if (!tiktokText) {
+        tiktokText = "TITLE:\n[Your TikTok Title Here]\n\nDESC:\n[Description or hashtags here]\n\nKEYWORDS:\n[Keywords or tags here]";
+      }
+      document.getElementById("ttAllInOne").value = tiktokText;
       
       document.getElementById("fbTitle").value = d.facebook?.title || "";
       document.getElementById("fbDetails").value = d.facebook?.descriptionAndTags || "";
