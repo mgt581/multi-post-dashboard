@@ -45,6 +45,7 @@
       font-weight: 800;
       letter-spacing: -1px;
       background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+      background-clip: text;
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
@@ -229,43 +230,51 @@
       return Number.isFinite(id) ? id : null;
     }
 
-    async function loadFolders() {
+    let cachedFolders = [];
+
+    function renderFolders(folders) {
       const container = document.getElementById("folderContainer");
       const pill = document.getElementById("folderCountPill");
-      
+
+      pill.innerText = `${folders.length} Workspaces`;
+
+      if (folders.length === 0) {
+        container.innerHTML = `<div class="empty-state">No workspaces yet. Click the button above to start.</div>`;
+        return;
+      }
+
+      container.innerHTML = folders.map(f => `
+        <div class="folder-card" style="position:relative;">
+          <div class="f-info" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">
+            <div class="f-icon-wrap">📁</div>
+            <div>
+              <span class="f-name">${f.name}</span>
+              <span class="f-sub">Managed Workspace</span>
+            </div>
+          </div>
+          <div class="arrow-icon" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">›</div>
+          <div class="dots-menu-wrap" style="position:absolute;top:18px;right:18px;z-index:2;">
+            <button class="dots-btn" aria-label="Folder menu" onclick="event.stopPropagation();toggleMenu(event, ${f.id})" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 6px;">⋯</button>
+            <div class="dropdown-menu" id="menu-${f.id}" style="display:none;position:absolute;right:0;top:28px;background:white;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.10);min-width:120px;overflow:hidden;">
+              <button onclick="event.stopPropagation();renameFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')" style="width:100%;padding:10px 16px;border:none;background:none;text-align:left;cursor:pointer;">Rename this folder</button>
+              <button onclick="event.stopPropagation();deleteFolder(${f.id})" style="width:100%;padding:10px 16px;border:none;background:none;text-align:left;color:#dc2626;cursor:pointer;">Delete</button>
+            </div>
+          </div>
+        </div>`).join('');
+    }
+
+    async function loadFolders() {
       try {
         const res = await fetch(`${apiBase}/get-folders`);
         if (!res.ok) throw new Error("Failed to fetch folders");
-        const folders = await res.json();
-        
-        pill.innerText = `${folders.length} Workspaces`;
-
-        if (folders.length === 0) {
-          container.innerHTML = `<div class="empty-state">No workspaces yet. Click the button above to start.</div>`;
-          return;
-        }
-
-        container.innerHTML = folders.map(f => `
-          <div class="folder-card" style="position:relative;">
-            <div class="f-info" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">
-              <div class="f-icon-wrap">📁</div>
-              <div>
-                <span class="f-name">${f.name}</span>
-                <span class="f-sub">Managed Workspace</span>
-              </div>
-            </div>
-            <div class="arrow-icon" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">›</div>
-            <div class="dots-menu-wrap" style="position:absolute;top:18px;right:18px;z-index:2;">
-              <button class="dots-btn" aria-label="Folder menu" onclick="event.stopPropagation();toggleMenu(event, ${f.id})" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 6px;">⋯</button>
-              <div class="dropdown-menu" id="menu-${f.id}" style="display:none;position:absolute;right:0;top:28px;background:white;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.10);min-width:120px;overflow:hidden;">
-                <button onclick="event.stopPropagation();renameFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')" style="width:100%;padding:10px 16px;border:none;background:none;text-align:left;cursor:pointer;">Rename this folder</button>
-                <button onclick="event.stopPropagation();deleteFolder(${f.id})" style="width:100%;padding:10px 16px;border:none;background:none;text-align:left;color:#dc2626;cursor:pointer;">Delete</button>
-              </div>
-            </div>
-          </div>`).join('');
+        cachedFolders = await res.json();
+        localStorage.setItem('folders', JSON.stringify(cachedFolders));
+        renderFolders(cachedFolders);
       } catch (err) {
         console.error(err);
-        container.innerHTML = `<div class="empty-state" style="color:red">Failed to connect to Cloudflare DB.</div>`;
+        const local = JSON.parse(localStorage.getItem('folders') || '[]');
+        cachedFolders = local;
+        renderFolders(local);
       }
     }
 
@@ -318,6 +327,8 @@
           localStorage.setItem('activeFolderName', name);
         }
 
+        cachedFolders = cachedFolders.map(f => f.id === id ? { ...f, name } : f);
+        renderFolders(cachedFolders);
         hideMenus();
         await loadFolders();
       } catch (err) {
@@ -343,6 +354,8 @@
           localStorage.removeItem('activeFolderName');
         }
 
+        cachedFolders = cachedFolders.filter(f => f.id !== id);
+        renderFolders(cachedFolders);
         hideMenus();
         await loadFolders();
       } catch (err) {
