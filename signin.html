@@ -94,7 +94,7 @@
 
         <button onclick="handleAuthSubmit()"
                 class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 py-4 rounded-2xl flex justify-center items-center">
-            <span id="btn-text">{currentMode === 'signup' ? 'Create Account' : 'Enter Workspace'}</span>
+            <span id="btn-text">Enter Workspace</span>
             <div id="btn-loader" class="hidden flex gap-1">
                 <div class="w-2 h-2 bg-white rounded-full loader-dot"></div>
                 <div class="w-2 h-2 bg-white rounded-full loader-dot"></div>
@@ -102,7 +102,7 @@
             </div>
         </button>
 
-        <button id="forgot-password-btn" onclick="handleForgotPassword()"
+        <button id="forgot-password-btn" type="button" onclick="handleForgotPassword()"
                 class="w-full bg-slate-800 text-blue-400 py-2 rounded-2xl mt-2 hover:bg-slate-700 transition">
             Forgot Password?
         </button>
@@ -115,8 +115,8 @@
     </button>
 </div>
 
-<script type="module">
 
+<script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import {
     getAuth,
@@ -125,12 +125,10 @@ import {
     GoogleAuthProvider,
     signInWithRedirect,
     getRedirectResult,
-    onAuthStateChanged
+    onAuthStateChanged,
+    sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-/* =========================================================
-   CORRECT Firebase Web CONFIG (CDN / Config mode)
-   ========================================================= */
 const firebaseConfig = {
     apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
     authDomain: "multi-post-daefc.firebaseapp.com",
@@ -145,54 +143,46 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 
-// IMPORTANT: This catches the user after the redirect from Google
 getRedirectResult(auth)
     .then((result) => {
         if (result && result.user) {
-            console.log("Google Login Success:", result.user.email);
-            window.location.href = "index.html"; 
+            window.location.href = "index.html";
         }
     })
     .catch((error) => {
-        console.error("Redirect Auth Error:", error.code, error.message);
+        alert("Google Auth Error: " + error.message);
     });
 
 let currentMode = "login";
-
-// DOM references
-const emailInput = document.getElementById("email");
-const passwordInput = document.getElementById("password");
-const btnText = document.getElementById("btn-text");
-const btnLoader = document.getElementById("btn-loader");
-const authContainer = document.getElementById("auth-container");
 
 window.switchMode = (mode) => {
     currentMode = mode;
     const tabLogin = document.getElementById("tab-login");
     const tabSignup = document.getElementById("tab-signup");
-
     if (mode === "signup") {
         tabSignup.classList.add("bg-blue-600", "shadow-lg");
         tabSignup.classList.remove("text-slate-500");
         tabLogin.classList.remove("bg-blue-600", "shadow-lg");
         tabLogin.classList.add("text-slate-500");
+        document.getElementById("btn-text").innerText = "Create Account";
+        document.getElementById("form-hint").innerText = "Start your multi-posting journey today";
     } else {
         tabLogin.classList.add("bg-blue-600", "shadow-lg");
         tabLogin.classList.remove("text-slate-500");
         tabSignup.classList.remove("bg-blue-600", "shadow-lg");
         tabSignup.classList.add("text-slate-500");
+        document.getElementById("btn-text").innerText = "Enter Workspace";
+        document.getElementById("form-hint").innerText = "Secure access to your multi-channel dashboard";
     }
-
-    document.getElementById("form-hint").innerText =
-        mode === "signup"
-            ? "Start your multi-posting journey today"
-            : "Secure access to your multi-channel dashboard";
 };
 
 window.handleAuthSubmit = async () => {
+    const emailInput = document.getElementById("email");
+    const passwordInput = document.getElementById("password");
+    const btnText = document.getElementById("btn-text");
+    const btnLoader = document.getElementById("btn-loader");
     btnText.classList.add("hidden");
     btnLoader.classList.remove("hidden");
-
     try {
         if (currentMode === "login") {
             await signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
@@ -211,48 +201,30 @@ window.handleGoogleSignIn = () => {
     signInWithRedirect(auth, provider);
 };
 
-onAuthStateChanged(auth, (user) => {
-    if (user) {
-        console.log("Session active:", user.uid);
-        // Only redirect if they are currently on the signin page to avoid loops
-        if (window.location.pathname.includes("signin.html") || window.location.pathname === "/") {
-            window.location.href = "index.html";
-        }
-        // Optionally, store login state in localStorage
-        localStorage.setItem("userEmail", user.email || "");
-    } else {
-        // If not signed in, clear login state
-        localStorage.removeItem("userEmail");
-    }
 window.handleForgotPassword = async () => {
-    const email = emailInput.value;
-    if (!email) {
+    const emailInput = document.getElementById("email");
+    if (!emailInput.value) {
         alert("Please enter your email to reset password.");
         return;
     }
     try {
-        await auth.sendPasswordResetEmail(email);
+        await sendPasswordResetEmail(auth, emailInput.value);
         alert("Password reset email sent. Check your inbox.");
     } catch (err) {
         alert("Error: " + err.message);
     }
 };
-</script>
-<script>
-// Optional: Add sign out button if you want to allow users to log out
-// Example usage: <button onclick="signOutUser()">Sign Out</button>
-function signOutUser() {
-    import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js').then(({ getAuth, signOut }) => {
-        const auth = getAuth();
-        signOut(auth).then(() => {
-            localStorage.removeItem("userEmail");
-            window.location.href = "signin.html";
-        });
-    });
-}
-</script>
-});
 
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        if (window.location.pathname.includes("signin.html") || window.location.pathname === "/") {
+            window.location.href = "index.html";
+        }
+        localStorage.setItem("userEmail", user.email || "");
+    } else {
+        localStorage.removeItem("userEmail");
+    }
+});
 </script>
 
 </body>
