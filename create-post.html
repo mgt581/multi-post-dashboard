@@ -77,7 +77,6 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt })
       });
-      
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "AI Error");
 
@@ -87,25 +86,49 @@
         try {
           d = JSON.parse(d.response);
         } catch (e) {
-          throw new Error("AI returned invalid SEO data format.");
+          d = {};
         }
       }
 
-      document.getElementById("ytTitle").value = d.youtube?.title || "";
-      document.getElementById("ytDesc").value = d.youtube?.description || "";
-      document.getElementById("ytKeywords").value = d.youtube?.keywords || "";
-      
-      // TikTok SEO: Fill separate fields for title, description, and tags
-      document.getElementById("ttTitle").value = d.tiktok?.title || d.youtube?.title || "";
-      document.getElementById("ttDesc").value = d.tiktok?.description || d.youtube?.description || d.facebook?.descriptionAndTags || prompt || "";
-      document.getElementById("ttTags").value = d.tiktok?.tags || d.tiktok?.keywords || d.youtube?.keywords || "#tiktok #seo";
-      
-      document.getElementById("fbTitle").value = d.facebook?.title || "";
-      document.getElementById("fbDetails").value = d.facebook?.descriptionAndTags || "";
+      // Fallbacks for each field
+      const fallbackTitle = prompt.slice(0, 60) || "Untitled Video";
+      const fallbackDesc = prompt.length > 0 ? prompt : "No description provided.";
+      const fallbackKeywords = "#seo #trending #viral";
+
+      // YouTube
+      document.getElementById("ytTitle").value = d.youtube?.title || fallbackTitle;
+      document.getElementById("ytDesc").value = d.youtube?.description || fallbackDesc;
+      document.getElementById("ytKeywords").value = d.youtube?.keywords || fallbackKeywords;
+
+      // TikTok
+      document.getElementById("ttTitle").value = d.tiktok?.title || d.youtube?.title || fallbackTitle;
+      document.getElementById("ttDesc").value = d.tiktok?.description || d.youtube?.description || d.facebook?.descriptionAndTags || fallbackDesc;
+      document.getElementById("ttTags").value = d.tiktok?.tags || d.tiktok?.keywords || d.youtube?.keywords || fallbackKeywords;
+
+      // Facebook
+      document.getElementById("fbTitle").value = d.facebook?.title || fallbackTitle;
+      document.getElementById("fbDetails").value = d.facebook?.descriptionAndTags || fallbackDesc;
 
     } catch (err) {
       console.error(err);
-      alert("Format Error: The AI response was incomplete. Try a more detailed description.");
+      // Always fill with fallbacks if error
+      const prompt = document.getElementById("videoPrompt").value.trim();
+      const fallbackTitle = prompt.slice(0, 60) || "Untitled Video";
+      const fallbackDesc = prompt.length > 0 ? prompt : "No description provided.";
+      const fallbackKeywords = "#seo #trending #viral";
+
+      document.getElementById("ytTitle").value = fallbackTitle;
+      document.getElementById("ytDesc").value = fallbackDesc;
+      document.getElementById("ytKeywords").value = fallbackKeywords;
+
+      document.getElementById("ttTitle").value = fallbackTitle;
+      document.getElementById("ttDesc").value = fallbackDesc;
+      document.getElementById("ttTags").value = fallbackKeywords;
+
+      document.getElementById("fbTitle").value = fallbackTitle;
+      document.getElementById("fbDetails").value = fallbackDesc;
+
+      alert("Format Error: The AI response was incomplete. Default SEO values have been filled. Try a more detailed description for better results.");
     } finally {
       btn.innerText = "✨ Generate Pro SEO";
       btn.classList.remove("loading");
