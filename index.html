@@ -26,487 +26,402 @@
             max-width: 800px;
             margin: 80px auto;
                 function hideMenus() {
-                    document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
-                }
-                function getActiveFolderId() {
-                    const id = Number(localStorage.getItem('activeFolderId'));
-                    return Number.isFinite(id) ? id : null;
-            padding: 0 40px;
-            flex: 1;
-        }
+                    <!DOCTYPE html>
+                    <html lang="en">
+                    <head>
+                      <meta charset="UTF-8">
+                      <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+                      <title>Multipost | Workspaces</title>
+                      <style>
+                        :root {
+                          --bg-1: #0f172a;
+                          --bg-2: #1e293b;
+                          --card: rgba(30, 41, 59, 0.7);
+                          --muted: #94a3b8;
+                          --text: #e5e7eb;
+                          --primary: #3b82f6;
+                          --primary-2: #6366f1;
+                          --border: rgba(255, 255, 255, 0.08);
+                          --glass: rgba(255, 255, 255, 0.06);
+                        }
 
-<<<<<<< HEAD
-    /* --- GORGEOUS HEADER --- */
-    .header {
-      padding: 40px 0 30px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .header-content h1 {
-      font-size: 32px;
-      margin: 0;
-      font-weight: 800;
-      letter-spacing: -1px;
-      background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
-      background-clip: text;
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .header-content p {
-      color: var(--text-muted);
-      margin: 5px 0 0;
-      font-size: 15px;
-      font-weight: 500;
-    }
-    .profile-icon {
-      width: 45px;
-      height: 45px;
-      background: white;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
-      font-size: 20px;
-    }
-=======
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 50px;
-        }
->>>>>>> 5d13863 (changes)
+                        * { box-sizing: border-box; }
+                        body {
+                          margin: 0;
+                          font-family: 'Inter', -apple-system, system-ui, sans-serif;
+                          background: radial-gradient(circle at top left, var(--bg-2), var(--bg-1));
+                          color: var(--text);
+                          min-height: 100vh;
+                          display: flex;
+                          justify-content: center;
+                          padding: 32px 16px 48px;
+                        }
 
-                    const input = prompt('Rename folder:', oldName);
-                    const name = input ? input.trim() : '';
-                    if (!name || name === oldName) return;
-        .user-icon { background: #e0e0e0; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; }
+                        .app {
+                          width: 100%;
+                          max-width: 560px;
+                          background: var(--glass);
+                          border: 1px solid var(--border);
+                          border-radius: 28px;
+                          padding: 28px;
+                          box-shadow: 0 25px 60px rgba(0, 0, 0, 0.35);
+                          backdrop-filter: blur(18px);
+                        }
 
-        .status-line { margin: 30px 0; font-size: 20px; font-weight: 500; }
+                        .header {
+                          display: flex;
+                          align-items: center;
+                          justify-content: space-between;
+                          gap: 16px;
+                          margin-bottom: 22px;
+                        }
+                        .brand {
+                          display: flex;
+                          align-items: center;
+                          gap: 12px;
+                        }
+                        .brand img { width: 44px; height: 44px; border-radius: 12px; }
+                        .brand h1 { margin: 0; font-size: 22px; letter-spacing: -0.5px; }
+                        .brand .muted { color: var(--muted); font-size: 13px; margin-top: 4px; }
 
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-          <title>Multipost | Pro Dashboard</title>
-          <style>
-            :root {
-              --primary: #2fa84f;
-              --primary-dark: #248a3f;
-              --bg: #f8fafc;
-              --card-bg: #ffffff;
-              --text-main: #0f172a;
-              --text-muted: #64748b;
-              --glass: rgba(255, 255, 255, 0.7);
-            }
+                        #authBtn {
+                          background: linear-gradient(135deg, var(--primary), var(--primary-2));
+                          color: white;
+                          border: none;
+                          padding: 12px 16px;
+                          border-radius: 14px;
+                          font-weight: 700;
+                          cursor: pointer;
+                          box-shadow: 0 10px 30px rgba(59, 130, 246, 0.35);
+                        }
 
-            body {
-              font-family: 'Inter', -apple-system, system-ui, sans-serif;
-              background-color: var(--bg);
-              background-image: radial-gradient(at 0% 0%, rgba(47, 168, 79, 0.05) 0px, transparent 50%),
-                radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.05) 0px, transparent 50%);
-              color: var(--text-main);
-              margin: 0;
-              padding: 0;
-              min-height: 100vh;
-            }
+                        .stats {
+                          display: flex;
+                          gap: 10px;
+                          flex-wrap: wrap;
+                          margin-bottom: 16px;
+                        }
+                        .pill {
+                          background: rgba(255, 255, 255, 0.06);
+                          border: 1px solid var(--border);
+                          padding: 8px 12px;
+                          border-radius: 12px;
+                          font-size: 13px;
+                          color: var(--muted);
+                        }
 
-            .app {
-              padding: 24px;
-              max-width: 480px;
-              margin: 0 auto;
-            }
+                        .primary-btn {
+                          width: 100%;
+                          border: none;
+                          background: linear-gradient(135deg, var(--primary), var(--primary-2));
+                          color: white;
+                          padding: 16px;
+                          border-radius: 16px;
+                          font-weight: 800;
+                          margin: 14px 0 18px;
+                          cursor: pointer;
+                          box-shadow: 0 18px 40px rgba(59, 130, 246, 0.35);
+                        }
 
-            /* --- GORGEOUS HEADER --- */
-            .header {
-              padding: 40px 0 30px;
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-            }
-            .header-content h1 {
-              font-size: 32px;
-              margin: 0;
-              font-weight: 800;
-              letter-spacing: -1px;
-              background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
-              background-clip: text;
-              -webkit-background-clip: text;
-              -webkit-text-fill-color: transparent;
-            }
-            .header-content p {
-              color: var(--text-muted);
-              margin: 5px 0 0;
-              font-size: 15px;
-              font-weight: 500;
-            }
-            .profile-icon {
-              width: 45px;
-              height: 45px;
-              background: white;
-              border-radius: 50%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-              font-size: 20px;
-            }
+                        .section-label {
+                          text-transform: uppercase;
+                          letter-spacing: 1px;
+                          font-size: 12px;
+                          color: var(--muted);
+                          margin-bottom: 10px;
+                        }
 
-            /* --- STATS BAR --- */
-            .stats-bar {
-              display: flex;
-              gap: 12px;
-              margin-bottom: 30px;
-            }
-            .stat-pill {
-              background: var(--glass);
-              backdrop-filter: blur(10px);
-              padding: 8px 16px;
-              border-radius: 100px;
-              font-size: 13px;
-              font-weight: 600;
-              color: var(--text-muted);
-              border: 1px solid rgba(255, 255, 255, 0.5);
-            }
+                        .folder-grid { display: grid; gap: 12px; }
 
-            /* --- THE ADD BUTTON --- */
-            .add-btn {
-              background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-              color: white;
-              padding: 20px;
-              border-radius: 20px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              gap: 10px;
-              font-weight: 700;
-              font-size: 16px;
-              box-shadow: 0 20px 25px -5px rgba(47, 168, 79, 0.25);
-              cursor: pointer;
-              transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-              margin-bottom: 40px;
-              border: none;
-              width: 100%;
-            }
-            .add-btn:active {
-              transform: scale(0.95);
-              box-shadow: 0 10px 15px -5px rgba(47, 168, 79, 0.2);
-            }
+                        .folder-card {
+                          background: rgba(255, 255, 255, 0.04);
+                          border: 1px solid var(--border);
+                          border-radius: 18px;
+                          padding: 14px;
+                          display: flex;
+                          align-items: center;
+                          justify-content: space-between;
+                          gap: 10px;
+                        }
+                        .f-info { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+                        .f-icon { width: 40px; height: 40px; border-radius: 12px; background: rgba(59,130,246,0.18); display: flex; align-items:center; justify-content:center; font-size: 18px; }
+                        .f-name { margin: 0; font-weight: 700; }
+                        .f-sub { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
 
-            /* --- FOLDER CARDS --- */
-            .section-label {
-              font-size: 13px;
-              font-weight: 700;
-              text-transform: uppercase;
-              letter-spacing: 1px;
-              color: var(--text-muted);
-              margin-bottom: 15px;
-              display: block;
-            }
+                        .actions { display: flex; align-items: center; gap: 8px; }
+                        .dots-btn {
+                          background: rgba(255,255,255,0.06);
+                          border: 1px solid var(--border);
+                          color: var(--text);
+                          border-radius: 12px;
+                          padding: 8px 10px;
+                          cursor: pointer;
+                        }
+                        .arrow-icon {
+                          width: 34px; height: 34px;
+                          border-radius: 12px;
+                          background: rgba(255,255,255,0.06);
+                          border: 1px solid var(--border);
+                          display: flex; align-items: center; justify-content: center;
+                          color: var(--muted);
+                          cursor: pointer;
+                        }
 
-            .folder-grid {
-              display: grid;
-              gap: 16px;
-            }
+                        .dropdown-menu {
+                          position: absolute;
+                          right: 12px;
+                          top: 54px;
+                          background: rgba(15,23,42,0.95);
+                          border: 1px solid var(--border);
+                          border-radius: 12px;
+                          box-shadow: 0 14px 40px rgba(0,0,0,0.45);
+                          min-width: 180px;
+                          overflow: hidden;
+                          display: none;
+                          z-index: 5;
+                        }
+                        .dropdown-menu button {
+                          width: 100%;
+                          padding: 12px 16px;
+                          background: transparent;
+                          color: var(--text);
+                          border: none;
+                          text-align: left;
+                          cursor: pointer;
+                        }
+                        .dropdown-menu button:hover { background: rgba(255,255,255,0.06); }
+                        .dropdown-menu .danger { color: #f87171; }
 
-            .folder-card {
-              background: var(--card-bg);
-              padding: 20px;
-              border-radius: 24px;
-              display: flex;
-              align-items: center;
-              justify-content: space-between;
-              border: 1px solid rgba(0, 0, 0, 0.03);
-              box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -2px rgba(0, 0, 0, 0.02);
-              transition: all 0.2s ease;
-              cursor: pointer;
-            }
-            .folder-card:hover {
-              transform: translateY(-2px);
-              box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05);
-            }
+                        .empty-state {
+                          text-align: center;
+                          color: var(--muted);
+                          padding: 30px 0;
+                          border: 1px dashed var(--border);
+                          border-radius: 14px;
+                          background: rgba(255,255,255,0.02);
+                        }
+                      </style>
+                    </head>
+                    <body>
+                      <div class="app">
+                        <header class="header">
+                          <div class="brand">
+                            <img src="logo.png" alt="Multipost logo">
+                            <div>
+                              <h1>Workspaces</h1>
+                              <div class="muted">Welcome back</div>
+                            </div>
+                          </div>
+                          <button id="authBtn">Sign In</button>
+                        </header>
 
-            .f-info {
-              display: flex;
-              align-items: center;
-              gap: 18px;
-            }
-            .f-icon-wrap {
-              width: 52px;
-              height: 52px;
-              background: #f1f5f9;
-              border-radius: 16px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-size: 24px;
-              transition: background 0.3s;
-            }
-            .folder-card:hover .f-icon-wrap {
-              background: #eafaf1;
-            }
+                        <div class="stats">
+                          <div class="pill" id="folderCountPill">0 Workspaces</div>
+                          <div class="pill">Cloud Active</div>
+                        </div>
 
-            .f-name {
-              display: block;
-              font-weight: 700;
-              font-size: 18px;
-              color: var(--text-main);
-            }
-            .f-sub {
-              font-size: 14px;
-              color: var(--text-muted);
-              font-weight: 500;
-            }
+                        <button class="primary-btn" onclick="createNewFolder()">+ Create New Workspace</button>
 
-            .arrow-icon {
-              width: 32px;
-              height: 32px;
-              background: #f8fafc;
-              border-radius: 50%;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              color: #94a3b8;
-              transition: all 0.2s;
-            }
-            .folder-card:hover .arrow-icon {
-              background: var(--primary);
-              color: white;
-            }
+                        <div class="section-label">Your Clients</div>
+                        <div class="folder-grid" id="folderContainer">
+                          <div class="empty-state">Loading your cloud storage...</div>
+                        </div>
+                      </div>
 
-            /* Empty state */
-            .empty-state {
-              text-align: center;
-              padding: 40px 20px;
-              color: var(--text-muted);
-            }
-          </style>
-        </head>
-        <body>
+                      <script>
+                        const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
+                        const userScope = localStorage.getItem("currentUserKey") || "guest";
+                        const scopedKey = name => `${name}:${userScope}`;
 
-          <div class="app">
-            <header class="header">
-              <div class="header-content">
-                <h1>Workspaces</h1>
-                <p>13 Jan 2026 • Welcome Back</p>
-              </div>
-              <div style="display:flex;align-items:center;gap:10px;">
-                <div class="profile-icon">👤</div>
-                <button id="authBtn" style="background:#2fa84f;color:white;border:none;padding:8px 16px;border-radius:12px;font-weight:700;cursor:pointer;font-size:14px;">Sign In</button>
-              </div>
-            </header>
+                        // Migrate legacy unscoped data into scoped keys
+                        const legacyFolders = localStorage.getItem("folders");
+                        if (!localStorage.getItem(scopedKey("folders")) && legacyFolders) {
+                          localStorage.setItem(scopedKey("folders"), legacyFolders);
+                          localStorage.removeItem("folders");
+                        }
 
-            <div class="stats-bar">
-              <div class="stat-pill" id="folderCountPill">0 Workspaces</div>
-              <div class="stat-pill">Cloud Active</div>
-            </div>
+                        const legacyActiveId = localStorage.getItem("activeFolderId");
+                        if (!localStorage.getItem(scopedKey("activeFolderId")) && legacyActiveId !== null) {
+                          localStorage.setItem(scopedKey("activeFolderId"), legacyActiveId);
+                          localStorage.removeItem("activeFolderId");
+                        }
 
-            <button class="add-btn" onclick="createNewFolder()">
-              <span>+ Create New Workspace</span>
-            </button>
+                        const legacyActiveName = localStorage.getItem("activeFolderName");
+                        if (!localStorage.getItem(scopedKey("activeFolderName")) && legacyActiveName) {
+                          localStorage.setItem(scopedKey("activeFolderName"), legacyActiveName);
+                          localStorage.removeItem("activeFolderName");
+                        }
 
-            <span class="section-label">Your Clients</span>
-            <div class="folder-grid" id="folderContainer">
-              <div class="empty-state">Loading your cloud storage...</div>
-            </div>
-          </div>
+                        function hideMenus() {
+                          document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
+                        }
 
-          <script>
-            const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
-            const userScope = localStorage.getItem("currentUserKey") || "guest";
-            const scopedKey = name => `${name}:${userScope}`;
+                        function getActiveFolderId() {
+                          const id = Number(localStorage.getItem(scopedKey('activeFolderId')));
+                          return Number.isFinite(id) ? id : null;
+                        }
 
-            // Migrate legacy unscoped data into scoped keys
-            const legacyFolders = localStorage.getItem("folders");
-            if (!localStorage.getItem(scopedKey("folders")) && legacyFolders) {
-              localStorage.setItem(scopedKey("folders"), legacyFolders);
-              localStorage.removeItem("folders");
-            }
+                        let cachedFolders = [];
 
-            const legacyActiveId = localStorage.getItem("activeFolderId");
-            if (!localStorage.getItem(scopedKey("activeFolderId")) && legacyActiveId !== null) {
-              localStorage.setItem(scopedKey("activeFolderId"), legacyActiveId);
-              localStorage.removeItem("activeFolderId");
-            }
+                        function renderFolders(folders) {
+                          const container = document.getElementById("folderContainer");
+                          const pill = document.getElementById("folderCountPill");
 
-            const legacyActiveName = localStorage.getItem("activeFolderName");
-            if (!localStorage.getItem(scopedKey("activeFolderName")) && legacyActiveName) {
-              localStorage.setItem(scopedKey("activeFolderName"), legacyActiveName);
-              localStorage.removeItem("activeFolderName");
-            }
+                          pill.innerText = `${folders.length} Workspaces`;
 
-            function hideMenus() {
-              document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
-            }
+                          if (folders.length === 0) {
+                            container.innerHTML = `<div class="empty-state">No workspaces yet. Click the button above to start.</div>`;
+                            return;
+                          }
 
-            function getActiveFolderId() {
-              const id = Number(localStorage.getItem(scopedKey('activeFolderId')));
-              return Number.isFinite(id) ? id : null;
-            }
+                          container.innerHTML = folders.map(f => `
+                            <div class="folder-card">
+                              <div class="f-info" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">
+                                <div class="f-icon">📁</div>
+                                <div>
+                                  <p class="f-name">${f.name}</p>
+                                  <p class="f-sub">Managed Workspace</p>
+                                </div>
+                              </div>
+                              <div class="actions">
+                                <button class="dots-btn" aria-label="Folder menu" onclick="event.stopPropagation();toggleMenu(event, ${f.id})">⋯</button>
+                                <div class="arrow-icon" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">›</div>
+                              </div>
+                              <div class="dropdown-menu" id="menu-${f.id}">
+                                <button onclick="event.stopPropagation();renameFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">Rename this folder</button>
+                                <button class="danger" onclick="event.stopPropagation();deleteFolder(${f.id})">Delete</button>
+                              </div>
+                            </div>`).join('');
+                        }
 
-            let cachedFolders = [];
+                        async function loadFolders() {
+                          try {
+                            const res = await fetch(`${apiBase}/get-folders`);
+                            if (!res.ok) throw new Error("Failed to fetch folders");
+                            cachedFolders = await res.json();
+                            localStorage.setItem(scopedKey('folders'), JSON.stringify(cachedFolders));
+                            renderFolders(cachedFolders);
+                          } catch (err) {
+                            console.error(err);
+                            const local = JSON.parse(localStorage.getItem(scopedKey('folders')) || '[]');
+                            cachedFolders = local;
+                            renderFolders(local);
+                          }
+                        }
 
-            function renderFolders(folders) {
-              const container = document.getElementById("folderContainer");
-              const pill = document.getElementById("folderCountPill");
+                        async function createNewFolder() {
+                          const name = prompt("Enter Brand or Client Name:");
+                          if (!name) return;
 
-              pill.innerText = `${folders.length} Workspaces`;
+                          try {
+                            const res = await fetch(`${apiBase}/add-folder`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ name })
+                            });
+                            if (res.ok) loadFolders();
+                            else alert("Error saving folder");
+                          } catch (err) {
+                            alert("Error saving folder");
+                          }
+                        }
 
-              if (folders.length === 0) {
-                container.innerHTML = `<div class="empty-state">No workspaces yet. Click the button above to start.</div>`;
-                return;
-              }
+                        function openFolder(id, name) {
+                          localStorage.setItem(scopedKey("activeFolderId"), id);
+                          localStorage.setItem(scopedKey("activeFolderName"), name);
+                          window.location.href = `folder.html?id=${id}`;
+                        }
 
-              container.innerHTML = folders.map(f => `
-                <div class="folder-card" style="position:relative;">
-                  <div class="f-info" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">
-                    <div class="f-icon-wrap">📁</div>
-                    <div>
-                      <span class="f-name">${f.name}</span>
-                      <span class="f-sub">Managed Workspace</span>
-                    </div>
-                  </div>
-                  <div class="arrow-icon" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">›</div>
-                  <div class="dots-menu-wrap" style="position:absolute;top:18px;right:18px;z-index:2;">
-                    <button class="dots-btn" aria-label="Folder menu" onclick="event.stopPropagation();toggleMenu(event, ${f.id})" style="background:none;border:none;cursor:pointer;font-size:22px;padding:0 6px;">⋯</button>
-                    <div class="dropdown-menu" id="menu-${f.id}" style="display:none;position:absolute;right:0;top:28px;background:white;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,0.10);min-width:120px;overflow:hidden;">
-                      <button onclick="event.stopPropagation();renameFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')" style="width:100%;padding:10px 16px;border:none;background:none;text-align:left;cursor:pointer;">Rename this folder</button>
-                      <button onclick="event.stopPropagation();deleteFolder(${f.id})" style="width:100%;padding:10px 16px;border:none;background:none;text-align:left;color:#dc2626;cursor:pointer;">Delete</button>
-                    </div>
-                  </div>
-                </div>`).join('');
-            }
+                        window.toggleMenu = function(event, id) {
+                          hideMenus();
+                          const menu = document.getElementById('menu-' + id);
+                          if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+                          event.stopPropagation();
+                        };
 
-            async function loadFolders() {
-              try {
-                const res = await fetch(`${apiBase}/get-folders`);
-                if (!res.ok) throw new Error("Failed to fetch folders");
-                cachedFolders = await res.json();
-                localStorage.setItem(scopedKey('folders'), JSON.stringify(cachedFolders));
-                renderFolders(cachedFolders);
-              } catch (err) {
-                console.error(err);
-                const local = JSON.parse(localStorage.getItem(scopedKey('folders')) || '[]');
-                cachedFolders = local;
-                renderFolders(local);
-              }
-            }
+                        window.renameFolder = async function(id, oldName) {
+                          const input = prompt('Rename folder:', oldName);
+                          const name = input ? input.trim() : '';
+                          if (!name || name === oldName) return;
+                          try {
+                            const res = await fetch(`${apiBase}/rename-folder`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id, name })
+                            });
+                            if (!res.ok) {
+                              const msg = await res.text();
+                              throw new Error(msg || 'Error renaming folder');
+                            }
 
-            async function createNewFolder() {
-              const name = prompt("Enter Brand or Client Name:");
-              if (!name) return;
+                            if (getActiveFolderId() === id) {
+                              localStorage.setItem(scopedKey('activeFolderName'), name);
+                            }
 
-              try {
-                const res = await fetch(`${apiBase}/add-folder`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ name })
-                });
-                if (res.ok) loadFolders();
-                else alert("Error saving folder");
-              } catch (err) {
-                alert("Error saving folder");
-              }
-            }
+                            cachedFolders = cachedFolders.map(f => f.id === id ? { ...f, name } : f);
+                            renderFolders(cachedFolders);
+                            hideMenus();
+                            await loadFolders();
+                          } catch (err) {
+                            alert(err.message || 'Error renaming folder');
+                          }
+                        };
 
-            function openFolder(id, name) {
-              localStorage.setItem(scopedKey("activeFolderId"), id);
-              localStorage.setItem(scopedKey("activeFolderName"), name);
-              window.location.href = `folder.html?id=${id}`;
-            }
+                        window.deleteFolder = async function(id) {
+                          if (!confirm('Delete this folder? This cannot be undone.')) return;
+                          try {
+                            const res = await fetch(`${apiBase}/delete-folder`, {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id })
+                            });
+                            if (!res.ok) {
+                              const msg = await res.text();
+                              throw new Error(msg || 'Error deleting folder');
+                            }
 
-            window.toggleMenu = function(event, id) {
-              hideMenus();
-              const menu = document.getElementById('menu-' + id);
-              if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-              event.stopPropagation();
-            };
+                            if (getActiveFolderId() === id) {
+                              localStorage.removeItem(scopedKey('activeFolderId'));
+                              localStorage.removeItem(scopedKey('activeFolderName'));
+                            }
 
-            window.renameFolder = async function(id, oldName) {
-              const input = prompt('Rename folder:', oldName);
-              const name = input ? input.trim() : '';
-              if (!name || name === oldName) return;
-              try {
-                const res = await fetch(`${apiBase}/rename-folder`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ id, name })
-                });
-                if (!res.ok) {
-                  const msg = await res.text();
-                  throw new Error(msg || 'Error renaming folder');
-                }
+                            cachedFolders = cachedFolders.filter(f => f.id !== id);
+                            renderFolders(cachedFolders);
+                            hideMenus();
+                            await loadFolders();
+                          } catch (err) {
+                            alert(err.message || 'Error deleting folder');
+                          }
+                        };
 
-                if (getActiveFolderId() === id) {
-                  localStorage.setItem(scopedKey('activeFolderName'), name);
-                }
+                        document.addEventListener('click', () => {
+                          hideMenus();
+                        });
 
-                cachedFolders = cachedFolders.map(f => f.id === id ? { ...f, name } : f);
-                renderFolders(cachedFolders);
-                hideMenus();
-                await loadFolders();
-              } catch (err) {
-                alert(err.message || 'Error renaming folder');
-              }
-            };
+                        function updateAuthBtn() {
+                          const btn = document.getElementById('authBtn');
+                          const email = localStorage.getItem('userEmail');
+                          if (email) {
+                            btn.textContent = 'Sign Out';
+                            btn.onclick = function() {
+                              if (confirm('Sign out?')) {
+                                localStorage.removeItem('userEmail');
+                                window.location.href = 'signin.html';
+                              }
+                            };
+                          } else {
+                            btn.textContent = 'Sign In';
+                            btn.onclick = function() {
+                              window.location.href = 'signin.html';
+                            };
+                          }
+                        }
+    
+                        window.onload = function() {
+                          loadFolders();
+                          updateAuthBtn();
+                        };
+                      </script>
+                    </body>
+                    </html>
 
-            window.deleteFolder = async function(id) {
-              if (!confirm('Delete this folder? This cannot be undone.')) return;
-              try {
-                const res = await fetch(`${apiBase}/delete-folder`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ id })
-                });
-                if (!res.ok) {
-                  const msg = await res.text();
-                  throw new Error(msg || 'Error deleting folder');
-                }
-
-                if (getActiveFolderId() === id) {
-                  localStorage.removeItem(scopedKey('activeFolderId'));
-                  localStorage.removeItem(scopedKey('activeFolderName'));
-                }
-
-                cachedFolders = cachedFolders.filter(f => f.id !== id);
-                renderFolders(cachedFolders);
-                hideMenus();
-                await loadFolders();
-              } catch (err) {
-                alert(err.message || 'Error deleting folder');
-              }
-            };
-
-            document.addEventListener('click', () => {
-              hideMenus();
-            });
-
-            function updateAuthBtn() {
-              const btn = document.getElementById('authBtn');
-              const email = localStorage.getItem('userEmail');
-              if (email) {
-                btn.textContent = 'Sign Out';
-                btn.onclick = function() {
-                  if (confirm('Sign out?')) {
-                    localStorage.removeItem('userEmail');
-                    window.location.href = 'signin.html';
-                  }
-                };
-              } else {
-                btn.textContent = 'Sign In';
-                btn.onclick = function() {
-                  window.location.href = 'signin.html';
-                };
-              }
-            }
-
-            window.onload = function() {
-              loadFolders();
-              updateAuthBtn();
-            };
-          </script>
-        </body>
-        </html>

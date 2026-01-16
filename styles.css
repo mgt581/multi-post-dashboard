@@ -5,8 +5,9 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
-  background: #e8f6fb; /* light cyan like reference */
+  background: radial-gradient(circle at top left, #1e293b, #0f172a);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  color: #e5e7eb;
 }
 
 /* Explicit reset instead of universal * selector */
@@ -18,29 +19,31 @@ body * {
    APP WRAPPER
 ========================= */
 .app {
-  max-width: 420px;
+  max-width: 480px;
   margin: 0 auto;
   min-height: 100vh;
-  background: #e8f6fb;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
 }
 
 /* =========================
    HEADER (TOP BAR)
 ========================= */
 .header {
-  height: 56px;
-  background: #ffffff;
+  height: 64px;
+  background: rgba(15, 23, 42, 0.75);
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  border-bottom: 2px solid #d7eef6;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .title {
-  font-weight: 700;
+  font-weight: 800;
   font-size: 16px;
-  color: #3aa7e6;
+  color: #e5e7eb;
 }
 
 .gear {
@@ -51,8 +54,8 @@ body * {
    HERO (BLUE CLOUD PANEL)
 ========================= */
 .hero {
-  height: 220px;              /* FIXED height – critical */
-  background: #3aa7e6;        /* reference blue */
+  height: 220px;
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -143,13 +146,14 @@ body * {
 }
 
 .card {
-  background: #e8f6fb;
-  border: 3px solid #74bfe6;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
   display: flex;
   align-items: center;
   padding: 14px;
   margin-bottom: 14px;
+  color: #e5e7eb;
 }
 
 /* Left icon */
@@ -175,6 +179,7 @@ body * {
   display: block;
   font-size: 15px;
   font-weight: 800;
+  color: #e5e7eb;
 }
 
 .card-text span {
@@ -182,6 +187,7 @@ body * {
   font-size: 12px;
   margin-top: 4px;
   opacity: 0.75;
+  color: #94a3b8;
 }
 
 /* Chevron */
@@ -199,9 +205,9 @@ body * {
 .black { background: #000000; }      /* TikTok */
 
 .red {
-  background: #ffffff;
-  color: #dc2626;
-  border: 2px solid #dc2626;
+  background: rgba(248, 113, 113, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.4);
 }
 
 /* Instagram gradient */
