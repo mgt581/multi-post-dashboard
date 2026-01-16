@@ -16,7 +16,8 @@
     <header class="flex justify-between items-center py-6">
       <button onclick="goBack()" class="text-2xl text-slate-400 hover:text-white">←</button> 
       <h1 class="text-xl font-black tracking-tight" id="title">Workspace</h1>
-      <div class="w-8"></div> </header>
+      <div class="w-8"></div> 
+    </header>
     
     <div class="glass-card rounded-3xl p-6 mb-6 shadow-xl">
       <strong id="name" class="text-2xl block mb-1">Loading...</strong>
@@ -48,22 +49,19 @@
   </div>
 
   <script>
-    // 1. Get IDs from the URL (Passed from index.html)
     const urlParams = new URLSearchParams(window.location.search);
     const folderId = urlParams.get('id');
     const userId = urlParams.get('uid'); 
-    const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
+    // Updated to your actual worker URL from logs
+    const apiBase = "https://multipost-seo-worker.alexbryantwork323.workers.dev/api";
 
-    // Initialize UI Text from LocalStorage
     document.getElementById("title").innerText = localStorage.getItem("activeFolderName") || "Workspace";
     document.getElementById("name").innerText = localStorage.getItem("activeFolderName") || "Active Brand";
 
-    // 2. Security: Redirect if IDs are missing
     if (!userId || !folderId) {
         window.location.href = 'auth.html';
     }
 
-    // 3. Navigation Helpers
     function goBack() {
         window.location.href = `index.html?uid=${userId}`;
     }
@@ -72,19 +70,11 @@
         window.location.href = `create-post.html?id=${folderId}&uid=${userId}`;
     }
 
-    /**
-     * Triggers the OAuth flow via the Master Worker
-     * We pass both folderId and userId in the request
-     */
     async function addAccount() {
         const platform = document.getElementById("platformSelect").value;
-        // The Worker will use state="${folderId}:${userId}" to keep this private
-        window.location.href = `${apiBase}/auth/${platform}?folder_id=${folderId}&user_id=${userId}`;
+        window.location.href = `${apiBase}/auth/${platform}?folder_id=${folderId}&uid=${userId}`;
     }
 
-    /**
-     * Loads accounts that only belong to this specific workspace
-     */
     async function loadAccounts() {
         const container = document.getElementById("accountsContainer");
         const countDisplay = document.getElementById("count");
@@ -129,7 +119,6 @@
         return '🔗';
     }
 
-    // Run on Load
     window.onload = loadAccounts;
   </script>
 </body>
