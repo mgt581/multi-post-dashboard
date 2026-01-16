@@ -17,459 +17,465 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Multipost | Workspaces</title>
-  <style>
-    :root {
-      --bg: #f5f7fb;
-      --card: #ffffff;
-      --border: #e2e8f0;
-      --text: #0f172a;
-      --muted: #64748b;
-      --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
-      --grad-blue: linear-gradient(135deg, #4f46e5, #06b6d4);
-      --grad-green: linear-gradient(135deg, #16a34a, #22c55e);
-      --grad-orange: linear-gradient(135deg, #f59e0b, #f97316);
-      --grad-pink: linear-gradient(135deg, #ec4899, #ef4444);
-    }
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Multipost | Workspaces</title>
+    <style>
+      :root {
+        --bg: #f5f7fb;
+        --card: #ffffff;
+        --border: #e2e8f0;
+        --text: #0f172a;
+        --muted: #64748b;
+        --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+        --grad-blue: linear-gradient(135deg, #4f46e5, #06b6d4);
+        --grad-green: linear-gradient(135deg, #16a34a, #22c55e);
+        --grad-orange: linear-gradient(135deg, #f59e0b, #f97316);
+        --grad-pink: linear-gradient(135deg, #ec4899, #ef4444);
+      }
 
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: 'Inter', -apple-system, system-ui, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      padding: 32px 16px 48px;
-    }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: 'Inter', -apple-system, system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        padding: 32px 16px 48px;
+      }
 
-    .app {
-      width: 100%;
-      max-width: 560px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 28px;
-      padding: 28px;
-      box-shadow: var(--shadow);
-    }
+      .app {
+        width: 100%;
+        max-width: 560px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        padding: 28px;
+        box-shadow: var(--shadow);
+      }
 
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 22px;
-    }
-    .brand { display: flex; align-items: center; gap: 12px; }
-    .brand img { width: 52px; height: 52px; border-radius: 14px; }
-    .brand h1 { margin: 0; font-size: 22px; letter-spacing: -0.4px; }
-    .muted { color: var(--muted); font-size: 13px; }
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 22px;
+      }
+      .brand { display: flex; align-items: center; gap: 12px; }
+      .brand img { width: 52px; height: 52px; border-radius: 14px; }
+      .brand h1 { margin: 0; font-size: 22px; letter-spacing: -0.4px; }
+      .muted { color: var(--muted); font-size: 13px; }
 
-    .btn {
-      border: none;
-      color: #fff;
-      padding: 12px 18px;
-      border-radius: 999px;
-      font-weight: 800;
-      cursor: pointer;
-      box-shadow: 0 12px 25px rgba(0,0,0,0.12);
-      transition: transform 0.08s ease;
-    }
-    .btn:active { transform: translateY(1px); }
-    .btn.wide { width: 100%; }
-    .btn.small { padding: 10px 14px; font-size: 13px; }
-    .btn-blue { background: var(--grad-blue); }
-    .btn-green { background: var(--grad-green); }
-    .btn-orange { background: var(--grad-orange); }
-    .btn-pink { background: var(--grad-pink); }
-    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+      .btn {
+        border: none;
+        color: #fff;
+        padding: 12px 18px;
+        border-radius: 999px;
+        font-weight: 800;
+        cursor: pointer;
+        box-shadow: 0 12px 25px rgba(0,0,0,0.12);
+        transition: transform 0.08s ease;
+      }
+      .btn:active { transform: translateY(1px); }
+      .btn.wide { width: 100%; }
+      .btn.small { padding: 10px 14px; font-size: 13px; }
+      .btn-blue { background: var(--grad-blue); }
+      .btn-green { background: var(--grad-green); }
+      .btn-orange { background: var(--grad-orange); }
+      .btn-pink { background: var(--grad-pink); }
+      .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-    .stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
-    .pill {
-      background: #f1f5f9;
-      border: 1px solid var(--border);
-      padding: 8px 12px;
-      border-radius: 12px;
-      font-size: 13px;
-      color: var(--muted);
-    }
+      .stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+      .pill {
+        background: #f1f5f9;
+        border: 1px solid var(--border);
+        padding: 8px 12px;
+        border-radius: 12px;
+        font-size: 13px;
+        color: var(--muted);
+      }
 
-    .bulk-bar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin: 6px 0 18px;
-      padding: 10px 12px;
-      background: #f8fafc;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-    }
-    .select-all { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text); }
-    .bulk-actions { display: flex; align-items: center; gap: 10px; }
+      .bulk-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 6px 0 18px;
+        padding: 10px 12px;
+        background: #f8fafc;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+      }
+      .select-all { display: flex; align-items: center; gap: 8px; font-weight: 600; color: var(--text); }
+      .bulk-actions { display: flex; align-items: center; gap: 10px; }
 
-    .section-label {
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      font-size: 12px;
-      color: var(--muted);
-      margin-bottom: 10px;
-    }
+      .section-label {
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 10px;
+      }
 
-    .folder-grid { display: grid; gap: 12px; }
+      .folder-grid { display: grid; gap: 12px; }
 
-    .folder-card {
-      position: relative;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      padding: 14px;
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      align-items: center;
-      gap: 12px;
-      box-shadow: 0 8px 20px rgba(15,23,42,0.06);
-    }
-    .check-wrap { display: flex; align-items: center; }
-    .folder-check { width: 18px; height: 18px; cursor: pointer; accent-color: #4f46e5; }
-    .f-info { display: flex; align-items: center; gap: 12px; cursor: pointer; }
-    .f-icon { width: 42px; height: 42px; border-radius: 12px; background: #e0f2fe; display: flex; align-items:center; justify-content:center; font-size: 18px; }
-    .f-name { margin: 0; font-weight: 700; color: var(--text); }
-    .f-sub { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+      .folder-card {
+        position: relative;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 14px;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 12px;
+        box-shadow: 0 8px 20px rgba(15,23,42,0.06);
+      }
+      .check-wrap { display: flex; align-items: center; }
+      .folder-check { width: 18px; height: 18px; cursor: pointer; accent-color: #4f46e5; }
+      .f-info { display: flex; align-items: center; gap: 12px; cursor: pointer; }
+      .f-icon { width: 42px; height: 42px; border-radius: 12px; background: #e0f2fe; display: flex; align-items:center; justify-content:center; font-size: 18px; }
+      .f-name { margin: 0; font-weight: 700; color: var(--text); }
+      .f-sub { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
 
-    .actions { display: flex; align-items: center; gap: 8px; }
-    .dots-btn, .arrow-btn {
-      background: #f1f5f9;
-      border: 1px solid var(--border);
-      color: var(--text);
-      border-radius: 12px;
-      padding: 8px 10px;
-      cursor: pointer;
-      box-shadow: 0 6px 14px rgba(15,23,42,0.06);
-    }
-    .arrow-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
+      .actions { display: flex; align-items: center; gap: 8px; }
+      .dots-btn, .arrow-btn {
+        background: #f1f5f9;
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 12px;
+        padding: 8px 10px;
+        cursor: pointer;
+        box-shadow: 0 6px 14px rgba(15,23,42,0.06);
+      }
+      .arrow-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
 
-    .dropdown-menu {
-      position: absolute;
-      right: 14px;
-      top: 58px;
-      background: #ffffff;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      box-shadow: 0 16px 30px rgba(15,23,42,0.12);
-      min-width: 180px;
-      overflow: hidden;
-      display: none;
-      z-index: 5;
-    }
-    .dropdown-menu button {
-      width: 100%;
-      padding: 12px 16px;
-      background: transparent;
-      color: var(--text);
-      border: none;
-      text-align: left;
-      cursor: pointer;
-    }
-    .dropdown-menu button:hover { background: #f8fafc; }
-    .dropdown-menu .danger { color: #dc2626; }
+      .dropdown-menu {
+        position: absolute;
+        right: 14px;
+        top: 58px;
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 16px 30px rgba(15,23,42,0.12);
+        min-width: 180px;
+        overflow: hidden;
+        display: none;
+        z-index: 5;
+      }
+      .dropdown-menu button {
+        width: 100%;
+        padding: 12px 16px;
+        background: transparent;
+        color: var(--text);
+        border: none;
+        text-align: left;
+        cursor: pointer;
+      }
+      .dropdown-menu button:hover { background: #f8fafc; }
+      .dropdown-menu .danger { color: #dc2626; }
 
-    .empty-state {
-      text-align: center;
-      color: var(--muted);
-      padding: 30px 0;
-      border: 1px dashed var(--border);
-      border-radius: 14px;
-      background: #f8fafc;
-    }
-  </style>
-</head>
-<body>
-  <div class="app">
-    <header class="header">
-      <div class="brand">
-        <img src="logo.png" alt="Multipost logo">
-        <div>
-          <h1>Workspaces</h1>
-          <div class="muted">Welcome back</div>
+      .empty-state {
+        text-align: center;
+        color: var(--muted);
+        padding: 30px 0;
+        border: 1px dashed var(--border);
+        border-radius: 14px;
+        background: #f8fafc;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="header">
+        <div class="brand">
+          <img src="logo.png" alt="Multipost logo">
+          <div>
+            <h1>Workspaces</h1>
+            <div class="muted">Welcome back</div>
+          </div>
+        </div>
+        <button id="authBtn" class="btn btn-blue small">Sign In</button>
+      </header>
+
+      <div class="stats">
+        <div class="pill" id="folderCountPill">0 Workspaces</div>
+        <div class="pill">Cloud Active</div>
+      </div>
+
+      <button class="btn btn-orange wide" onclick="createNewFolder()">+ Create New Workspace</button>
+
+      <div class="bulk-bar">
+        <label class="select-all">
+          <input type="checkbox" id="selectAllToggle" onchange="toggleSelectAll(this.checked)">
+          <span>Select all</span>
+        </label>
+        <div class="bulk-actions">
+          <span id="selectedCount" class="muted">0 selected</span>
+          <button id="bulkDeleteBtn" class="btn btn-pink small" onclick="deleteSelected()" disabled>Delete selected</button>
         </div>
       </div>
-      <button id="authBtn" class="btn btn-blue small">Sign In</button>
-    </header>
 
-    <div class="stats">
-      <div class="pill" id="folderCountPill">0 Workspaces</div>
-      <div class="pill">Cloud Active</div>
-    </div>
-
-    <button class="btn btn-orange wide" onclick="createNewFolder()">+ Create New Workspace</button>
-
-    <div class="bulk-bar">
-      <label class="select-all">
-        <input type="checkbox" id="selectAllToggle" onchange="toggleSelectAll(this.checked)">
-        <span>Select all</span>
-      </label>
-      <div class="bulk-actions">
-        <span id="selectedCount" class="muted">0 selected</span>
-        <button id="bulkDeleteBtn" class="btn btn-pink small" onclick="deleteSelected()" disabled>Delete selected</button>
+      <div class="section-label">Your Clients</div>
+      <div class="folder-grid" id="folderContainer">
+        <div class="empty-state">Loading your cloud storage...</div>
       </div>
     </div>
 
-    <div class="section-label">Your Clients</div>
-    <div class="folder-grid" id="folderContainer">
-      <div class="empty-state">Loading your cloud storage...</div>
-    </div>
-  </div>
+    <script>
+      const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
+      const userScope = localStorage.getItem("currentUserKey") || "guest";
+      const scopedKey = name => `${name}:${userScope}`;
 
-  <script>
-    const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
-    const userScope = localStorage.getItem("currentUserKey") || "guest";
-    const scopedKey = name => `${name}:${userScope}`;
-
-    // Migrate legacy unscoped data into scoped keys
-    const legacyFolders = localStorage.getItem("folders");
-    if (!localStorage.getItem(scopedKey("folders")) && legacyFolders) {
-      localStorage.setItem(scopedKey("folders"), legacyFolders);
-      localStorage.removeItem("folders");
-    }
-
-    const legacyActiveId = localStorage.getItem("activeFolderId");
-    if (!localStorage.getItem(scopedKey("activeFolderId")) && legacyActiveId !== null) {
-      localStorage.setItem(scopedKey("activeFolderId"), legacyActiveId);
-      localStorage.removeItem("activeFolderId");
-    }
-
-    const legacyActiveName = localStorage.getItem("activeFolderName");
-    if (!localStorage.getItem(scopedKey("activeFolderName")) && legacyActiveName) {
-      localStorage.setItem(scopedKey("activeFolderName"), legacyActiveName);
-      localStorage.removeItem("activeFolderName");
-    }
-
-    function hideMenus() {
-      document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
-    }
-
-    function getActiveFolderId() {
-      const id = Number(localStorage.getItem(scopedKey('activeFolderId')));
-      return Number.isFinite(id) ? id : null;
-    }
-
-    let cachedFolders = [];
-    const selectedIds = new Set();
-
-    function syncSelectionUI() {
-      const countEl = document.getElementById('selectedCount');
-      const bulkBtn = document.getElementById('bulkDeleteBtn');
-      const selectAll = document.getElementById('selectAllToggle');
-      countEl.innerText = `${selectedIds.size} selected`;
-      bulkBtn.disabled = selectedIds.size === 0;
-      if (cachedFolders.length) {
-        selectAll.checked = selectedIds.size === cachedFolders.length;
-      } else {
-        selectAll.checked = false;
-      }
-    }
-
-    function renderFolders(folders) {
-      const container = document.getElementById("folderContainer");
-      const pill = document.getElementById("folderCountPill");
-
-      pill.innerText = `${folders.length} Workspaces`;
-
-      if (folders.length === 0) {
-        container.innerHTML = `<div class="empty-state">No workspaces yet. Click the button above to start.</div>`;
-        syncSelectionUI();
-        return;
+      // Migrate legacy unscoped data into scoped keys
+      const legacyFolders = localStorage.getItem("folders");
+      if (!localStorage.getItem(scopedKey("folders")) && legacyFolders) {
+        localStorage.setItem(scopedKey("folders"), legacyFolders);
+        localStorage.removeItem("folders");
       }
 
-      container.innerHTML = folders.map(f => `
-        <div class="folder-card">
-          <div class="check-wrap">
-            <input type="checkbox" class="folder-check" data-id="${f.id}" ${selectedIds.has(f.id) ? 'checked' : ''} onchange="toggleSelect(${f.id}, this.checked)">
-          </div>
-          <div class="f-info" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">
-            <div class="f-icon">📁</div>
-            <div>
-              <p class="f-name">${f.name}</p>
-              <p class="f-sub">Managed Workspace</p>
+      const legacyActiveId = localStorage.getItem("activeFolderId");
+      if (!localStorage.getItem(scopedKey("activeFolderId")) && legacyActiveId !== null) {
+        localStorage.setItem(scopedKey("activeFolderId"), legacyActiveId);
+        localStorage.removeItem("activeFolderId");
+      }
+
+      const legacyActiveName = localStorage.getItem("activeFolderName");
+      if (!localStorage.getItem(scopedKey("activeFolderName")) && legacyActiveName) {
+        localStorage.setItem(scopedKey("activeFolderName"), legacyActiveName);
+        localStorage.removeItem("activeFolderName");
+      }
+
+      function hideMenus() {
+        document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
+      }
+
+      function getActiveFolderId() {
+        const id = Number(localStorage.getItem(scopedKey('activeFolderId')));
+        return Number.isFinite(id) ? id : null;
+      }
+
+      let cachedFolders = [];
+      const selectedIds = new Set();
+
+      function syncSelectionUI() {
+        const countEl = document.getElementById('selectedCount');
+        const bulkBtn = document.getElementById('bulkDeleteBtn');
+        const selectAll = document.getElementById('selectAllToggle');
+        countEl.innerText = `${selectedIds.size} selected`;
+        bulkBtn.disabled = selectedIds.size === 0;
+        if (cachedFolders.length) {
+          selectAll.checked = selectedIds.size === cachedFolders.length;
+        } else {
+          selectAll.checked = false;
+        }
+      }
+
+      function renderFolders(folders) {
+        const container = document.getElementById("folderContainer");
+        const pill = document.getElementById("folderCountPill");
+
+        pill.innerText = `${folders.length} Workspaces`;
+
+        if (folders.length === 0) {
+          container.innerHTML = `<div class="empty-state">No workspaces yet. Click the button above to start.</div>`;
+          syncSelectionUI();
+          return;
+        }
+
+        container.innerHTML = folders.map(f => `
+          <div class="folder-card">
+            <div class="check-wrap">
+              <input type="checkbox" class="folder-check" data-id="${f.id}" ${selectedIds.has(f.id) ? 'checked' : ''} onchange="toggleSelect(${f.id}, this.checked)">
             </div>
-          </div>
-          <div class="actions">
-            <button class="dots-btn" aria-label="Folder menu" onclick="event.stopPropagation();toggleMenu(event, ${f.id})">⋯</button>
-            <button class="arrow-btn" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">›</button>
-          </div>
-          <div class="dropdown-menu" id="menu-${f.id}">
-            <button onclick="event.stopPropagation();renameFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">Rename this folder</button>
-            <button class="danger" onclick="event.stopPropagation();deleteFolder(${f.id})">Delete</button>
-          </div>
-        </div>`).join('');
+            <div class="f-info" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">
+              <div class="f-icon">📁</div>
+              <div>
+                <p class="f-name">${f.name}</p>
+                <p class="f-sub">Managed Workspace</p>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="dots-btn" aria-label="Folder menu" onclick="event.stopPropagation();toggleMenu(event, ${f.id})">⋯</button>
+              <button class="arrow-btn" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">›</button>
+            </div>
+            <div class="dropdown-menu" id="menu-${f.id}">
+              <button onclick="event.stopPropagation();renameFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">Rename this folder</button>
+              <button class="danger" onclick="event.stopPropagation();deleteFolder(${f.id})">Delete</button>
+            </div>
+          </div>`).join('');
 
-      syncSelectionUI();
-    }
-
-    async function loadFolders() {
-      try {
-        const res = await fetch(`${apiBase}/get-folders`);
-        if (!res.ok) throw new Error("Failed to fetch folders");
-        cachedFolders = await res.json();
-        localStorage.setItem(scopedKey('folders'), JSON.stringify(cachedFolders));
-        // prune selection for deleted folders
-        [...selectedIds].forEach(id => {
-          if (!cachedFolders.find(f => f.id === id)) selectedIds.delete(id);
-        });
-        renderFolders(cachedFolders);
-      } catch (err) {
-        console.error(err);
-        const local = JSON.parse(localStorage.getItem(scopedKey('folders')) || '[]');
-        cachedFolders = local;
-        renderFolders(local);
+        syncSelectionUI();
       }
-    }
 
-    async function createNewFolder() {
-      const name = prompt("Enter Brand or Client Name:");
-      if (!name) return;
-
-      try {
-        const res = await fetch(`${apiBase}/add-folder`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name })
-        });
-        if (res.ok) loadFolders();
-        else alert("Error saving folder");
-      } catch (err) {
-        alert("Error saving folder");
+      async function loadFolders() {
+        try {
+          const res = await fetch(`${apiBase}/get-folders`);
+          if (!res.ok) throw new Error("Failed to fetch folders");
+          cachedFolders = await res.json();
+          localStorage.setItem(scopedKey('folders'), JSON.stringify(cachedFolders));
+          // prune selection for deleted folders
+          [...selectedIds].forEach(id => {
+            if (!cachedFolders.find(f => f.id === id)) selectedIds.delete(id);
+          });
+          renderFolders(cachedFolders);
+        } catch (err) {
+          console.error(err);
+          const local = JSON.parse(localStorage.getItem(scopedKey('folders')) || '[]');
+          cachedFolders = local;
+          renderFolders(local);
+        }
       }
-    }
 
-    function openFolder(id, name) {
-      localStorage.setItem(scopedKey("activeFolderId"), id);
-      localStorage.setItem(scopedKey("activeFolderName"), name);
-      window.location.href = `folder.html?id=${id}`;
-    }
+      async function createNewFolder() {
+        const name = prompt("Enter Brand or Client Name:");
+        if (!name) return;
 
-    window.toggleMenu = function(event, id) {
-      hideMenus();
-      const menu = document.getElementById('menu-' + id);
-      if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-      event.stopPropagation();
-    };
-
-    window.renameFolder = async function(id, oldName) {
-      const input = prompt('Rename folder:', oldName);
-      const name = input ? input.trim() : '';
-      if (!name || name === oldName) return;
-      try {
-        const res = await fetch(`${apiBase}/rename-folder`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, name })
-        });
-        if (!res.ok) {
-          const msg = await res.text();
-          throw new Error(msg || 'Error renaming folder');
+        try {
+          const res = await fetch(`${apiBase}/add-folder`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name })
+          });
+          if (res.ok) loadFolders();
+          else alert("Error saving folder");
+        } catch (err) {
+          alert("Error saving folder");
         }
+      }
 
-        if (getActiveFolderId() === id) {
-          localStorage.setItem(scopedKey('activeFolderName'), name);
-        }
+      function openFolder(id, name) {
+        localStorage.setItem(scopedKey("activeFolderId"), id);
+        localStorage.setItem(scopedKey("activeFolderName"), name);
+        window.location.href = `folder.html?id=${id}`;
+      }
 
-        cachedFolders = cachedFolders.map(f => f.id === id ? { ...f, name } : f);
-        renderFolders(cachedFolders);
+      window.toggleMenu = function(event, id) {
         hideMenus();
-        await loadFolders();
-      } catch (err) {
-        alert(err.message || 'Error renaming folder');
-      }
-    };
+        const menu = document.getElementById('menu-' + id);
+        if (menu) menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+        event.stopPropagation();
+      };
 
-    window.deleteFolder = async function(id) {
-      if (!confirm('Delete this folder? This cannot be undone.')) return;
-      try {
-        const res = await fetch(`${apiBase}/delete-folder`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id })
-        });
-        if (!res.ok) {
-          const msg = await res.text();
-          throw new Error(msg || 'Error deleting folder');
-        }
-
-        if (getActiveFolderId() === id) {
-          localStorage.removeItem(scopedKey('activeFolderId'));
-          localStorage.removeItem(scopedKey('activeFolderName'));
-        }
-
-        selectedIds.delete(id);
-        cachedFolders = cachedFolders.filter(f => f.id !== id);
-        renderFolders(cachedFolders);
-        hideMenus();
-        await loadFolders();
-      } catch (err) {
-        alert(err.message || 'Error deleting folder');
-      }
-    };
-
-    window.deleteSelected = async function() {
-      if (!selectedIds.size) return;
-      if (!confirm(`Delete ${selectedIds.size} folder(s)? This cannot be undone.`)) return;
-      const ids = [...selectedIds];
-      try {
-        await Promise.all(ids.map(id => fetch(`${apiBase}/delete-folder`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id })
-        })));
-        selectedIds.clear();
-        await loadFolders();
-      } catch (err) {
-        alert('Error deleting selected folders');
-      }
-    };
-
-    window.toggleSelect = function(id, checked) {
-      if (checked) selectedIds.add(id); else selectedIds.delete(id);
-      syncSelectionUI();
-    };
-
-    window.toggleSelectAll = function(checked) {
-      selectedIds.clear();
-      if (checked) {
-        cachedFolders.forEach(f => selectedIds.add(f.id));
-      }
-      renderFolders(cachedFolders);
-    };
-
-    document.addEventListener('click', () => {
-      hideMenus();
-    });
-
-    function updateAuthBtn() {
-      const btn = document.getElementById('authBtn');
-      const email = localStorage.getItem('userEmail');
-      if (email) {
-        btn.textContent = 'Sign Out';
-        btn.onclick = function() {
-          if (confirm('Sign out?')) {
-            localStorage.removeItem('userEmail');
-            window.location.href = 'signin.html';
+      window.renameFolder = async function(id, oldName) {
+        const input = prompt('Rename folder:', oldName);
+        const name = input ? input.trim() : '';
+        if (!name || name === oldName) return;
+        try {
+          const res = await fetch(`${apiBase}/rename-folder`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, name })
+          });
+          if (!res.ok) {
+            const msg = await res.text();
+            throw new Error(msg || 'Error renaming folder');
           }
-        };
-      } else {
-        btn.textContent = 'Sign In';
-        btn.onclick = function() {
-          window.location.href = 'signin.html';
-        };
+
+          if (getActiveFolderId() === id) {
+            localStorage.setItem(scopedKey('activeFolderName'), name);
+          }
+
+          cachedFolders = cachedFolders.map(f => f.id === id ? { ...f, name } : f);
+          renderFolders(cachedFolders);
+          hideMenus();
+          await loadFolders();
+        } catch (err) {
+          alert(err.message || 'Error renaming folder');
+        }
+      };
+
+      window.deleteFolder = async function(id) {
+        if (!confirm('Delete this folder? This cannot be undone.')) return;
+        try {
+          const res = await fetch(`${apiBase}/delete-folder`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+          });
+          if (!res.ok) {
+            const msg = await res.text();
+            throw new Error(msg || 'Error deleting folder');
+          }
+
+          if (getActiveFolderId() === id) {
+            localStorage.removeItem(scopedKey('activeFolderId'));
+            localStorage.removeItem(scopedKey('activeFolderName'));
+          }
+
+          selectedIds.delete(id);
+          cachedFolders = cachedFolders.filter(f => f.id !== id);
+          renderFolders(cachedFolders);
+          hideMenus();
+          await loadFolders();
+        } catch (err) {
+          alert(err.message || 'Error deleting folder');
+        }
+      };
+
+      window.deleteSelected = async function() {
+        if (!selectedIds.size) return;
+        if (!confirm(`Delete ${selectedIds.size} folder(s)? This cannot be undone.`)) return;
+        const ids = [...selectedIds];
+        try {
+          await Promise.all(ids.map(id => fetch(`${apiBase}/delete-folder`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+          })));
+          selectedIds.clear();
+          await loadFolders();
+        } catch (err) {
+          alert('Error deleting selected folders');
+        }
+      };
+
+      window.toggleSelect = function(id, checked) {
+        if (checked) selectedIds.add(id); else selectedIds.delete(id);
+        syncSelectionUI();
+      };
+
+      window.toggleSelectAll = function(checked) {
+        selectedIds.clear();
+        if (checked) {
+          cachedFolders.forEach(f => selectedIds.add(f.id));
+        }
+        renderFolders(cachedFolders);
+      };
+
+      document.addEventListener('click', () => {
+        hideMenus();
+      });
+
+      function updateAuthBtn() {
+        const btn = document.getElementById('authBtn');
+        const email = localStorage.getItem('userEmail');
+        if (email) {
+          btn.textContent = 'Sign Out';
+          btn.onclick = function() {
+            if (confirm('Sign out?')) {
+              localStorage.removeItem('userEmail');
+              window.location.href = 'signin.html';
+            }
+          };
+        } else {
+          btn.textContent = 'Sign In';
+          btn.onclick = function() {
+            window.location.href = 'signin.html';
+          };
+        }
       }
-    }
     
-    window.onload = function() {
-      loadFolders();
-      updateAuthBtn();
-    };
-  </script>
-</body>
-</html>
+      window.onload = function() {
+        loadFolders();
+        updateAuthBtn();
+      };
+    </script>
+  </body>
+  </html>
 
