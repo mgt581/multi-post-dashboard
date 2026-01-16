@@ -62,12 +62,17 @@
     const urlParams = new URLSearchParams(window.location.search);
     const folderId = urlParams.get('id');
     const userId = urlParams.get('uid');
-    const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
+    
+    // FIXED: Changed to your actual worker URL
+    const apiBase = "https://multipost-seo-worker.alexbryantwork323.workers.dev/api";
 
-    // Security Gate
-    if (!userId) window.location.href = 'auth.html';
+    if (!userId) {
+        alert("Session expired. Please log in again.");
+        window.location.href = 'auth.html';
+    }
 
     function goBack() {
+        // Ensure this matches your filename (folder.html or manage-folder.html)
         window.location.href = `folder.html?id=${folderId}&uid=${userId}`;
     }
 
@@ -78,47 +83,53 @@
         const loader = document.getElementById("loader");
         const results = document.getElementById("resultsArea");
 
-        if (!prompt) return alert("Please enter a video description first!");
+        if (!prompt) {
+            alert("Please enter a video description first!");
+            return;
+        }
 
         // UI State: Loading
         btn.disabled = true;
+        btn.innerHTML = "Processing...";
         btn.classList.add('opacity-50', 'cursor-not-allowed');
         loader.classList.remove('hidden');
         results.classList.add('hidden');
 
         try {
+            console.log("Sending prompt to AI...");
             const res = await fetch(`${apiBase}/generate-seo`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ 
                     prompt: prompt,
-                    user_id: userId // Passing UID ensures request is tracked to your account
+                    user_id: userId 
                 })
             });
 
+            if (!res.ok) throw new Error(`Worker Error: ${res.status}`);
+
             const result = await res.json();
+            console.log("AI Response:", result);
             
             if (result.success && result.data) {
-                // Formatting YouTube Content
                 const yt = result.data.youtube || {};
-                const ytHtml = `**TITLE:**\n${yt.title || 'N/A'}\n\n**DESCRIPTION:**\n${yt.description || 'N/A'}\n\n**TAGS:**\n${yt.keywords || 'N/A'}`;
-                document.getElementById('yt-content').innerText = ytHtml.replace(/\*\*/g, '');
+                const ytHtml = `TITLE:\n${yt.title || 'N/A'}\n\nDESCRIPTION:\n${yt.description || 'N/A'}\n\nTAGS:\n${yt.keywords || 'N/A'}`;
+                document.getElementById('yt-content').innerText = ytHtml;
 
-                // Formatting TikTok Content
                 const tt = result.data.tiktok || {};
-                document.getElementById('tt-content').innerText = tt.allInOne || 'AI failed to generate TikTok body. Try again.';
+                document.getElementById('tt-content').innerText = tt.allInOne || 'AI failed to generate TikTok body.';
                 
                 results.classList.remove('hidden');
-                // Scroll to results
                 results.scrollIntoView({ behavior: 'smooth' });
             } else {
-                throw new Error("Invalid AI response format");
+                throw new Error(result.error || "Invalid AI response");
             }
         } catch (err) {
-            console.error(err);
-            alert("The AI encountered an error. Please refine your description and try again.");
+            console.error("Generation failed:", err);
+            alert("Error: " + err.message);
         } finally {
             btn.disabled = false;
+            btn.innerHTML = "✨ Generate Viral SEO";
             btn.classList.remove('opacity-50', 'cursor-not-allowed');
             loader.classList.add('hidden');
         }
@@ -128,7 +139,7 @@
         const yt = document.getElementById('yt-content').innerText;
         const tt = document.getElementById('tt-content').innerText;
         navigator.clipboard.writeText(`YOUTUBE:\n${yt}\n\nTIKTOK:\n${tt}`);
-        alert("All SEO content copied to clipboard!");
+        alert("All SEO content copied!");
     }
   </script>
 </body>
