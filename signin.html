@@ -94,12 +94,17 @@
 
         <button onclick="handleAuthSubmit()"
                 class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 py-4 rounded-2xl flex justify-center items-center">
-            <span id="btn-text">Enter Workspace</span>
+            <span id="btn-text">{currentMode === 'signup' ? 'Create Account' : 'Enter Workspace'}</span>
             <div id="btn-loader" class="hidden flex gap-1">
                 <div class="w-2 h-2 bg-white rounded-full loader-dot"></div>
                 <div class="w-2 h-2 bg-white rounded-full loader-dot"></div>
                 <div class="w-2 h-2 bg-white rounded-full loader-dot"></div>
             </div>
+        </button>
+
+        <button id="forgot-password-btn" onclick="handleForgotPassword()"
+                class="w-full bg-slate-800 text-blue-400 py-2 rounded-2xl mt-2 hover:bg-slate-700 transition">
+            Forgot Password?
         </button>
     </div>
 
@@ -219,6 +224,19 @@ onAuthStateChanged(auth, (user) => {
         // If not signed in, clear login state
         localStorage.removeItem("userEmail");
     }
+window.handleForgotPassword = async () => {
+    const email = emailInput.value;
+    if (!email) {
+        alert("Please enter your email to reset password.");
+        return;
+    }
+    try {
+        await auth.sendPasswordResetEmail(email);
+        alert("Password reset email sent. Check your inbox.");
+    } catch (err) {
+        alert("Error: " + err.message);
+    }
+};
 </script>
 <script>
 // Optional: Add sign out button if you want to allow users to log out
