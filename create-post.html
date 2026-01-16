@@ -45,10 +45,8 @@
 
     <div class="card">
       <div class="section-title">TikTok</div>
-      <input id="ttTitle" placeholder="TikTok Title" />
-      <textarea id="ttDesc" placeholder="Description"></textarea>
-      <textarea id="ttTags" placeholder="Tags & Keywords"></textarea>
-      <button class="btn secondary" onclick="copyTikTok()">📱 Copy & Go to TikTok</button>
+      <textarea id="ttAllInOne" placeholder="Title, Desc, Tags & Keywords combined"></textarea>
+      <button class="btn secondary" onclick="copyGeneric('ttAllInOne', 'TikTok', 'https://www.tiktok.com/upload')">📱 Copy & Go to TikTok</button>
     </div>
 
     <div class="card">
@@ -77,58 +75,25 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt })
       });
+      
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "AI Error");
 
-      // Parse the nested JSON string in 'response'
-      let d = json.data;
-      if (typeof d.response === "string") {
-        try {
-          d = JSON.parse(d.response);
-        } catch (e) {
-          d = {};
-        }
-      }
+      const d = json.data;
 
-      // Fallbacks for each field
-      const fallbackTitle = prompt.slice(0, 60) || "Untitled Video";
-      const fallbackDesc = prompt.length > 0 ? prompt : "No description provided.";
-      const fallbackKeywords = "#seo #trending #viral";
-
-      // YouTube
-      document.getElementById("ytTitle").value = d.youtube?.title || fallbackTitle;
-      document.getElementById("ytDesc").value = d.youtube?.description || fallbackDesc;
-      document.getElementById("ytKeywords").value = d.youtube?.keywords || fallbackKeywords;
-
-      // TikTok
-      document.getElementById("ttTitle").value = d.tiktok?.title || d.youtube?.title || fallbackTitle;
-      document.getElementById("ttDesc").value = d.tiktok?.description || d.youtube?.description || d.facebook?.descriptionAndTags || fallbackDesc;
-      document.getElementById("ttTags").value = d.tiktok?.tags || d.tiktok?.keywords || d.youtube?.keywords || fallbackKeywords;
-
-      // Facebook
-      document.getElementById("fbTitle").value = d.facebook?.title || fallbackTitle;
-      document.getElementById("fbDetails").value = d.facebook?.descriptionAndTags || fallbackDesc;
+      // FIX: Using Optional Chaining (?.) to prevent 'undefined' crashes
+      document.getElementById("ytTitle").value = d.youtube?.title || "";
+      document.getElementById("ytDesc").value = d.youtube?.description || "";
+      document.getElementById("ytKeywords").value = d.youtube?.keywords || "";
+      
+      document.getElementById("ttAllInOne").value = d.tiktok?.allInOne || "";
+      
+      document.getElementById("fbTitle").value = d.facebook?.title || "";
+      document.getElementById("fbDetails").value = d.facebook?.descriptionAndTags || "";
 
     } catch (err) {
       console.error(err);
-      // Always fill with fallbacks if error
-      const prompt = document.getElementById("videoPrompt").value.trim();
-      const fallbackTitle = prompt.slice(0, 60) || "Untitled Video";
-      const fallbackDesc = prompt.length > 0 ? prompt : "No description provided.";
-      const fallbackKeywords = "#seo #trending #viral";
-
-      document.getElementById("ytTitle").value = fallbackTitle;
-      document.getElementById("ytDesc").value = fallbackDesc;
-      document.getElementById("ytKeywords").value = fallbackKeywords;
-
-      document.getElementById("ttTitle").value = fallbackTitle;
-      document.getElementById("ttDesc").value = fallbackDesc;
-      document.getElementById("ttTags").value = fallbackKeywords;
-
-      document.getElementById("fbTitle").value = fallbackTitle;
-      document.getElementById("fbDetails").value = fallbackDesc;
-
-      alert("Format Error: The AI response was incomplete. Default SEO values have been filled. Try a more detailed description for better results.");
+      alert("Format Error: The AI response was incomplete. Try a more detailed description.");
     } finally {
       btn.innerText = "✨ Generate Pro SEO";
       btn.classList.remove("loading");
@@ -151,12 +116,11 @@
     });
   }
 
-
-  function copyTikTok() {
-    const text = `TITLE:\n${document.getElementById("ttTitle").value}\n\nDESC:\n${document.getElementById("ttDesc").value}\n\nTAGS:\n${document.getElementById("ttTags").value}`;
+  function copyGeneric(id, name, url) {
+    const text = document.getElementById(id).value;
     navigator.clipboard.writeText(text).then(() => {
-      alert("TikTok SEO Copied!");
-      window.open("https://www.tiktok.com/upload", "_blank");
+      alert(name + " SEO Copied!");
+      window.open(url, "_blank");
     });
   }
 
