@@ -180,30 +180,31 @@
               : data.response || data.text || data.output || "";
           const fallback = buildFallbackFromText(rawText);
 
-          const youtube = data.youtube || fallback.youtube || {};
-          const tiktok = data.tiktok || fallback.tiktok || {};
-          const facebook = data.facebook || fallback.facebook || {};
+            const youtube = data.youtube || fallback.youtube || {};
+            const tiktok = data.tiktok || fallback.tiktok || {};
+            const facebook = data.facebook || fallback.facebook || {};
 
-          const youtubeTitle =
-            youtube.title ?? data.youtubeTitle ?? data.title ?? "";
-          const fullDescription =
-            youtube.description ??
-            data.youtubeDescription ??
-            data.fullDescription ??
-            data.description ??
-            "";
-          const trendingKeywords =
-            youtube.keywords ??
-            youtube.tags ??
-            data.trendingKeywords ??
-            data.keywords ??
-            "";
+            const fallbackText = rawText || coerceToText(data) || prompt;
 
-          if (!youtubeTitle && !fullDescription && !trendingKeywords) {
-            throw new Error("Could not parse AI response. Please retry.");
-          }
+            const youtubeTitle =
+              youtube.title ??
+              data.youtubeTitle ??
+              data.title ??
+              fallbackText;
+            const fullDescription =
+              youtube.description ??
+              data.youtubeDescription ??
+              data.fullDescription ??
+              data.description ??
+              fallbackText;
+            const trendingKeywords =
+              youtube.keywords ??
+              youtube.tags ??
+              data.trendingKeywords ??
+              data.keywords ??
+              "";
 
-          statusEl.textContent = "AI response received";
+            statusEl.textContent = "AI response received";
           document.getElementById("ytTitle").value = coerceToText(youtubeTitle);
           document.getElementById("ytDesc").value = coerceToText(fullDescription);
           document.getElementById("ytKeywords").value = coerceToText(trendingKeywords);
@@ -217,7 +218,7 @@
               data.tiktokText ??
               data.caption ??
               tiktok.text ??
-              ""
+              fallbackText
           );
 
           document.getElementById("fbTitle").value = coerceToText(
@@ -227,8 +228,8 @@
             facebook.descriptionAndTags ??
               data.facebookDetails ??
               facebook.description ??
-              facebook.tags ??
-              ""
+                facebook.tags ??
+                fallbackText
           );
       } catch (err) {
         console.error(err);
