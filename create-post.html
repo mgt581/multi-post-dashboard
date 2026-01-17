@@ -236,6 +236,44 @@
       return String(value);
     };
 
+    // Normalize TikTok payloads into a single caption string
+    const normalizeTikTok = (tiktok, prompt, keywords) => {
+      if (!tiktok) return prompt;
+      if (typeof tiktok === "string") return tiktok;
+      if (Array.isArray(tiktok)) return tiktok.map(coerceToText).join("\n");
+
+      const direct =
+        tiktok.allInOne ||
+        tiktok.all_in_one ||
+        tiktok.caption ||
+        tiktok.text ||
+        tiktok.caption_text;
+      if (direct) return coerceToText(direct);
+
+      const parts = [];
+      const orderedKeys = [
+        "headline",
+        "hook",
+        "description",
+        "tags",
+        "hashtags",
+        "hashTags",
+        "keywords",
+        "cta",
+        "music",
+        "audio",
+        "video",
+        "effects"
+      ];
+
+      orderedKeys.forEach(key => {
+        if (tiktok[key]) parts.push(`${key}: ${coerceToText(tiktok[key])}`);
+      });
+
+      if (!parts.length) return prompt || coerceToText(keywords) || "";
+      return parts.join("\n");
+    };
+
     const parseJsonSafe = (value) => {
       if (!value) return null;
       if (typeof value !== "string") return value;
@@ -314,16 +352,10 @@
         document.getElementById("ytDesc").value = coerceToText(fullDescription);
         document.getElementById("ytKeywords").value = coerceToText(trendingKeywords);
 
-        document.getElementById("ttAllInOne").value = coerceToText(
-          tiktok.allInOne ??
-          tiktok.all_in_one ??
-          tiktok.caption ??
-          d.tiktokAllInOne ??
-          d.tiktokCaption ??
-          d.tiktokText ??
-          d.caption ??
-          tiktok.text ??
-          prompt
+        document.getElementById("ttAllInOne").value = normalizeTikTok(
+          tiktok || d.tiktokAllInOne || d.tiktokCaption || d.tiktokText || d.caption,
+          prompt,
+          trendingKeywords
         );
 
         document.getElementById("fbTitle").value = coerceToText(
