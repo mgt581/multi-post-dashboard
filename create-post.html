@@ -113,13 +113,34 @@
 
         const d = json.data || json;
 
+        const coerceToText = value => {
+          if (Array.isArray(value)) return value.join(", ");
+          if (value === null || value === undefined) return "";
+          return String(value);
+        };
+
+        const youtubeTitle =
+          d.youtubeTitle ?? d.title ?? d.youtube?.title ?? "";
+        const fullDescription =
+          d.fullDescription ?? d.description ?? d.youtube?.description ?? "";
+        const trendingKeywords =
+          d.trendingKeywords ?? d.keywords ?? d.youtube?.keywords ?? d.youtube?.tags ?? "";
+
         statusEl.textContent = "AI response received";
-        document.getElementById("ytTitle").value = d.youtube?.title || "";
-        document.getElementById("ytDesc").value = d.youtube?.description || "";
-        document.getElementById("ytKeywords").value = d.youtube?.keywords || "";
-        document.getElementById("ttAllInOne").value = d.tiktok?.allInOne || "";
-        document.getElementById("fbTitle").value = d.facebook?.title || "";
-        document.getElementById("fbDetails").value = d.facebook?.descriptionAndTags || "";
+        document.getElementById("ytTitle").value = coerceToText(youtubeTitle);
+        document.getElementById("ytDesc").value = coerceToText(fullDescription);
+        document.getElementById("ytKeywords").value = coerceToText(trendingKeywords);
+
+        document.getElementById("ttAllInOne").value = coerceToText(
+          d.tiktok?.allInOne ?? d.tiktokAllInOne ?? d.tiktok?.text ?? ""
+        );
+
+        document.getElementById("fbTitle").value = coerceToText(
+          d.facebook?.title ?? d.facebookTitle ?? ""
+        );
+        document.getElementById("fbDetails").value = coerceToText(
+          d.facebook?.descriptionAndTags ?? d.facebookDetails ?? ""
+        );
       } catch (err) {
         console.error(err);
         statusEl.textContent = err.message;
