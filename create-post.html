@@ -71,8 +71,8 @@
       border-radius: 18px;
       padding: 18px;
       box-shadow: var(--shadow);
-    </body>
-    </html>
+    }
+
     .hero {
       background: radial-gradient(circle at 20% 20%, rgba(124, 58, 237, 0.25), transparent 25%),
                   radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.25), transparent 28%),
@@ -94,6 +94,7 @@
       font-size: 15px;
       resize: vertical;
       min-height: 46px;
+      font-family: inherit;
     }
 
     textarea::placeholder, input::placeholder { color: var(--muted); }
@@ -151,7 +152,15 @@
     .outputs textarea { min-height: 110px; }
 
     .pill-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-    .pill { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); padding: 6px 10px; border-radius: 10px; color: var(--muted); font-weight: 700; font-size: 12px; }
+    .pill { 
+      background: rgba(255, 255, 255, 0.05); 
+      border: 1px solid var(--border); 
+      padding: 6px 10px; 
+      border-radius: 10px; 
+      color: var(--muted); 
+      font-weight: 700; 
+      font-size: 12px; 
+    }
 
     @media (max-width: 640px) {
       body { padding: 18px 12px 32px; }
@@ -203,7 +212,7 @@
           <span class="pill">All-in-one</span>
           <span class="pill">Caption</span>
         </div>
-        <textarea id="ttAllInOne" placeholder="Title, description, tags & keywords combined"></textarea>
+        <textarea id="ttAllInOne" placeholder="AI-generated caption with hook and hashtags..."></textarea>
         <div class="controls">
           <button class="btn secondary" onclick="copyGeneric('ttAllInOne', 'TikTok', 'https://www.tiktok.com/upload')">📱 Copy & Go to TikTok</button>
         </div>
@@ -236,48 +245,39 @@
       return String(value);
     };
 
-    // Normalize TikTok payloads into a single caption string
+    /**
+     * Logic to extract the viral text from AI response
+     * Priority: allInOne > caption > text > prompt fallback
+     */
     const normalizeTikTok = (tiktok, prompt, keywords) => {
       if (!tiktok) return prompt;
       if (typeof tiktok === "string") return tiktok;
-      if (Array.isArray(tiktok)) return tiktok.map(coerceToText).join("\n");
-
+      
       const direct =
         tiktok.allInOne ||
         tiktok.all_in_one ||
         tiktok.caption ||
-        tiktok.text ||
-        tiktok.caption_text;
+        tiktok.text;
+        
       if (direct) return coerceToText(direct);
 
+      // If object keys are present (headline, hashtags etc)
       const parts = [];
-      const orderedKeys = [
-        "headline",
-        "hook",
-        "description",
-        "tags",
-        "hashtags",
-        "hashTags",
-        "keywords",
-        "cta",
-        "music",
-        "audio",
-        "video",
-        "effects"
-      ];
+      const orderedKeys = ["headline", "hook", "description", "hashtags", "cta"];
 
       orderedKeys.forEach(key => {
-        if (tiktok[key]) parts.push(`${key}: ${coerceToText(tiktok[key])}`);
+        if (tiktok[key]) parts.push(`${key.toUpperCase()}: ${coerceToText(tiktok[key])}`);
       });
 
       if (!parts.length) return prompt || coerceToText(keywords) || "";
-      return parts.join("\n");
+      return parts.join("\n\n");
     };
 
     const parseJsonSafe = (value) => {
       if (!value) return null;
       if (typeof value !== "string") return value;
       const trimmed = value.trim();
+      // Removes AI markdown code blocks if present
       const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
       const body = fenced ? fenced[1].trim() : trimmed;
       try { return JSON.parse(body); } catch { return null; }
@@ -314,19 +314,14 @@
         });
 
         const bodyText = await res.text();
-        if (!res.ok) {
-          throw new Error(`Server error: ${res.status} ${bodyText || ""}`.trim());
-        }
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
         let json;
-        try {
-          json = JSON.parse(bodyText);
-        } catch (e) {
-          throw new Error("Bad JSON from server");
-        }
+        try { json = JSON.parse(bodyText); } catch (e) { throw new Error("Bad JSON from server"); }
 
         if (!json.success) throw new Error(json.error || "AI Error");
 
+        // Navigate the response structure
         const raw = json?.data?.response ?? json?.data ?? json;
         const parsed = parseJsonSafe(raw) || raw || {};
         const d = parsed?.data ?? parsed ?? {};
@@ -335,39 +330,19 @@
         const tiktok = d.tiktok || {};
         const facebook = d.facebook || {};
 
-        const youtubeTitle = youtube.title ?? d.youtubeTitle ?? d.title ?? prompt;
-        const fullDescription =
-          youtube.description ??
-          d.youtubeDescription ??
-          d.fullDescription ??
-          d.description ??
-          prompt;
-        const trendingKeywords =
-          youtube.keywords ??
-          youtube.tags ??
-          d.trendingKeywords ??
-          d.keywords ?? "";
+        // 1. Process YouTube
+        document.getElementById("ytTitle").value = coerceToText(youtube.title || prompt);
+        document.getElementById("ytDesc").value = coerceToText(youtube.description || prompt);
+        document.getElementById("ytKeywords").value = coerceToText(youtube.keywords || youtube.tags || "");
 
-        document.getElementById("ytTitle").value = coerceToText(youtubeTitle);
-        document.getElementById("ytDesc").value = coerceToText(fullDescription);
-        document.getElementById("ytKeywords").value = coerceToText(trendingKeywords);
+        // 2. Process TikTok (The Fix)
+        // This ensures the box gets the generated caption, not the URL from the prompt
+        const ttContent = normalizeTikTok(tiktok, prompt, youtube.keywords);
+        document.getElementById("ttAllInOne").value = ttContent;
 
-        document.getElementById("ttAllInOne").value = normalizeTikTok(
-          tiktok || d.tiktokAllInOne || d.tiktokCaption || d.tiktokText || d.caption,
-          prompt,
-          trendingKeywords
-        );
-
-        document.getElementById("fbTitle").value = coerceToText(
-          facebook.title ?? d.facebookTitle ?? prompt
-        );
-        document.getElementById("fbDetails").value = coerceToText(
-          facebook.descriptionAndTags ??
-          d.facebookDetails ??
-          facebook.description ??
-          facebook.tags ??
-          prompt
-        );
+        // 3. Process Facebook
+        document.getElementById("fbTitle").value = coerceToText(facebook.title || prompt);
+        document.getElementById("fbDetails").value = coerceToText(facebook.descriptionAndTags || facebook.description || prompt);
 
         setStatus("AI response received", "success");
       } catch (err) {
@@ -388,7 +363,9 @@
       try {
         await navigator.clipboard.writeText(safeText);
         setStatus(`${label} copied to clipboard`, "success");
-        if (url) window.open(url, "_blank");
+        if (url) {
+          setTimeout(() => window.open(url, "_blank"), 600);
+        }
       } catch (err) {
         setStatus("Clipboard unavailable", "error");
         alert("Copy failed. Please copy manually.");
@@ -415,5 +392,5 @@
       copyAndOpen(block, "Facebook", "https://www.facebook.com/reels/create");
     }
   </script>
-</body>
+  </body>
 </html>
