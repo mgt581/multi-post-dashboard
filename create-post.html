@@ -1,46 +1,90 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" href="data:," />
-  <title>Multipost Pro SEO</title>
-  <!-- deploy bump v2 -->
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #eef7fb; margin: 0; padding: 0; }
-    .app { padding: 20px; max-width: 600px; margin: 0 auto; }
-    .header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; background: #e8f5fb; border-bottom: 2px solid #9fd3ea; position: sticky; top: 0; z-index: 100; }
-    .header a { text-decoration: none; font-size: 20px; color: #333; }
-    .header .title { font-weight: 700; font-size: 18px; }
-    .card { background: #e8f5fb; border: 2px solid #9fd3ea; border-radius: 16px; padding: 16px; margin-bottom: 16px; }
-    .section-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
-    .form-group { margin-bottom: 15px; }
-    label { display: block; font-size: 14px; font-weight: 600; color: #444; margin-bottom: 5px; }
-    textarea, input { width: 100%; padding: 12px; border-radius: 10px; border: 2px solid #9fd3ea; font-size: 16px; box-sizing: border-box; margin-bottom: 8px; background: white; }
-    textarea { min-height: 110px; resize: vertical; }
-    .btn { width: 100%; display: flex; align-items: center; justify-content: center; padding: 14px 16px; border-radius: 12px; border: 0; cursor: pointer; font-size: 16px; font-weight: 700; background: #2fa84f; color: white; transition: transform 0.1s, opacity 0.2s; }
-    .btn:active { transform: scale(0.98); }
-    .btn.secondary { background: #1b74e4; margin-top: 10px; }
-    .btn.loading { opacity: 0.7; cursor: progress; pointer-events: none; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <a href="folder.html">←</a>
-    <div class="title">Multipost Pro SEO</div>
-    <div style="width: 24px;"></div>
-  </div>
+      try {
+        const res = await fetch(`${apiBase}/generate-seo`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt })
+        });
 
-  <div class="app">
-    <div class="card">
-      <div class="section-title">Tell us about your video</div>
-      <div class="form-group">
-        <label for="videoPrompt">Video Description</label>
-        <textarea id="videoPrompt" placeholder="Describe your video for Pro SEO generation..."></textarea>
-      </div>
-      <div id="status" style="font-size:13px;color:#555;margin:4px 0 8px;min-height:18px;"></div>
-      <button class="btn" id="generateBtn">✨ Generate Pro SEO</button>
-    </div>
+        const bodyText = await res.text();
+        if (!res.ok) {
+          throw new Error(`Server error: ${res.status} ${bodyText || ""}`.trim());
+        }
+
+        let json;
+        try {
+          json = JSON.parse(bodyText);
+        } catch (e) {
+          throw new Error("Bad JSON from server");
+        }
+
+        if (!json.success) throw new Error(json.error || "AI Error");
+
+        const coerceToText = value => {
+          if (Array.isArray(value)) return value.join(", ");
+          if (value === null || value === undefined) return "";
+          return String(value);
+        };
+
+        const parseJsonSafe = value => {
+          if (!value) return null;
+          if (typeof value !== "string") return value;
+          const trimmed = value.trim();
+          const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+          const body = fenced ? fenced[1].trim() : trimmed;
+          try { return JSON.parse(body); } catch { return null; }
+        };
+
+        const raw = json?.data?.response ?? json?.data ?? json;
+        const parsed = parseJsonSafe(raw) || raw || {};
+        const d = parsed?.data ?? parsed ?? {};
+
+        const youtube = d.youtube || {};
+        const tiktok = d.tiktok || {};
+        const facebook = d.facebook || {};
+
+        const youtubeTitle =
+          youtube.title ?? d.youtubeTitle ?? d.title ?? prompt;
+        const fullDescription =
+          youtube.description ??
+          d.youtubeDescription ??
+          d.fullDescription ??
+          d.description ??
+          prompt;
+        const trendingKeywords =
+          youtube.keywords ??
+          youtube.tags ??
+          d.trendingKeywords ??
+          d.keywords ??
+          "";
+
+        statusEl.textContent = "AI response received";
+        document.getElementById("ytTitle").value = coerceToText(youtubeTitle);
+        document.getElementById("ytDesc").value = coerceToText(fullDescription);
+        document.getElementById("ytKeywords").value = coerceToText(trendingKeywords);
+
+        document.getElementById("ttAllInOne").value = coerceToText(
+          tiktok.allInOne ??
+          tiktok.all_in_one ??
+          tiktok.caption ??
+          d.tiktokAllInOne ??
+          d.tiktokCaption ??
+          d.tiktokText ??
+          d.caption ??
+          tiktok.text ??
+          prompt
+        );
+
+        document.getElementById("fbTitle").value = coerceToText(
+          facebook.title ?? d.facebookTitle ?? prompt
+        );
+        document.getElementById("fbDetails").value = coerceToText(
+          facebook.descriptionAndTags ??
+            d.facebookDetails ??
+            facebook.description ??
+            facebook.tags ??
+            prompt
+        );
+      } catch (err) {
 
     <div class="card">
       <div class="section-title">YouTube</div>
