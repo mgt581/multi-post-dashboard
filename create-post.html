@@ -124,112 +124,58 @@
             const trimmed = value.trim();
             const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
             const body = fenced ? fenced[1].trim() : trimmed;
-            try {
-              return JSON.parse(body);
-            } catch {
-              return null;
-            }
+            try { return JSON.parse(body); } catch { return null; }
           };
 
-          const extractPayload = raw => {
-            const candidate = raw?.data ?? raw;
-            const probes = [
-              candidate?.response,
-              candidate?.result,
-              candidate?.output,
-              candidate?.data,
-              candidate
-            ];
+          const raw = json?.data?.response ?? json?.data ?? json;
+          const parsed = parseJsonSafe(raw) || raw || {};
+          const d = parsed?.data ?? parsed ?? {};
 
-            for (const probe of probes) {
-              const parsed = parseJsonSafe(probe);
-              if (parsed && typeof parsed === "object") return parsed;
-              if (probe && typeof probe === "object") return probe;
-            }
-            return {};
-          };
+          const youtube = d.youtube || {};
+          const tiktok = d.tiktok || {};
+          const facebook = d.facebook || {};
 
-          const buildFallbackFromText = text => {
-            if (!text || typeof text !== "string") return {};
-              const grab = (...labels) => {
-                const regex = new RegExp(`(?:${labels.join("|")})[:\-]\\s*(.+)`, "i");
-                const match = text.match(regex);
-                return match ? match[1].trim() : "";
-              };
+          const youtubeTitle =
+            youtube.title ?? d.youtubeTitle ?? d.title ?? prompt;
+          const fullDescription =
+            youtube.description ??
+            d.youtubeDescription ??
+            d.fullDescription ??
+            d.description ??
+            prompt;
+          const trendingKeywords =
+            youtube.keywords ??
+            youtube.tags ??
+            d.trendingKeywords ??
+            d.keywords ??
+            "";
 
-            return {
-              youtube: {
-                title: grab("youtube title", "title"),
-                description: grab("youtube description", "description", "desc"),
-                keywords: grab("keywords", "tags")
-              },
-              tiktok: {
-                  allInOne: grab("tiktok", "allinone", "all in one", "caption")
-              },
-              facebook: {
-                title: grab("facebook title", "reel title"),
-                descriptionAndTags: grab("facebook description", "description and tags", "details")
-              }
-            };
-          };
-
-          const data = extractPayload(json);
-          const rawText =
-            typeof data === "string"
-              ? data
-              : data.response || data.text || data.output || "";
-          const fallback = buildFallbackFromText(rawText);
-
-            const youtube = data.youtube || fallback.youtube || {};
-            const tiktok = data.tiktok || fallback.tiktok || {};
-            const facebook = data.facebook || fallback.facebook || {};
-
-            const fallbackText = rawText || coerceToText(data) || prompt;
-
-            const youtubeTitle =
-              youtube.title ??
-              data.youtubeTitle ??
-              data.title ??
-              fallbackText;
-            const fullDescription =
-              youtube.description ??
-              data.youtubeDescription ??
-              data.fullDescription ??
-              data.description ??
-              fallbackText;
-            const trendingKeywords =
-              youtube.keywords ??
-              youtube.tags ??
-              data.trendingKeywords ??
-              data.keywords ??
-              "";
-
-            statusEl.textContent = "AI response received";
+          statusEl.textContent = "AI response received";
           document.getElementById("ytTitle").value = coerceToText(youtubeTitle);
           document.getElementById("ytDesc").value = coerceToText(fullDescription);
           document.getElementById("ytKeywords").value = coerceToText(trendingKeywords);
 
           document.getElementById("ttAllInOne").value = coerceToText(
-              tiktok.allInOne ??
-              tiktok.all_in_one ??
-              tiktok.caption ??
-              data.tiktokAllInOne ??
-              data.tiktokCaption ??
-              data.tiktokText ??
-              data.caption ??
-              tiktok.text ??
-              fallbackText
+            tiktok.allInOne ??
+            tiktok.all_in_one ??
+            tiktok.caption ??
+            d.tiktokAllInOne ??
+            d.tiktokCaption ??
+            d.tiktokText ??
+            d.caption ??
+            tiktok.text ??
+            prompt
           );
 
           document.getElementById("fbTitle").value = coerceToText(
-            facebook.title ?? data.facebookTitle ?? ""
+            facebook.title ?? d.facebookTitle ?? prompt
           );
           document.getElementById("fbDetails").value = coerceToText(
             facebook.descriptionAndTags ??
-              data.facebookDetails ??
+              d.facebookDetails ??
               facebook.description ??
-                facebook.tags ??
-                fallbackText
+              facebook.tags ??
+              prompt
           );
       } catch (err) {
         console.error(err);
