@@ -230,37 +230,90 @@
         btn.classList.remove("loading");
       }
     }
+      try {
+        const res = await fetch(`${apiBase}/generate-seo`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt })
+        });
 
-    function copyYoutube() {
-      const title = document.getElementById("ytTitle").value;
-      const desc = document.getElementById("ytDesc").value;
-      const keywords = document.getElementById("ytKeywords").value;
-      const text = `TITLE:\n${title}\n\nDESC:\n${desc}\n\nKEYWORDS:\n${keywords}`;
-      navigator.clipboard.writeText(text).then(() => {
-        alert("YouTube SEO Copied!");
-        window.open("https://www.youtube.com/upload", "_blank");
-      });
-    }
+        const bodyText = await res.text();
+        if (!res.ok) {
+          throw new Error(`Server error: ${res.status} ${bodyText || ""}`.trim());
+        }
 
-    function copyFB() {
-      const title = document.getElementById("fbTitle").value;
-      const details = document.getElementById("fbDetails").value;
-      const text = `TITLE:\n${title}\n\nDETAILS:\n${details}`;
-      navigator.clipboard.writeText(text).then(() => {
-        alert("Facebook SEO Copied!");
-        window.open("https://www.facebook.com/reels/create", "_blank");
-      });
-    }
+        let json;
+        try {
+          json = JSON.parse(bodyText);
+        } catch (e) {
+          throw new Error("Bad JSON from server");
+        }
 
-    function copyGeneric(id, name, url) {
-      const text = document.getElementById(id).value;
-      navigator.clipboard.writeText(text).then(() => {
-        alert(name + " SEO Copied!");
-        window.open(url, "_blank");
-      });
-    }
+        if (!json.success) throw new Error(json.error || "AI Error");
 
-    document.getElementById("generateBtn").addEventListener("click", generateSEO);
-  </script>
-</body>
-</html>
+        const coerceToText = value => {
+          if (Array.isArray(value)) return value.join(", ");
+          if (value === null || value === undefined) return "";
+          return String(value);
+        };
+
+        const parseJsonSafe = value => {
+          if (!value) return null;
+          if (typeof value !== "string") return value;
+          const trimmed = value.trim();
+          const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+          const body = fenced ? fenced[1].trim() : trimmed;
+          try { return JSON.parse(body); } catch { return null; }
+        };
+
+        const raw = json?.data?.response ?? json?.data ?? json;
+        const parsed = parseJsonSafe(raw) || raw || {};
+        const d = parsed?.data ?? parsed ?? {};
+
+        const youtube = d.youtube || {};
+        const tiktok = d.tiktok || {};
+        const facebook = d.facebook || {};
+
+        const youtubeTitle =
+          youtube.title ?? d.youtubeTitle ?? d.title ?? prompt;
+        const fullDescription =
+          youtube.description ??
+          d.youtubeDescription ??
+          d.fullDescription ??
+          d.description ??
+          prompt;
+        const trendingKeywords =
+          youtube.keywords ??
+          youtube.tags ??
+          d.trendingKeywords ??
+          d.keywords ??
+          "";
+
+        statusEl.textContent = "AI response received";
+        document.getElementById("ytTitle").value = coerceToText(youtubeTitle);
+        document.getElementById("ytDesc").value = coerceToText(fullDescription);
+        document.getElementById("ytKeywords").value = coerceToText(trendingKeywords);
+
+        document.getElementById("ttAllInOne").value = coerceToText(
+          tiktok.allInOne ??
+          tiktok.all_in_one ??
+          tiktok.caption ??
+          d.tiktokAllInOne ??
+          d.tiktokCaption ??
+          d.tiktokText ??
+          d.caption ??
+          tiktok.text ??
+          prompt
+        );
+
+        document.getElementById("fbTitle").value = coerceToText(
+          facebook.title ?? d.facebookTitle ?? prompt
+        );
+        document.getElementById("fbDetails").value = coerceToText(
+          facebook.descriptionAndTags ??
+            d.facebookDetails ??
+            facebook.description ??
+            facebook.tags ??
+            prompt
+        );
+      } catch (err) {
