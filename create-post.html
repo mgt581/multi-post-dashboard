@@ -108,39 +108,120 @@
           throw new Error(`Server error: ${res.status} ${bodyText || ""}`.trim());
         }
 
-        const json = await res.json();
-        if (!json.success) throw new Error(json.error || "AI Error");
+          const json = await res.json();
+          if (!json.success) throw new Error(json.error || "AI Error");
 
-        const d = json.data || json;
+          // Parse model output even if it comes back as a fenced string
+          const coerceToText = value => {
+            if (Array.isArray(value)) return value.join(", ");
+            if (value === null || value === undefined) return "";
+            return String(value);
+          };
 
-        const coerceToText = value => {
-          if (Array.isArray(value)) return value.join(", ");
-          if (value === null || value === undefined) return "";
-          return String(value);
-        };
+          const parseJsonSafe = value => {
+            if (!value) return null;
+            if (typeof value !== "string") return value;
+            const trimmed = value.trim();
+            const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+            const body = fenced ? fenced[1].trim() : trimmed;
+            try {
+              return JSON.parse(body);
+            } catch {
+              return null;
+            }
+          };
 
-        const youtubeTitle =
-          d.youtubeTitle ?? d.title ?? d.youtube?.title ?? "";
-        const fullDescription =
-          d.fullDescription ?? d.description ?? d.youtube?.description ?? "";
-        const trendingKeywords =
-          d.trendingKeywords ?? d.keywords ?? d.youtube?.keywords ?? d.youtube?.tags ?? "";
+          const extractPayload = raw => {
+            const candidate = raw?.data ?? raw;
+            const probes = [
+              candidate?.response,
+              candidate?.result,
+              candidate?.output,
+              candidate?.data,
+              candidate
+            ];
 
-        statusEl.textContent = "AI response received";
-        document.getElementById("ytTitle").value = coerceToText(youtubeTitle);
-        document.getElementById("ytDesc").value = coerceToText(fullDescription);
-        document.getElementById("ytKeywords").value = coerceToText(trendingKeywords);
+            for (const probe of probes) {
+              const parsed = parseJsonSafe(probe);
+              if (parsed && typeof parsed === "object") return parsed;
+              if (probe && typeof probe === "object") return probe;
+            }
+            return {};
+          };
 
-        document.getElementById("ttAllInOne").value = coerceToText(
-          d.tiktok?.allInOne ?? d.tiktokAllInOne ?? d.tiktok?.text ?? ""
-        );
+          const buildFallbackFromText = text => {
+            if (!text || typeof text !== "string") return {};
+              const grab = (...labels) => {
+                const regex = new RegExp(`(?:${labels.join("|")})[:\-]\\s*(.+)`, "i");
+                const match = text.match(regex);
+                return match ? match[1].trim() : "";
+              };
 
-        document.getElementById("fbTitle").value = coerceToText(
-          d.facebook?.title ?? d.facebookTitle ?? ""
-        );
-        document.getElementById("fbDetails").value = coerceToText(
-          d.facebook?.descriptionAndTags ?? d.facebookDetails ?? ""
-        );
+            return {
+              youtube: {
+                title: grab("youtube title", "title"),
+                description: grab("youtube description", "description", "desc"),
+                keywords: grab("keywords", "tags")
+              },
+              tiktok: {
+                allInOne: grab("tiktok", "allinone", "all in one", "caption")
+              },
+              facebook: {
+                title: grab("facebook title", "reel title"),
+                descriptionAndTags: grab("facebook description", "description and tags", "details")
+              }
+            };
+          };
+
+          const data = extractPayload(json);
+          const rawText =
+            typeof data === "string"
+              ? data
+              : data.response || data.text || data.output || "";
+          const fallback = buildFallbackFromText(rawText);
+
+          const youtube = data.youtube || fallback.youtube || {};
+          const tiktok = data.tiktok || fallback.tiktok || {};
+          const facebook = data.facebook || fallback.facebook || {};
+
+          const youtubeTitle =
+            youtube.title ?? data.youtubeTitle ?? data.title ?? "";
+          const fullDescription =
+            youtube.description ??
+            data.youtubeDescription ??
+            data.fullDescription ??
+            data.description ??
+            "";
+          const trendingKeywords =
+            youtube.keywords ??
+            youtube.tags ??
+            data.trendingKeywords ??
+            data.keywords ??
+            "";
+
+          if (!youtubeTitle && !fullDescription && !trendingKeywords) {
+            throw new Error("Could not parse AI response. Please retry.");
+          }
+
+          statusEl.textContent = "AI response received";
+          document.getElementById("ytTitle").value = coerceToText(youtubeTitle);
+          document.getElementById("ytDesc").value = coerceToText(fullDescription);
+          document.getElementById("ytKeywords").value = coerceToText(trendingKeywords);
+
+          document.getElementById("ttAllInOne").value = coerceToText(
+            tiktok.allInOne ?? data.tiktokAllInOne ?? tiktok.text ?? ""
+          );
+
+          document.getElementById("fbTitle").value = coerceToText(
+            facebook.title ?? data.facebookTitle ?? ""
+          );
+          document.getElementById("fbDetails").value = coerceToText(
+            facebook.descriptionAndTags ??
+              data.facebookDetails ??
+              facebook.description ??
+              facebook.tags ??
+              ""
+          );
       } catch (err) {
         console.error(err);
         statusEl.textContent = err.message;
