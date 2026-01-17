@@ -164,7 +164,7 @@
                 keywords: grab("keywords", "tags")
               },
               tiktok: {
-                allInOne: grab("tiktok", "allinone", "all in one", "caption")
+                  allInOne: grab("tiktok", "allinone", "all in one", "caption")
               },
               facebook: {
                 title: grab("facebook title", "reel title"),
@@ -209,7 +209,15 @@
           document.getElementById("ytKeywords").value = coerceToText(trendingKeywords);
 
           document.getElementById("ttAllInOne").value = coerceToText(
-            tiktok.allInOne ?? data.tiktokAllInOne ?? tiktok.text ?? ""
+              tiktok.allInOne ??
+              tiktok.all_in_one ??
+              tiktok.caption ??
+              data.tiktokAllInOne ??
+              data.tiktokCaption ??
+              data.tiktokText ??
+              data.caption ??
+              tiktok.text ??
+              ""
           );
 
           document.getElementById("fbTitle").value = coerceToText(
