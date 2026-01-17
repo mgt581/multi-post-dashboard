@@ -8,6 +8,12 @@
    npm install -g wrangler
    ```
 
+## D1 Guides
+
+Not sure what you can do with a D1 database? Learn from one of our helpful guides.
+
+- **Deploy a REST API** — Learn how to deploy a new Worker that provides a CRUD-based REST API on top of your D1 database. Browse the D1 tutorials at [developers.cloudflare.com/d1/tutorials](https://developers.cloudflare.com/d1/tutorials/).
+
 ## Step 1: Login to Cloudflare
 
 ```bash

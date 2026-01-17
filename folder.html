@@ -34,18 +34,21 @@
   <script>
     // --- CONFIGURATION ---
     const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
-    const userScope = localStorage.getItem("currentUserKey") || "guest";
+    const userScope = localStorage.getItem("currentUserKey");
+    if (!userScope) {
+      window.location.href = "signin.html";
+    }
     const scopedKey = name => `${name}:${userScope}`;
 
     // Migrate legacy unscoped keys so existing users keep their context
     const legacyId = localStorage.getItem("activeFolderId");
-    if (!localStorage.getItem(scopedKey("activeFolderId")) && legacyId) {
+    if (userScope && !localStorage.getItem(scopedKey("activeFolderId")) && legacyId) {
       localStorage.setItem(scopedKey("activeFolderId"), legacyId);
       localStorage.removeItem("activeFolderId");
     }
 
     const legacyName = localStorage.getItem("activeFolderName");
-    if (!localStorage.getItem(scopedKey("activeFolderName")) && legacyName) {
+    if (userScope && !localStorage.getItem(scopedKey("activeFolderName")) && legacyName) {
       localStorage.setItem(scopedKey("activeFolderName"), legacyName);
       localStorage.removeItem("activeFolderName");
     }
@@ -65,6 +68,24 @@
     /**
      * Renders the accounts linked to this folder
      */
+    const platformMeta = {
+      youtube: {
+        name: "YouTube",
+        logo: "https://cdn.simpleicons.org/youtube/FF0000",
+        iconBg: "#ffffff",
+      },
+      tiktok: {
+        name: "TikTok",
+        logo: "https://cdn.simpleicons.org/tiktok/000000",
+        iconBg: "#ffffff",
+      },
+      facebook: {
+        name: "Facebook",
+        logo: "https://cdn.simpleicons.org/facebook/1877F2",
+        iconBg: "#ffffff",
+      },
+    };
+
     async function render() {
       if (!fId) {
         console.error("No active folder ID found in localStorage.");
@@ -72,22 +93,95 @@
       }
       
       try {
-        const res = await fetch(`${apiBase}/get-accounts?folder_id=${fId}`);
+        const res = await fetch(`${apiBase}/get-accounts?folder_id=${fId}&user_id=${encodeURIComponent(userScope)}`);
         const accs = await res.json();
         
         document.getElementById("count").innerText = `${accs.length} accounts`;
-        
-        document.getElementById("accountList").innerHTML = accs.map(a => `
-          <div class="card">
-            <div class="icon">${a.platform[0].toUpperCase()}</div>
-            <div class="card-text">
-              <strong>${a.nickname || 'Linked Account'}</strong>
-              <span>${a.platform}</span>
-            </div>
-          </div>
-        `).join('');
+
+        const grouped = accs.reduce((map, account) => {
+          if (!map[account.platform]) map[account.platform] = [];
+          map[account.platform].push(account);
+          return map;
+        }, {});
+
+        const platformOrder = ["youtube", "tiktok", "facebook"];
+        const cards = [];
+
+        platformOrder.forEach(platform => {
+          const meta = platformMeta[platform] || { name: platform, logo: "", iconBg: "#ffffff" };
+          const list = grouped[platform] || [];
+
+          if (list.length === 0) {
+            cards.push(`
+              <div class="card account-card">
+                <div class="icon platform-icon" style="background:${meta.iconBg};">
+                  ${meta.logo ? `<img class="platform-icon-img" src="${meta.logo}" alt="${meta.name} logo">` : meta.name[0]}
+                </div>
+                <div class="card-text">
+                  <strong>${meta.name}</strong>
+                  <div class="platform-row">
+                    <span class="platform-label">
+                      ${meta.logo ? `<img class="platform-logo" src="${meta.logo}" alt="${meta.name} logo">` : ""}
+                      <span class="platform-name">${meta.name}</span>
+                    </span>
+                    <span class="status status-disconnected">
+                      <span class="status-dot"></span>
+                      Disconnected
+                    </span>
+                  </div>
+                </div>
+                <button class="btn-ghost" disabled>Not Signed In</button>
+              </div>
+            `);
+            return;
+          }
+
+          list.forEach(account => {
+            cards.push(`
+              <div class="card account-card">
+                <div class="icon platform-icon" style="background:${meta.iconBg};">
+                  ${meta.logo ? `<img class="platform-icon-img" src="${meta.logo}" alt="${meta.name} logo">` : meta.name[0]}
+                </div>
+                <div class="card-text">
+                  <strong>${account.nickname || 'Linked Account'}</strong>
+                  <div class="platform-row">
+                    <span class="platform-label">
+                      ${meta.logo ? `<img class="platform-logo" src="${meta.logo}" alt="${meta.name} logo">` : ""}
+                      <span class="platform-name">${meta.name}</span>
+                    </span>
+                    <span class="status status-connected">
+                      <span class="status-dot"></span>
+                      Connected
+                    </span>
+                  </div>
+                </div>
+                <button class="btn-ghost" onclick="removeAccount(${account.id})">Remove</button>
+              </div>
+            `);
+          });
+        });
+
+        document.getElementById("accountList").innerHTML = cards.join("");
       } catch (err) {
         console.error("Failed to render accounts:", err);
+      }
+    }
+
+    async function removeAccount(accountId) {
+      if (!accountId) return;
+      const confirmRemove = confirm("Remove this linked account? You can reconnect anytime.");
+      if (!confirmRemove) return;
+
+      try {
+        await fetch(`${apiBase}/delete-account`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: accountId, user_id: userScope }),
+        });
+        await render();
+      } catch (err) {
+        console.error("Failed to remove account:", err);
+        alert("Failed to remove account. Please try again.");
       }
     }
 
@@ -105,7 +199,7 @@
       // We redirect to the Worker's auth endpoint. 
       // The Worker handles the login and redirects back here automatically.
       // We pass folder_id as 'state' to keep track of where the user belongs.
-      const authUrl = `${apiBase}/auth/${platform}?folder_id=${fId}`;
+      const authUrl = `${apiBase}/auth/${platform}?folder_id=${fId}&user_id=${encodeURIComponent(userScope)}`;
       
       // Navigate to the platform login (YouTube/TikTok/Facebook)
       window.location.href = authUrl;

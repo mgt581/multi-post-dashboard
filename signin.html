@@ -87,6 +87,10 @@
                class="input-focus w-full bg-white border border-slate-200 rounded-2xl p-4 text-slate-900">
         <input id="password" type="password" placeholder="••••••••"
                class="input-focus w-full bg-white border border-slate-200 rounded-2xl p-4 text-slate-900">
+        <button type="button" onclick="handlePasswordReset()"
+                class="text-sm font-semibold text-blue-600 hover:text-blue-700 text-left">
+            Forgot password?
+        </button>
         <button onclick="handleAuthSubmit()"
                 class="btn-grad w-full py-4 rounded-2xl flex justify-center items-center">
             <span id="btn-text">Enter Workspace</span>
@@ -113,6 +117,7 @@ import {
     signInWithRedirect,
     getRedirectResult,
     onAuthStateChanged,
+    sendPasswordResetEmail,
     signOut
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 const firebaseConfig = {
@@ -211,6 +216,21 @@ window.handleAuthSubmit = async () => {
 window.handleGoogleSignIn = () => {
     signInWithRedirect(auth, provider);
 };
+window.handlePasswordReset = async () => {
+    const emailInput = document.getElementById("email");
+    const email = emailInput.value.trim();
+    if (!email) {
+        alert("Enter your email to reset your password.");
+        emailInput.focus();
+        return;
+    }
+    try {
+        await sendPasswordResetEmail(auth, email);
+        alert("Password reset email sent. Check your inbox.");
+    } catch (err) {
+        alert(err.message);
+    }
+};
 onAuthStateChanged(auth, (user) => {
     if (user) {
         setActiveUserScope(user);
@@ -221,6 +241,7 @@ onAuthStateChanged(auth, (user) => {
         clearWorkspaceState();
         localStorage.removeItem("currentUserKey");
         localStorage.removeItem("userEmail");
+        // Stay on signin if already there; otherwise redirect to signin
         if (!window.location.pathname.includes("signin")) {
             window.location.href = "signin.html";
         }

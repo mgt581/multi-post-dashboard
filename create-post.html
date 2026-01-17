@@ -1,235 +1,273 @@
-      try {
-        const res = await fetch(`${apiBase}/generate-seo`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt })
-        });
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Multipost | Create Post</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
 
-        const bodyText = await res.text();
-        if (!res.ok) {
-          throw new Error(`Server error: ${res.status} ${bodyText || ""}`.trim());
-        }
+    :root {
+      --bg: linear-gradient(135deg, #0f172a, #0b2f52 60%, #0ea5e9);
+      --card: #0b1829;
+      --border: rgba(255, 255, 255, 0.08);
+      --muted: #94a3b8;
+      --text: #e2e8f0;
+      --accent: #7c3aed;
+      --accent-2: #0ea5e9;
+      --success: #22c55e;
+      --error: #f43f5e;
+      --shadow: 0 14px 40px rgba(15, 23, 42, 0.45);
+    }
 
-        let json;
-        try {
-          json = JSON.parse(bodyText);
-        } catch (e) {
-          throw new Error("Bad JSON from server");
-        }
+    * { box-sizing: border-box; }
 
-        if (!json.success) throw new Error(json.error || "AI Error");
+    body {
+      margin: 0;
+      background: var(--bg);
+      font-family: 'Manrope', -apple-system, system-ui, sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      padding: 28px 16px 48px;
+    }
 
-        const coerceToText = value => {
-          if (Array.isArray(value)) return value.join(", ");
-          if (value === null || value === undefined) return "";
-          return String(value);
-        };
+    .page {
+      max-width: 1080px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
 
-        const parseJsonSafe = value => {
-          if (!value) return null;
-          if (typeof value !== "string") return value;
-          const trimmed = value.trim();
-          const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-          const body = fenced ? fenced[1].trim() : trimmed;
-          try { return JSON.parse(body); } catch { return null; }
-        };
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
 
-        const raw = json?.data?.response ?? json?.data ?? json;
-        const parsed = parseJsonSafe(raw) || raw || {};
-        const d = parsed?.data ?? parsed ?? {};
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
 
-        const youtube = d.youtube || {};
-        const tiktok = d.tiktok || {};
-        const facebook = d.facebook || {};
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.04);
+      font-weight: 700;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+    }
 
-        const youtubeTitle =
-          youtube.title ?? d.youtubeTitle ?? d.title ?? prompt;
-        const fullDescription =
-          youtube.description ??
-          d.youtubeDescription ??
-          d.fullDescription ??
-          d.description ??
-          prompt;
-        const trendingKeywords =
-          youtube.keywords ??
-          youtube.tags ??
-          d.trendingKeywords ??
-          d.keywords ??
-          "";
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+    </body>
+    </html>
+    .hero {
+      background: radial-gradient(circle at 20% 20%, rgba(124, 58, 237, 0.25), transparent 25%),
+                  radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.25), transparent 28%),
+                  var(--card);
+    }
 
-        statusEl.textContent = "AI response received";
-        document.getElementById("ytTitle").value = coerceToText(youtubeTitle);
-        document.getElementById("ytDesc").value = coerceToText(fullDescription);
-        document.getElementById("ytKeywords").value = coerceToText(trendingKeywords);
+    h1 { margin: 0; font-size: 24px; letter-spacing: -0.4px; }
+    p { margin: 0; color: var(--muted); }
 
-        document.getElementById("ttAllInOne").value = coerceToText(
-          tiktok.allInOne ??
-          tiktok.all_in_one ??
-          tiktok.caption ??
-          d.tiktokAllInOne ??
-          d.tiktokCaption ??
-          d.tiktokText ??
-          d.caption ??
-          tiktok.text ??
-          prompt
-        );
+    label { display: block; font-weight: 700; margin-bottom: 8px; color: #cbd5e1; }
 
-        document.getElementById("fbTitle").value = coerceToText(
-          facebook.title ?? d.facebookTitle ?? prompt
-        );
-        document.getElementById("fbDetails").value = coerceToText(
-          facebook.descriptionAndTags ??
-            d.facebookDetails ??
-            facebook.description ??
-            facebook.tags ??
-            prompt
-        );
-      } catch (err) {
+    textarea, input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      font-size: 15px;
+      resize: vertical;
+      min-height: 46px;
+    }
 
-    <div class="card">
-      <div class="section-title">YouTube</div>
-      <div class="form-group">
-        <label for="ytTitle">YouTube Title</label>
+    textarea::placeholder, input::placeholder { color: var(--muted); }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-weight: 800;
+      cursor: pointer;
+      color: #0f172a;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 12px 28px rgba(14, 165, 233, 0.35);
+      transition: transform 0.08s ease, opacity 0.2s ease;
+    }
+
+    .btn.secondary { background: rgba(255, 255, 255, 0.06); color: var(--text); box-shadow: none; }
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .status {
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .status.success { color: var(--success); }
+    .status.error { color: var(--error); }
+    .status.working { color: var(--accent-2); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 14px;
+    }
+
+    .section-title {
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+
+    .small {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .outputs textarea { min-height: 110px; }
+
+    .pill-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .pill { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); padding: 6px 10px; border-radius: 10px; color: var(--muted); font-weight: 700; font-size: 12px; }
+
+    @media (max-width: 640px) {
+      body { padding: 18px 12px 32px; }
+      .page { gap: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="brand">
+        <div class="badge">Multipost Studio</div>
+        <div>
+          <p class="small">Cross-post optimizer</p>
+          <h1>Create & SEO</h1>
+        </div>
+      </div>
+      <div class="badge">Worker live</div>
+    </header>
+
+    <section class="card hero">
+      <label for="videoPrompt">Describe your video or idea</label>
+      <textarea id="videoPrompt" rows="3" placeholder="Example: 60-second recap of CES AI gadgets with upbeat music"></textarea>
+      <div class="controls">
+        <button id="generateBtn" class="btn" onclick="generateSEO()">Analyze trends</button>
+        <span id="status" class="status">Waiting for your prompt</span>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card outputs">
+        <div class="section-title">YouTube</div>
+        <div class="pill-row">
+          <span class="pill">Title</span>
+          <span class="pill">Description</span>
+          <span class="pill">Keywords</span>
+        </div>
         <input id="ytTitle" placeholder="YouTube Title" />
-      </div>
-      <div class="form-group">
-        <label for="ytDesc">Full Description</label>
         <textarea id="ytDesc" placeholder="Full Description"></textarea>
-      </div>
-      <div class="form-group">
-        <label for="ytKeywords">20 Trending Keywords</label>
         <textarea id="ytKeywords" placeholder="20 Trending Keywords"></textarea>
+        <div class="controls">
+          <button class="btn secondary" onclick="copyYoutube()">🚀 Copy & Go to YouTube</button>
+        </div>
       </div>
-      <button class="btn secondary" onclick="copyYoutube()">🚀 Copy & Go to YouTube</button>
-    </div>
 
-    <div class="card">
-      <div class="section-title">TikTok</div>
-      <div class="form-group">
-        <label for="ttAllInOne">Title, Desc, Tags & Keywords</label>
-        <textarea id="ttAllInOne" placeholder="Title, Desc, Tags & Keywords combined"></textarea>
+      <div class="card outputs">
+        <div class="section-title">TikTok</div>
+        <div class="pill-row">
+          <span class="pill">All-in-one</span>
+          <span class="pill">Caption</span>
+        </div>
+        <textarea id="ttAllInOne" placeholder="Title, description, tags & keywords combined"></textarea>
+        <div class="controls">
+          <button class="btn secondary" onclick="copyGeneric('ttAllInOne', 'TikTok', 'https://www.tiktok.com/upload')">📱 Copy & Go to TikTok</button>
+        </div>
       </div>
-      <button class="btn secondary" onclick="copyGeneric('ttAllInOne', 'TikTok', 'https://www.tiktok.com/upload')">📱 Copy & Go to TikTok</button>
-    </div>
 
-    <div class="card">
-      <div class="section-title">Facebook Reels</div>
-      <div class="form-group">
-        <label for="fbTitle">Reel Title</label>
+      <div class="card outputs">
+        <div class="section-title">Facebook Reels</div>
+        <div class="pill-row">
+          <span class="pill">Title</span>
+          <span class="pill">Description</span>
+        </div>
         <input id="fbTitle" placeholder="Reel Title" />
+        <textarea id="fbDetails" placeholder="Description, tags & keywords"></textarea>
+        <div class="controls">
+          <button class="btn secondary" onclick="copyFB()">📸 Copy & Go to Facebook</button>
+        </div>
       </div>
-      <div class="form-group">
-        <label for="fbDetails">Description, Tags & Keywords</label>
-        <textarea id="fbDetails" placeholder="Description, Tags & Keywords"></textarea>
-      </div>
-      <button class="btn secondary" onclick="copyFB()">📸 Copy & Go to Facebook</button>
-    </div>
+    </section>
   </div>
 
   <script>
     const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
 
+    const statusEl = document.getElementById("status");
+    const generateBtn = document.getElementById("generateBtn");
+
+    const coerceToText = (value) => {
+      if (Array.isArray(value)) return value.join(", ");
+      if (value === null || value === undefined) return "";
+      return String(value);
+    };
+
+    const parseJsonSafe = (value) => {
+      if (!value) return null;
+      if (typeof value !== "string") return value;
+      const trimmed = value.trim();
+      const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+      const body = fenced ? fenced[1].trim() : trimmed;
+      try { return JSON.parse(body); } catch { return null; }
+    };
+
+    function setStatus(message, tone = "info") {
+      statusEl.textContent = message;
+      statusEl.classList.remove("success", "error", "working");
+      if (tone === "success") statusEl.classList.add("success");
+      if (tone === "error") statusEl.classList.add("error");
+      if (tone === "working") statusEl.classList.add("working");
+    }
+
+    function setLoading(isLoading) {
+      generateBtn.disabled = isLoading;
+      generateBtn.textContent = isLoading ? "Analyzing trends…" : "Analyze trends";
+    }
+
     async function generateSEO() {
       const prompt = document.getElementById("videoPrompt").value.trim();
-      if (!prompt) return alert("Please describe your video!");
-
-      const btn = document.getElementById("generateBtn");
-      const statusEl = document.getElementById("status");
-      const originalText = btn.innerText;
-      btn.innerText = "Analyzing Trends...";
-      btn.classList.add("loading");
-      statusEl.textContent = "";
-
-      try {
-        const res = await fetch(`${apiBase}/generate-seo`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt })
-        });
-
-        if (!res.ok) {
-          const bodyText = await res.text();
-          throw new Error(`Server error: ${res.status} ${bodyText || ""}`.trim());
-        }
-
-          const json = await res.json();
-          if (!json.success) throw new Error(json.error || "AI Error");
-
-          // Parse model output even if it comes back as a fenced string
-          const coerceToText = value => {
-            if (Array.isArray(value)) return value.join(", ");
-            if (value === null || value === undefined) return "";
-            return String(value);
-          };
-
-          const parseJsonSafe = value => {
-            if (!value) return null;
-            if (typeof value !== "string") return value;
-            const trimmed = value.trim();
-            const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-            const body = fenced ? fenced[1].trim() : trimmed;
-            try { return JSON.parse(body); } catch { return null; }
-          };
-
-          const raw = json?.data?.response ?? json?.data ?? json;
-          const parsed = parseJsonSafe(raw) || raw || {};
-          const d = parsed?.data ?? parsed ?? {};
-
-          const youtube = d.youtube || {};
-          const tiktok = d.tiktok || {};
-          const facebook = d.facebook || {};
-
-          const youtubeTitle =
-            youtube.title ?? d.youtubeTitle ?? d.title ?? prompt;
-          const fullDescription =
-            youtube.description ??
-            d.youtubeDescription ??
-            d.fullDescription ??
-            d.description ??
-            prompt;
-          const trendingKeywords =
-            youtube.keywords ??
-            youtube.tags ??
-            d.trendingKeywords ??
-            d.keywords ??
-            "";
-
-          statusEl.textContent = "AI response received";
-          document.getElementById("ytTitle").value = coerceToText(youtubeTitle);
-          document.getElementById("ytDesc").value = coerceToText(fullDescription);
-          document.getElementById("ytKeywords").value = coerceToText(trendingKeywords);
-
-          document.getElementById("ttAllInOne").value = coerceToText(
-            tiktok.allInOne ??
-            tiktok.all_in_one ??
-            tiktok.caption ??
-            d.tiktokAllInOne ??
-            d.tiktokCaption ??
-            d.tiktokText ??
-            d.caption ??
-            tiktok.text ??
-            prompt
-          );
-
-          document.getElementById("fbTitle").value = coerceToText(
-            facebook.title ?? d.facebookTitle ?? prompt
-          );
-          document.getElementById("fbDetails").value = coerceToText(
-            facebook.descriptionAndTags ??
-              d.facebookDetails ??
-              facebook.description ??
-              facebook.tags ??
-              prompt
-          );
-      } catch (err) {
-        console.error(err);
-        statusEl.textContent = err.message;
-        alert("Error: " + err.message);
-      } finally {
-        btn.innerText = originalText;
-        btn.classList.remove("loading");
+      if (!prompt) {
+        alert("Please describe your video");
+        return;
       }
-    }
+
+      setLoading(true);
+      setStatus("Calling AI worker…", "working");
+
       try {
         const res = await fetch(`${apiBase}/generate-seo`, {
           method: "POST",
@@ -251,21 +289,6 @@
 
         if (!json.success) throw new Error(json.error || "AI Error");
 
-        const coerceToText = value => {
-          if (Array.isArray(value)) return value.join(", ");
-          if (value === null || value === undefined) return "";
-          return String(value);
-        };
-
-        const parseJsonSafe = value => {
-          if (!value) return null;
-          if (typeof value !== "string") return value;
-          const trimmed = value.trim();
-          const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-          const body = fenced ? fenced[1].trim() : trimmed;
-          try { return JSON.parse(body); } catch { return null; }
-        };
-
         const raw = json?.data?.response ?? json?.data ?? json;
         const parsed = parseJsonSafe(raw) || raw || {};
         const d = parsed?.data ?? parsed ?? {};
@@ -274,8 +297,7 @@
         const tiktok = d.tiktok || {};
         const facebook = d.facebook || {};
 
-        const youtubeTitle =
-          youtube.title ?? d.youtubeTitle ?? d.title ?? prompt;
+        const youtubeTitle = youtube.title ?? d.youtubeTitle ?? d.title ?? prompt;
         const fullDescription =
           youtube.description ??
           d.youtubeDescription ??
@@ -286,10 +308,8 @@
           youtube.keywords ??
           youtube.tags ??
           d.trendingKeywords ??
-          d.keywords ??
-          "";
+          d.keywords ?? "";
 
-        statusEl.textContent = "AI response received";
         document.getElementById("ytTitle").value = coerceToText(youtubeTitle);
         document.getElementById("ytDesc").value = coerceToText(fullDescription);
         document.getElementById("ytKeywords").value = coerceToText(trendingKeywords);
@@ -311,9 +331,57 @@
         );
         document.getElementById("fbDetails").value = coerceToText(
           facebook.descriptionAndTags ??
-            d.facebookDetails ??
-            facebook.description ??
-            facebook.tags ??
-            prompt
+          d.facebookDetails ??
+          facebook.description ??
+          facebook.tags ??
+          prompt
         );
+
+        setStatus("AI response received", "success");
       } catch (err) {
+        console.error(err);
+        setStatus(err.message || "Something went wrong", "error");
+        alert("Error: " + (err.message || err));
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    async function copyAndOpen(text, label, url) {
+      const safeText = text.trim();
+      if (!safeText) {
+        alert(`Nothing to copy for ${label}`);
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(safeText);
+        setStatus(`${label} copied to clipboard`, "success");
+        if (url) window.open(url, "_blank");
+      } catch (err) {
+        setStatus("Clipboard unavailable", "error");
+        alert("Copy failed. Please copy manually.");
+      }
+    }
+
+    function copyYoutube() {
+      const title = document.getElementById("ytTitle").value;
+      const desc = document.getElementById("ytDesc").value;
+      const keywords = document.getElementById("ytKeywords").value;
+      const block = `${title}\n\n${desc}\n\nKeywords: ${keywords}`.trim();
+      copyAndOpen(block, "YouTube", "https://studio.youtube.com/");
+    }
+
+    function copyGeneric(fieldId, label, url) {
+      const value = document.getElementById(fieldId).value;
+      copyAndOpen(value, label, url);
+    }
+
+    function copyFB() {
+      const title = document.getElementById("fbTitle").value;
+      const details = document.getElementById("fbDetails").value;
+      const block = `${title}\n\n${details}`.trim();
+      copyAndOpen(block, "Facebook", "https://www.facebook.com/reels/create");
+    }
+  </script>
+</body>
+</html>

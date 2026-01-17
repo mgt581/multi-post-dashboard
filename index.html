@@ -52,6 +52,12 @@
     .brand h1 { margin: 0; font-size: 22px; letter-spacing: -0.4px; }
     .muted { color: var(--muted); font-size: 13px; }
 
+    .auth-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     .btn {
       border: none;
       color: #fff;
@@ -181,7 +187,10 @@
           <div class="muted">Welcome back</div>
         </div>
       </div>
-      <button id="authBtn" class="btn btn-blue small">Sign In</button>
+      <div class="auth-actions">
+        <button id="signInBtn" class="btn btn-blue small">Sign In</button>
+        <button id="signOutBtn" class="btn btn-pink small">Sign Out</button>
+      </div>
     </header>
 
     <div class="stats">
@@ -210,26 +219,32 @@
 
   <script>
     const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
-    const userScope = localStorage.getItem("currentUserKey") || "guest";
+    let userScope = localStorage.getItem("currentUserKey");
     const scopedKey = name => `${name}:${userScope}`;
 
+    window.setUserScope = (scope) => {
+      userScope = scope;
+    };
+
     // Migrate legacy unscoped data into scoped keys
-    const legacyFolders = localStorage.getItem("folders");
-    if (!localStorage.getItem(scopedKey("folders")) && legacyFolders) {
-      localStorage.setItem(scopedKey("folders"), legacyFolders);
-      localStorage.removeItem("folders");
-    }
+    if (userScope) {
+      const legacyFolders = localStorage.getItem("folders");
+      if (!localStorage.getItem(scopedKey("folders")) && legacyFolders) {
+        localStorage.setItem(scopedKey("folders"), legacyFolders);
+        localStorage.removeItem("folders");
+      }
 
-    const legacyActiveId = localStorage.getItem("activeFolderId");
-    if (!localStorage.getItem(scopedKey("activeFolderId")) && legacyActiveId !== null) {
-      localStorage.setItem(scopedKey("activeFolderId"), legacyActiveId);
-      localStorage.removeItem("activeFolderId");
-    }
+      const legacyActiveId = localStorage.getItem("activeFolderId");
+      if (!localStorage.getItem(scopedKey("activeFolderId")) && legacyActiveId !== null) {
+        localStorage.setItem(scopedKey("activeFolderId"), legacyActiveId);
+        localStorage.removeItem("activeFolderId");
+      }
 
-    const legacyActiveName = localStorage.getItem("activeFolderName");
-    if (!localStorage.getItem(scopedKey("activeFolderName")) && legacyActiveName) {
-      localStorage.setItem(scopedKey("activeFolderName"), legacyActiveName);
-      localStorage.removeItem("activeFolderName");
+      const legacyActiveName = localStorage.getItem("activeFolderName");
+      if (!localStorage.getItem(scopedKey("activeFolderName")) && legacyActiveName) {
+        localStorage.setItem(scopedKey("activeFolderName"), legacyActiveName);
+        localStorage.removeItem("activeFolderName");
+      }
     }
 
     function hideMenus() {
@@ -296,7 +311,8 @@
 
     async function loadFolders() {
       try {
-        const res = await fetch(`${apiBase}/get-folders`);
+        if (!userScope) return;
+        const res = await fetch(`${apiBase}/get-folders?user_id=${encodeURIComponent(userScope)}`);
         if (!res.ok) throw new Error("Failed to fetch folders");
         cachedFolders = await res.json();
         localStorage.setItem(scopedKey('folders'), JSON.stringify(cachedFolders));
@@ -313,15 +329,18 @@
       }
     }
 
+    window.loadFolders = loadFolders;
+
     async function createNewFolder() {
       const name = prompt("Enter Brand or Client Name:");
       if (!name) return;
 
       try {
+        if (!userScope) return;
         const res = await fetch(`${apiBase}/add-folder`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name })
+          body: JSON.stringify({ name, user_id: userScope })
         });
         if (res.ok) loadFolders();
         else alert("Error saving folder");
@@ -348,10 +367,11 @@
       const name = input ? input.trim() : '';
       if (!name || name === oldName) return;
       try {
+        if (!userScope) return;
         const res = await fetch(`${apiBase}/rename-folder`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, name })
+          body: JSON.stringify({ id, name, user_id: userScope })
         });
         if (!res.ok) {
           const msg = await res.text();
@@ -374,10 +394,11 @@
     window.deleteFolder = async function(id) {
       if (!confirm('Delete this folder? This cannot be undone.')) return;
       try {
+        if (!userScope) return;
         const res = await fetch(`${apiBase}/delete-folder`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id })
+          body: JSON.stringify({ id, user_id: userScope })
         });
         if (!res.ok) {
           const msg = await res.text();
@@ -404,10 +425,11 @@
       if (!confirm(`Delete ${selectedIds.size} folder(s)? This cannot be undone.`)) return;
       const ids = [...selectedIds];
       try {
+        if (!userScope) return;
         await Promise.all(ids.map(id => fetch(`${apiBase}/delete-folder`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id })
+          body: JSON.stringify({ id, user_id: userScope })
         })));
         selectedIds.clear();
         await loadFolders();
@@ -433,29 +455,74 @@
       hideMenus();
     });
 
-    function updateAuthBtn() {
-      const btn = document.getElementById('authBtn');
-      const email = localStorage.getItem('userEmail');
-      if (email) {
-        btn.textContent = 'Sign Out';
-        btn.onclick = function() {
-          if (confirm('Sign out?')) {
-            localStorage.removeItem('userEmail');
-            window.location.href = 'signin.html';
-          }
-        };
-      } else {
-        btn.textContent = 'Sign In';
-        btn.onclick = function() {
-          window.location.href = 'signin.html';
-        };
-      }
+    function updateAuthButtons(isSignedIn) {
+      const signInBtn = document.getElementById('signInBtn');
+      const signOutBtn = document.getElementById('signOutBtn');
+      signInBtn.style.display = isSignedIn ? 'none' : 'inline-flex';
+      signOutBtn.style.display = isSignedIn ? 'inline-flex' : 'none';
+      signInBtn.onclick = () => window.location.href = 'signin.html';
     }
   
     window.onload = function() {
-      loadFolders();
-      updateAuthBtn();
+      updateAuthButtons(!!localStorage.getItem('currentUserKey'));
     };
+  </script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
+      authDomain: "multi-post-daefc.firebaseapp.com",
+      projectId: "multi-post-daefc",
+      storageBucket: "multi-post-daefc.appspot.com",
+      messagingSenderId: "1099160429576",
+      appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd",
+      measurementId: "G-NY0N8KKH0N"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    const signOutBtn = document.getElementById('signOutBtn');
+    signOutBtn.onclick = async () => {
+      if (!confirm('Sign out?')) return;
+      signOutBtn.disabled = true;
+      try {
+        await signOut(auth);
+      } catch (e) {
+        console.error('Sign out error', e);
+      }
+      try {
+        localStorage.removeItem('currentUserKey');
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem(scopedKey('folders'));
+        localStorage.removeItem(scopedKey('activeFolderId'));
+        localStorage.removeItem(scopedKey('activeFolderName'));
+      } catch (e) {
+        console.error('Local cleanup error', e);
+      }
+      location.replace('signin.html?logged_out=1');
+    };
+
+    onAuthStateChanged(auth, (user) => {
+      if (!user) {
+        localStorage.removeItem('currentUserKey');
+        localStorage.removeItem('userEmail');
+        updateAuthButtons(false);
+        window.location.href = 'signin.html';
+        return;
+      }
+
+      const scope = user.uid || user.email;
+      localStorage.setItem('currentUserKey', scope);
+      if (user.email) {
+        localStorage.setItem('userEmail', user.email);
+      }
+      window.setUserScope(scope);
+      updateAuthButtons(true);
+      window.loadFolders();
+    });
   </script>
 </body>
 </html>

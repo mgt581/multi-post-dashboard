@@ -155,6 +155,10 @@ body * {
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
 }
 
+.account-card {
+  gap: 8px;
+}
+
 /* Left icon */
 .icon {
   width: 52px;
@@ -167,6 +171,16 @@ body * {
   font-weight: 900;
   color: #ffffff;
   margin-right: 12px;
+}
+
+.platform-icon {
+  border: 1px solid #e2e8f0;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+}
+
+.platform-icon-img {
+  width: 28px;
+  height: 28px;
 }
 
 /* Text block */
@@ -187,6 +201,75 @@ body * {
   margin-top: 4px;
   opacity: 0.75;
   color: #64748b;
+}
+
+.platform-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.platform-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.platform-logo {
+  width: 14px;
+  height: 14px;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-connected {
+  color: #16a34a;
+}
+
+.status-connected .status-dot {
+  background: #16a34a;
+}
+
+.status-disconnected {
+  color: #dc2626;
+}
+
+.status-disconnected .status-dot {
+  background: #dc2626;
+}
+
+.btn-ghost {
+  background: #f8fafc;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-ghost:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Chevron */
