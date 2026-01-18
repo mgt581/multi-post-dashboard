@@ -1,4 +1,5 @@
-// worker.js
+// worker.js - Full Production v2.2.0
+// Features: Multi-user Folders, OAuth (YT/FB/TT), and Workers AI
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -7,67 +8,104 @@ var worker_default = {
       "Access-Control-Allow-Headers": "Content-Type"
     };
 
-    if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+    // Handle Preflight CORS requests
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: corsHeaders });
+    }
 
     const url = new URL(request.url);
     const baseUrl = `https://${url.hostname}`;
 
+    /**
+     * decodes the Base64 state string from the frontend
+     * Format: btoa("folderId|userId")
+     */
+    const decodeState = (state) => {
+      try {
+        const decoded = atob(state);
+        const [fId, uId] = decoded.split("|");
+        return { folderId: fId, userId: uId };
+      } catch (e) {
+        console.error("State Decode Error:", e);
+        return { folderId: state, userId: null };
+      }
+    };
+
     try {
-      // --- FOLDER & ACCOUNT MANAGEMENT ---
+      // --- FOLDER MANAGEMENT ---
+      // Fetches folders belonging ONLY to the specific logged-in user
       if (url.pathname === "/api/get-folders") {
-        const { results } = await env.DB.prepare("SELECT * FROM folders ORDER BY created_at DESC").all();
+        const userId = url.searchParams.get("user_id");
+        if (!userId) return new Response("Missing User ID", { status: 400, headers: corsHeaders });
+        
+        const { results } = await env.DB.prepare("SELECT * FROM folders WHERE user_id = ? ORDER BY created_at DESC")
+          .bind(userId)
+          .all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
+
+      // Adds a new folder linked to a specific User ID
       if (url.pathname === "/api/add-folder") {
-        const { name } = await request.json();
-        await env.DB.prepare("INSERT INTO folders (name) VALUES (?)").bind(name).run();
+        const { name, user_id } = await request.json();
+        await env.DB.prepare("INSERT INTO folders (name, user_id) VALUES (?, ?)")
+          .bind(name, user_id)
+          .run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
-      if (url.pathname === "/api/rename-folder") {
-        const { id, name } = await request.json();
-        if (!id || !name) return new Response("Missing id or name", { status: 400, headers: corsHeaders });
-        await env.DB.prepare("UPDATE folders SET name = ? WHERE id = ?").bind(name, id).run();
-        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
-      }
+
+      // Deletes folders or individual account links
       if (url.pathname === "/api/delete-folder") {
-        const { id } = await request.json();
-        if (!id) return new Response("Missing id", { status: 400, headers: corsHeaders });
-        await env.DB.prepare("DELETE FROM accounts WHERE folder_id = ?").bind(id).run();
-        await env.DB.prepare("DELETE FROM folders WHERE id = ?").bind(id).run();
+        const { id, user_id, type } = await request.json();
+        if (type === "account_only") {
+          await env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(id).run();
+        } else {
+          await env.DB.prepare("DELETE FROM accounts WHERE folder_id = ?").bind(id).run();
+          await env.DB.prepare("DELETE FROM folders WHERE id = ? AND user_id = ?").bind(id, user_id).run();
+        }
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
+
+      // --- ACCOUNT MANAGEMENT ---
+      // Gets all social accounts linked to a specific folder
       if (url.pathname === "/api/get-accounts") {
         const folder_id = url.searchParams.get("folder_id");
-        const { results } = await env.DB.prepare("SELECT * FROM accounts WHERE folder_id = ?").bind(folder_id).all();
+        const { results } = await env.DB.prepare("SELECT * FROM accounts WHERE folder_id = ?")
+          .bind(folder_id)
+          .all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
 
-      // --- OAUTH FLOWS ---
+      // --- OAUTH INITIATION ---
+      // Redirects user to Google/YouTube Auth
       if (url.pathname === "/api/auth/youtube") {
-        const folderId = url.searchParams.get("folder_id");
+        const state = url.searchParams.get("state");
         const redirectUri = `${baseUrl}/api/auth/callback/youtube`;
-        const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${env.GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=https://www.googleapis.com/auth/youtube.upload&access_type=offline&prompt=select_account+consent&state=${folderId}`;
-        return Response.redirect(googleAuthUrl);
-      }
-      if (url.pathname === "/api/auth/tiktok") {
-        const folderId = url.searchParams.get("folder_id");
-        const redirectUri = `${baseUrl}/api/auth/callback/tiktok`;
-        const scopes = "video.upload,video.publish,user.info.basic";
-        const tiktokAuthUrl = `https://www.tiktok.com/v2/auth/authorize/?client_key=${env.TIKTOK_CLIENT_KEY}&scope=${scopes}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&state=${folderId}`;
-        return Response.redirect(tiktokAuthUrl);
-      }
-      if (url.pathname === "/api/auth/facebook") {
-        const folderId = url.searchParams.get("folder_id");
-        const redirectUri = `${baseUrl}/api/auth/callback/facebook`;
-        const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.FB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&config_id=1283545206972587&response_type=code&override_default_response_type=true&state=${folderId}`;
-        return Response.redirect(fbAuthUrl);
+        const target = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${env.GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=https://www.googleapis.com/auth/youtube.upload&access_type=offline&prompt=consent&state=${state}`;
+        return Response.redirect(target);
       }
 
-      // --- CALLBACKS ---
+      // Redirects user to TikTok Auth
+      if (url.pathname === "/api/auth/tiktok") {
+        const state = url.searchParams.get("state");
+        const redirectUri = `${baseUrl}/api/auth/callback/tiktok`;
+        const target = `https://www.tiktok.com/v2/auth/authorize/?client_key=${env.TIKTOK_CLIENT_KEY}&scope=video.upload,video.publish,user.info.basic&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+        return Response.redirect(target);
+      }
+
+      // Redirects user to Facebook Auth
+      if (url.pathname === "/api/auth/facebook") {
+        const state = url.searchParams.get("state");
+        const redirectUri = `${baseUrl}/api/auth/callback/facebook`;
+        const target = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.FB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&config_id=1283545206972587&response_type=code&state=${state}`;
+        return Response.redirect(target);
+      }
+
+      // --- OAUTH CALLBACKS ---
+      // YouTube Callback: Exchange code for tokens and save to DB
       if (url.pathname === "/api/auth/callback/youtube") {
         const code = url.searchParams.get("code");
-        const folderId = url.searchParams.get("state");
-        const redirectUri = `${baseUrl}/api/auth/callback/youtube`;
+        const { folderId } = decodeState(url.searchParams.get("state"));
+        
         const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -75,23 +113,24 @@ var worker_default = {
             code,
             client_id: env.GOOGLE_CLIENT_ID,
             client_secret: env.GOOGLE_CLIENT_SECRET,
-            redirect_uri: redirectUri,
+            redirect_uri: `${baseUrl}/api/auth/callback/youtube`,
             grant_type: "authorization_code"
           })
         });
         const tokens = await tokenRes.json();
-        const userRes = await fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", {
-          headers: { "Authorization": `Bearer ${tokens.access_token}` }
-        });
-        const userData = await userRes.json();
-        const channelName = userData.items?.[0]?.snippet?.title || "Linked YouTube";
-        await env.DB.prepare("INSERT INTO accounts (folder_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, 'youtube', ?, ?, ?, ?)").bind(folderId, channelName, tokens.access_token, tokens.refresh_token, Date.now() + tokens.expires_in * 1e3).run();
-        return Response.redirect(`${baseUrl}/folder.html?id=${folderId}`);
+        
+        await env.DB.prepare("INSERT INTO accounts (folder_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, 'youtube', 'YouTube Channel', ?, ?, ?)")
+          .bind(folderId, tokens.access_token, tokens.refresh_token, Date.now() + (tokens.expires_in * 1000))
+          .run();
+        
+        return Response.redirect(`${baseUrl}/folder.html`);
       }
 
+      // TikTok Callback: Exchange code for tokens and save to DB
       if (url.pathname === "/api/auth/callback/tiktok") {
         const code = url.searchParams.get("code");
-        const folderId = url.searchParams.get("state");
+        const { folderId } = decodeState(url.searchParams.get("state"));
+        
         const tokenRes = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -104,73 +143,53 @@ var worker_default = {
           })
         });
         const tokens = await tokenRes.json();
-        if (tokens.error) throw new Error(tokens.error_description || "TikTok Exchange Failed");
-        await env.DB.prepare("INSERT INTO accounts (folder_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, 'tiktok', 'Linked TikTok', ?, ?, ?)").bind(folderId, tokens.access_token, tokens.refresh_token, Date.now() + tokens.expires_in * 1e3).run();
-        return Response.redirect(`${baseUrl}/folder.html?id=${folderId}`);
+        
+        await env.DB.prepare("INSERT INTO accounts (folder_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, 'tiktok', 'TikTok User', ?, ?, ?)")
+          .bind(folderId, tokens.access_token, tokens.refresh_token, Date.now() + (tokens.expires_in * 1000))
+          .run();
+        
+        return Response.redirect(`${baseUrl}/folder.html`);
       }
 
+      // Facebook Callback: Exchange code for tokens and save to DB
       if (url.pathname === "/api/auth/callback/facebook") {
         const code = url.searchParams.get("code");
-        const folderId = url.searchParams.get("state");
+        const { folderId } = decodeState(url.searchParams.get("state"));
+        
         const tokenRes = await fetch(`https://graph.facebook.com/v18.0/oauth/access_token?client_id=${env.FB_CLIENT_ID}&redirect_uri=${baseUrl}/api/auth/callback/facebook&client_secret=${env.FB_CLIENT_SECRET}&code=${code}`);
         const tokens = await tokenRes.json();
-        await env.DB.prepare("INSERT INTO accounts (folder_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, 'facebook', 'Linked Facebook', ?, 'none', ?)").bind(folderId, tokens.access_token, Date.now() + tokens.expires_in * 1e3).run();
-        return Response.redirect(`${baseUrl}/folder.html?id=${folderId}`);
+        
+        await env.DB.prepare("INSERT INTO accounts (folder_id, platform, nickname, access_token, expires_at) VALUES (?, 'facebook', 'FB Page', ?, ?)")
+          .bind(folderId, tokens.access_token, Date.now() + (tokens.expires_in || 5184000) * 1000)
+          .run();
+        
+        return Response.redirect(`${baseUrl}/folder.html`);
       }
 
-      // --- POSTING ---
-      if (url.pathname === "/api/post-video" && request.method === "POST") {
-        const { account_id, video_url, title, platform } = await request.json();
-        const account = await env.DB.prepare("SELECT * FROM accounts WHERE id = ?").bind(account_id).first();
-        if (platform === "tiktok") {
-          const tiktokRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
-            method: "POST",
-            headers: {
-              "Authorization": `Bearer ${account.access_token}`,
-              "Content-Type": "application/json; charset=UTF-8"
-            },
-            body: JSON.stringify({
-              post_info: { title, privacy_level: "SELF_ONLY", disable_duet: false, disable_comment: false },
-              source_info: { source: "PULL_FROM_URL", video_url }
-            })
-          });
-          const result = await tiktokRes.json();
-          return new Response(JSON.stringify(result), { headers: corsHeaders });
-        }
-      }
-
-      // --- AI SEO GENERATION (FIXED) ---
+      // --- AI SERVICES ---
+      // Uses Cloudflare Workers AI (Llama 3) to generate SEO content
       if (url.pathname === "/api/generate-seo" && request.method === "POST") {
         const { prompt } = await request.json();
         const aiResponse = await env.AI.run("@cf/meta/llama-3-8b-instruct", {
           messages: [
-            { 
-              role: "system", 
-              content: `You are a viral social media SEO expert. Output ONLY raw JSON. 
-              For the "tiktok" "allInOne" field, you MUST write a complete, viral caption. 
-              Include a hook, a short description, and 5-10 relevant hashtags. 
-              IMPORTANT: Do NOT return a URL link. Return original written content only.
-              Structure: { 
-                "youtube": {"title": "", "description": "", "keywords": ""}, 
-                "tiktok": {"allInOne": ""}, 
-                "facebook": {"title": "", "descriptionAndTags": ""} 
-              }.` 
-            },
-            { role: "user", content: `Generate viral 2026 SEO content for: ${prompt}` }
+            { role: "system", content: "You are a viral social media SEO expert. Output ONLY valid JSON with 'title', 'description', and 'hashtags'." },
+            { role: "user", content: `Generate SEO for: ${prompt}` }
           ]
         });
-        return new Response(JSON.stringify({ success: true, data: aiResponse }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        });
+        return new Response(JSON.stringify({ success: true, data: aiResponse }), { headers: corsHeaders });
       }
 
-      return new Response("Multipost API Active", { headers: corsHeaders });
+      // Health Check / Default Response
+      return new Response("Multipost API v2.2.0 - System Online", { headers: corsHeaders });
+
     } catch (err) {
-      return new Response(JSON.stringify({ success: false, error: err.message }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      console.error("Worker Error:", err.message);
+      return new Response(JSON.stringify({ success: false, error: err.message }), { 
+        status: 500, 
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
       });
     }
   }
 };
+
 export { worker_default as default };
