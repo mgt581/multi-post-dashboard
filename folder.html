@@ -3,101 +3,137 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Folder View</title>
+  <title>Folder View | Multipost SEO</title>
   <link rel="stylesheet" href="styles.css">
+  <style>
+    /* Additional UI refinements for the account list */
+    .status-connected { color: #10b981; font-weight: 600; }
+    .status-disconnected { color: #6b7280; font-style: italic; }
+    .account-card { transition: transform 0.2s ease; }
+    .account-card:hover { transform: translateY(-2px); }
+    .platform-icon-img { width: 32px; height: 32px; border-radius: 6px; }
+  </style>
 </head>
 <body>
   <div class="app">
     <header class="header">
-      <a href="index.html">←</a> 
-      <span class="title" id="title">Folder</span>
+      <a href="index.html" class="back-link">←</a> 
+      <span class="title" id="title">Loading Workspace...</span>
     </header>
     
-    <div class="card" style="margin:20px;">
-      <strong id="name">Name</strong><br>
-      <span id="count">0 accounts</span>
+    <div class="card" style="margin:20px; border-left: 5px solid #6366f1;">
+      <div style="padding: 5px 0;">
+        <small style="text-transform: uppercase; color: #6366f1; font-weight: bold;">Current Workspace</small><br>
+        <strong id="name" style="font-size: 1.4rem;">Folder</strong><br>
+        <span id="count" style="color: #6b7280;">Checking accounts...</span>
+      </div>
     </div>
 
-    <section class="cards" id="accountList"></section>
+    <section class="cards" id="accountList">
+      <div style="text-align:center; padding: 40px; color: #9ca3af;">
+        Loading your connected platforms...
+      </div>
+    </section>
 
-    <div class="card" style="display:flex; gap:10px; margin:20px;">
-      <select id="platformSelect" style="flex:1;">
-        <option value="tiktok">TikTok</option>
-        <option value="youtube">YouTube</option>
-        <option value="facebook">Facebook</option>
-      </select>
-      <button class="btn-gradient" onclick="addAccount()">Add</button>
+    <div class="card" style="display:flex; flex-direction: column; gap:12px; margin:20px; background: #f9fafb;">
+      <label style="font-size: 0.9rem; font-weight: 600; color: #374151;">Connect New Platform</label>
+      <div style="display:flex; gap:10px;">
+        <select id="platformSelect" style="flex:1; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;">
+          <option value="tiktok">TikTok</option>
+          <option value="youtube">YouTube</option>
+          <option value="facebook">Facebook</option>
+        </select>
+        <button class="btn-gradient" onclick="addAccount()" style="min-width: 100px;">Add</button>
+      </div>
     </div>
-    <button class="btn-gradient" style="width:90%; margin: 0 auto; display:block;" onclick="location.href='create-post.html'">✏️ Create Post</button>
+
+    <div style="margin-top: 30px; padding-bottom: 50px;">
+      <button class="btn-gradient" style="width:90%; margin: 0 auto; display:block; padding: 15px; font-size: 1.1rem;" onclick="location.href='create-post.html'">
+        ✏️ Create New Post
+      </button>
+    </div>
   </div>
 
   <script>
+    /**
+     * MULTIPOST SEO - FOLDER VIEW LOGIC
+     * Version: 2.1.0 (Secure Scoping)
+     */
+
     // --- CONFIGURATION ---
     const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
     const userScope = localStorage.getItem("currentUserKey");
+
+    // Auth Guard
     if (!userScope) {
+      console.warn("No user context found, redirecting to sign-in.");
       window.location.href = "signin.html";
     }
+
     const scopedKey = name => `${name}:${userScope}`;
 
-    // Migrate legacy unscoped keys so existing users keep their context
-    const legacyId = localStorage.getItem("activeFolderId");
-    if (userScope && !localStorage.getItem(scopedKey("activeFolderId")) && legacyId) {
-      localStorage.setItem(scopedKey("activeFolderId"), legacyId);
-      localStorage.removeItem("activeFolderId");
-    }
-
-    const legacyName = localStorage.getItem("activeFolderName");
-    if (userScope && !localStorage.getItem(scopedKey("activeFolderName")) && legacyName) {
-      localStorage.setItem(scopedKey("activeFolderName"), legacyName);
-      localStorage.removeItem("activeFolderName");
-    }
+    // --- LEGACY MIGRATION ---
+    // Ensures users from the previous version don't lose their session
+    (function migrateKeys() {
+      const legacyId = localStorage.getItem("activeFolderId");
+      if (userScope && !localStorage.getItem(scopedKey("activeFolderId")) && legacyId) {
+        localStorage.setItem(scopedKey("activeFolderId"), legacyId);
+        localStorage.removeItem("activeFolderId");
+      }
+      const legacyName = localStorage.getItem("activeFolderName");
+      if (userScope && !localStorage.getItem(scopedKey("activeFolderName")) && legacyName) {
+        localStorage.setItem(scopedKey("activeFolderName"), legacyName);
+        localStorage.removeItem("activeFolderName");
+      }
+    })();
 
     const fId = localStorage.getItem(scopedKey("activeFolderId"));
-    const activeFolderName = localStorage.getItem(scopedKey("activeFolderName")) || "Folder";
+    const activeFolderName = localStorage.getItem(scopedKey("activeFolderName")) || "Workspace";
 
-    // UI Initialization
+    // Initialize UI
     document.getElementById("title").innerText = activeFolderName;
     document.getElementById("name").innerText = activeFolderName;
 
     if (!fId) {
-      alert("No workspace selected for this account. Please pick a workspace from the home screen.");
+      alert("No workspace selected. Please pick one from the dashboard.");
       window.location.href = "index.html";
     }
 
-    /**
-     * Renders the accounts linked to this folder
-     */
+    // --- PLATFORM DEFINITIONS ---
     const platformMeta = {
       youtube: {
         name: "YouTube",
         logo: "https://cdn.simpleicons.org/youtube/FF0000",
-        iconBg: "#ffffff",
+        iconBg: "#fff0f0",
       },
       tiktok: {
         name: "TikTok",
         logo: "https://cdn.simpleicons.org/tiktok/000000",
-        iconBg: "#ffffff",
+        iconBg: "#f3f4f6",
       },
       facebook: {
         name: "Facebook",
         logo: "https://cdn.simpleicons.org/facebook/1877F2",
-        iconBg: "#ffffff",
+        iconBg: "#f0f7ff",
       },
     };
 
+    /**
+     * Fetch and render all accounts linked to this specific workspace
+     */
     async function render() {
-      if (!fId) {
-        console.error("No active folder ID found in localStorage.");
-        return;
-      }
+      const listContainer = document.getElementById("accountList");
       
       try {
-        const res = await fetch(`${apiBase}/get-accounts?folder_id=${fId}&user_id=${encodeURIComponent(userScope)}`);
-        const accs = await res.json();
+        const url = `${apiBase}/get-accounts?folder_id=${fId}&user_id=${encodeURIComponent(userScope)}`;
+        const res = await fetch(url);
         
-        document.getElementById("count").innerText = `${accs.length} accounts`;
+        if (!res.ok) throw new Error("Failed to reach server");
+        
+        const accs = await res.json();
+        document.getElementById("count").innerText = `${accs.length} total accounts connected`;
 
+        // Group accounts by platform for organized rendering
         const grouped = accs.reduce((map, account) => {
           if (!map[account.platform]) map[account.platform] = [];
           map[account.platform].push(account);
@@ -105,143 +141,129 @@
         }, {});
 
         const platformOrder = ["youtube", "tiktok", "facebook"];
-        const cards = [];
+        const cardsHTML = [];
 
         platformOrder.forEach(platform => {
-          const meta = platformMeta[platform] || { name: platform, logo: "", iconBg: "#ffffff" };
-          const list = grouped[platform] || [];
+          const meta = platformMeta[platform];
+          const accounts = grouped[platform] || [];
 
-          if (list.length === 0) {
-            cards.push(`
-              <div class="card account-card">
+          if (accounts.length === 0) {
+            // Render a "Disconnected" state card
+            cardsHTML.push(`
+              <div class="card account-card" style="opacity: 0.7;">
                 <div class="icon platform-icon" style="background:${meta.iconBg};">
-                  ${meta.logo ? `<img class="platform-icon-img" src="${meta.logo}" alt="${meta.name} logo">` : meta.name[0]}
+                  <img class="platform-icon-img" src="${meta.logo}" alt="${meta.name}">
                 </div>
                 <div class="card-text">
                   <strong>${meta.name}</strong>
                   <div class="platform-row">
-                    <span class="platform-label">
-                      ${meta.logo ? `<img class="platform-logo" src="${meta.logo}" alt="${meta.name} logo">` : ""}
-                      <span class="platform-name">${meta.name}</span>
-                    </span>
                     <span class="status status-disconnected">
-                      <span class="status-dot"></span>
-                      Disconnected
+                      <span class="status-dot" style="background: #9ca3af;"></span>
+                      Not Linked
                     </span>
                   </div>
                 </div>
-                <button class="btn-ghost" disabled>Not Signed In</button>
+                <button class="btn-ghost" onclick="addAccountDirectly('${platform}')">Link</button>
               </div>
             `);
-            return;
+          } else {
+            // Render each connected account for this platform
+            accounts.forEach(acc => {
+              cardsHTML.push(`
+                <div class="card account-card">
+                  <div class="icon platform-icon" style="background:${meta.iconBg}; border: 1px solid #e5e7eb;">
+                    <img class="platform-icon-img" src="${meta.logo}" alt="${meta.name}">
+                  </div>
+                  <div class="card-text">
+                    <strong>${acc.nickname || 'Active Channel'}</strong>
+                    <div class="platform-row">
+                      <span class="status status-connected">
+                        <span class="status-dot" style="background: #10b981;"></span>
+                        Connected
+                      </span>
+                    </div>
+                  </div>
+                  <button class="btn-ghost" style="color: #ef4444;" onclick="removeAccount(${acc.id}, this)">Remove</button>
+                </div>
+              `);
+            });
           }
-
-          list.forEach(account => {
-            cards.push(`
-              <div class="card account-card">
-                <div class="icon platform-icon" style="background:${meta.iconBg};">
-                  ${meta.logo ? `<img class="platform-icon-img" src="${meta.logo}" alt="${meta.name} logo">` : meta.name[0]}
-                </div>
-                <div class="card-text">
-                  <strong>${account.nickname || 'Linked Account'}</strong>
-                  <div class="platform-row">
-                    <span class="platform-label">
-                      ${meta.logo ? `<img class="platform-logo" src="${meta.logo}" alt="${meta.name} logo">` : ""}
-                      <span class="platform-name">${meta.name}</span>
-                    </span>
-                    <span class="status status-connected">
-                      <span class="status-dot"></span>
-                      Connected
-                    </span>
-                  </div>
-                </div>
-                <button class="btn-ghost" onclick="removeAccount(${account.id}, this)">Remove</button>
-              </div>
-            `);
-          });
         });
 
-        document.getElementById("accountList").innerHTML = cards.join("");
+        listContainer.innerHTML = cardsHTML.join("");
+
       } catch (err) {
-        console.error("Failed to render accounts:", err);
-      }
-    }
-
-    async function removeAccount(accountId, btnEl) {
-      if (!accountId) return;
-      const confirmRemove = confirm("Remove this linked account? This will disconnect it from the workspace.");
-      if (!confirmRemove) return;
-
-      // disable the button to prevent double clicks
-      if (btnEl) {
-        btnEl.disabled = true;
-        const origText = btnEl.innerText;
-        btnEl.innerText = 'Removing...';
-        try {
-          const res = await fetch(`${apiBase}/delete-account`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: accountId, user_id: userScope }),
-          });
-
-          if (!res.ok) {
-            const text = await res.text();
-            throw new Error(text || 'Server error');
-          }
-
-          const data = await res.json();
-          if (!data.success) throw new Error(data.error || 'Failed to delete account');
-
-          // success -> re-render the list
-          await render();
-        } catch (err) {
-          console.error("Failed to remove account:", err);
-          alert(err.message || "Failed to remove account. Please try again.");
-          if (btnEl) {
-            btnEl.disabled = false;
-            btnEl.innerText = origText || 'Remove';
-          }
-        }
-      } else {
-        // fallback when no button element is provided
-        try {
-          const res = await fetch(`${apiBase}/delete-account`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: accountId, user_id: userScope }),
-          });
-          const data = await res.json();
-          if (!res.ok || !data.success) throw new Error(data.error || 'Failed to delete account');
-          await render();
-        } catch (err) {
-          console.error("Failed to remove account:", err);
-          alert(err.message || "Failed to remove account. Please try again.");
-        }
+        console.error("Render Error:", err);
+        listContainer.innerHTML = `<div class="card" style="color:red; text-align:center;">Error loading accounts. Please refresh.</div>`;
       }
     }
 
     /**
-     * Triggers the OAuth flow for the selected platform
+     * Handles account deletion with optimistic UI feedback
      */
-    async function addAccount() {
-      const platform = document.getElementById("platformSelect").value;
-      
-      if (!fId) {
-        alert("Error: No Workspace ID found. Please go back to the home screen.");
-        return;
-      }
+    async function removeAccount(accountId, btnEl) {
+      if (!confirm("Are you sure? You will need to re-authenticate to post to this account again.")) return;
 
-      // We redirect to the Worker's auth endpoint. 
-      // The Worker handles the login and redirects back here automatically.
-      // We pass folder_id as 'state' to keep track of where the user belongs.
-      const authUrl = `${apiBase}/auth/${platform}?folder_id=${fId}&user_id=${encodeURIComponent(userScope)}`;
+      const originalContent = btnEl.innerHTML;
+      btnEl.disabled = true;
+      btnEl.innerHTML = "Wait...";
+
+      try {
+        const res = await fetch(`${apiBase}/delete-folder`, { 
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            id: accountId, 
+            user_id: userScope,
+            type: "account_only" // Tell worker we are only deleting the account link
+          }),
+        });
+
+        const result = await res.json();
+        if (result.success) {
+          await render();
+        } else {
+          throw new Error(result.error || "Delete failed");
+        }
+      } catch (err) {
+        alert(err.message);
+        btnEl.disabled = false;
+        btnEl.innerHTML = originalContent;
+      }
+    }
+
+    /**
+     * Orchestrates the OAuth Handshake
+     */
+    function addAccount() {
+      const platform = document.getElementById("platformSelect").value;
+      initiateOAuth(platform);
+    }
+
+    function addAccountDirectly(platform) {
+      initiateOAuth(platform);
+    }
+
+    function initiateOAuth(platform) {
+      if (!fId || !userScope) return alert("Session error. Please log in again.");
+
+      // PACKAGING THE STATE: 
+      // We send FolderID and UserID joined by a pipe. 
+      // The Worker splits this after the redirect to know where to save the token.
+      const state = btoa(`${fId}|${userScope}`); 
+      const authUrl = `${apiBase}/auth/${platform}?state=${state}`;
       
-      // Navigate to the platform login (YouTube/TikTok/Facebook)
+      console.log(`Redirecting to ${platform} Auth...`);
       window.location.href = authUrl;
     }
 
-    // Run render on page load
+    // Start UI
     window.onload = render;
+
+    // Listen for visibility changes to refresh account status
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") render();
+    });
   </script>
 </body>
 </html>
