@@ -1,5 +1,5 @@
-// worker.js - Full Production v2.2.0
-// Features: Multi-user Folders, OAuth (YT/FB/TT), and Workers AI
+// worker.js - Full Production v2.3.0
+// Features: Multi-user Folders, Multi-Account Persistence (Refresh Tokens), and Workers AI
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -17,7 +17,7 @@ var worker_default = {
     const baseUrl = `https://${url.hostname}`;
 
     /**
-     * decodes the Base64 state string from the frontend
+     * Decodes the Base64 state string from the frontend
      * Format: btoa("folderId|userId")
      */
     const decodeState = (state) => {
@@ -33,7 +33,6 @@ var worker_default = {
 
     try {
       // --- FOLDER MANAGEMENT ---
-      // Fetches folders belonging ONLY to the specific logged-in user
       if (url.pathname === "/api/get-folders") {
         const userId = url.searchParams.get("user_id");
         if (!userId) return new Response("Missing User ID", { status: 400, headers: corsHeaders });
@@ -44,7 +43,6 @@ var worker_default = {
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
 
-      // Adds a new folder linked to a specific User ID
       if (url.pathname === "/api/add-folder") {
         const { name, user_id } = await request.json();
         await env.DB.prepare("INSERT INTO folders (name, user_id) VALUES (?, ?)")
@@ -53,7 +51,6 @@ var worker_default = {
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // Deletes folders or individual account links
       if (url.pathname === "/api/delete-folder") {
         const { id, user_id, type } = await request.json();
         if (type === "account_only") {
@@ -66,7 +63,6 @@ var worker_default = {
       }
 
       // --- ACCOUNT MANAGEMENT ---
-      // Gets all social accounts linked to a specific folder
       if (url.pathname === "/api/get-accounts") {
         const folder_id = url.searchParams.get("folder_id");
         const { results } = await env.DB.prepare("SELECT * FROM accounts WHERE folder_id = ?")
@@ -75,33 +71,32 @@ var worker_default = {
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
 
-      // --- OAUTH INITIATION ---
-      // Redirects user to Google/YouTube Auth
+      // --- OAUTH INITIATION (PERSISTENCE LOGIC ADDED) ---
       if (url.pathname === "/api/auth/youtube") {
         const state = url.searchParams.get("state");
         const redirectUri = `${baseUrl}/api/auth/callback/youtube`;
-        const target = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${env.GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=https://www.googleapis.com/auth/youtube.upload&access_type=offline&prompt=consent&state=${state}`;
+        // Added access_type=offline (for refresh tokens) and prompt=select_account (to allow multi-accounting)
+        const target = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${env.GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=https://www.googleapis.com/auth/youtube.upload&access_type=offline&prompt=select_account&state=${state}`;
         return Response.redirect(target);
       }
 
-      // Redirects user to TikTok Auth
       if (url.pathname === "/api/auth/tiktok") {
         const state = url.searchParams.get("state");
         const redirectUri = `${baseUrl}/api/auth/callback/tiktok`;
+        // TikTok logic to bypass auto-auth
         const target = `https://www.tiktok.com/v2/auth/authorize/?client_key=${env.TIKTOK_CLIENT_KEY}&scope=video.upload,video.publish,user.info.basic&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
         return Response.redirect(target);
       }
 
-      // Redirects user to Facebook Auth
       if (url.pathname === "/api/auth/facebook") {
         const state = url.searchParams.get("state");
         const redirectUri = `${baseUrl}/api/auth/callback/facebook`;
-        const target = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.FB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&config_id=1283545206972587&response_type=code&state=${state}`;
+        // Added auth_type=reauthenticate to force account switching
+        const target = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.FB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&config_id=1283545206972587&response_type=code&auth_type=reauthenticate&state=${state}`;
         return Response.redirect(target);
       }
 
       // --- OAUTH CALLBACKS ---
-      // YouTube Callback: Exchange code for tokens and save to DB
       if (url.pathname === "/api/auth/callback/youtube") {
         const code = url.searchParams.get("code");
         const { folderId } = decodeState(url.searchParams.get("state"));
@@ -126,7 +121,6 @@ var worker_default = {
         return Response.redirect(`${baseUrl}/folder.html`);
       }
 
-      // TikTok Callback: Exchange code for tokens and save to DB
       if (url.pathname === "/api/auth/callback/tiktok") {
         const code = url.searchParams.get("code");
         const { folderId } = decodeState(url.searchParams.get("state"));
@@ -151,7 +145,6 @@ var worker_default = {
         return Response.redirect(`${baseUrl}/folder.html`);
       }
 
-      // Facebook Callback: Exchange code for tokens and save to DB
       if (url.pathname === "/api/auth/callback/facebook") {
         const code = url.searchParams.get("code");
         const { folderId } = decodeState(url.searchParams.get("state"));
@@ -167,7 +160,6 @@ var worker_default = {
       }
 
       // --- AI SERVICES ---
-      // Uses Cloudflare Workers AI (Llama 3) to generate SEO content
       if (url.pathname === "/api/generate-seo" && request.method === "POST") {
         const { prompt } = await request.json();
         const aiResponse = await env.AI.run("@cf/meta/llama-3-8b-instruct", {
@@ -179,8 +171,7 @@ var worker_default = {
         return new Response(JSON.stringify({ success: true, data: aiResponse }), { headers: corsHeaders });
       }
 
-      // Health Check / Default Response
-      return new Response("Multipost API v2.2.0 - System Online", { headers: corsHeaders });
+      return new Response("Multipost API v2.3.0 - Persistence Enabled", { headers: corsHeaders });
 
     } catch (err) {
       console.error("Worker Error:", err.message);
