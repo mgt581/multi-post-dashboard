@@ -155,7 +155,7 @@
                     </span>
                   </div>
                 </div>
-                <button class="btn-ghost" onclick="removeAccount(${account.id})">Remove</button>
+                <button class="btn-ghost" onclick="removeAccount(${account.id}, this)">Remove</button>
               </div>
             `);
           });
@@ -167,21 +167,56 @@
       }
     }
 
-    async function removeAccount(accountId) {
+    async function removeAccount(accountId, btnEl) {
       if (!accountId) return;
-      const confirmRemove = confirm("Remove this linked account? You can reconnect anytime.");
+      const confirmRemove = confirm("Remove this linked account? This will disconnect it from the workspace.");
       if (!confirmRemove) return;
 
-      try {
-        await fetch(`${apiBase}/delete-account`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id: accountId, user_id: userScope }),
-        });
-        await render();
-      } catch (err) {
-        console.error("Failed to remove account:", err);
-        alert("Failed to remove account. Please try again.");
+      // disable the button to prevent double clicks
+      if (btnEl) {
+        btnEl.disabled = true;
+        const origText = btnEl.innerText;
+        btnEl.innerText = 'Removing...';
+        try {
+          const res = await fetch(`${apiBase}/delete-account`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: accountId, user_id: userScope }),
+          });
+
+          if (!res.ok) {
+            const text = await res.text();
+            throw new Error(text || 'Server error');
+          }
+
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || 'Failed to delete account');
+
+          // success -> re-render the list
+          await render();
+        } catch (err) {
+          console.error("Failed to remove account:", err);
+          alert(err.message || "Failed to remove account. Please try again.");
+          if (btnEl) {
+            btnEl.disabled = false;
+            btnEl.innerText = origText || 'Remove';
+          }
+        }
+      } else {
+        // fallback when no button element is provided
+        try {
+          const res = await fetch(`${apiBase}/delete-account`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: accountId, user_id: userScope }),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) throw new Error(data.error || 'Failed to delete account');
+          await render();
+        } catch (err) {
+          console.error("Failed to remove account:", err);
+          alert(err.message || "Failed to remove account. Please try again.");
+        }
       }
     }
 

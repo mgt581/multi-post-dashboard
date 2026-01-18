@@ -26,7 +26,8 @@
       color: var(--text);
       min-height: 100vh;
       display: flex;
-      justify-content: center;
+      flex-direction: column;
+      align-items: center;
       padding: 32px 16px 48px;
     }
 
@@ -149,7 +150,7 @@
       background: #ffffff;
       border: 1px solid var(--border);
       border-radius: 12px;
-      box-shadow: 0 16px 30px rgba(15,23,42,0.12);
+      box-shadow: 0 16px 30px rgba(15, 23, 42, 0.12);
       min-width: 180px;
       overflow: hidden;
       display: none;
@@ -217,6 +218,32 @@
     </div>
   </div>
 
+  <footer style="margin-top: 50px; padding: 40px 20px; border-top: 1px solid #eee; background-color: #f9f9f9; text-align: center; font-family: sans-serif; width: 100%; max-width: 800px; border-radius: 28px;">
+    <div style="margin: 0 auto;">
+        <p style="font-weight: bold; margin-bottom: 10px;">
+            Multi Post is a product of Bryant Group Holdings Ltd.
+        </p>
+        <p style="font-size: 14px; color: #666; margin-bottom: 20px;">
+            Registered in England & Wales. Company Number: 13671131
+        </p>
+
+        <div style="margin-bottom: 20px;">
+            <a href="terms.html" style="display: inline-block; padding: 8px 16px; margin: 5px; background: #333; color: #fff; text-decoration: none; border-radius: 4px; font-size: 14px;">Terms of Service</a>
+            <a href="privacy.html" style="display: inline-block; padding: 8px 16px; margin: 5px; background: #333; color: #fff; text-decoration: none; border-radius: 4px; font-size: 14px;">Privacy & Data Deletion</a>
+        </div>
+
+        <div style="border-top: 1px solid #ddd; padding-top: 20px; font-size: 13px;">
+            <p style="color: #888; margin-bottom: 10px;">Part of the Bryant Digital Network:</p>
+            <a href="https://bryantgroupholdings.co.uk" target="_blank" style="color: #0066cc; margin: 0 10px;">Bryant Group Holdings</a> |
+            <a href="https://bryantdigitalsolutions.com" target="_blank" style="color: #0066cc; margin: 0 10px;">Bryant Digital Solutions</a>
+        </div>
+
+        <p style="margin-top: 20px; font-size: 12px; color: #aaa;">
+            &copy; 2026 Bryant Group Holdings Ltd. All rights reserved.
+        </p>
+    </div>
+  </footer>
+
   <script>
     const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
     let userScope = localStorage.getItem("currentUserKey");
@@ -226,7 +253,6 @@
       userScope = scope;
     };
 
-    // Migrate legacy unscoped data into scoped keys
     if (userScope) {
       const legacyFolders = localStorage.getItem("folders");
       if (!localStorage.getItem(scopedKey("folders")) && legacyFolders) {
@@ -263,12 +289,14 @@
       const countEl = document.getElementById('selectedCount');
       const bulkBtn = document.getElementById('bulkDeleteBtn');
       const selectAll = document.getElementById('selectAllToggle');
-      countEl.innerText = `${selectedIds.size} selected`;
-      bulkBtn.disabled = selectedIds.size === 0;
-      if (cachedFolders.length) {
-        selectAll.checked = selectedIds.size === cachedFolders.length;
-      } else {
-        selectAll.checked = false;
+      if (countEl) countEl.innerText = `${selectedIds.size} selected`;
+      if (bulkBtn) bulkBtn.disabled = selectedIds.size === 0;
+      if (selectAll) {
+        if (cachedFolders.length) {
+          selectAll.checked = selectedIds.size === cachedFolders.length;
+        } else {
+          selectAll.checked = false;
+        }
       }
     }
 
@@ -276,7 +304,7 @@
       const container = document.getElementById("folderContainer");
       const pill = document.getElementById("folderCountPill");
 
-      pill.innerText = `${folders.length} Workspaces`;
+      if (pill) pill.innerText = `${folders.length} Workspaces`;
 
       if (folders.length === 0) {
         container.innerHTML = `<div class="empty-state">No workspaces yet. Click the button above to start.</div>`;
@@ -316,7 +344,6 @@
         if (!res.ok) throw new Error("Failed to fetch folders");
         cachedFolders = await res.json();
         localStorage.setItem(scopedKey('folders'), JSON.stringify(cachedFolders));
-        // prune selection for deleted folders
         [...selectedIds].forEach(id => {
           if (!cachedFolders.find(f => f.id === id)) selectedIds.delete(id);
         });
@@ -377,11 +404,9 @@
           const msg = await res.text();
           throw new Error(msg || 'Error renaming folder');
         }
-
         if (getActiveFolderId() === id) {
           localStorage.setItem(scopedKey('activeFolderName'), name);
         }
-
         cachedFolders = cachedFolders.map(f => f.id === id ? { ...f, name } : f);
         renderFolders(cachedFolders);
         hideMenus();
@@ -404,12 +429,10 @@
           const msg = await res.text();
           throw new Error(msg || 'Error deleting folder');
         }
-
         if (getActiveFolderId() === id) {
           localStorage.removeItem(scopedKey('activeFolderId'));
           localStorage.removeItem(scopedKey('activeFolderName'));
         }
-
         selectedIds.delete(id);
         cachedFolders = cachedFolders.filter(f => f.id !== id);
         renderFolders(cachedFolders);
@@ -458,15 +481,19 @@
     function updateAuthButtons(isSignedIn) {
       const signInBtn = document.getElementById('signInBtn');
       const signOutBtn = document.getElementById('signOutBtn');
-      signInBtn.style.display = isSignedIn ? 'none' : 'inline-flex';
-      signOutBtn.style.display = isSignedIn ? 'inline-flex' : 'none';
-      signInBtn.onclick = () => window.location.href = 'signin.html';
+      if (signInBtn) signInBtn.style.display = isSignedIn ? 'none' : 'inline-flex';
+      if (signOutBtn) signOutBtn.style.display = isSignedIn ? 'inline-flex' : 'none';
+      if (signInBtn) signInBtn.onclick = () => window.location.href = 'signin.html';
     }
   
     window.onload = function() {
       updateAuthButtons(!!localStorage.getItem('currentUserKey'));
+      if (localStorage.getItem('currentUserKey')) {
+        loadFolders();
+      }
     };
   </script>
+
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -485,25 +512,26 @@
     const auth = getAuth(app);
 
     const signOutBtn = document.getElementById('signOutBtn');
-    signOutBtn.onclick = async () => {
-      if (!confirm('Sign out?')) return;
-      signOutBtn.disabled = true;
-      try {
-        await signOut(auth);
-      } catch (e) {
-        console.error('Sign out error', e);
-      }
-      try {
-        localStorage.removeItem('currentUserKey');
-        localStorage.removeItem('userEmail');
-        localStorage.removeItem(scopedKey('folders'));
-        localStorage.removeItem(scopedKey('activeFolderId'));
-        localStorage.removeItem(scopedKey('activeFolderName'));
-      } catch (e) {
-        console.error('Local cleanup error', e);
-      }
-      location.replace('signin.html?logged_out=1');
-    };
+    if (signOutBtn) {
+      signOutBtn.onclick = async () => {
+        if (!confirm('Sign out?')) return;
+        signOutBtn.disabled = true;
+        try {
+          await signOut(auth);
+          localStorage.removeItem('currentUserKey');
+          localStorage.removeItem('userEmail');
+          const scope = localStorage.getItem('currentUserKey');
+          const scopedKey = name => `${name}:${scope}`;
+          localStorage.removeItem(scopedKey('folders'));
+          localStorage.removeItem(scopedKey('activeFolderId'));
+          localStorage.removeItem(scopedKey('activeFolderName'));
+          location.replace('signin.html?logged_out=1');
+        } catch (e) {
+          console.error('Sign out error', e);
+          signOutBtn.disabled = false;
+        }
+      };
+    }
 
     onAuthStateChanged(auth, (user) => {
       if (!user) {

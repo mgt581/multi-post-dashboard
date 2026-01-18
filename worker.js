@@ -59,7 +59,7 @@ var worker_default = {
       if (url.pathname === "/api/auth/facebook") {
         const folderId = url.searchParams.get("folder_id");
         const redirectUri = `${baseUrl}/api/auth/callback/facebook`;
-        const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.FB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=pages_manage_posts,pages_show_list&state=${folderId}`;
+        const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.FB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&config_id=1283545206972587&response_type=code&override_default_response_type=true&state=${folderId}`;
         return Response.redirect(fbAuthUrl);
       }
 
