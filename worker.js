@@ -1,5 +1,5 @@
-// worker.js - Full Production v2.3.0
-// Features: Multi-user Folders, Multi-Account Persistence (Refresh Tokens), and Workers AI
+// worker.js - Full Production v2.4.0
+// Features: Hard-coded Custom Domain Redirects, Multi-Account Persistence, and Workers AI
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -15,6 +15,9 @@ var worker_default = {
 
     const url = new URL(request.url);
     const baseUrl = `https://${url.hostname}`;
+    
+    // Hard-coded redirect URI for Google/YouTube to match Custom Domain
+    const redirectUri = "https://multipostapp.co.uk/api/auth/callback/youtube";
 
     /**
      * Decodes the Base64 state string from the frontend
@@ -71,28 +74,25 @@ var worker_default = {
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
 
-      // --- OAUTH INITIATION (PERSISTENCE LOGIC ADDED) ---
+      // --- OAUTH INITIATION (PERSISTENCE LOGIC) ---
       if (url.pathname === "/api/auth/youtube") {
         const state = url.searchParams.get("state");
-        const redirectUri = `${baseUrl}/api/auth/callback/youtube`;
-        // Added access_type=offline (for refresh tokens) and prompt=select_account (to allow multi-accounting)
+        // Using hard-coded redirectUri for consistency
         const target = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${env.GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=https://www.googleapis.com/auth/youtube.upload&access_type=offline&prompt=select_account&state=${state}`;
         return Response.redirect(target);
       }
 
       if (url.pathname === "/api/auth/tiktok") {
         const state = url.searchParams.get("state");
-        const redirectUri = `${baseUrl}/api/auth/callback/tiktok`;
-        // TikTok logic to bypass auto-auth
-        const target = `https://www.tiktok.com/v2/auth/authorize/?client_key=${env.TIKTOK_CLIENT_KEY}&scope=video.upload,video.publish,user.info.basic&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+        const ttRedirect = `${baseUrl}/api/auth/callback/tiktok`;
+        const target = `https://www.tiktok.com/v2/auth/authorize/?client_key=${env.TIKTOK_CLIENT_KEY}&scope=video.upload,video.publish,user.info.basic&response_type=code&redirect_uri=${encodeURIComponent(ttRedirect)}&state=${state}`;
         return Response.redirect(target);
       }
 
       if (url.pathname === "/api/auth/facebook") {
         const state = url.searchParams.get("state");
-        const redirectUri = `${baseUrl}/api/auth/callback/facebook`;
-        // Added auth_type=reauthenticate to force account switching
-        const target = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.FB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&config_id=1283545206972587&response_type=code&auth_type=reauthenticate&state=${state}`;
+        const fbRedirect = `${baseUrl}/api/auth/callback/facebook`;
+        const target = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.FB_CLIENT_ID}&redirect_uri=${encodeURIComponent(fbRedirect)}&config_id=1283545206972587&response_type=code&auth_type=reauthenticate&state=${state}`;
         return Response.redirect(target);
       }
 
@@ -108,7 +108,7 @@ var worker_default = {
             code,
             client_id: env.GOOGLE_CLIENT_ID,
             client_secret: env.GOOGLE_CLIENT_SECRET,
-            redirect_uri: `${baseUrl}/api/auth/callback/youtube`,
+            redirect_uri: redirectUri,
             grant_type: "authorization_code"
           })
         });
@@ -149,7 +149,8 @@ var worker_default = {
         const code = url.searchParams.get("code");
         const { folderId } = decodeState(url.searchParams.get("state"));
         
-        const tokenRes = await fetch(`https://graph.facebook.com/v18.0/oauth/access_token?client_id=${env.FB_CLIENT_ID}&redirect_uri=${baseUrl}/api/auth/callback/facebook&client_secret=${env.FB_CLIENT_SECRET}&code=${code}`);
+        const fbRedirect = `${baseUrl}/api/auth/callback/facebook`;
+        const tokenRes = await fetch(`https://graph.facebook.com/v18.0/oauth/access_token?client_id=${env.FB_CLIENT_ID}&redirect_uri=${fbRedirect}&client_secret=${env.FB_CLIENT_SECRET}&code=${code}`);
         const tokens = await tokenRes.json();
         
         await env.DB.prepare("INSERT INTO accounts (folder_id, platform, nickname, access_token, expires_at) VALUES (?, 'facebook', 'FB Page', ?, ?)")
@@ -171,7 +172,7 @@ var worker_default = {
         return new Response(JSON.stringify({ success: true, data: aiResponse }), { headers: corsHeaders });
       }
 
-      return new Response("Multipost API v2.3.0 - Persistence Enabled", { headers: corsHeaders });
+      return new Response("Multipost API v2.4.0 - Custom Domain Enabled", { headers: corsHeaders });
 
     } catch (err) {
       console.error("Worker Error:", err.message);
