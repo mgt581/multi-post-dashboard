@@ -12,6 +12,10 @@ var worker_default = {
     const url = new URL(request.url);
     const baseUrl = `https://${url.hostname}`;
 
+    // Hard-coded redirect URIs for custom domain compatibility
+    const redirectUri = "https://multipostapp.co.uk/api/auth/callback/youtube";
+    const fbRedirectUri = "https://multipostapp.co.uk/api/auth/callback/facebook";
+
     // Helpers (added, does NOT remove anything)
     const nowMs = () => Date.now();
     const safeJson = async (res) => {
@@ -23,7 +27,18 @@ var worker_default = {
     };
     const decodeState = (stateStr) => {
       if (!stateStr) return { folderId: null, platform: null };
-      try { return JSON.parse(atob(stateStr)); } catch { return { folderId: stateStr, platform: null }; }
+      try {
+        return JSON.parse(atob(stateStr));
+      } catch {
+        // legacy format: "folderId|userId"
+        try {
+          const raw = atob(stateStr);
+          const [folderId] = raw.split("|");
+          return { folderId: folderId || raw, platform: null };
+        } catch {
+          return { folderId: stateStr, platform: null };
+        }
+      }
     };
     const upsertToken = async ({
       folderId,
@@ -117,8 +132,9 @@ var worker_default = {
 
       // --- AUTH START ---
       if (url.pathname === "/api/auth/youtube") {
-        const folderId = url.searchParams.get("folder_id");
-        const redirectUri = `${baseUrl}/api/auth/callback/youtube`;
+        const legacyState = url.searchParams.get("state");
+        const stateObj = decodeState(legacyState);
+        const folderId = url.searchParams.get("folder_id") || stateObj.folderId;
 
         // upgraded state (folder + platform) while still compatible
         const state = encodeState({ folderId, platform: "youtube" });
@@ -153,15 +169,16 @@ var worker_default = {
       }
 
       if (url.pathname === "/api/auth/facebook") {
-        const folderId = url.searchParams.get("folder_id");
-        const redirectUri = `${baseUrl}/api/auth/callback/facebook`;
+        const legacyState = url.searchParams.get("state");
+        const stateObj = decodeState(legacyState);
+        const folderId = url.searchParams.get("folder_id") || stateObj.folderId;
 
         // upgraded state (folder + platform) while still compatible
         const state = encodeState({ folderId, platform: "facebook" });
 
         const fbAuthUrl =
           `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.FB_CLIENT_ID}` +
-          `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+          `&redirect_uri=${encodeURIComponent(fbRedirectUri)}` +
           `&scope=pages_manage_posts,pages_show_list` +
           `&state=${state}`;
 
@@ -175,8 +192,6 @@ var worker_default = {
         // state can be encoded JSON or old plain folderId
         const stateObj = decodeState(url.searchParams.get("state"));
         const folderId = stateObj.folderId;
-
-        const redirectUri = `${baseUrl}/api/auth/callback/youtube`;
 
         const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
           method: "POST",
@@ -290,7 +305,7 @@ var worker_default = {
 
         const tokenRes = await fetch(
           `https://graph.facebook.com/v18.0/oauth/access_token?client_id=${env.FB_CLIENT_ID}` +
-          `&redirect_uri=${encodeURIComponent(`${baseUrl}/api/auth/callback/facebook`)}` +
+          `&redirect_uri=${encodeURIComponent(fbRedirectUri)}` +
           `&client_secret=${env.FB_CLIENT_SECRET}` +
           `&code=${code}`
         );
@@ -311,7 +326,7 @@ var worker_default = {
 
         // KEEP original behaviour (accounts table) so your UI doesn't break
         await env.DB.prepare(
-          "INSERT INTO accounts (folder_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, 'facebook', 'Linked Facebook', ?, 'none', ?)"
+          "INSERT INTO accounts (folder_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, 'facebook', 'FB Page', ?, NULL, ?)"
         ).bind(
           folderId,
           accessToken,
