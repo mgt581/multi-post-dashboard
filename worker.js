@@ -76,33 +76,34 @@ var worker_default = {
     try {
       // --- FOLDERS ---
       if (url.pathname === "/api/get-folders") {
-        const { results } = await env.DB.prepare("SELECT * FROM folders ORDER BY created_at DESC").all();
+        const user_id = url.searchParams.get("user_id");
+        if (!user_id) return new Response(JSON.stringify([]), { status: 400, headers: corsHeaders });
+        const { results } = await env.DB.prepare("SELECT * FROM folders WHERE user_id = ? ORDER BY created_at DESC").bind(user_id).all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
 
       if (url.pathname === "/api/add-folder") {
-        const { name } = await request.json();
-        await env.DB.prepare("INSERT INTO folders (name) VALUES (?)").bind(name).run();
+        const { name, user_id } = await request.json();
+        if (!user_id || !name) return new Response("Missing user_id or name", { status: 400, headers: corsHeaders });
+        await env.DB.prepare("INSERT INTO folders (name, user_id) VALUES (?, ?)").bind(name, user_id).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
       if (url.pathname === "/api/rename-folder") {
-        const { id, name } = await request.json();
-        if (!id || !name) return new Response("Missing id or name", { status: 400, headers: corsHeaders });
-        await env.DB.prepare("UPDATE folders SET name = ? WHERE id = ?").bind(name, id).run();
+        const { id, name, user_id } = await request.json();
+        if (!id || !name || !user_id) return new Response("Missing id, name, or user_id", { status: 400, headers: corsHeaders });
+        await env.DB.prepare("UPDATE folders SET name = ? WHERE id = ? AND user_id = ?").bind(name, id, user_id).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
       if (url.pathname === "/api/delete-folder") {
-        const { id } = await request.json();
-        if (!id) return new Response("Missing id", { status: 400, headers: corsHeaders });
+        const { id, user_id } = await request.json();
+        if (!id || !user_id) return new Response("Missing id or user_id", { status: 400, headers: corsHeaders });
 
-        // keep original deletes
-        await env.DB.prepare("DELETE FROM accounts WHERE folder_id = ?").bind(id).run();
-        await env.DB.prepare("DELETE FROM folders WHERE id = ?").bind(id).run();
-
-        // added: also remove tokens for this folder (doesn't remove anything)
-        await env.DB.prepare("DELETE FROM tokens WHERE folder_id = ?").bind(id).run();
+        // verify ownership before deleting
+        await env.DB.prepare("DELETE FROM accounts WHERE folder_id = ? AND EXISTS (SELECT 1 FROM folders WHERE id = ? AND user_id = ?)").bind(id, id, user_id).run();
+        await env.DB.prepare("DELETE FROM tokens WHERE folder_id = ? AND EXISTS (SELECT 1 FROM folders WHERE id = ? AND user_id = ?)").bind(id, id, user_id).run();
+        await env.DB.prepare("DELETE FROM folders WHERE id = ? AND user_id = ?").bind(id, user_id).run();
 
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
