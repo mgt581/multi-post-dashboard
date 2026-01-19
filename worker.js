@@ -223,7 +223,7 @@ var worker_default = {
           scope: "https://www.googleapis.com/auth/youtube.upload"
         });
 
-        return Response.redirect(`${baseUrl}/folder.html?id=${folderId}`);
+        return Response.redirect(`${baseUrl}/create-post.html`);
       }
 
       if (url.pathname === "/api/auth/callback/tiktok") {
@@ -278,7 +278,7 @@ var worker_default = {
           scope
         });
 
-        return Response.redirect(`${baseUrl}/folder.html?id=${folderId}`);
+        return Response.redirect(`${baseUrl}/create-post.html`);
       }
 
       if (url.pathname === "/api/auth/callback/facebook") {
@@ -329,7 +329,7 @@ var worker_default = {
           scope: "pages_manage_posts,pages_show_list"
         });
 
-        return Response.redirect(`${baseUrl}/folder.html?id=${folderId}`);
+        return Response.redirect(`${baseUrl}/create-post.html`);
       }
 
       // --- POSTING ---
@@ -396,7 +396,7 @@ var worker_default = {
         });
       }
 
-      return new Response("Multipost API Active", { headers: corsHeaders });
+      return fetch(request);
     } catch (err) {
       return new Response(JSON.stringify({ success: false, error: err.message }), {
         status: 200,
