@@ -12,9 +12,9 @@ var worker_default = {
     const url = new URL(request.url);
     const baseUrl = `https://${url.hostname}`;
 
-    // Hard-coded redirect URIs for custom domain compatibility
-    const redirectUri = "https://multipostapp.co.uk/api/auth/callback/youtube";
-    const fbRedirectUri = "https://multipostapp.co.uk/api/auth/callback/facebook";
+    // Build redirect targets from the incoming host so OAuth keeps working on workers.dev or a custom domain
+    const redirectUri = `${baseUrl}/api/auth/callback/youtube`;
+    const fbRedirectUri = `${baseUrl}/api/auth/callback/facebook`;
 
     // Helpers (added, does NOT remove anything)
     const nowMs = () => Date.now();
