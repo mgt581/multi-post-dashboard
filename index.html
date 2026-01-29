@@ -45,7 +45,7 @@
         <div class="container">
             <h1>Multipost</h1>
             <nav>
-                <a href="signin.html" class="home-btn">Log In</a>
+                <a href="signin.html" class="home-btn" id="nav-btn">Log In</a>
             </nav>
         </div>
     </header>
@@ -54,7 +54,7 @@
         <div class="container">
             <h1>Upload Once. Post Everywhere.</h1>
             <p>The easiest way to manage your content across TikTok, Instagram, and YouTube.</p>
-            <a href="signin.html" class="cta-button">Get Started for Free</a>
+            <a href="signin.html" class="cta-button" id="hero-btn">Get Started for Free</a>
         </div>
     </div>
 
@@ -88,5 +88,41 @@
         </div>
     </footer>
 
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
+            authDomain: "multi-post-daefc.firebaseapp.com",
+            projectId: "multi-post-daefc",
+            storageBucket: "multi-post-daefc.appspot.com",
+            messagingSenderId: "1099160429576",
+            appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd",
+            measurementId: "G-NY0N8KKH0N"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const navBtn = document.getElementById('nav-btn');
+        const heroBtn = document.getElementById('hero-btn');
+
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // User IS logged in: Change buttons to "Open App"
+                if (navBtn) {
+                    navBtn.textContent = "Open App";
+                    navBtn.href = "app.html";
+                }
+                if (heroBtn) {
+                    heroBtn.textContent = "Go to Dashboard";
+                    heroBtn.href = "app.html";
+                }
+            } else {
+                // User IS NOT logged in: Keep default "Log In" buttons
+                // No action needed, HTML defaults are correct
+            }
+        });
+    </script>
 </body>
 </html>
