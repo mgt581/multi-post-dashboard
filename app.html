@@ -247,7 +247,7 @@
     </div>
   </footer>
 
- <script>
+  <script>
     const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
     // DEFAULT TO NULL (Security Fix: Do not default to "guest" or read stale keys yet)
     let userScope = null; 
@@ -551,72 +551,6 @@
       if (typeof updateAuthButtons === 'function') updateAuthButtons(true);
       
       // Only load folders NOW that we are 100% sure who the user is
-      if (typeof window.loadFolders === 'function') window.loadFolders();
-    });
-  </script>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
-      authDomain: "multi-post-daefc.firebaseapp.com",
-      projectId: "multi-post-daefc",
-      storageBucket: "multi-post-daefc.appspot.com",
-      messagingSenderId: "1099160429576",
-      appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd",
-      measurementId: "G-NY0N8KKH0N"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-
-    const signOutBtn = document.getElementById('signOutBtn');
-    if (signOutBtn) {
-      signOutBtn.onclick = async () => {
-        if (!confirm('Sign out?')) return;
-        signOutBtn.disabled = true;
-        try {
-          await signOut(auth);
-          localStorage.removeItem('currentUserKey');
-          localStorage.removeItem('userEmail');
-          const scope = localStorage.getItem('currentUserKey');
-          if (scope) {
-              const scopedKey = name => `${name}:${scope}`;
-              localStorage.removeItem(scopedKey('folders'));
-              localStorage.removeItem(scopedKey('activeFolderId'));
-              localStorage.removeItem(scopedKey('activeFolderName'));
-          }
-          location.replace('signin.html?logged_out=1');
-        } catch (e) {
-          console.error('Sign out error', e);
-          signOutBtn.disabled = false;
-        }
-      };
-    }
-
-    onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        // --- GUARD DOG LOGIC ---
-        // If user is NOT logged in, kick them to the login page
-        localStorage.removeItem('currentUserKey');
-        localStorage.removeItem('userEmail');
-        
-        if (typeof updateAuthButtons === 'function') updateAuthButtons(false);
-        window.location.href = 'signin.html';
-        return;
-      }
-
-      // If user IS logged in, set up the app
-      const scope = user.uid || user.email;
-      localStorage.setItem('currentUserKey', scope);
-      if (user.email) {
-        localStorage.setItem('userEmail', user.email);
-      }
-      
-      if (typeof window.setUserScope === 'function') window.setUserScope(scope);
-      if (typeof updateAuthButtons === 'function') updateAuthButtons(true);
       if (typeof window.loadFolders === 'function') window.loadFolders();
     });
   </script>
