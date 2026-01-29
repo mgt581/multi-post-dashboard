@@ -493,8 +493,17 @@
         loadFolders();
       }
     };
-  </script>
+  </script> 
 
+  <footer>
+    <div class="container">
+      <p>&copy; 2026 Multipost. All rights reserved.</p>
+      <div class="footer-links">
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="terms.html">Terms of Service</a>
+      </div>
+    </div>
+  </footer>
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
@@ -538,7 +547,8 @@
       if (!user) {
         localStorage.removeItem('currentUserKey');
         localStorage.removeItem('userEmail');
-        updateAuthButtons(false);
+        // Ensure updateAuthButtons exists in your other scripts or this will error
+        if (typeof updateAuthButtons === 'function') updateAuthButtons(false);
         window.location.href = 'signin.html';
         return;
       }
@@ -548,9 +558,11 @@
       if (user.email) {
         localStorage.setItem('userEmail', user.email);
       }
-      window.setUserScope(scope);
-      updateAuthButtons(true);
-      window.loadFolders();
+      
+      // Ensure these functions exist in your global scope
+      if (typeof window.setUserScope === 'function') window.setUserScope(scope);
+      if (typeof updateAuthButtons === 'function') updateAuthButtons(true);
+      if (typeof window.loadFolders === 'function') window.loadFolders();
     });
   </script>
 </body>
