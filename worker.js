@@ -385,28 +385,41 @@ var worker_default = {
         }
       }
 
-      // --- SEO GENERATOR ---
+      // --- SEO GENERATOR (OpenAI) ---
       if (url.pathname === "/api/generate-seo" && request.method === "POST") {
         const { prompt } = await request.json();
-        const aiResponse = await env.AI.run("@cf/meta/llama-3-8b-instruct", {
-          messages: [
-            {
-              role: "system",
-              content: `You are a viral social media SEO expert. Output ONLY raw JSON. 
-              For the "tiktok" "allInOne" field, you MUST write a complete, viral caption. 
-              Include a hook, a short description, and 5-10 relevant hashtags. 
-              IMPORTANT: Do NOT return a URL link. Return original written content only.
-              Structure: { 
-                "youtube": {"title": "", "description": "", "keywords": ""}, 
-                "tiktok": {"allInOne": ""}, 
-                "facebook": {"title": "", "descriptionAndTags": ""} 
-              }.`
-            },
-            { role: "user", content: `Generate viral 2026 SEO content for: ${prompt}` }
-          ]
+
+        const openAiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${env.OPENAI_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            model: "gpt-4o",
+            messages: [
+              {
+                role: "system",
+                content: `You are a viral social media SEO expert. Output ONLY raw JSON.
+                For the "tiktok" "allInOne" field, you MUST write a complete, viral caption.
+                Include a hook, a short description, and 5-10 relevant hashtags.
+                IMPORTANT: Do NOT return a URL link. Return original written content only.
+                Structure: {
+                  "youtube": {"title": "", "description": "", "keywords": ""},
+                  "tiktok": {"allInOne": ""},
+                  "facebook": {"title": "", "descriptionAndTags": ""}
+                }.`
+              },
+              { role: "user", content: `Generate viral 2026 SEO content for: ${prompt}` }
+            ],
+            response_format: { type: "json_object" }
+          })
         });
 
-        return new Response(JSON.stringify({ success: true, data: aiResponse }), {
+        const openAiData = await openAiRes.json();
+        const content = openAiData.choices?.[0]?.message?.content;
+
+        return new Response(JSON.stringify({ success: true, data: content }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
