@@ -5,8 +5,12 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
-  background: #e8f6fb; /* light cyan like reference */
+  background: #f5f7fb;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  color: #0f172a;
+  /* Added for Sticky Footer on legal pages */
+  display: flex;
+  flex-direction: column;
 }
 
 /* Explicit reset instead of universal * selector */
@@ -15,32 +19,33 @@ body * {
 }
 
 /* =========================
-   APP WRAPPER
+   APP WRAPPER (Main Dashboard)
 ========================= */
 .app {
-  max-width: 420px;
+  max-width: 480px;
   margin: 0 auto;
   min-height: 100vh;
-  background: #e8f6fb;
+  background: #f5f7fb;
+  width: 100%; /* Ensures it takes full width on mobile */
 }
 
 /* =========================
    HEADER (TOP BAR)
 ========================= */
 .header {
-  height: 56px;
+  height: 64px;
   background: #ffffff;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 16px;
-  border-bottom: 2px solid #d7eef6;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .title {
-  font-weight: 700;
+  font-weight: 800;
   font-size: 16px;
-  color: #3aa7e6;
+  color: #0f172a;
 }
 
 .gear {
@@ -51,8 +56,8 @@ body * {
    HERO (BLUE CLOUD PANEL)
 ========================= */
 .hero {
-  height: 220px;              /* FIXED height – critical */
-  background: #3aa7e6;        /* reference blue */
+  height: 220px;
+  background: linear-gradient(135deg, #4f46e5, #06b6d4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -143,13 +148,19 @@ body * {
 }
 
 .card {
-  background: #e8f6fb;
-  border: 3px solid #74bfe6;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 16px;
   display: flex;
   align-items: center;
   padding: 14px;
   margin-bottom: 14px;
+  color: #0f172a;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+.account-card {
+  gap: 8px;
 }
 
 /* Left icon */
@@ -166,6 +177,16 @@ body * {
   margin-right: 12px;
 }
 
+.platform-icon {
+  border: 1px solid #e2e8f0;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+}
+
+.platform-icon-img {
+  width: 28px;
+  height: 28px;
+}
+
 /* Text block */
 .card-text {
   flex: 1;
@@ -175,6 +196,7 @@ body * {
   display: block;
   font-size: 15px;
   font-weight: 800;
+  color: #0f172a;
 }
 
 .card-text span {
@@ -182,6 +204,76 @@ body * {
   font-size: 12px;
   margin-top: 4px;
   opacity: 0.75;
+  color: #64748b;
+}
+
+.platform-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.platform-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.platform-logo {
+  width: 14px;
+  height: 14px;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-connected {
+  color: #16a34a;
+}
+
+.status-connected .status-dot {
+  background: #16a34a;
+}
+
+.status-disconnected {
+  color: #dc2626;
+}
+
+.status-disconnected .status-dot {
+  background: #dc2626;
+}
+
+.btn-ghost {
+  background: #f8fafc;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-ghost:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Chevron */
@@ -199,10 +291,23 @@ body * {
 .black { background: #000000; }      /* TikTok */
 
 .red {
-  background: #ffffff;
+  background: #fff0f0;
   color: #dc2626;
-  border: 2px solid #dc2626;
+  border: 1px solid #fecdd3;
 }
+
+/* Gradient buttons (shared) */
+.btn-gradient {
+  border: none;
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12);
+  background: linear-gradient(135deg, #4f46e5, #06b6d4);
+}
+.btn-gradient:active { transform: translateY(1px); }
 
 /* Instagram gradient */
 .insta {
@@ -214,3 +319,84 @@ body * {
     #515bd4
   );
 }
+
+/* =========================================
+   LEGAL PAGES ADDITIONS (Privacy & Terms)
+   These styles make the documents readable
+========================================= */
+
+/* Header styles specifically for legal pages */
+header {
+    background-color: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 20px 0;
+    width: 100%;
+}
+header .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+header h1 { 
+    font-size: 1.5rem; 
+    color: #2c3e50; 
+    margin: 0;
+    font-weight: 800;
+}
+
+/* Reusable Container for Legal pages & Footer */
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 0 20px;
+    width: 100%;
+}
+
+/* The Home Button */
+.home-btn {
+    text-decoration: none;
+    background-color: #007bff;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-weight: 600;
+    transition: background-color 0.2s;
+}
+.home-btn:hover { background-color: #0056b3; }
+
+/* The White Paper/Content Box */
+.content-page {
+    flex: 1; 
+    background: white;
+    padding: 40px;
+    margin-top: 30px;
+    margin-bottom: 30px;
+    border-radius: 16px;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+/* Typography for Legal Text */
+.content-page h2 { margin-bottom: 10px; color: #0f172a; }
+.content-page h3 { margin-top: 25px; margin-bottom: 10px; font-size: 1.2rem; color: #334155; }
+.content-page ul { margin-left: 20px; margin-bottom: 15px; }
+.content-page li { margin-bottom: 5px; color: #475569; }
+.content-page p { margin-bottom: 15px; color: #334155; }
+.content-page a { color: #4f46e5; text-decoration: underline; }
+
+/* Footer */
+footer {
+    background-color: #0f172a; /* Matches your text color dark slate */
+    color: #f1f5f9;
+    padding: 30px 0;
+    text-align: center;
+    margin-top: auto; /* Pushes to bottom */
+    width: 100%;
+}
+footer .footer-links { margin-top: 10px; }
+footer .footer-links a {
+    color: #cbd5e1;
+    margin: 0 10px;
+    text-decoration: none;
+    font-size: 14px;
+}
+footer .footer-links a:hover { color: #fff; text-decoration: underline; }

@@ -1,315 +1,128 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Workspaces</title>
-  <link rel="stylesheet" href="styles.css">
-  <style>
-    :root{
-      --primary:#2fa84f;
-      --bg:#ffffff;
-      --text-main:#0f172a;
-      --text-muted:#64748b;
-    }
-    body{font-family:Inter,system-ui,Arial,sans-serif;background:var(--bg);margin:0;padding:0;color:var(--text-main);}    .app{max-width:980px;margin:28px auto;padding:20px;}
-    .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
-    .profile-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;background:#f1f5f9;}
-    .stats-bar{display:flex;gap:12px;align-items:center;margin-bottom:16px;}
-    .add-btn{background:linear-gradient(135deg,var(--primary),#1f7c3a);color:white;padding:14px;border-radius:14px;border:none;cursor:pointer;font-weight:700;width:100%;}
-    .section-label{display:block;margin:18px 0 12px;color:var(--text-muted);font-size:13px}
-    .folder-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;}
-    .folder-card{position:relative;padding:14px;border-radius:12px;background:#fff;border:1px solid #f1f5f9;display:flex;align-items:center;gap:12px;box-shadow:0 6px 18px rgba(2,6,23,0.04);}    .f-info{display:flex;align-items:center;gap:12px;flex:1;min-width:0;cursor:pointer}
-    .f-icon-wrap{width:48px;height:48px;border-radius:12px;background:#f8fafc;display:flex;align-items:center;justify-content:center;font-size:22px}
-    .f-name{display:block;font-weight:700;font-size:16px}
-    .f-sub{display:block;color:var(--text-muted);font-size:13px;font-weight:500}
-    .arrow-icon{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:#f8fafc;cursor:pointer}
-    .dots-menu-wrap{position:absolute;top:12px;right:12px;z-index:10}
-    .dots-btn{background:none;border:none;cursor:pointer;font-size:20px;padding:6px;border-radius:8px}
-    .dropdown-menu{position:absolute;right:0;top:36px;background:white;border-radius:10px;box-shadow:0 8px 26px rgba(2,6,23,0.12);min-width:160px;overflow:hidden;display:none}
-    .dropdown-menu button{display:block;width:100%;padding:10px 14px;border:none;background:none;text-align:left;cursor:pointer;font-size:14px}
-    .dropdown-menu button.delete{color:#dc2626}
-    .empty-state{padding:36px 12px;text-align:center;color:var(--text-muted);grid-column:1/-1}
-    /* Modal */
-    .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.5);display:flex;align-items:center;justify-content:center;z-index:50}
-    .modal{background:white;padding:18px;border-radius:12px;min-width:320px;max-width:90%}
-    .modal h3{margin:0 0 8px;font-size:16px}
-    .modal .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
-    .btn{padding:8px 12px;border-radius:8px;border:none;cursor:pointer}
-    .btn.ghost{background:#f1f5f9}
-    .btn.primary{background:var(--primary);color:white}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multipost - Share Content Everywhere</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Specific styles for the landing page hero */
+        .landing-hero {
+            background: linear-gradient(135deg, #4f46e5, #06b6d4);
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+        }
+        .landing-hero h1 { font-size: 2.5rem; margin-bottom: 15px; }
+        .landing-hero p { font-size: 1.2rem; opacity: 0.9; margin-bottom: 30px; }
+        
+        .cta-button {
+            background: #ff9f2f;
+            color: white;
+            padding: 15px 30px;
+            text-decoration: none;
+            border-radius: 999px;
+            font-weight: 800;
+            font-size: 1.1rem;
+            display: inline-block;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+        .cta-button:hover { transform: scale(1.05); }
+
+        .features { padding: 50px 20px; text-align: center; }
+        .feature-item { margin-bottom: 40px; }
+        .feature-icon { font-size: 40px; margin-bottom: 10px; display: block; }
+        .feature-title { font-weight: 800; font-size: 1.2rem; color: #0f172a; }
+        .feature-desc { color: #64748b; margin-top: 5px; max-width: 400px; margin-left: auto; margin-right: auto; }
+    </style>
 </head>
 <body>
-  <div class="app">
-    <header class="header">
-      <div>
-        <h1 style="margin:0">Workspaces</h1>
-        <p style="margin:4px 0 0;color:var(--text-muted);font-size:13px">13 Jan 2026 • Welcome back</p>
-      </div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div class="profile-icon">👤</div>
-        <button id="authBtn" style="background:var(--primary);color:white;border:none;padding:8px 14px;border-radius:10px;font-weight:700;cursor:pointer">Sign In</button>
-      </div>
+
+    <header>
+        <div class="container">
+            <h1>Multipost</h1>
+            <nav>
+                <a href="signin.html" class="home-btn" id="nav-btn">Log In</a>
+            </nav>
+        </div>
     </header>
 
-    <div class="stats-bar">
-      <div class="stat-pill" id="folderCountPill" style="background:#f8fafc;border-radius:12px;padding:8px 12px;color:var(--text-muted)">0 Workspaces</div>
-      <div class="stat-pill" style="background:#f8fafc;border-radius:12px;padding:8px 12px;color:var(--text-muted)">Cloud Active</div>
+    <div class="landing-hero">
+        <div class="container">
+            <h1>Upload Once. Post Everywhere.</h1>
+            <p>The easiest way to manage your content across TikTok, Instagram, and YouTube.</p>
+            <a href="signin.html" class="cta-button" id="hero-btn">Get Started for Free</a>
+        </div>
     </div>
 
-    <button class="add-btn" onclick="createNewFolder()">
-      + Create New Workspace
-    </button>
+    <div class="container features">
+        <div class="feature-item">
+            <span class="feature-icon">☁️</span>
+            <div class="feature-title">Cloud Storage</div>
+            <div class="feature-desc">Securely store your media and organize it into folders for easy access.</div>
+        </div>
 
-    <span class="section-label">Your Clients</span>
-    <div class="folder-grid" id="folderContainer">
-      <div class="empty-state">Loading your cloud storage...</div>
+        <div class="feature-item">
+            <span class="feature-icon">🚀</span>
+            <div class="feature-title">One-Click Distribution</div>
+            <div class="feature-desc">Connect your accounts and push your content to multiple platforms instantly.</div>
+        </div>
+
+        <div class="feature-item">
+            <span class="feature-icon">🔒</span>
+            <div class="feature-title">Secure & Private</div>
+            <div class="feature-desc">Your data is protected. We adhere to strict privacy standards and Google's API policies.</div>
+        </div>
     </div>
-  </div>
 
-  <!-- Rename modal placeholder -->
-  <div id="modalRoot" style="display:none"></div>
+    <footer>
+        <div class="container">
+            <p>&copy; 2026 Multipost. All rights reserved.</p>
+            <div class="footer-links">
+                <a href="privacy.html">Privacy Policy</a>
+                <a href="terms.html">Terms of Service</a>
+            </div>
+        </div>
+    </footer>
 
-  <script>
-    const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-    // Utility: create element with attrs
-    function el(tag, attrs = {}, ...children) {
-      const e = document.createElement(tag);
-      for (const k in attrs) {
-        if (k === 'class') e.className = attrs[k];
-        else if (k === 'style') e.style.cssText = attrs[k];
-        else if (k.startsWith('data-')) e.setAttribute(k, attrs[k]);
-        else if (k === 'onclick') e.addEventListener('click', attrs[k]);
-        else e.setAttribute(k, attrs[k]);
-      }
-      children.forEach(c => {
-        if (c == null) return;
-        if (typeof c === 'string' || typeof c === 'number') e.appendChild(document.createTextNode(c));
-        else e.appendChild(c);
-      });
-      return e;
-    }
-
-    // Modal utilities
-    function showModal(contentEl) {
-      const root = document.getElementById('modalRoot');
-      root.innerHTML = '';
-      root.style.display = 'block';
-      const backdrop = el('div', { class: 'modal-backdrop' });
-      backdrop.addEventListener('click', () => closeModal());
-      const modal = el('div', { class: 'modal' }, contentEl);
-      backdrop.appendChild(modal);
-      // Prevent clicks inside modal from closing
-      modal.addEventListener('click', e => e.stopPropagation());
-      root.appendChild(backdrop);
-    }
-    function closeModal() {
-      const root = document.getElementById('modalRoot');
-      root.style.display = 'none';
-      root.innerHTML = '';
-    }
-
-    // Rename workflow: shows modal, calls API
-    async function promptRenameFolder(id, oldName) {
-      const input = el('input', { type: 'text', value: oldName, style: 'width:100%;padding:10px;border-radius:8px;border:1px solid #e6eef4' });
-      const title = el('h3', {}, 'Rename folder');
-      const actions = el('div', { class: 'actions' },
-        el('button', { class: 'btn ghost', onclick: () => closeModal() }, 'Cancel'),
-        el('button', { class: 'btn primary', onclick: async () => {
-          const name = input.value.trim();
-          if (!name) return alert('Please enter a name');
-          try {
-            const res = await fetch(`${apiBase}/rename-folder`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id, name })
-            });
-            if (!res.ok) {
-              const errText = await res.text();
-              alert('Error renaming folder: ' + errText);
-            } else {
-              // Update activeFolderName if needed
-              if (localStorage.getItem('activeFolderId') == id) {
-                localStorage.setItem('activeFolderName', name);
-              }
-              closeModal();
-              loadFolders();
-            }
-          } catch (err) {
-            alert('Error renaming folder');
-          }
-        } }, 'Save')
-      );
-      const wrapper = el('div', {}, title, input, actions);
-      showModal(wrapper);
-      // focus input
-      setTimeout(() => input.focus(), 50);
-    }
-
-    // Delete workflow: confirmation modal, calls API
-    async function promptDeleteFolder(id, name) {
-      const title = el('h3', {}, 'Delete folder');
-      const warn = el('div', { style: 'color:#334155;margin-top:8px' }, `Are you sure you want to delete "${name}"? This cannot be undone.`);
-      const actions = el('div', { class: 'actions' },
-        el('button', { class: 'btn ghost', onclick: () => closeModal() }, 'Cancel'),
-        el('button', { class: 'btn', style: 'background:#dc2626;color:white', onclick: async () => {
-          try {
-            const res = await fetch(`${apiBase}/delete-folder`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id })
-            });
-            if (!res.ok) {
-              const errText = await res.text();
-              alert('Error deleting folder: ' + errText);
-            } else {
-              // If the deleted folder is open, clear localStorage
-              if (localStorage.getItem('activeFolderId') == id) {
-                localStorage.removeItem('activeFolderId');
-                localStorage.removeItem('activeFolderName');
-              }
-              closeModal();
-              loadFolders();
-            }
-          } catch (err) {
-            alert('Error deleting folder');
-          }
-        } }, 'Delete')
-      );
-      const wrapper = el('div', {}, title, warn, actions);
-      showModal(wrapper);
-    }
-
-    // Open folder -> set localStorage and navigate
-    function openFolder(id, name) {
-      localStorage.setItem("activeFolderId", id);
-      localStorage.setItem("activeFolderName", name);
-      window.location.href = `folder.html?id=${id}`;
-    }
-
-    // Toggle a dropdown element
-    function toggleDropdown(menuEl) {
-      const showing = menuEl.style.display === 'block';
-      // close all others
-      document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
-      menuEl.style.display = showing ? 'none' : 'block';
-    }
-
-    // Close menus when clicking outside
-    document.addEventListener('click', (e) => {
-      // If clicked inside a menu or dots button, ignore
-      if (e.target.closest('.dropdown-menu') || e.target.closest('.dots-btn')) return;
-      document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
-    });
-
-    async function loadFolders() {
-      const container = document.getElementById("folderContainer");
-      const pill = document.getElementById("folderCountPill");
-      try {
-        const res = await fetch(`${apiBase}/get-folders`);
-        if (!res.ok) throw new Error('Failed to get folders');
-        const folders = await res.json();
-        pill.innerText = \\`
-        ${folders.length} Workspaces\n        \\
-        container.innerHTML = '';
-        if (folders.length === 0) {
-          container.appendChild(el('div', { class: 'empty-state' }, 'No workspaces yet. Click the button above to start.'));
-          return;
-        }
-
-        folders.forEach(f => {
-          const card = el('div', { class: 'folder-card' });
-
-          const fInfo = el('div', { class: 'f-info', onclick: () => openFolder(f.id, f.name) },
-            el('div', { class: 'f-icon-wrap' }, '📁'),
-            el('div', {},
-              el('span', { class: 'f-name' }, f.name),
-              el('span', { class: 'f-sub' }, 'Managed Workspace')
-            )
-          );
-
-          const arrow = el('div', { class: 'arrow-icon', onclick: (ev) => { ev.stopPropagation(); openFolder(f.id, f.name); } }, '›');
-
-          const dotsWrap = el('div', { class: 'dots-menu-wrap' });
-          const dotsBtn = el('button', { class: 'dots-btn', onclick: (ev) => {
-            ev.stopPropagation();
-            const menu = dotsWrap.querySelector('.dropdown-menu');
-            toggleDropdown(menu);
-          } }, '⋯');
-
-          const menu = el('div', { class: 'dropdown-menu' });
-          const renameBtn = el('button', { onclick: (ev) => { ev.stopPropagation(); toggleDropdown(menu); promptRenameFolder(f.id, f.name); } }, 'Rename this folder');
-          const deleteBtn = el('button', { class: 'delete', onclick: (ev) => { ev.stopPropagation(); toggleDropdown(menu); promptDeleteFolder(f.id, f.name); } }, 'Delete');
-
-          menu.appendChild(renameBtn);
-          menu.appendChild(deleteBtn);
-          dotsWrap.appendChild(dotsBtn);
-          dotsWrap.appendChild(menu);
-
-          card.appendChild(fInfo);
-          card.appendChild(arrow);
-          card.appendChild(dotsWrap);
-
-          container.appendChild(card);
-        });
-
-      } catch (err) {
-        container.innerHTML = `<div class="empty-state" style="color:red">Failed to connect to Cloudflare DB.</div>`;
-        console.error(err);
-      }
-    }
-
-    async function createNewFolder() {
-      const name = prompt("Enter Brand or Client Name:");
-      if (!name) return;
-      try {
-        const res = await fetch(`${apiBase}/add-folder`, {
-          method: "POST",
-          headers: {"Content-Type": "application/json"},
-          body: JSON.stringify({ name })
-        });
-        if (res.ok) loadFolders();
-        else {
-          const txt = await res.text();
-          alert('Error creating folder: ' + txt);
-        }
-      } catch (err) {
-        alert("Error saving folder");
-      }
-    }
-
-    // Auth button logic
-    function updateAuthBtn() {
-      const btn = document.getElementById('authBtn');
-      const email = localStorage.getItem('userEmail');
-      if (email) {
-        btn.textContent = 'Sign Out';
-        btn.onclick = function() {
-          if (confirm('Sign out?')) {
-            localStorage.removeItem('userEmail');
-            window.location.href = 'signin.html';
-          }
+        const firebaseConfig = {
+            apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
+            authDomain: "multi-post-daefc.firebaseapp.com",
+            projectId: "multi-post-daefc",
+            storageBucket: "multi-post-daefc.appspot.com",
+            messagingSenderId: "1099160429576",
+            appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd",
+            measurementId: "G-NY0N8KKH0N"
         };
-      } else {
-        btn.textContent = 'Sign In';
-        btn.onclick = function() {
-          window.location.href = 'signin.html';
-        };
-      }
-    }
 
-    // Run on load
-    window.onload = function() {
-      loadFolders();
-      updateAuthBtn();
-    };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const navBtn = document.getElementById('nav-btn');
+        const heroBtn = document.getElementById('hero-btn');
 
-    // Expose for debugging if needed
-    window.loadFolders = loadFolders;
-    window.promptRenameFolder = promptRenameFolder;
-    window.promptDeleteFolder = promptDeleteFolder;
-  </script>
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                // User IS logged in: Change buttons to "Open App"
+                if (navBtn) {
+                    navBtn.textContent = "Open App";
+                    navBtn.href = "app.html";
+                }
+                if (heroBtn) {
+                    heroBtn.textContent = "Go to Dashboard";
+                    heroBtn.href = "app.html";
+                }
+            } else {
+                // User IS NOT logged in: Keep default "Log In" buttons
+                // No action needed, HTML defaults are correct
+            }
+        });
+    </script>
 </body>
 </html>

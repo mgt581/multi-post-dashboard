@@ -15,11 +15,28 @@ const outputs = {
 };
 
 // -----------------------------
-// LOAD FOLDER CONTEXT
+// LOAD FOLDER CONTEXT (SCOPED PER USER)
 // -----------------------------
-const folders = JSON.parse(localStorage.getItem("folders")) || [];
-const activeFolderIndex = localStorage.getItem("activeFolder");
-const activeFolder = folders[activeFolderIndex] || null;
+const userScope = localStorage.getItem("currentUserKey") || "guest";
+const scopedKey = name => `${name}:${userScope}`;
+
+// Migrate any legacy unscoped data into the scoped keys so existing users keep their data
+const legacyFolders = localStorage.getItem("folders");
+if (!localStorage.getItem(scopedKey("folders")) && legacyFolders) {
+  localStorage.setItem(scopedKey("folders"), legacyFolders);
+  localStorage.removeItem("folders");
+}
+const legacyActiveFolder = localStorage.getItem("activeFolder");
+if (!localStorage.getItem(scopedKey("activeFolder")) && legacyActiveFolder !== null) {
+  localStorage.setItem(scopedKey("activeFolder"), legacyActiveFolder);
+  localStorage.removeItem("activeFolder");
+}
+
+const folders = JSON.parse(localStorage.getItem(scopedKey("folders")) || "[]");
+const activeFolderIndex = Number(localStorage.getItem(scopedKey("activeFolder")));
+const activeFolder = Number.isFinite(activeFolderIndex)
+  ? folders[activeFolderIndex] || null
+  : null;
 
 // -----------------------------
 // PLATFORM STATE
