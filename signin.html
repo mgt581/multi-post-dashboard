@@ -232,22 +232,15 @@ window.handlePasswordReset = async () => {
     }
 };
 onAuthStateChanged(auth, (user) => {
-    if (user) {
-        setActiveUserScope(user);
-        if (window.location.pathname.includes("signin.html") || window.location.pathname === "/") {
-            window.location.href = "index.html";
-        }
-    } else {
-        clearWorkspaceState();
-        localStorage.removeItem("currentUserKey");
-        localStorage.removeItem("userEmail");
-        // Stay on signin if already there; otherwise redirect to signin
-        if (!window.location.pathname.includes("signin")) {
-            window.location.href = "signin.html";
-        }
-    }
-});
-window.signOutUser = () => {
+      if (user) {
+        // User is logged in, send them to the App Dashboard (app.html)
+        window.location.href = "app.html"; 
+      } else {
+        // Optional: Clear old data if they are sitting on the login screen
+        localStorage.removeItem('currentUserKey');
+        localStorage.removeItem('userEmail');
+      }
+    });window.signOutUser = () => {
     signOut(auth).then(() => {
         clearWorkspaceState();
         localStorage.removeItem("currentUserKey");
