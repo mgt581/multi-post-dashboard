@@ -69,7 +69,7 @@
         }
 
         container.innerHTML = folders.map(f => `
-          <div class="card" onclick="openFolder(${f.id}, '${f.name.replace(/'/g, "\\'")}')">
+          <div class="card" data-folder-id="${f.id}" data-folder-name="${f.name}">
             <div class="card-icon" style="background:#ecfdf5; color:var(--accent);">
               <i class="fa-solid fa-folder"></i>
             </div>
@@ -80,6 +80,16 @@
             <i class="fa-solid fa-chevron-right" style="color:var(--muted); font-size:12px;"></i>
           </div>
         `).join('');
+
+        // Attach click handlers to cards after rendering
+        const cards = container.querySelectorAll('.card[data-folder-id]');
+        cards.forEach(card => {
+          card.addEventListener('click', () => {
+            const id = card.getAttribute('data-folder-id');
+            const name = card.getAttribute('data-folder-name');
+            openFolder(id, name);
+          });
+        });
       } catch (err) {
         container.innerHTML = `<p style="color:red; text-align:center;">Failed to load data.</p>`;
       }
