@@ -26,30 +26,19 @@ var worker_default = {
       try { return btoa(JSON.stringify(obj)); } catch { return String(obj?.folderId || ""); }
     };
     const decodeState = (stateStr) => {
-      if (!stateStr) return { folderId: null, userId: null, platform: null };
+      if (!stateStr) return { folderId: null, platform: null };
       try {
-        const decoded = JSON.parse(atob(stateStr));
-        // Ensure both JSON and legacy fields work
-        return {
-          folderId: decoded.folderId || decoded.folder_id,
-          userId: decoded.userId || decoded.user_id,
-          platform: decoded.platform
-        };
+        return JSON.parse(atob(stateStr));
       } catch {
         try {
           const raw = atob(stateStr);
-          const parts = raw.split("|");
-          return {
-            folderId: parts[0] || raw,
-            userId: parts[1] || null,
-            platform: null
-          };
+          const [folderId] = raw.split("|");
+          return { folderId: folderId || raw, platform: null };
         } catch {
-          return { folderId: stateStr, userId: null, platform: null };
+          return { folderId: stateStr, platform: null };
         }
       }
     };
-
     const upsertToken = async ({
       folderId,
       platform,
@@ -58,7 +47,7 @@ var worker_default = {
       refreshToken,
       expiresAt,
       scope,
-      userId
+      userId // Added userId
     }) => {
       if (!folderId || !platform || !accountId || !accessToken) return;
 
@@ -72,8 +61,7 @@ var worker_default = {
           refresh_token = excluded.refresh_token,
           expires_at = excluded.expires_at,
           scope = excluded.scope,
-          updated_at = strftime('%s','now'),
-          user_id = COALESCE(excluded.user_id, tokens.user_id)
+          updated_at = strftime('%s','now')
       `).bind(
         folderId,
         platform,
@@ -110,6 +98,8 @@ var worker_default = {
 
       if (url.pathname === "/api/rename-folder") {
         const { id, name, user_id } = await request.json();
+        if (!id || !name || !user_id) return new Response("Missing data", { status: 400, headers: corsHeaders });
+
         const { success } = await env.DB.prepare("UPDATE folders SET name = ? WHERE id = ? AND user_id = ?")
           .bind(name, id, user_id)
           .run();
@@ -117,18 +107,15 @@ var worker_default = {
       }
 
       if (url.pathname === "/api/delete-folder") {
-        const { id, user_id, type } = await request.json();
+        const { id, user_id } = await request.json();
+        if (!id || !user_id) return new Response("Missing data", { status: 400, headers: corsHeaders });
 
-        if (type === "account_only") {
-          await env.DB.prepare("DELETE FROM accounts WHERE id = ? AND user_id = ?").bind(id, user_id).run();
-          return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
-        }
-
+        // Verify ownership first
         const folder = await env.DB.prepare("SELECT id FROM folders WHERE id = ? AND user_id = ?")
           .bind(id, user_id)
           .first();
 
-        if (!folder) return new Response("Unauthorized", { status: 403, headers: corsHeaders });
+        if (!folder) return new Response("Folder not found or unauthorized", { status: 403, headers: corsHeaders });
 
         await env.DB.prepare("DELETE FROM accounts WHERE folder_id = ?").bind(id).run();
         await env.DB.prepare("DELETE FROM tokens WHERE folder_id = ?").bind(id).run();
@@ -141,9 +128,28 @@ var worker_default = {
       if (url.pathname === "/api/get-accounts") {
         const folder_id = url.searchParams.get("folder_id");
         const user_id = url.searchParams.get("user_id");
+        if (!folder_id || !user_id) return new Response("Missing params", { status: 400, headers: corsHeaders });
+
         const { results } = await env.DB.prepare("SELECT * FROM accounts WHERE folder_id = ? AND user_id = ?")
           .bind(folder_id, user_id)
           .all();
+        return new Response(JSON.stringify(results), { headers: corsHeaders });
+      }
+
+      if (url.pathname === "/api/get-tokens") {
+        const folder_id = url.searchParams.get("folder_id");
+        const user_id = url.searchParams.get("user_id");
+        const platform = url.searchParams.get("platform");
+
+        if (!folder_id || !user_id) return new Response("Missing params", { status: 400, headers: corsHeaders });
+
+        let q = "SELECT folder_id, platform, account_id, expires_at, updated_at FROM tokens WHERE folder_id = ? AND user_id = ?";
+        const binds = [folder_id, user_id];
+        if (platform) {
+          q += " AND platform = ?";
+          binds.push(platform);
+        }
+        const { results } = await env.DB.prepare(q).bind(...binds).all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
 
@@ -197,7 +203,8 @@ var worker_default = {
       // --- AUTH CALLBACKS ---
       if (url.pathname === "/api/auth/callback/youtube") {
         const code = url.searchParams.get("code");
-        const { folderId, userId } = decodeState(url.searchParams.get("state"));
+        const stateObj = decodeState(url.searchParams.get("state"));
+        const { folderId, userId } = stateObj;
 
         const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
           method: "POST",
@@ -232,8 +239,12 @@ var worker_default = {
         ).run();
 
         await upsertToken({
-          folderId, userId, platform: "youtube", accountId: channelId,
-          accessToken: tokens.access_token, refreshToken: tokens.refresh_token,
+          folderId,
+          userId,
+          platform: "youtube",
+          accountId: channelId,
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token,
           expiresAt: nowMs() + (tokens.expires_in || 0) * 1000,
           scope: "https://www.googleapis.com/auth/youtube.upload"
         });
@@ -243,7 +254,8 @@ var worker_default = {
 
       if (url.pathname === "/api/auth/callback/tiktok") {
         const code = url.searchParams.get("code");
-        const { folderId, userId } = decodeState(url.searchParams.get("state"));
+        const stateObj = decodeState(url.searchParams.get("state"));
+        const { folderId, userId } = stateObj;
 
         const tokenRes = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
           method: "POST",
@@ -268,12 +280,20 @@ var worker_default = {
         await env.DB.prepare(
           "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'tiktok', 'Linked TikTok', ?, ?, ?)"
         ).bind(
-          folderId, userId, accessToken, refreshToken, nowMs() + expiresIn * 1e3
+          folderId,
+          userId,
+          accessToken,
+          refreshToken,
+          nowMs() + expiresIn * 1e3
         ).run();
 
         await upsertToken({
-          folderId, userId, platform: "tiktok", accountId: openId,
-          accessToken, refreshToken,
+          folderId,
+          userId,
+          platform: "tiktok",
+          accountId: openId,
+          accessToken,
+          refreshToken,
           expiresAt: nowMs() + expiresIn * 1000,
           scope: tData.scope || "video.upload,video.publish,user.info.basic"
         });
@@ -283,7 +303,8 @@ var worker_default = {
 
       if (url.pathname === "/api/auth/callback/facebook") {
         const code = url.searchParams.get("code");
-        const { folderId, userId } = decodeState(url.searchParams.get("state"));
+        const stateObj = decodeState(url.searchParams.get("state"));
+        const { folderId, userId } = stateObj;
 
         const tokenRes = await fetch(
           `https://graph.facebook.com/v18.0/oauth/access_token?client_id=${env.FB_CLIENT_ID}` +
@@ -306,12 +327,19 @@ var worker_default = {
         await env.DB.prepare(
           "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'facebook', 'FB Page', ?, NULL, ?)"
         ).bind(
-          folderId, userId, accessToken, nowMs() + expiresIn * 1e3
+          folderId,
+          userId,
+          accessToken,
+          nowMs() + expiresIn * 1e3
         ).run();
 
         await upsertToken({
-          folderId, userId, platform: "facebook", accountId: fbAccountId,
-          accessToken, refreshToken: null,
+          folderId,
+          userId,
+          platform: "facebook",
+          accountId: fbAccountId,
+          accessToken,
+          refreshToken: null,
           expiresAt: nowMs() + expiresIn * 1000,
           scope: "pages_manage_posts,pages_show_list"
         });
@@ -319,16 +347,38 @@ var worker_default = {
         return Response.redirect(`${baseUrl}/create-post.html`);
       }
 
-      // --- SEO GENERATOR (OpenAI Fallback) ---
+      // --- POSTING ---
+      if (url.pathname === "/api/post-video" && request.method === "POST") {
+        const { account_id, video_url, title, platform, user_id } = await request.json();
+
+        const account = await env.DB.prepare("SELECT * FROM accounts WHERE id = ? AND user_id = ?")
+          .bind(account_id, user_id)
+          .first();
+
+        if (!account) return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+
+        const bearer = account.access_token;
+
+        if (platform === "tiktok") {
+          const tiktokRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${bearer}`,
+              "Content-Type": "application/json; charset=UTF-8"
+            },
+            body: JSON.stringify({
+              post_info: { title, privacy_level: "SELF_ONLY", disable_duet: false, disable_comment: false },
+              source_info: { source: "PULL_FROM_URL", video_url }
+            })
+          });
+          const result = await safeJson(tiktokRes);
+          return new Response(JSON.stringify(result), { headers: corsHeaders });
+        }
+      }
+
+      // --- SEO GENERATOR (OpenAI) ---
       if (url.pathname === "/api/generate-seo" && request.method === "POST") {
         const { prompt } = await request.json();
-
-        if (!env.OPENAI_API_KEY) {
-          return new Response(JSON.stringify({
-            success: false,
-            error: "OpenAI API Key not set. Please run 'wrangler secret put OPENAI_API_KEY' in your terminal."
-          }), { status: 500, headers: corsHeaders });
-        }
 
         const openAiRes = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
@@ -342,6 +392,9 @@ var worker_default = {
               {
                 role: "system",
                 content: `You are a viral social media SEO expert. Output ONLY raw JSON.
+                For the "tiktok" "allInOne" field, you MUST write a complete, viral caption.
+                Include a hook, a short description, and 5-10 relevant hashtags.
+                IMPORTANT: Do NOT return a URL link. Return original written content only.
                 Structure: {
                   "youtube": {"title": "", "description": "", "keywords": ""},
                   "tiktok": {"allInOne": ""},
@@ -355,14 +408,8 @@ var worker_default = {
         });
 
         const openAiData = await openAiRes.json();
-
-        if (openAiData.error) {
-           return new Response(JSON.stringify({ success: false, error: openAiData.error.message }), {
-             status: 400, headers: corsHeaders
-           });
-        }
-
         const content = openAiData.choices?.[0]?.message?.content;
+
         return new Response(JSON.stringify({ success: true, data: content }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
@@ -378,4 +425,6 @@ var worker_default = {
   }
 };
 
-export { worker_default as default };
+export {
+  worker_default as default
+};
