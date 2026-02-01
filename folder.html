@@ -182,10 +182,24 @@
       }
       userScope = user.uid || user.email;
       
-      // Check for OAuth errors in URL params
+      // Check for folder ID in URL params and update localStorage
       const urlParams = new URLSearchParams(window.location.search);
+      const urlFolderId = urlParams.get('id');
+      if (urlFolderId) {
+        // Update localStorage with the folder ID from URL (important for OAuth redirects)
+        localStorage.setItem(scopedKey("activeFolderId"), urlFolderId);
+      }
+      
+      // Check for OAuth success/error in URL params
       const error = urlParams.get('error');
-      if (error) {
+      const success = urlParams.get('success');
+      
+      if (success === 'account_linked') {
+        // Show success message when account is successfully linked
+        alert('Platform account successfully linked!');
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname + '?id=' + urlFolderId);
+      } else if (error) {
         let errorMessage = 'Failed to connect platform account.';
         if (error === 'redirect_uri_mismatch') {
           errorMessage = 'Redirect URI mismatch. Please ensure your OAuth app redirect URIs are correctly configured.';
@@ -196,7 +210,7 @@
         }
         alert(errorMessage);
         // Clean up URL
-        window.history.replaceState({}, document.title, window.location.pathname + '?id=' + urlParams.get('id'));
+        window.history.replaceState({}, document.title, window.location.pathname + '?id=' + urlFolderId);
       }
       
       initUI();
