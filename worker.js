@@ -109,17 +109,28 @@ var worker_default = {
 
       if (url.pathname === "/api/generate-seo") {
         const { prompt } = await request.json();
-        const res = await fetch("https://api.openai.com/v1/chat/completions", {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "gpt-4o",
-            messages: [{ role: "system", content: "Output ONLY raw JSON. Keys: youtube, tiktok, facebook." }, { role: "user", content: `Viral SEO for: ${prompt}` }],
-            response_format: { type: "json_object" }
-          })
+
+        // Using Cloudflare Workers AI as requested in the snippet
+        const aiResponse = await env.AI.run('@cf/meta/llama-3.1-8b-instruct-awq', {
+          messages: [
+            {
+              role: "system",
+              content: "You are an SEO expert for YouTube, TikTok, and Instagram. Create high-engagement titles and descriptions with relevant keywords. Output ONLY raw JSON with keys: youtube, tiktok, facebook."
+            },
+            {
+              role: "user",
+              content: `Write viral SEO content for: ${prompt}`
+            }
+          ],
+          response_format: { type: "json_object" }
         });
-        const data = await res.json();
-        return new Response(JSON.stringify({ success: true, data: data.choices[0].message.content }), { headers: corsHeaders });
+
+        // The result from env.AI.run varies by model, usually it's in .response
+        const content = aiResponse.response || aiResponse;
+
+        return new Response(JSON.stringify({ success: true, data: content }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
       }
 
       return fetch(request);
