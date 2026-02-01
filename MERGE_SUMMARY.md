@@ -40,17 +40,13 @@ After merging this PR, delete the following branches from GitHub:
 3. Only `main` branch should remain
 
 ### Step 3: Close Open Pull Requests
-Close the following open pull requests (they're now redundant):
-
-- PR #12 - Add redirect URI quick reference documentation
-- PR #10 - Complete Facebook OAuth callback and add user_id to tokens table
-- PR #9 - Verify Llama 3.1 integration from draft PR #6 is complete
-- PR #13 - [WIP] Merge all branches into main and clean up (if different from this one)
+Close any remaining open feature branch PRs that have been merged into this consolidation PR. These are now redundant since all changes are in this PR.
 
 **To close PRs:**
-1. Go to each PR page
-2. Click "Close pull request" button
-3. Optionally add a comment: "Merged via PR #14"
+1. Go to the Pull Requests page: https://github.com/mgt581/multi-post-dashboard/pulls
+2. Review each open PR to see if it's been included in this merge
+3. Click "Close pull request" button for each redundant PR
+4. Optionally add a comment: "Merged via this consolidation PR"
 
 ## 🎯 Final State
 
