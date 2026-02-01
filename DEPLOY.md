@@ -1,5 +1,7 @@
 # Deployment Guide for Multipost Worker
 
+> 📌 **Looking for the redirect URIs?** See [REDIRECT_URI_GUIDE.md](./REDIRECT_URI_GUIDE.md) for a quick reference of all platform OAuth redirect URIs.
+
 ## Prerequisites
 
 1. **Cloudflare Account** - Sign up at [cloudflare.com](https://cloudflare.com)
