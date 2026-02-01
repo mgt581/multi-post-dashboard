@@ -78,13 +78,13 @@ wrangler secret put FB_CLIENT_SECRET
 2. Create a new project
 3. Enable YouTube Data API v3
 4. Create OAuth 2.0 credentials
-5. Add authorized redirect URI: `YOUR_BASE_URL/api/auth/callback/youtube`
+5. Add authorized redirect URI: `https://multipostapp.co.uk/api/auth/callback/youtube`
    - Example: `https://multipostapp.co.uk/api/auth/callback/youtube`
 
 **TikTok:**
 1. Go to [TikTok for Developers](https://developers.tiktok.com/)
 2. Create an app
-3. Add redirect URI: `YOUR_BASE_URL/api/auth/callback/tiktok`
+3. Add redirect URI: `https://multipostapp.co.uk/api/auth/callback/tiktok`
    - Example: `https://multipostapp.co.uk/api/auth/callback/tiktok`
    - **IMPORTANT:** TikTok requires an exact match - verify no trailing slash is added
    - The redirect URI must use HTTPS (HTTP and localhost are not accepted)
@@ -93,7 +93,7 @@ wrangler secret put FB_CLIENT_SECRET
 1. Go to [Meta for Developers](https://developers.facebook.com/)
 2. Create an app
 3. Add Facebook Login product
-4. Add redirect URI: `YOUR_BASE_URL/api/auth/callback/facebook`
+4. Add redirect URI: `https://multipostapp.co.uk/api/auth/callback/facebook`
    - Example: `https://multipostapp.co.uk/api/auth/callback/facebook`
 
 ## Step 5: Deploy Worker
