@@ -181,6 +181,24 @@
         return;
       }
       userScope = user.uid || user.email;
+      
+      // Check for OAuth errors in URL params
+      const urlParams = new URLSearchParams(window.location.search);
+      const error = urlParams.get('error');
+      if (error) {
+        let errorMessage = 'Failed to connect platform account.';
+        if (error === 'redirect_uri_mismatch') {
+          errorMessage = 'Redirect URI mismatch. Please ensure your OAuth app redirect URIs are correctly configured.';
+        } else if (error === 'token_exchange_failed') {
+          errorMessage = 'Failed to exchange authorization code for access token. Check your OAuth credentials.';
+        } else if (error === 'access_denied') {
+          errorMessage = 'You denied access to the platform.';
+        }
+        alert(errorMessage);
+        // Clean up URL
+        window.history.replaceState({}, document.title, window.location.pathname + '?id=' + urlParams.get('id'));
+      }
+      
       initUI();
       render();
     });
