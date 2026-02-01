@@ -172,6 +172,65 @@ var worker_default = {
         });
       }
 
+      // Serve static HTML files for common pages
+      // This allows the worker to serve the frontend if needed
+      if (url.pathname === "/" || url.pathname === "/index.html") {
+        // Redirect to the frontend URL or serve a simple info page
+        if (frontendUrl !== baseUrl) {
+          return Response.redirect(frontendUrl, 302);
+        }
+        // If no separate frontend, return API info
+        return new Response(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Multipost API</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; line-height: 1.6; color: #333; }
+    h1 { color: #4f46e5; }
+    .endpoint { background: #f8fafc; padding: 15px; margin: 10px 0; border-left: 4px solid #4f46e5; border-radius: 4px; }
+    code { background: #e2e8f0; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>Multipost API</h1>
+  <p>This is the API endpoint for the Multipost application.</p>
+  <p>Visit <a href="https://multipostapp.co.uk">https://multipostapp.co.uk</a> to use the application.</p>
+  
+  <h2>Available API Endpoints:</h2>
+  <div class="endpoint">
+    <strong>GET</strong> <code>/api/get-folders?user_id={userId}</code>
+  </div>
+  <div class="endpoint">
+    <strong>POST</strong> <code>/api/add-folder</code>
+  </div>
+  <div class="endpoint">
+    <strong>POST</strong> <code>/api/delete-folder</code>
+  </div>
+  <div class="endpoint">
+    <strong>GET</strong> <code>/api/get-accounts?folder_id={folderId}&user_id={userId}</code>
+  </div>
+  <div class="endpoint">
+    <strong>GET</strong> <code>/api/auth/{platform}</code> - YouTube, TikTok, Facebook
+  </div>
+  <div class="endpoint">
+    <strong>POST</strong> <code>/api/generate-seo</code>
+  </div>
+</body>
+</html>`, {
+          headers: { "Content-Type": "text/html;charset=UTF-8" }
+        });
+      }
+
+      // For other non-API paths, redirect to frontend or return 404
+      if (!url.pathname.startsWith("/api/")) {
+        if (frontendUrl !== baseUrl) {
+          // Redirect to the same path on the frontend
+          return Response.redirect(frontendUrl + url.pathname + url.search, 302);
+        }
+      }
+
       // Return 404 for unknown routes instead of creating infinite loop
       return new Response(JSON.stringify({ success: false, error: "Not Found" }), {
         status: 404,
