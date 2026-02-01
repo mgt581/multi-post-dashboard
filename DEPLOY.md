@@ -39,13 +39,22 @@ wrangler d1 execute multipost-db --file=./schema.sql
 
 ## Step 4: Set BASE_URL and OAuth Secrets
 
-**IMPORTANT:** First set your BASE_URL to match your primary domain:
+**IMPORTANT:** Set your BASE_URL and optionally FRONTEND_URL:
 
 ```bash
 wrangler secret put BASE_URL
-# Enter: https://your-domain.com (or https://your-worker.workers.dev)
-# This must match the domain you'll use to access the application
+# Enter the worker URL: https://your-worker-name.workers.dev
+# This is used for OAuth redirect URIs and MUST match what you configure in OAuth apps
+
+# If your frontend (HTML files) is hosted separately (e.g., on GitHub Pages):
+wrangler secret put FRONTEND_URL
+# Enter: https://your-frontend-domain.com (e.g., https://multipostapp.co.uk)
+# If not set, users will be redirected back to BASE_URL after authentication
 ```
+
+**Deployment Scenarios:**
+1. **All-in-one (Worker serves everything):** Only set BASE_URL to your worker URL
+2. **Separate frontend:** Set BASE_URL to worker URL, FRONTEND_URL to where HTML files are hosted
 
 Then set each OAuth secret using the following commands:
 
@@ -60,7 +69,7 @@ wrangler secret put FB_CLIENT_SECRET
 
 ### Getting OAuth Credentials
 
-**CRITICAL:** Replace `YOUR_BASE_URL` in the redirect URIs below with your actual BASE_URL (e.g., `https://multipostapp.co.uk` or `https://your-worker.workers.dev`). The redirect URIs **must match exactly** (including trailing slashes) what you set in BASE_URL.
+**CRITICAL:** Use your BASE_URL (worker URL) in the redirect URIs below. The redirect URIs **must match exactly** what you set in BASE_URL.
 
 **YouTube (Google OAuth):**
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
