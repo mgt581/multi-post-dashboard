@@ -196,7 +196,7 @@ var worker_default = {
 <body>
   <h1>Multipost API</h1>
   <p>This is the API endpoint for the Multipost application.</p>
-  <p>Visit <a href="https://multipostapp.co.uk">https://multipostapp.co.uk</a> to use the application.</p>
+  <p>Visit <a href="${frontendUrl}">${frontendUrl}</a> to use the application.</p>
   
   <h2>Available API Endpoints:</h2>
   <div class="endpoint">
@@ -227,7 +227,9 @@ var worker_default = {
       if (!url.pathname.startsWith("/api/")) {
         if (frontendUrl !== baseUrl) {
           // Redirect to the same path on the frontend
-          return Response.redirect(frontendUrl + url.pathname + url.search, 302);
+          // Use URL constructor to safely handle path joining
+          const redirectUrl = new URL(url.pathname + url.search, frontendUrl).href;
+          return Response.redirect(redirectUrl, 302);
         }
       }
 
