@@ -1,402 +1,178 @@
 /* =========================
-   BASE / RESET (iOS SAFE)
+   MODERN APP UI DESIGN (Indigo & Green)
 ========================= */
-html, body {
+:root {
+  --primary: #4f46e5;
+  --primary-light: #818cf8;
+  --accent: #10b981;
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --text: #1e293b;
+  --muted: #64748b;
+  --border: #f1f5f9;
+  --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --nav-height: 70px;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
   margin: 0;
-  padding: 0;
-  height: 100%;
-  background: #f5f7fb;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-  color: #0f172a;
-  /* Added for Sticky Footer on legal pages */
-  display: flex;
-  flex-direction: column;
+  padding: 0 0 var(--nav-height) 0;
+  background: var(--bg);
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  color: var(--text);
+  line-height: 1.5;
 }
 
-/* Explicit reset instead of universal * selector */
-body * {
-  box-sizing: border-box;
-}
-
-/* =========================
-   APP WRAPPER (Main Dashboard)
-========================= */
-.app {
-  max-width: 480px;
+.app-container {
+  max-width: 500px;
   margin: 0 auto;
   min-height: 100vh;
-  background: #f5f7fb;
-  width: 100%; /* Ensures it takes full width on mobile */
+  position: relative;
 }
 
 /* =========================
-   HEADER (TOP BAR)
+   HEADER
 ========================= */
 .header {
-  height: 64px;
-  background: #ffffff;
+  padding: 24px 20px 10px;
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  border-bottom: 1px solid #e2e8f0;
+  align-items: center;
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
-.title {
+.header h1 {
+  font-size: 24px;
   font-weight: 800;
-  font-size: 16px;
-  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.5px;
 }
 
-.gear {
-  font-size: 18px;
-}
-
-/* =========================
-   HERO (BLUE CLOUD PANEL)
-========================= */
-.hero {
-  height: 220px;
-  background: linear-gradient(135deg, #4f46e5, #06b6d4);
+.header-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--card);
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.cloud-wrap {
-  text-align: center;
-}
-
-/* Cloud base */
-.cloud {
-  width: 140px;
-  height: 90px;
-  background-color: #ffffff !important;
-  border-radius: 50px;
-  position: relative;
-  margin: 0 auto;
-}
-
-/* Cloud bumps */
-.cloud::before,
-.cloud::after {
-  content: "";
-  position: absolute;
-  background-color: #ffffff !important;
-  border-radius: 50%;
-}
-
-.cloud::before {
-  width: 70px;
-  height: 70px;
-  top: -35px;
-  left: 10px;
-}
-
-.cloud::after {
-  width: 90px;
-  height: 90px;
-  top: -45px;
-  right: 10px;
-}
-
-/* Folder icon inside cloud */
-.folder {
-  width: 36px;
-  height: 26px;
-  background: #ff9f2f;
-  border-radius: 5px;
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  box-shadow: 0 2px 0 rgba(0,0,0,0.08);
-}
-
-/* Storage text */
-.storage-text {
-  margin-top: 12px;
-  font-weight: 600;
-  font-size: 14px;
-  color: #ffffff;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  color: var(--text);
 }
 
 /* =========================
-   UPLOAD LABEL
+   CARDS & GRID
 ========================= */
-.upload-title {
-  padding: 16px 0;
-  text-align: center;
-}
-
-.upload-icon {
-  font-size: 32px;
-  color: #ff9f2f;
-}
-
-.upload-text {
-  margin-top: 4px;
-  font-weight: 700;
-  color: #3aa7e6;
-}
-
-/* =========================
-   ACTION CARDS (PIC 1 STYLE)
-========================= */
-.cards {
-  padding: 0 14px 20px;
-}
+.section { padding: 0 20px; margin-bottom: 24px; }
+.section-title { font-size: 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px; }
 
 .card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
+  background: var(--card);
+  border-radius: 20px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
   display: flex;
   align-items: center;
-  padding: 14px;
-  margin-bottom: 14px;
-  color: #0f172a;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  gap: 16px;
+  transition: transform 0.2s ease;
 }
 
-.account-card {
-  gap: 8px;
-}
+.card:active { transform: scale(0.98); }
 
-/* Left icon */
-.icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 12px;
+.card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  font-weight: 900;
-  color: #ffffff;
-  margin-right: 12px;
+  font-size: 20px;
+  background: var(--bg);
 }
 
-.platform-icon {
-  border: 1px solid #e2e8f0;
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
-}
-
-.platform-icon-img {
-  width: 28px;
-  height: 28px;
-}
-
-/* Text block */
-.card-text {
-  flex: 1;
-}
-
-.card-text strong {
-  display: block;
-  font-size: 15px;
-  font-weight: 800;
-  color: #0f172a;
-}
-
-.card-text span {
-  display: block;
-  font-size: 12px;
-  margin-top: 4px;
-  opacity: 0.75;
-  color: #64748b;
-}
-
-.platform-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 6px;
-}
-
-.platform-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #64748b;
-}
-
-.platform-logo {
-  width: 14px;
-  height: 14px;
-}
-
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.status-connected {
-  color: #16a34a;
-}
-
-.status-connected .status-dot {
-  background: #16a34a;
-}
-
-.status-disconnected {
-  color: #dc2626;
-}
-
-.status-disconnected .status-dot {
-  background: #dc2626;
-}
-
-.btn-ghost {
-  background: #f8fafc;
-  color: #0f172a;
-  border: 1px solid #e2e8f0;
-  padding: 8px 12px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-size: 12px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.btn-ghost:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* Chevron */
-.arrow {
-  font-size: 28px;
-  font-weight: 900;
-  color: #ff6a6a;
-}
+.card-content { flex: 1; }
+.card-title { font-weight: 700; font-size: 16px; display: block; }
+.card-sub { font-size: 13px; color: var(--muted); }
 
 /* =========================
-   PLATFORM COLOURS
+   BOTTOM NAVIGATION
 ========================= */
-.green { background: #16a34a; }      /* Posting page */
-.blue  { background: #1877f2; }      /* Facebook */
-.black { background: #000000; }      /* TikTok */
-
-.red {
-  background: #fff0f0;
-  color: #dc2626;
-  border: 1px solid #fecdd3;
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--nav-height);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 0 20px;
+  z-index: 100;
 }
 
-/* Gradient buttons (shared) */
-.btn-gradient {
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  gap: 4px;
+}
+
+.nav-item.active { color: var(--primary); }
+.nav-item i { font-size: 20px; }
+
+/* =========================
+   BUTTONS
+========================= */
+.btn-primary {
+  background: var(--primary);
+  color: white;
   border: none;
-  color: #fff;
-  padding: 12px 18px;
-  border-radius: 999px;
-  font-weight: 800;
+  padding: 14px 24px;
+  border-radius: 16px;
+  font-weight: 700;
+  width: 100%;
   cursor: pointer;
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.12);
-  background: linear-gradient(135deg, #4f46e5, #06b6d4);
-}
-.btn-gradient:active { transform: translateY(1px); }
-
-/* Instagram gradient */
-.insta {
-  background: linear-gradient(
-    45deg,
-    #f58529,
-    #dd2a7b,
-    #8134af,
-    #515bd4
-  );
+  box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
 }
 
-/* =========================================
-   LEGAL PAGES ADDITIONS (Privacy & Terms)
-   These styles make the documents readable
-========================================= */
-
-/* Header styles specifically for legal pages */
-header {
-    background-color: #ffffff;
-    border-bottom: 1px solid #e2e8f0;
-    padding: 20px 0;
-    width: 100%;
-}
-header .container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-header h1 { 
-    font-size: 1.5rem; 
-    color: #2c3e50; 
-    margin: 0;
-    font-weight: 800;
+.btn-secondary {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 14px 24px;
+  border-radius: 16px;
+  font-weight: 700;
+  width: 100%;
+  cursor: pointer;
 }
 
-/* Reusable Container for Legal pages & Footer */
-.container {
-    max-width: 800px;
-    margin: 0 auto;
-    padding: 0 20px;
-    width: 100%;
+textarea, input {
+  width: 100%;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 15px;
+  font-family: inherit;
+  margin-bottom: 12px;
 }
-
-/* The Home Button */
-.home-btn {
-    text-decoration: none;
-    background-color: #007bff;
-    color: white;
-    padding: 8px 16px;
-    border-radius: 4px;
-    font-weight: 600;
-    transition: background-color 0.2s;
-}
-.home-btn:hover { background-color: #0056b3; }
-
-/* The White Paper/Content Box */
-.content-page {
-    flex: 1; 
-    background: white;
-    padding: 40px;
-    margin-top: 30px;
-    margin-bottom: 30px;
-    border-radius: 16px;
-    box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
-}
-
-/* Typography for Legal Text */
-.content-page h2 { margin-bottom: 10px; color: #0f172a; }
-.content-page h3 { margin-top: 25px; margin-bottom: 10px; font-size: 1.2rem; color: #334155; }
-.content-page ul { margin-left: 20px; margin-bottom: 15px; }
-.content-page li { margin-bottom: 5px; color: #475569; }
-.content-page p { margin-bottom: 15px; color: #334155; }
-.content-page a { color: #4f46e5; text-decoration: underline; }
-
-/* Footer */
-footer {
-    background-color: #0f172a; /* Matches your text color dark slate */
-    color: #f1f5f9;
-    padding: 30px 0;
-    text-align: center;
-    margin-top: auto; /* Pushes to bottom */
-    width: 100%;
-}
-footer .footer-links { margin-top: 10px; }
-footer .footer-links a {
-    color: #cbd5e1;
-    margin: 0 10px;
-    text-decoration: none;
-    font-size: 14px;
-}
-footer .footer-links a:hover { color: #fff; text-decoration: underline; }
