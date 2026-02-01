@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Authenticating... | Multipost</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body style="display:flex; align-items:center; justify-content:center; height:100vh; text-align:center;">
+    <div>
+        <h1>Linking Account...</h1>
+        <p>Please wait while we secure your connection.</p>
+    </div>
+
+    <script>
+        // This page catches the 'code' and 'state' from Google/TikTok
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const state = params.get('state'); // Contains b64(folder_id|user_id)
+        const platform = params.get('platform') || 'youtube'; // Fallback
+
+        async function completeAuth() {
+            if (!code || !state) {
+                alert("Auth failed: Missing parameters.");
+                window.location.href = 'app.html';
+                return;
+            }
+
+            try {
+                // Send the code to your worker to exchange for a real token
+                const res = await fetch(`https://multipost-seo-worker.alexbryant.workers.dev/api/auth/callback?code=${code}&state=${state}&platform=${platform}`);
+                if (res.ok) {
+                    alert("Account linked successfully!");
+                } else {
+                    alert("Error saving account.");
+                }
+            } catch (e) {
+                console.error(e);
+            } finally {
+                window.location.href = 'app.html';
+            }
+        }
+        completeAuth();
+    </script>
+</body>
+</html>
