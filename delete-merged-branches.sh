@@ -35,7 +35,15 @@ branches=(
 
 for branch in "${branches[@]}"; do
     echo "  Deleting origin/$branch..."
-    git push origin --delete "$branch" 2>&1 | grep -v "error: unable to delete" || true
+    if git ls-remote --exit-code --heads origin "$branch" > /dev/null 2>&1; then
+        if git push origin --delete "$branch" 2>&1; then
+            echo "    ✓ Successfully deleted"
+        else
+            echo "    ✗ Failed to delete (check permissions)"
+        fi
+    else
+        echo "    ⊘ Already deleted or doesn't exist"
+    fi
 done
 
 echo ""

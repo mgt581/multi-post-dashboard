@@ -98,7 +98,7 @@ gh api repos/mgt581/multi-post-dashboard/git/refs/heads/copilot/update-platforms
 The merged branches contained various features and fixes:
 - Authentication guards and user scoping
 - OAuth signup flow fixes
-- Platform redirect URI issues fixes  
+- Platform redirect URI issues fixes
 - Llama 3.1 integration
 - Multiple merge attempts and documentation
 - Documentation updates (OAuth fixes, redirect URI guides, deployment guides)
