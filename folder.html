@@ -187,6 +187,7 @@
       const urlFolderId = urlParams.get('id');
       if (urlFolderId) {
         // Update localStorage with the folder ID from URL (important for OAuth redirects)
+        // Note: Backend validates folder ownership via user_id in API calls
         localStorage.setItem(scopedKey("activeFolderId"), urlFolderId);
       }
       
