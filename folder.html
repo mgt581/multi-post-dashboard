@@ -108,18 +108,14 @@
           
           if (acc) {
             // Platform is connected - show in green with username
-            const isActive = true; // Could check token expiry here if needed
-            const statusColor = isActive ? '#10b981' : '#ef4444'; // green : red
-            const statusText = isActive ? 'Connected' : 'Disconnected';
-            
             return `
               <div class="card">
                 <div class="card-icon" style="background:${meta.bg}; color:${meta.color};">
                   <i class="${meta.icon}"></i>
                 </div>
                 <div class="card-content">
-                  <span class="card-title" style="color:${statusColor}; font-weight:700;">${acc.nickname || meta.name}</span>
-                  <span class="card-sub" style="color:${statusColor}; font-weight:600;">${statusText}</span>
+                  <span class="card-title" style="color:#10b981; font-weight:700;">${acc.nickname || meta.name}</span>
+                  <span class="card-sub" style="color:#10b981; font-weight:600;">Connected</span>
                 </div>
                 <button class="header-btn" style="color:#ef4444; border:none; box-shadow:none; background:transparent;" onclick="removeAccount(${acc.id}, this)">
                   <i class="fa-solid fa-trash-can"></i>
@@ -151,28 +147,26 @@
       }
     }
 
-    function addAccount() {
-      const platform = document.getElementById("platformSelect").value;
+    function linkPlatform(platform) {
       const fId = localStorage.getItem(scopedKey("activeFolderId"));
       if (!fId || !userScope) return alert("Security Error: No session found.");
-
-      // Validate platform against known platforms to prevent misuse of DOM-derived value
+      
+      // Validate platform against known platforms to prevent misuse
       const allowedPlatforms = Object.keys(platformMeta || {});
       if (!allowedPlatforms.includes(platform)) {
         alert("Invalid platform selection.");
         return;
       }
-
+      
       const safePlatform = encodeURIComponent(platform);
       window.location.href = `${apiBase}/auth/${safePlatform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
     }
     
-    function linkPlatform(platform) {
-      const fId = localStorage.getItem(scopedKey("activeFolderId"));
-      if (!fId || !userScope) return alert("Security Error: No session found.");
-      
-      const safePlatform = encodeURIComponent(platform);
-      window.location.href = `${apiBase}/auth/${safePlatform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
+    // Legacy function kept for backward compatibility if used elsewhere
+    function addAccount() {
+      const platform = document.getElementById("platformSelect")?.value;
+      if (!platform) return;
+      linkPlatform(platform);
     }
     
     function goToCreatePost() {
