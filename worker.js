@@ -10,7 +10,9 @@ var worker_default = {
     if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
     const url = new URL(request.url);
-    const baseUrl = `https://${url.hostname}`;
+    // Use configured base URL for OAuth callbacks to ensure consistency
+    // Falls back to request hostname if not configured
+    const baseUrl = env.BASE_URL || `https://${url.hostname}`;
 
     // Helpers
     const nowMs = () => Date.now();

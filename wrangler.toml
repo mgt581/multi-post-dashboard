@@ -14,4 +14,5 @@ binding = "AI"
 
 # Environment Variables (Secrets)
 # Set these using: wrangler secret put <SECRET_NAME>
-# Required: OPENAI_API_KEY, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, FB_CLIENT_ID, FB_CLIENT_SECRET
+# Required: BASE_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, FB_CLIENT_ID, FB_CLIENT_SECRET
+# Note: BASE_URL must match the primary domain you use to access the worker (e.g., https://multipostapp.co.uk)
