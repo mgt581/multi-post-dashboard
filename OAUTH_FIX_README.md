@@ -1,5 +1,7 @@
 # OAuth Redirect URI Fix - Setup Instructions
 
+> 📌 **Quick Reference:** See [REDIRECT_URI_GUIDE.md](./REDIRECT_URI_GUIDE.md) for all platform OAuth redirect URIs at a glance.
+
 ## What Was Fixed
 
 Your platform authentication was failing because:
