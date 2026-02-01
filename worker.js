@@ -139,7 +139,15 @@ var worker_default = {
       }
 
       if (url.pathname === "/api/generate-seo") {
-        const { prompt } = await request.json();
+        const body = await request.json();
+        const { prompt } = body;
+        
+        if (!prompt) {
+          return new Response(JSON.stringify({ success: false, error: "Prompt is required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
 
         // Using Cloudflare Workers AI as requested in the snippet
         const aiResponse = await env.AI.run('@cf/meta/llama-3.1-8b-instruct-awq', {
@@ -164,7 +172,11 @@ var worker_default = {
         });
       }
 
-      return fetch(request);
+      // Return 404 for unknown routes instead of creating infinite loop
+      return new Response(JSON.stringify({ success: false, error: "Not Found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
     } catch (err) {
       return new Response(JSON.stringify({ success: false, error: err.message }), { headers: corsHeaders });
     }
