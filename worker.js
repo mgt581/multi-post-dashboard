@@ -135,7 +135,7 @@ var worker_default = {
         await env.DB.prepare("INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(folderId, userId, platform, "Linked Account", accessToken, tokens.refresh_token, nowMs() + (tokens.expires_in || 0) * 1000).run();
         await upsertToken({ folderId, userId, platform, accountId: "me", accessToken, refreshToken: tokens.refresh_token, expiresAt: nowMs() + (tokens.expires_in || 0) * 1000 });
 
-        return Response.redirect(`${frontendUrl}/folder.html?id=${folderId}`);
+        return Response.redirect(`${frontendUrl}/folder.html?id=${folderId}&success=account_linked`);
       }
 
       if (url.pathname === "/api/generate-seo") {
