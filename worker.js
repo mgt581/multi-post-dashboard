@@ -97,6 +97,9 @@ var worker_default = {
         } else if (platform === "tiktok") {
           tokenUrl = "https://open.tiktokapis.com/v2/oauth/token/";
           body = new URLSearchParams({ client_key: env.TIKTOK_CLIENT_KEY, client_secret: env.TIKTOK_CLIENT_SECRET, code, grant_type: "authorization_code", redirect_uri: callbackUri });
+        } else if (platform === "facebook") {
+          tokenUrl = "https://graph.facebook.com/v18.0/oauth/access_token";
+          body = new URLSearchParams({ code, client_id: env.FB_CLIENT_ID, client_secret: env.FB_CLIENT_SECRET, redirect_uri: callbackUri });
         }
 
         const tRes = await fetch(tokenUrl, { method: "POST", body });
