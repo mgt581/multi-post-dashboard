@@ -38,22 +38,8 @@
       </div>
     </div>
 
-    <div class="section">
-      <div class="section-title">Link New Account</div>
-      <div class="card">
-        <div class="card-content" style="display:flex; gap:10px;">
-          <select id="platformSelect" style="flex:1; padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); font-weight: 600;">
-            <option value="tiktok">TikTok</option>
-            <option value="youtube">YouTube</option>
-            <option value="facebook">Facebook</option>
-          </select>
-          <button class="btn-primary" onclick="addAccount()" style="width:auto; padding: 0 24px;">Link</button>
-        </div>
-      </div>
-    </div>
-
     <div class="section" style="margin-top: 20px;">
-      <button class="btn-primary" onclick="location.href='create-post.html'" style="background: var(--accent); box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3);">
+      <button id="seoBtn" class="btn-primary" onclick="goToCreatePost()" style="background: var(--accent); box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3);">
         <i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;"></i> Create AI SEO Post
       </button>
     </div>
@@ -102,29 +88,64 @@
         const url = `${apiBase}/get-accounts?folder_id=${fId}&user_id=${encodeURIComponent(userScope)}`;
         const res = await fetch(url);
         const accs = await res.json();
-        document.getElementById("count").innerText = `${accs.length} accounts connected`;
-
-        if (accs.length === 0) {
-          listContainer.innerHTML = `<div class="card"><div class="card-content"><p class="card-sub">No accounts linked to this brand yet.</p></div></div>`;
-          return;
-        }
-
-        listContainer.innerHTML = accs.map(acc => {
-          const meta = platformMeta[acc.platform] || { name: acc.platform, icon: "fa-solid fa-link", color: "#64748b", bg: "#f1f5f9" };
-          return `
-            <div class="card">
-              <div class="card-icon" style="background:${meta.bg}; color:${meta.color};">
-                <i class="${meta.icon}"></i>
-              </div>
-              <div class="card-content">
-                <span class="card-title">${acc.nickname || 'Active Account'}</span>
-                <span class="card-sub" style="color:${meta.color}; font-weight:700;">${meta.name} Connected</span>
-              </div>
-              <button class="header-btn" style="color:#ef4444; border:none; box-shadow:none; background:transparent;" onclick="removeAccount(${acc.id}, this)">
-                <i class="fa-solid fa-trash-can"></i>
-              </button>
-            </div>`;
+        
+        // Create a map of connected accounts by platform
+        const connectedPlatforms = {};
+        accs.forEach(acc => {
+          connectedPlatforms[acc.platform] = acc;
+        });
+        
+        // Count connected platforms for status display
+        const connectedCount = Object.keys(connectedPlatforms).length;
+        document.getElementById("count").innerText = `${connectedCount} of 3 platforms connected`;
+        
+        // Always show all 3 platforms (YouTube, TikTok, Facebook)
+        const requiredPlatforms = ['youtube', 'tiktok', 'facebook'];
+        
+        listContainer.innerHTML = requiredPlatforms.map(platform => {
+          const meta = platformMeta[platform];
+          const acc = connectedPlatforms[platform];
+          
+          if (acc) {
+            // Platform is connected - show in green with username
+            const isActive = true; // Could check token expiry here if needed
+            const statusColor = isActive ? '#10b981' : '#ef4444'; // green : red
+            const statusText = isActive ? 'Connected' : 'Disconnected';
+            
+            return `
+              <div class="card">
+                <div class="card-icon" style="background:${meta.bg}; color:${meta.color};">
+                  <i class="${meta.icon}"></i>
+                </div>
+                <div class="card-content">
+                  <span class="card-title" style="color:${statusColor}; font-weight:700;">${acc.nickname || meta.name}</span>
+                  <span class="card-sub" style="color:${statusColor}; font-weight:600;">${statusText}</span>
+                </div>
+                <button class="header-btn" style="color:#ef4444; border:none; box-shadow:none; background:transparent;" onclick="removeAccount(${acc.id}, this)">
+                  <i class="fa-solid fa-trash-can"></i>
+                </button>
+              </div>`;
+          } else {
+            // Platform not connected - show "Link Now" button
+            return `
+              <div class="card">
+                <div class="card-icon" style="background:${meta.bg}; color:${meta.color};">
+                  <i class="${meta.icon}"></i>
+                </div>
+                <div class="card-content">
+                  <span class="card-title">${meta.name}</span>
+                  <span class="card-sub" style="color:#94a3b8;">Not connected</span>
+                </div>
+                <button class="btn-primary" style="padding:8px 16px; font-size:14px;" onclick="linkPlatform('${platform}')">
+                  Link Now
+                </button>
+              </div>`;
+          }
         }).join("");
+        
+        // Update SEO button state based on whether all platforms are connected
+        updateSEOButtonState(connectedCount === 3);
+        
       } catch (err) {
         listContainer.innerHTML = `<p style="color:red; text-align:center;">Session Error.</p>`;
       }
@@ -144,6 +165,42 @@
 
       const safePlatform = encodeURIComponent(platform);
       window.location.href = `${apiBase}/auth/${safePlatform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
+    }
+    
+    function linkPlatform(platform) {
+      const fId = localStorage.getItem(scopedKey("activeFolderId"));
+      if (!fId || !userScope) return alert("Security Error: No session found.");
+      
+      const safePlatform = encodeURIComponent(platform);
+      window.location.href = `${apiBase}/auth/${safePlatform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
+    }
+    
+    function goToCreatePost() {
+      const seoBtn = document.getElementById("seoBtn");
+      if (seoBtn && seoBtn.disabled) {
+        alert("Please connect all 3 platforms (YouTube, TikTok, and Facebook) before creating posts.");
+        return;
+      }
+      location.href = 'create-post.html';
+    }
+    
+    function updateSEOButtonState(allConnected) {
+      const seoBtn = document.getElementById("seoBtn");
+      if (!seoBtn) return;
+      
+      if (allConnected) {
+        seoBtn.disabled = false;
+        seoBtn.style.background = "var(--accent)";
+        seoBtn.style.opacity = "1";
+        seoBtn.style.cursor = "pointer";
+        seoBtn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;"></i> Create AI SEO Post';
+      } else {
+        seoBtn.disabled = true;
+        seoBtn.style.background = "#94a3b8";
+        seoBtn.style.opacity = "0.6";
+        seoBtn.style.cursor = "not-allowed";
+        seoBtn.innerHTML = '<i class="fa-solid fa-lock" style="margin-right:8px;"></i> Connect all 3 platforms to unlock';
+      }
     }
 
     async function removeAccount(accountId, btnEl) {
