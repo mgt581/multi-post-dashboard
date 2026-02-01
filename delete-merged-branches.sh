@@ -52,7 +52,13 @@ echo "🧹 Cleaning up local branches..."
 for branch in "${branches[@]}"; do
     if git show-ref --verify --quiet "refs/heads/$branch"; then
         echo "  Deleting local branch $branch..."
-        git branch -D "$branch" 2>&1 || true
+        if git branch -D "$branch" 2>&1; then
+            echo "    ✓ Successfully deleted"
+        else
+            echo "    ✗ Failed to delete"
+        fi
+    else
+        echo "  ⊘ Local branch $branch doesn't exist"
     fi
 done
 
