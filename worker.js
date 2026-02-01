@@ -145,7 +145,7 @@ var worker_default = {
         if (!prompt) {
           return new Response(JSON.stringify({ success: false, error: "Prompt is required" }), {
             status: 400,
-            headers: corsHeaders
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
 
@@ -175,7 +175,7 @@ var worker_default = {
       // Return 404 for unknown routes instead of creating infinite loop
       return new Response(JSON.stringify({ success: false, error: "Not Found" }), {
         status: 404,
-        headers: corsHeaders
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     } catch (err) {
       return new Response(JSON.stringify({ success: false, error: err.message }), { headers: corsHeaders });
