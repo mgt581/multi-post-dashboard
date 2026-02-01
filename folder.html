@@ -5,90 +5,93 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Workspace View | Multipost SEO</title>
   <link rel="stylesheet" href="styles.css">
-  <style>
-    /* UI refinements for the account list */
-    .status-connected { color: #10b981; font-weight: 600; }
-    .status-disconnected { color: #6b7280; font-style: italic; }
-    .account-card { transition: transform 0.2s ease; }
-    .account-card:hover { transform: translateY(-2px); }
-    .platform-icon-img { width: 32px; height: 32px; border-radius: 6px; }
-    
-    /* Loading Overlay */
-    #secure-overlay {
-      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-      background: #f5f7fb; z-index: 9999; display: flex;
-      align-items: center; justify-content: center; font-weight: bold;
-    }
-  </style>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-  <div id="secure-overlay">Verifying Security...</div>
-
-  <div class="app">
+  <div class="app-container">
     <header class="header">
-      <a href="app.html" class="back-link">←</a> 
-      <span class="title" id="title">Loading Workspace...</span>
+      <button class="header-btn" onclick="location.href='app.html'">
+        <i class="fa-solid fa-arrow-left"></i>
+      </button>
+      <h1 id="title">Loading...</h1>
+      <div style="width:40px;"></div>
     </header>
     
-    <div class="card" style="margin:20px; border-left: 5px solid #6366f1;">
-      <div style="padding: 5px 0;">
-        <small style="text-transform: uppercase; color: #6366f1; font-weight: bold;">Current Workspace</small><br>
-        <strong id="name" style="font-size: 1.4rem;">---</strong><br>
-        <span id="count" style="color: #6b7280;">Initializing...</span>
+    <div class="section" style="margin-top:20px;">
+      <div class="card" style="background: var(--primary); color: white; border: none;">
+        <div class="card-icon" style="background: rgba(255,255,255,0.2); color: white;">
+          <i class="fa-solid fa-briefcase"></i>
+        </div>
+        <div class="card-content">
+          <span class="card-title" id="name" style="color:white;">---</span>
+          <span class="card-sub" id="count" style="color:rgba(255,255,255,0.8);">Initializing...</span>
+        </div>
       </div>
     </div>
 
-    <section class="cards" id="accountList">
-      <div style="text-align:center; padding: 40px; color: #9ca3af;">
-        Fetching secure platform data...
-      </div>
-    </section>
-
-    <div class="card" style="display:flex; flex-direction: column; gap:12px; margin:20px; background: #f9fafb;">
-      <label style="font-size: 0.9rem; font-weight: 600; color: #374151;">Connect New Platform</label>
-      <div style="display:flex; gap:10px;">
-        <select id="platformSelect" style="flex:1; padding: 10px; border-radius: 8px; border: 1px solid #d1d5db;">
-          <option value="tiktok">TikTok</option>
-          <option value="youtube">YouTube</option>
-          <option value="facebook">Facebook</option>
-        </select>
-        <button class="btn-gradient" onclick="addAccount()" style="min-width: 100px;">Add</button>
+    <div class="section">
+      <div class="section-title">Connected Platforms</div>
+      <div id="accountList">
+        <div class="card" style="justify-content: center; border: 1px dashed var(--muted); opacity: 0.6;">
+          <p class="card-sub">Fetching platform data...</p>
+        </div>
       </div>
     </div>
 
-    <div style="margin-top: 30px; padding-bottom: 50px;">
-      <button class="btn-gradient" style="width:90%; margin: 0 auto; display:block; padding: 15px; font-size: 1.1rem;" onclick="location.href='create-post.html'">
-        ✏️ Create New Post
+    <div class="section">
+      <div class="section-title">Link New Account</div>
+      <div class="card">
+        <div class="card-content" style="display:flex; gap:10px;">
+          <select id="platformSelect" style="flex:1; padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); font-weight: 600;">
+            <option value="tiktok">TikTok</option>
+            <option value="youtube">YouTube</option>
+            <option value="facebook">Facebook</option>
+          </select>
+          <button class="btn-primary" onclick="addAccount()" style="width:auto; padding: 0 24px;">Link</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" style="margin-top: 20px;">
+      <button class="btn-primary" onclick="location.href='create-post.html'" style="background: var(--accent); box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3);">
+        <i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;"></i> Create AI SEO Post
       </button>
     </div>
+
+    <nav class="bottom-nav">
+      <a href="app.html" class="nav-item">
+        <i class="fa-solid fa-house"></i>
+        <span>HOME</span>
+      </a>
+      <a href="create-post.html" class="nav-item">
+        <i class="fa-solid fa-wand-magic-sparkles"></i>
+        <span>AI SEO</span>
+      </a>
+      <a href="settings.html" class="nav-item">
+        <i class="fa-solid fa-user"></i>
+        <span>PROFILE</span>
+      </a>
+    </nav>
   </div>
 
   <script>
-    /**
-     * MULTIPOST SEO - SECURE FOLDER VIEW
-     * NO MIGRATION LOGIC - NO DATA LEAKS
-     */
     const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
     let userScope = null;
 
-    // Helper to get scoped keys
     const scopedKey = name => `${name}:${userScope}`;
 
     const platformMeta = {
-      youtube: { name: "YouTube", logo: "https://cdn.simpleicons.org/youtube/FF0000", iconBg: "#fff0f0" },
-      tiktok: { name: "TikTok", logo: "https://cdn.simpleicons.org/tiktok/000000", iconBg: "#f3f4f6" },
-      facebook: { name: "Facebook", logo: "https://cdn.simpleicons.org/facebook/1877F2", iconBg: "#f0f7ff" }
+      youtube: { name: "YouTube", icon: "fa-brands fa-youtube", color: "#ef4444", bg: "#fef2f2" },
+      tiktok: { name: "TikTok", icon: "fa-brands fa-tiktok", color: "#000", bg: "#f1f5f9" },
+      facebook: { name: "Facebook", icon: "fa-brands fa-facebook", color: "#1d4ed8", bg: "#eff6ff" }
     };
 
-    // 1. SETUP UI
     function initUI() {
       const folderName = localStorage.getItem(scopedKey("activeFolderName")) || "Workspace";
       document.getElementById("title").innerText = folderName;
       document.getElementById("name").innerText = folderName;
-      document.getElementById("secure-overlay").style.display = "none";
     }
 
-    // 2. RENDER ACCOUNTS
     async function render() {
       const fId = localStorage.getItem(scopedKey("activeFolderId"));
       if (!fId || !userScope) return;
@@ -98,80 +101,61 @@
       try {
         const url = `${apiBase}/get-accounts?folder_id=${fId}&user_id=${encodeURIComponent(userScope)}`;
         const res = await fetch(url);
-        if (!res.ok) throw new Error("Unauthorized");
-        
         const accs = await res.json();
-        document.getElementById("count").innerText = `${accs.length} total accounts connected`;
+        document.getElementById("count").innerText = `${accs.length} accounts connected`;
 
-        const grouped = accs.reduce((map, acc) => {
-          if (!map[acc.platform]) map[acc.platform] = [];
-          map[acc.platform].push(acc);
-          return map;
-        }, {});
+        if (accs.length === 0) {
+          listContainer.innerHTML = `<div class="card"><div class="card-content"><p class="card-sub">No accounts linked to this brand yet.</p></div></div>`;
+          return;
+        }
 
-        const cardsHTML = ["youtube", "tiktok", "facebook"].map(platform => {
-          const meta = platformMeta[platform];
-          const accounts = grouped[platform] || [];
-
-          if (accounts.length === 0) {
-            return `
-              <div class="card account-card" style="opacity: 0.7;">
-                <div class="icon" style="background:${meta.iconBg}; padding:8px; border-radius:10px;">
-                  <img class="platform-icon-img" src="${meta.logo}" alt="${meta.name}">
-                </div>
-                <div class="card-text">
-                  <strong>${meta.name}</strong>
-                  <div class="status-disconnected">Not Linked</div>
-                </div>
-                <button class="btn-ghost" onclick="initiateOAuth('${platform}')">Link</button>
-              </div>`;
-          }
-
-          return accounts.map(acc => `
-            <div class="card account-card">
-              <div class="icon" style="background:${meta.iconBg}; padding:8px; border-radius:10px; border: 1px solid #e5e7eb;">
-                <img class="platform-icon-img" src="${meta.logo}" alt="${meta.name}">
+        listContainer.innerHTML = accs.map(acc => {
+          const meta = platformMeta[acc.platform] || { name: acc.platform, icon: "fa-solid fa-link", color: "#64748b", bg: "#f1f5f9" };
+          return `
+            <div class="card">
+              <div class="card-icon" style="background:${meta.bg}; color:${meta.color};">
+                <i class="${meta.icon}"></i>
               </div>
-              <div class="card-text">
-                <strong>${acc.nickname || 'Active Account'}</strong>
-                <div class="status-connected">Connected</div>
+              <div class="card-content">
+                <span class="card-title">${acc.nickname || 'Active Account'}</span>
+                <span class="card-sub" style="color:${meta.color}; font-weight:700;">${meta.name} Connected</span>
               </div>
-              <button class="btn-ghost" style="color: #ef4444;" onclick="removeAccount(${acc.id}, this)">Remove</button>
-            </div>`).join("");
-        });
-
-        listContainer.innerHTML = cardsHTML.join("");
+              <button class="header-btn" style="color:#ef4444; border:none; box-shadow:none; background:transparent;" onclick="removeAccount(${acc.id}, this)">
+                <i class="fa-solid fa-trash-can"></i>
+              </button>
+            </div>`;
+        }).join("");
       } catch (err) {
-        listContainer.innerHTML = `<div class="card" style="color:red; text-align:center;">Session Error. Please return to dashboard.</div>`;
+        listContainer.innerHTML = `<p style="color:red; text-align:center;">Session Error.</p>`;
       }
     }
 
-    // 3. OAUTH LOGIC
     function addAccount() {
       const platform = document.getElementById("platformSelect").value;
-      initiateOAuth(platform);
-    }
-
-    function initiateOAuth(platform) {
       const fId = localStorage.getItem(scopedKey("activeFolderId"));
       if (!fId || !userScope) return alert("Security Error: No session found.");
 
-      const state = btoa(`${fId}|${userScope}`); 
-      window.location.href = `${apiBase}/auth/${platform}?state=${state}`;
+      // Validate platform against known platforms to prevent misuse of DOM-derived value
+      const allowedPlatforms = Object.keys(platformMeta || {});
+      if (!allowedPlatforms.includes(platform)) {
+        alert("Invalid platform selection.");
+        return;
+      }
+
+      const safePlatform = encodeURIComponent(platform);
+      window.location.href = `${apiBase}/auth/${safePlatform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
     }
 
-    // 4. REMOVE ACCOUNT
     async function removeAccount(accountId, btnEl) {
       if (!confirm("Remove this account?")) return;
-      btnEl.disabled = true;
       try {
-        const res = await fetch(`${apiBase}/delete-folder`, { 
+        await fetch(`${apiBase}/delete-folder`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: accountId, user_id: userScope, type: "account_only" }),
         });
-        if (res.ok) render();
-      } catch (err) { alert("Error removing account"); btnEl.disabled = false; }
+        render();
+      } catch (err) { alert("Error removing account"); }
     }
   </script>
 
@@ -196,11 +180,7 @@
         window.location.href = "signin.html";
         return;
       }
-      
-      // Set the verified user scope
       userScope = user.uid || user.email;
-      
-      // Now that we have the scope, we can safely initialize the UI and Data
       initUI();
       render();
     });
