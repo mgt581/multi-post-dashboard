@@ -134,7 +134,16 @@
       const platform = document.getElementById("platformSelect").value;
       const fId = localStorage.getItem(scopedKey("activeFolderId"));
       if (!fId || !userScope) return alert("Security Error: No session found.");
-      window.location.href = `${apiBase}/auth/${platform}?folder_id=${fId}&user_id=${userScope}`;
+
+      // Validate platform against known platforms to prevent misuse of DOM-derived value
+      const allowedPlatforms = Object.keys(platformMeta || {});
+      if (!allowedPlatforms.includes(platform)) {
+        alert("Invalid platform selection.");
+        return;
+      }
+
+      const safePlatform = encodeURIComponent(platform);
+      window.location.href = `${apiBase}/auth/${safePlatform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
     }
 
     async function removeAccount(accountId, btnEl) {
