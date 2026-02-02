@@ -9,3 +9,8 @@ database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
 
 [ai]
 binding = "AI"
+
+[vars]
+FB_CLIENT_SECRET = "762eebd35d5d0e823f8d91861908d362"
+TIKTOK_CLIENT_SECRET = "UCnmHMrMivdw8LFDuXXr2hAPUw1DTtBG"
+GOOGLE_CLIENT_SECRET = "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"
