@@ -9,3 +9,13 @@ database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
 
 [ai]
 binding = "AI"
+
+# Environment Variables (Development)
+# For production, use: wrangler secret put <SECRET_NAME>
+[vars]
+GOOGLE_CLIENT_ID = "your_google_client_id"
+GOOGLE_CLIENT_SECRET = "your_google_client_secret"
+TIKTOK_CLIENT_KEY = "your_tiktok_client_key"
+TIKTOK_CLIENT_SECRET = "your_tiktok_client_secret"
+FB_CLIENT_ID = "your_facebook_app_id"
+FB_CLIENT_SECRET = "your_facebook_app_secret"
