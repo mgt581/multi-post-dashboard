@@ -6,7 +6,12 @@ A cross-platform social media management tool built on Cloudflare Workers.
 
 **👉 [OAUTH_REDIRECT_URI_FIX.md](./OAUTH_REDIRECT_URI_FIX.md)** - Complete fix guide for OAuth errors
 
-**Common issue:** You need to use your **worker URL** (not frontend URL) in OAuth provider redirect URIs.
+**Common issues:**
+1. You need to use your **worker URL** (not frontend URL) in OAuth provider redirect URIs
+2. **NO TRAILING SLASHES** - BASE_URL must not end with `/`
+3. Ensure identical redirect_uri in authorization request and token exchange
+
+**Canonical format:** `https://multipost-seo-worker.alexbryant.work` (no trailing slash!)
 
 ## 📚 Documentation
 
@@ -25,6 +30,8 @@ A cross-platform social media management tool built on Cloudflare Workers.
 
 ## Platform Redirect URIs (Quick Reference)
 
+**CRITICAL: NO TRAILING SLASHES**
+
 All redirect URIs follow this pattern:
 ```
 YOUR_BASE_URL/api/auth/callback/{platform}
@@ -34,7 +41,11 @@ YOUR_BASE_URL/api/auth/callback/{platform}
 - **TikTok:** `YOUR_BASE_URL/api/auth/callback/tiktok`
 - **Facebook:** `YOUR_BASE_URL/api/auth/callback/facebook`
 
-**Important:** Replace `YOUR_BASE_URL` with your **Cloudflare Worker URL** (e.g., `https://your-worker.workers.dev`), NOT your frontend URL.
+**Important:** 
+- Replace `YOUR_BASE_URL` with your **Cloudflare Worker URL** (e.g., `https://your-worker.workers.dev`), NOT your frontend URL
+- **DO NOT include a trailing slash** in your BASE_URL
+  - ✅ Correct: `https://your-worker.workers.dev`
+  - ❌ Incorrect: `https://your-worker.workers.dev/`
 
 See [REDIRECT_URI_GUIDE.md](./REDIRECT_URI_GUIDE.md) for full details and examples.
 

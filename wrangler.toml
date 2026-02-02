@@ -16,5 +16,11 @@ binding = "AI"
 # Set these using: wrangler secret put <SECRET_NAME>
 # Required: BASE_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, FB_CLIENT_ID, FB_CLIENT_SECRET
 # Optional: FRONTEND_URL (if frontend is hosted separately from the worker)
-# Note: BASE_URL is used for OAuth redirect URIs and must match what's configured in OAuth apps (e.g., https://multipost-seo-worker.workers.dev)
-# Note: FRONTEND_URL is where users are redirected after OAuth (e.g., https://multipostapp.co.uk). If not set, uses BASE_URL.
+#
+# CRITICAL - NO TRAILING SLASHES:
+#   ✅ Correct:   wrangler secret put BASE_URL → https://multipost-seo-worker.alexbryant.work
+#   ❌ Incorrect: wrangler secret put BASE_URL → https://multipost-seo-worker.alexbryant.work/
+#
+# BASE_URL is used for OAuth redirect URIs and must match EXACTLY what's configured in OAuth apps
+# FRONTEND_URL is where users are redirected after OAuth (e.g., https://multipostapp.co.uk)
+# If FRONTEND_URL not set, uses BASE_URL.

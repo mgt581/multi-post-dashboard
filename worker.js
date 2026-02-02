@@ -15,7 +15,7 @@ var worker_default = {
     // OAUTH REDIRECT URI CONFIGURATION
     // ============================================================================
     // BASE_URL: The worker URL used for OAuth callbacks (MUST be set via wrangler secret)
-    // Example: https://multipost-seo-worker.alexbryant.workers.dev
+    // Example: https://multipost-seo-worker.alexbryant.work
     // 
     // This is the canonical base URL for OAuth redirect URIs:
     //   - YouTube: {BASE_URL}/api/auth/callback/youtube
@@ -27,13 +27,43 @@ var worker_default = {
     //   - TikTok Developer Portal
     //   - Meta Developer Dashboard (Facebook)
     //
+    // CANONICAL RULE: NO TRAILING SLASH
+    //   ✅ Correct:   https://multipost-seo-worker.alexbryant.work
+    //   ❌ Incorrect: https://multipost-seo-worker.alexbryant.work/
+    //
     // Falls back to request hostname if not configured (for development/testing)
     // ============================================================================
-    const baseUrl = env.BASE_URL || `https://${url.hostname}`;
+    
+    // Utility: Remove trailing slashes to ensure OAuth redirect URI consistency
+    const normalizeUrl = (urlString) => {
+      if (!urlString) return urlString;
+      
+      // Handle edge case: single slash would become empty string
+      if (urlString === '/') {
+        console.error('❌ Invalid BASE_URL: cannot be just a single slash');
+        return urlString;
+      }
+      
+      const normalized = urlString.replace(/\/+$/, '');
+      
+      // Validate the normalized URL is still valid
+      if (normalized.length === 0) {
+        console.error(`❌ Invalid BASE_URL after normalization: "${urlString}"`);
+        return urlString; // Return original to avoid breaking things
+      }
+      
+      if (normalized !== urlString) {
+        console.warn(`⚠️  TRAILING SLASH DETECTED: "${urlString}" normalized to "${normalized}"`);
+        console.warn('    Please update your environment variable to remove the trailing slash.');
+      }
+      return normalized;
+    };
+    
+    const baseUrl = normalizeUrl(env.BASE_URL || `https://${url.hostname}`);
     
     // Frontend URL for redirects after OAuth (can be different from API base URL)
     // If not set, assumes frontend is served from same domain as API
-    const frontendUrl = env.FRONTEND_URL || baseUrl;
+    const frontendUrl = normalizeUrl(env.FRONTEND_URL || baseUrl);
 
     // Helpers
     const nowMs = () => Date.now();
@@ -138,8 +168,14 @@ var worker_default = {
         // Construct the canonical redirect URI for this platform
         // This MUST be identical to what's used in the callback handler below
         const redirect = `${baseUrl}/api/auth/callback/${platform}`;
-        console.log(`Initiating OAuth for ${platform} with redirect URI: ${redirect}`);
-        console.log(`BASE_URL env: ${env.BASE_URL || 'not set'}, Using: ${baseUrl}`);
+        
+        // Enhanced logging for redirect URI validation
+        console.log('═══════════════════════════════════════════════════════');
+        console.log(`🔐 OAuth Initiation: ${platform.toUpperCase()}`);
+        console.log(`   BASE_URL env: ${env.BASE_URL || 'not set'}`);
+        console.log(`   Normalized baseUrl: ${baseUrl}`);
+        console.log(`   Redirect URI: ${redirect}`);
+        console.log('═══════════════════════════════════════════════════════');
         
         const state = encodeState({ folderId: url.searchParams.get("folder_id"), userId: url.searchParams.get("user_id"), platform });
 
@@ -180,7 +216,13 @@ var worker_default = {
         // Use the SAME redirect URI construction as in auth initiation
         const callbackUri = `${baseUrl}/api/auth/callback/${platform}`;
 
-        console.log(`OAuth callback for ${platform}, callbackUri: ${callbackUri}, has code: ${!!code}, error: ${error || 'none'}`);
+        // Enhanced logging for redirect URI validation
+        console.log('═══════════════════════════════════════════════════════');
+        console.log(`🔐 OAuth Callback: ${platform.toUpperCase()}`);
+        console.log(`   Callback URI: ${callbackUri}`);
+        console.log(`   Has code: ${!!code}`);
+        console.log(`   Error: ${error || 'none'}`);
+        console.log('═══════════════════════════════════════════════════════');
 
         // Handle OAuth errors (e.g., user denied access or redirect URI mismatch)
         if (error || !code) {
@@ -200,7 +242,8 @@ var worker_default = {
           body = new URLSearchParams({ code, client_id: env.FB_CLIENT_ID, client_secret: env.FB_CLIENT_SECRET, redirect_uri: callbackUri });
         }
 
-        console.log(`Exchanging code for ${platform} at ${tokenUrl}`);
+        console.log(`🔄 Exchanging code for ${platform} at ${tokenUrl}`);
+        console.log(`   Using redirect_uri: ${callbackUri}`);
         const tRes = await fetch(tokenUrl, { method: "POST", body });
         const tokens = await safeJson(tRes);
         const accessToken = tokens.access_token || tokens.data?.access_token;
