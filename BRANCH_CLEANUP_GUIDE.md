@@ -17,7 +17,7 @@ The following branches should be deleted after this PR is merged into main:
 ## Steps to Complete Cleanup
 
 ### Step 1: Merge This PR into Main
-1. Review this PR (#current)
+1. Review this PR (#35)
 2. Merge this PR into the `main` branch
 3. Verify the merge was successful
 
