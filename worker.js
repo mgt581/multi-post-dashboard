@@ -54,7 +54,7 @@ var worker_default = {
       
       if (normalized !== urlString) {
         console.warn(`⚠️  TRAILING SLASH DETECTED: "${urlString}" normalized to "${normalized}"`);
-        console.warn('   Please update your environment variable to remove the trailing slash.');
+        console.warn('    Please update your environment variable to remove the trailing slash.');
       }
       return normalized;
     };
@@ -175,7 +175,6 @@ var worker_default = {
         console.log(`   BASE_URL env: ${env.BASE_URL || 'not set'}`);
         console.log(`   Normalized baseUrl: ${baseUrl}`);
         console.log(`   Redirect URI: ${redirect}`);
-        console.log(`   ✓ Validation: No trailing slash on redirect URI`);
         console.log('═══════════════════════════════════════════════════════');
         
         const state = encodeState({ folderId: url.searchParams.get("folder_id"), userId: url.searchParams.get("user_id"), platform });
@@ -223,7 +222,6 @@ var worker_default = {
         console.log(`   Callback URI: ${callbackUri}`);
         console.log(`   Has code: ${!!code}`);
         console.log(`   Error: ${error || 'none'}`);
-        console.log(`   ✓ Validation: No trailing slash on callback URI`);
         console.log('═══════════════════════════════════════════════════════');
 
         // Handle OAuth errors (e.g., user denied access or redirect URI mismatch)
