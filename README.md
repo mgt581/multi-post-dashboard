@@ -6,7 +6,9 @@ A cross-platform social media management tool built on Cloudflare Workers.
 
 ### 🔴 CRITICAL: BASE_URL must be your WORKER URL, not your frontend URL!
 
-**👉 [TROUBLESHOOTING_REDIRECT_URI_MISMATCH.md](./TROUBLESHOOTING_REDIRECT_URI_MISMATCH.md)** - **START HERE for step-by-step fix**
+**🚀 Quick Fix (5 min):** [QUICK_FIX_GUIDE.md](./QUICK_FIX_GUIDE.md) - **Start here!**
+
+**📖 Detailed Troubleshooting:** [TROUBLESHOOTING_REDIRECT_URI_MISMATCH.md](./TROUBLESHOOTING_REDIRECT_URI_MISMATCH.md)
 
 **Quick diagnosis:**
 ```bash
