@@ -37,7 +37,21 @@ var worker_default = {
     // Utility: Remove trailing slashes to ensure OAuth redirect URI consistency
     const normalizeUrl = (urlString) => {
       if (!urlString) return urlString;
+      
+      // Handle edge case: single slash would become empty string
+      if (urlString === '/') {
+        console.error('❌ Invalid BASE_URL: cannot be just a single slash');
+        return urlString;
+      }
+      
       const normalized = urlString.replace(/\/+$/, '');
+      
+      // Validate the normalized URL is still valid
+      if (normalized.length === 0) {
+        console.error(`❌ Invalid BASE_URL after normalization: "${urlString}"`);
+        return urlString; // Return original to avoid breaking things
+      }
+      
       if (normalized !== urlString) {
         console.warn(`⚠️  TRAILING SLASH DETECTED: "${urlString}" normalized to "${normalized}"`);
         console.warn('   Please update your environment variable to remove the trailing slash.');
@@ -161,7 +175,7 @@ var worker_default = {
         console.log(`   BASE_URL env: ${env.BASE_URL || 'not set'}`);
         console.log(`   Normalized baseUrl: ${baseUrl}`);
         console.log(`   Redirect URI: ${redirect}`);
-        console.log(`   ✓ No trailing slash: ${!redirect.endsWith('/')}`);
+        console.log(`   ✓ Validation: No trailing slash on redirect URI`);
         console.log('═══════════════════════════════════════════════════════');
         
         const state = encodeState({ folderId: url.searchParams.get("folder_id"), userId: url.searchParams.get("user_id"), platform });
@@ -209,7 +223,7 @@ var worker_default = {
         console.log(`   Callback URI: ${callbackUri}`);
         console.log(`   Has code: ${!!code}`);
         console.log(`   Error: ${error || 'none'}`);
-        console.log(`   ✓ No trailing slash: ${!callbackUri.endsWith('/')}`);
+        console.log(`   ✓ Validation: No trailing slash on callback URI`);
         console.log('═══════════════════════════════════════════════════════');
 
         // Handle OAuth errors (e.g., user denied access or redirect URI mismatch)
