@@ -60,8 +60,11 @@
     </nav>
   </div>
 
+  <!-- Centralized API Configuration -->
+  <script src="config.js"></script>
+  
   <script>
-    const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
+    const apiBase = API_BASE;
     let userScope = null;
 
     const scopedKey = name => `${name}:${userScope}`;

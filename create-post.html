@@ -261,8 +261,11 @@
     });
   </script>
 
+  <!-- Centralized API Configuration -->
+  <script src="config.js"></script>
+  
   <script>
-    const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
+    const apiBase = API_BASE;
     const statusEl = document.getElementById("status");
     const generateBtn = document.getElementById("generateBtn");
 
