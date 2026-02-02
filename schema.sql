@@ -1,10 +1,14 @@
+-- Multipost Database Schema for Cloudflare D1
+
+-- Folders table
 CREATE TABLE IF NOT EXISTS folders (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
   user_id TEXT NOT NULL,
-  created_at INTEGER DEFAULT (strftime('%s','now'))
+  name TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Accounts table (linked social media accounts)
 CREATE TABLE IF NOT EXISTS accounts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   folder_id INTEGER NOT NULL,
@@ -14,21 +18,11 @@ CREATE TABLE IF NOT EXISTS accounts (
   access_token TEXT,
   refresh_token TEXT,
   expires_at INTEGER,
-  created_at INTEGER DEFAULT (strftime('%s','now')),
-  FOREIGN KEY (folder_id) REFERENCES folders(id)
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS tokens (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  folder_id INTEGER NOT NULL,
-  platform TEXT NOT NULL,
-  account_id TEXT NOT NULL,
-  access_token TEXT NOT NULL,
-  refresh_token TEXT,
-  expires_at INTEGER,
-  scope TEXT,
-  updated_at INTEGER DEFAULT (strftime('%s','now')),
-  user_id TEXT,
-  UNIQUE(folder_id, platform, account_id),
-  FOREIGN KEY (folder_id) REFERENCES folders(id)
-);
+-- Index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_accounts_folder ON accounts(folder_id);
+CREATE INDEX IF NOT EXISTS idx_folders_user ON folders(user_id);
+CREATE INDEX IF NOT EXISTS idx_accounts_user ON accounts(user_id);

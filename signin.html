@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multipost App | Access Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg: #f5f7fb;
+            --text: #0f172a;
+            --muted: #64748b;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --grad: linear-gradient(135deg, #4f46e5, #06b6d4);
+        }
+        body {
+            background: var(--bg);
+            font-family: 'Inter', sans-serif;
+            color: var(--text);
+        }
+        .glass-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            box-shadow: 0 18px 40px rgba(15,23,42,0.08);
+        }
+        .input-focus { transition: all 0.3s ease; }
+        .input-focus:focus {
+            background: #f8fafc;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
+        }
+        .loader-dot { animation: dot-pulse 1.5s infinite ease-in-out; }
+        @keyframes dot-pulse {
+            0%, 100% { opacity: 0.2; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+        .btn-grad {
+            background: var(--grad);
+            color: #fff;
+            font-weight: 800;
+            border: none;
+            border-radius: 16px;
+            padding: 14px;
+            box-shadow: 0 18px 32px rgba(79, 70, 229, 0.22);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-6">
+<div id="auth-container"
+     class="glass-card w-full max-w-md p-10 rounded-[2.5rem] transition-all duration-500">
+    <div class="text-center mb-10">
+        <div class="inline-block p-3 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 mb-4 shadow-lg shadow-blue-500/20">
+            <img src="logo.png" alt="Multipost logo" class="w-16 h-16 rounded-2xl">
+        </div>
+        <h1 class="text-4xl font-black tracking-tighter text-transparent bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 bg-clip-text">
+            Multipost
+        </h1>
+        <p id="form-hint"
+           class="text-slate-500 mt-3 font-medium text-sm tracking-wide">
+            Secure access to your multi-channel dashboard
+        </p>
+    </div>
+
+    <div class="space-y-6">
+        <input id="email" type="email" placeholder="name@company.com"
+               class="input-focus w-full bg-white border border-slate-200 rounded-2xl p-4 text-slate-900">
+        <input id="password" type="password" placeholder="••••••••"
+               class="input-focus w-full bg-white border border-slate-200 rounded-2xl p-4 text-slate-900">
+
+        <div class="flex justify-between items-center px-1">
+            <button type="button" onclick="handlePasswordReset()"
+                    class="text-sm font-semibold text-blue-600 hover:text-blue-700">
+                Forgot password?
+            </button>
+        </div>
+
+        <button onclick="handleAuthSubmit()"
+                class="btn-grad w-full py-4 rounded-2xl flex justify-center items-center">
+            <span id="btn-text">Sign In / Up</span>
+            <div id="btn-loader" class="hidden flex gap-1">
+                <div class="w-2 h-2 bg-white rounded-full loader-dot"></div>
+                <div class="w-2 h-2 bg-white rounded-full loader-dot"></div>
+                <div class="w-2 h-2 bg-white rounded-full loader-dot"></div>
+            </div>
+        </button>
+
+        <p class="text-center text-xs text-slate-400">
+            One account for both Sign In and Sign Up
+        </p>
+    </div>
+
+    <div class="relative my-8">
+        <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-200"></div></div>
+        <div class="relative flex justify-center text-xs uppercase"><span class="bg-white px-2 text-slate-400">Or continue with</span></div>
+    </div>
+
+    <button onclick="handleGoogleSignIn()"
+            class="w-full bg-white text-black py-4 rounded-2xl flex justify-center gap-3 border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5">
+        Google Account
+    </button>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import {
+    getAuth,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    GoogleAuthProvider,
+    signInWithRedirect,
+    getRedirectResult,
+    onAuthStateChanged,
+    sendPasswordResetEmail,
+    fetchSignInMethodsForEmail
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
+    authDomain: "multi-post-daefc.firebaseapp.com",
+    projectId: "multi-post-daefc",
+    storageBucket: "multi-post-daefc.appspot.com",
+    messagingSenderId: "1099160429576",
+    appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd",
+    measurementId: "G-NY0N8KKH0N"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
+
+getRedirectResult(auth).catch((error) => alert(error.message));
+
+window.handleAuthSubmit = async () => {
+    const btnText = document.getElementById("btn-text");
+    const btnLoader = document.getElementById("btn-loader");
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    if (!email || !password) {
+        alert("Please enter email and password");
+        return;
+    }
+
+    btnText.classList.add("hidden");
+    btnLoader.classList.remove("hidden");
+
+    try {
+        // Try login first
+        await signInWithEmailAndPassword(auth, email, password);
+        window.location.href = "app.html";
+    } catch (err) {
+        if (err.code === 'auth/user-not-found') {
+            // User doesn't exist, try creating
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                window.location.href = "app.html";
+            } catch (createErr) {
+                alert(createErr.message);
+            }
+        } else if (err.code === 'auth/wrong-password') {
+            alert("Incorrect password. Please try again.");
+        } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-email') {
+             // Some modern Firebase versions return invalid-credential for non-existent users too
+             try {
+                await createUserWithEmailAndPassword(auth, email, password);
+                window.location.href = "app.html";
+             } catch(e) {
+                alert(err.message);
+             }
+        } else {
+            alert(err.message);
+        }
+        btnText.classList.remove("hidden");
+        btnLoader.classList.add("hidden");
+    }
+};
+
+window.handleGoogleSignIn = () => signInWithRedirect(auth, provider);
+
+window.handlePasswordReset = async () => {
+    const email = document.getElementById("email").value.trim();
+    if (!email) { alert("Enter your email first"); return; }
+    try {
+        await sendPasswordResetEmail(auth, email);
+        alert("Password reset email sent!");
+    } catch (err) { alert(err.message); }
+};
+
+onAuthStateChanged(auth, (user) => {
+    if (user) window.location.href = "app.html";
+});
+</script>
+</body>
+</html>

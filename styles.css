@@ -1,216 +1,178 @@
 /* =========================
-   BASE / RESET (iOS SAFE)
+   MODERN APP UI DESIGN (Indigo & Green)
 ========================= */
-html, body {
+:root {
+  --primary: #4f46e5;
+  --primary-light: #818cf8;
+  --accent: #10b981;
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --text: #1e293b;
+  --muted: #64748b;
+  --border: #f1f5f9;
+  --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --nav-height: 70px;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
   margin: 0;
-  padding: 0;
-  height: 100%;
-  background: #e8f6fb; /* light cyan like reference */
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  padding: 0 0 var(--nav-height) 0;
+  background: var(--bg);
+  font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  color: var(--text);
+  line-height: 1.5;
 }
 
-/* Explicit reset instead of universal * selector */
-body * {
-  box-sizing: border-box;
-}
-
-/* =========================
-   APP WRAPPER
-========================= */
-.app {
-  max-width: 420px;
+.app-container {
+  max-width: 500px;
   margin: 0 auto;
   min-height: 100vh;
-  background: #e8f6fb;
+  position: relative;
 }
 
 /* =========================
-   HEADER (TOP BAR)
+   HEADER
 ========================= */
 .header {
-  height: 56px;
-  background: #ffffff;
+  padding: 24px 20px 10px;
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  border-bottom: 2px solid #d7eef6;
+  align-items: center;
+  background: var(--bg);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
-.title {
-  font-weight: 700;
-  font-size: 16px;
-  color: #3aa7e6;
+.header h1 {
+  font-size: 24px;
+  font-weight: 800;
+  margin: 0;
+  letter-spacing: -0.5px;
 }
 
-.gear {
-  font-size: 18px;
-}
-
-/* =========================
-   HERO (BLUE CLOUD PANEL)
-========================= */
-.hero {
-  height: 220px;              /* FIXED height – critical */
-  background: #3aa7e6;        /* reference blue */
+.header-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--card);
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.cloud-wrap {
-  text-align: center;
-}
-
-/* Cloud base */
-.cloud {
-  width: 140px;
-  height: 90px;
-  background-color: #ffffff !important;
-  border-radius: 50px;
-  position: relative;
-  margin: 0 auto;
-}
-
-/* Cloud bumps */
-.cloud::before,
-.cloud::after {
-  content: "";
-  position: absolute;
-  background-color: #ffffff !important;
-  border-radius: 50%;
-}
-
-.cloud::before {
-  width: 70px;
-  height: 70px;
-  top: -35px;
-  left: 10px;
-}
-
-.cloud::after {
-  width: 90px;
-  height: 90px;
-  top: -45px;
-  right: 10px;
-}
-
-/* Folder icon inside cloud */
-.folder {
-  width: 36px;
-  height: 26px;
-  background: #ff9f2f;
-  border-radius: 5px;
-  position: absolute;
-  bottom: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  box-shadow: 0 2px 0 rgba(0,0,0,0.08);
-}
-
-/* Storage text */
-.storage-text {
-  margin-top: 12px;
-  font-weight: 600;
-  font-size: 14px;
-  color: #ffffff;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  color: var(--text);
 }
 
 /* =========================
-   UPLOAD LABEL
+   CARDS & GRID
 ========================= */
-.upload-title {
-  padding: 16px 0;
-  text-align: center;
-}
-
-.upload-icon {
-  font-size: 32px;
-  color: #ff9f2f;
-}
-
-.upload-text {
-  margin-top: 4px;
-  font-weight: 700;
-  color: #3aa7e6;
-}
-
-/* =========================
-   ACTION CARDS (PIC 1 STYLE)
-========================= */
-.cards {
-  padding: 0 14px 20px;
-}
+.section { padding: 0 20px; margin-bottom: 24px; }
+.section-title { font-size: 14px; font-weight: 700; color: var(--muted); text-transform: uppercase; margin-bottom: 12px; letter-spacing: 0.5px; }
 
 .card {
-  background: #e8f6fb;
-  border: 3px solid #74bfe6;
-  border-radius: 16px;
+  background: var(--card);
+  border-radius: 20px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
   display: flex;
   align-items: center;
-  padding: 14px;
-  margin-bottom: 14px;
+  gap: 16px;
+  transition: transform 0.2s ease;
 }
 
-/* Left icon */
-.icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 12px;
+.card:active { transform: scale(0.98); }
+
+.card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
-  font-weight: 900;
-  color: #ffffff;
-  margin-right: 12px;
+  font-size: 20px;
+  background: var(--bg);
 }
 
-/* Text block */
-.card-text {
-  flex: 1;
-}
-
-.card-text strong {
-  display: block;
-  font-size: 15px;
-  font-weight: 800;
-}
-
-.card-text span {
-  display: block;
-  font-size: 12px;
-  margin-top: 4px;
-  opacity: 0.75;
-}
-
-/* Chevron */
-.arrow {
-  font-size: 28px;
-  font-weight: 900;
-  color: #ff6a6a;
-}
+.card-content { flex: 1; }
+.card-title { font-weight: 700; font-size: 16px; display: block; }
+.card-sub { font-size: 13px; color: var(--muted); }
 
 /* =========================
-   PLATFORM COLOURS
+   BOTTOM NAVIGATION
 ========================= */
-.green { background: #16a34a; }      /* Posting page */
-.blue  { background: #1877f2; }      /* Facebook */
-.black { background: #000000; }      /* TikTok */
-
-.red {
-  background: #ffffff;
-  color: #dc2626;
-  border: 2px solid #dc2626;
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--nav-height);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--border);
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 0 20px;
+  z-index: 100;
 }
 
-/* Instagram gradient */
-.insta {
-  background: linear-gradient(
-    45deg,
-    #f58529,
-    #dd2a7b,
-    #8134af,
-    #515bd4
-  );
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  gap: 4px;
+}
+
+.nav-item.active { color: var(--primary); }
+.nav-item i { font-size: 20px; }
+
+/* =========================
+   BUTTONS
+========================= */
+.btn-primary {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 14px 24px;
+  border-radius: 16px;
+  font-weight: 700;
+  width: 100%;
+  cursor: pointer;
+  box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.btn-secondary {
+  background: var(--card);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 14px 24px;
+  border-radius: 16px;
+  font-weight: 700;
+  width: 100%;
+  cursor: pointer;
+}
+
+textarea, input {
+  width: 100%;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 15px;
+  font-family: inherit;
+  margin-bottom: 12px;
 }

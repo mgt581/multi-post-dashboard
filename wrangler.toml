@@ -1,3 +1,20 @@
 name = "multipost-seo-worker"
-main = "multipost-worker/worker.js"
-compatibility_date = "2024-04-01"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "accountsmultipostapp"
+database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
+
+# AI Binding for Llama Model
+[ai]
+binding = "AI"
+
+# Environment Variables (Secrets)
+# Set these using: wrangler secret put <SECRET_NAME>
+# Required: BASE_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, FB_CLIENT_ID, FB_CLIENT_SECRET
+# Optional: FRONTEND_URL (if frontend is hosted separately from the worker)
+# Note: BASE_URL is used for OAuth redirect URIs and must match what's configured in OAuth apps (e.g., https://multipost-seo-worker.workers.dev)
+# Note: FRONTEND_URL is where users are redirected after OAuth (e.g., https://multipostapp.co.uk). If not set, uses BASE_URL.
