@@ -1,3 +1,28 @@
 .wrangler/
 node_modules/
 test-*.html
+
+# Editor backup files
+*.save
+*.backup
+*.swp
+*.swo
+*~
+.*.swp
+.*.swo
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+
+# Git merge files
+*.orig
+*.rej
