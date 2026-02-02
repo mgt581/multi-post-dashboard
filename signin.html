@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multipost App | Access Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --bg: #f5f7fb;
+            --text: #0f172a;
+            --muted: #64748b;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --grad: linear-gradient(135deg, #4f46e5, #06b6d4);
+        }
+        body {
+            background: var(--bg);
+            font-family: 'Inter', sans-serif;
+            color: var(--text);
+        }
+        .glass-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            box-shadow: 0 18px 40px rgba(15,23,42,0.08);
+        }
+        .error-shake { animation: shake 0.4s; }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
+        .input-focus { transition: all 0.3s ease; }
+        .input-focus:focus {
+            background: #f8fafc;
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.18);
+        }
+        .loader-dot { animation: dot-pulse 1.5s infinite ease-in-out; }
+        @keyframes dot-pulse {
+            0%, 100% { opacity: 0.2; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+        .btn-grad {
+            background: var(--grad);
+            color: #fff;
+            font-weight: 800;
+            border: none;
+            border-radius: 16px;
+            padding: 14px;
+            box-shadow: 0 18px 32px rgba(79, 70, 229, 0.22);
+        }
+        .tab-btn {
+            border-radius: 14px;
+            font-weight: 800;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-6">
+<div id="auth-container"
+     class="glass-card w-full max-w-md p-10 rounded-[2.5rem] transition-all duration-500">
+    <div class="text-center mb-10">
+        <div class="inline-block p-3 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 mb-4 shadow-lg shadow-blue-500/20">
+            <img src="logo.png" alt="Multipost logo" class="w-16 h-16 rounded-2xl">
+        </div>
+        <h1 class="text-4xl font-black tracking-tighter text-transparent bg-gradient-to-r from-blue-500 via-cyan-400 to-emerald-400 bg-clip-text">
+            Multipost
+        </h1>
+        <p id="form-hint"
+           class="text-slate-500 mt-3 font-medium text-sm tracking-wide">
+            Secure access to your multi-channel dashboard
+        </p>
+    </div>
+    <div class="flex bg-white p-1.5 rounded-2xl mb-8 border border-slate-200 shadow-sm">
+        <button id="tab-login"
+                onclick="switchMode('login')"
+                class="tab-btn flex-1 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-bold uppercase tracking-widest text-white shadow-lg">
+            Sign In
+        </button>
+        <button id="tab-signup"
+                onclick="switchMode('signup')"
+                class="tab-btn flex-1 py-3 rounded-xl text-slate-500 text-sm font-bold uppercase tracking-widest hover:text-blue-600">
+            Sign Up
+        </button>
+    </div>
+    <div class="space-y-6">
+        <input id="email" type="email" placeholder="name@company.com"
+               class="input-focus w-full bg-white border border-slate-200 rounded-2xl p-4 text-slate-900">
+        <input id="password" type="password" placeholder="••••••••"
+               class="input-focus w-full bg-white border border-slate-200 rounded-2xl p-4 text-slate-900">
+        <button type="button" onclick="handlePasswordReset()"
+                class="text-sm font-semibold text-blue-600 hover:text-blue-700 text-left">
+            Forgot password?
+        </button>
+        <button onclick="handleAuthSubmit()"
+                class="btn-grad w-full py-4 rounded-2xl flex justify-center items-center">
+            <span id="btn-text">Enter Workspace</span>
+            <div id="btn-loader" class="hidden flex gap-1">
+                <div class="w-2 h-2 bg-white rounded-full loader-dot"></div>
+                <div class="w-2 h-2 bg-white rounded-full loader-dot"></div>
+                <div class="w-2 h-2 bg-white rounded-full loader-dot"></div>
+            </div>
+        </button>
+    </div>
+    <button onclick="handleGoogleSignIn()"
+            class="mt-10 w-full bg-white text-black py-4 rounded-2xl flex justify-center gap-3 border border-slate-200 shadow-sm">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5">
+        Continue with Google
+    </button>
+</div>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import {
+    getAuth,
+    createUserWithEmailAndPassword,
+    signInWithEmailAndPassword,
+    GoogleAuthProvider,
+    signInWithRedirect,
+    getRedirectResult,
+    onAuthStateChanged,
+    sendPasswordResetEmail,
+    signOut
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+const firebaseConfig = {
+    apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
+    authDomain: "multi-post-daefc.firebaseapp.com",
+    projectId: "multi-post-daefc",
+    storageBucket: "multi-post-daefc.appspot.com",
+    messagingSenderId: "1099160429576",
+    appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd",
+    measurementId: "G-NY0N8KKH0N"
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
+
+const STATE_KEYS = ["folders", "activeFolder", "activeFolderId", "activeFolderName"];
+const SCOPED_PREFIXES = ["folders:", "activeFolder:", "activeFolderId:", "activeFolderName:"];
+
+const clearWorkspaceState = () => {
+    STATE_KEYS.forEach(key => localStorage.removeItem(key));
+    SCOPED_PREFIXES.forEach(prefix => {
+        Object.keys(localStorage).forEach(k => {
+            if (k.startsWith(prefix)) {
+                localStorage.removeItem(k);
+            }
+        });
+    });
+};
+
+const setActiveUserScope = (user) => {
+    const scope = (user && (user.uid || user.email)) || "guest";
+    const previous = localStorage.getItem("currentUserKey");
+
+    if (previous && previous !== scope) {
+        clearWorkspaceState();
+    }
+
+    localStorage.setItem("currentUserKey", scope);
+    if (user && user.email) {
+        localStorage.setItem("userEmail", user.email);
+    }
+};
+
+getRedirectResult(auth)
+    .then((result) => {
+        if (result && result.user) {
+            setActiveUserScope(result.user);
+            window.location.href = "index.html";
+        }
+    })
+    .catch((error) => {
+        alert(error.message);
+    });
+let currentMode = "login";
+window.switchMode = (mode) => {
+    currentMode = mode;
+    const tabLogin = document.getElementById("tab-login");
+    const tabSignup = document.getElementById("tab-signup");
+    if (mode === "signup") {
+        tabSignup.classList.add("bg-blue-600", "shadow-lg");
+        tabSignup.classList.remove("text-slate-500");
+        tabLogin.classList.remove("bg-blue-600", "shadow-lg");
+        tabLogin.classList.add("text-slate-500");
+    } else {
+        tabLogin.classList.add("bg-blue-600", "shadow-lg");
+        tabLogin.classList.remove("text-slate-500");
+        tabSignup.classList.remove("bg-blue-600", "shadow-lg");
+        tabSignup.classList.add("text-slate-500");
+    }
+    document.getElementById("form-hint").innerText =
+        mode === "signup"
+            ? "Start your multi-posting journey today"
+            : "Secure access to your multi-channel dashboard";
+};
+window.handleAuthSubmit = async () => {
+    const btnText = document.getElementById("btn-text");
+    const btnLoader = document.getElementById("btn-loader");
+    btnText.classList.add("hidden");
+    btnLoader.classList.remove("hidden");
+    const emailInput = document.getElementById("email");
+    const passwordInput = document.getElementById("password");
+    try {
+        if (currentMode === "login") {
+            await signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
+        } else {
+            await createUserWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
+        }
+        setActiveUserScope(auth.currentUser);
+        window.location.href = "index.html";
+    } catch (err) {
+        alert(err.message);
+        btnText.classList.remove("hidden");
+        btnLoader.classList.add("hidden");
+    }
+};
+window.handleGoogleSignIn = () => {
+    signInWithRedirect(auth, provider);
+};
+window.handlePasswordReset = async () => {
+    const emailInput = document.getElementById("email");
+    const email = emailInput.value.trim();
+    if (!email) {
+        alert("Enter your email to reset your password.");
+        emailInput.focus();
+        return;
+    }
+    try {
+        await sendPasswordResetEmail(auth, email);
+        alert("Password reset email sent. Check your inbox.");
+    } catch (err) {
+        alert(err.message);
+    }
+};
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        setActiveUserScope(user);
+        if (window.location.pathname.includes("signin.html") || window.location.pathname === "/") {
+            window.location.href = "index.html";
+        }
+    } else {
+        clearWorkspaceState();
+        localStorage.removeItem("currentUserKey");
+        localStorage.removeItem("userEmail");
+        // Stay on signin if already there; otherwise redirect to signin
+        if (!window.location.pathname.includes("signin")) {
+            window.location.href = "signin.html";
+        }
+    }
+});
+window.signOutUser = () => {
+    signOut(auth).then(() => {
+        clearWorkspaceState();
+        localStorage.removeItem("currentUserKey");
+        localStorage.removeItem("userEmail");
+        window.location.href = "signin.html";
+    });
+};
+</script>
+</body>
+</html>
