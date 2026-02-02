@@ -1,7 +1,7 @@
 // =============================
 // YouTube OAuth Config
 // =============================
-const YOUTUBE_CLIENT_ID = "PASTE_YOUR_CLIENT_ID_HERE";
+const YOUTUBE_CLIENT_ID = "1099160429576-b8kba9n0qc3gj1ismai36mv4ifelrdfq.apps.googleusercontent.com;
 const YOUTUBE_REDIRECT_URI = "PASTE_YOUR_REDIRECT_URI_HERE";
 
 const YOUTUBE_SCOPE =
