@@ -63,14 +63,33 @@ That URL is your `BASE_URL`.
 
 ## Common Mistakes
 
-❌ **Wrong:** Using your frontend URL (e.g., GitHub Pages URL)  
-✅ **Correct:** Using your worker URL
+❌ **Wrong:** Using your frontend URL (e.g., GitHub Pages URL like `https://multipostapp.co.uk`)  
+✅ **Correct:** Using your worker URL (e.g., `https://multipost-seo-worker.alexbryant.workers.dev`)
 
-❌ **Wrong:** `https://your-domain.com/api/auth/callback/youtube/`  
+❌ **Wrong:** `https://your-domain.com/api/auth/callback/youtube/` (trailing slash)  
 ✅ **Correct:** `https://your-domain.com/api/auth/callback/youtube`
 
-❌ **Wrong:** `http://your-domain.com/api/auth/callback/tiktok`  
+❌ **Wrong:** `http://your-domain.com/api/auth/callback/tiktok` (HTTP instead of HTTPS)  
 ✅ **Correct:** `https://your-domain.com/api/auth/callback/tiktok`
+
+## Understanding BASE_URL vs FRONTEND_URL
+
+**BASE_URL** (Required):
+- This is your **Cloudflare Worker URL** (e.g., `https://multipost-seo-worker.alexbryant.workers.dev`)
+- Used for OAuth redirect URIs in provider consoles
+- Handles API requests and OAuth callbacks
+
+**FRONTEND_URL** (Optional):
+- This is where your **HTML files are hosted** (e.g., `https://multipostapp.co.uk` on GitHub Pages)
+- Where users are redirected AFTER successful OAuth
+- If not set, defaults to BASE_URL
+
+**OAuth Flow:**
+1. User clicks "Link Platform" on frontend (`https://multipostapp.co.uk`)
+2. User is redirected to provider (YouTube/TikTok/Facebook) for authorization
+3. Provider redirects to **BASE_URL** callback (e.g., `https://multipost-seo-worker.alexbryant.workers.dev/api/auth/callback/youtube`)
+4. Worker exchanges code for token and saves it
+5. Worker redirects user back to **FRONTEND_URL** (e.g., `https://multipostapp.co.uk/folder.html`)
 
 ## Still Having Issues?
 
