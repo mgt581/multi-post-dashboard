@@ -2,23 +2,34 @@ name = "multipost-seo-worker"
 main = "worker.js"
 compatibility_date = "2024-01-01"
 
+# --------------------
+# D1 Database Binding
+# --------------------
 [[d1_databases]]
 binding = "DB"
 database_name = "accountsmultipostapp"
 database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
 
+# --------------------
+# AI Binding
+# --------------------
 [ai]
 binding = "AI"
 
-# OAuth Client IDs (Public - safe to include)
+# -------------------------------------------------
+# OAuth Client IDs (PUBLIC — safe to commit)
+# Google Client ID is shared by Google + YouTube
+# -------------------------------------------------
 [vars]
-GOOGLE_CLIENT_ID = "1099160429576-38kfvgqfgahc80oc11v1abl79n1gdspm.apps.googleusercontent.com"
-TIKTOK_CLIENT_KEY = "your_tiktok_client_key"
-FB_CLIENT_ID = "your_facebook_app_id"
+GOOGLE_CLIENT_ID   = "1099160429576-38kfvgqfgahc80oc11v1abl79n1gdspm.apps.googleusercontent.com"
+TIKTOK_CLIENT_ID   = "your_tiktok_client_id"
+FACEBOOK_CLIENT_ID = "your_facebook_app_id"
 
-# OAuth Client Secrets (Sensitive - must be set via CLI)
-# Set these using: wrangler secret put <SECRET_NAME>
-# Required secrets:
-#   - GOOGLE_CLIENT_SECRET
-#   - TIKTOK_CLIENT_SECRET
-#   - FB_CLIENT_SECRET
+# -------------------------------------------------
+# OAuth Client SECRETS (PRIVATE — DO NOT COMMIT)
+# These MUST be set via Wrangler CLI:
+#
+# wrangler secret put GOOGLE_CLIENT_SECRET
+# wrangler secret put TIKTOK_CLIENT_SECRET
+# wrangler secret put FACEBOOK_CLIENT_SECRET
+# -------------------------------------------------
