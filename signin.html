@@ -24,6 +24,12 @@
             border: 1px solid var(--border);
             box-shadow: 0 18px 40px rgba(15,23,42,0.08);
         }
+        .error-shake { animation: shake 0.4s; }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
         .input-focus { transition: all 0.3s ease; }
         .input-focus:focus {
             background: #f8fafc;
@@ -43,6 +49,10 @@
             padding: 14px;
             box-shadow: 0 18px 32px rgba(79, 70, 229, 0.22);
         }
+        .tab-btn {
+            border-radius: 14px;
+            font-weight: 800;
+        }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-6">
@@ -60,47 +70,43 @@
             Secure access to your multi-channel dashboard
         </p>
     </div>
-
+    <div class="flex bg-white p-1.5 rounded-2xl mb-8 border border-slate-200 shadow-sm">
+        <button id="tab-login"
+                onclick="switchMode('login')"
+                class="tab-btn flex-1 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-bold uppercase tracking-widest text-white shadow-lg">
+            Sign In
+        </button>
+        <button id="tab-signup"
+                onclick="switchMode('signup')"
+                class="tab-btn flex-1 py-3 rounded-xl text-slate-500 text-sm font-bold uppercase tracking-widest hover:text-blue-600">
+            Sign Up
+        </button>
+    </div>
     <div class="space-y-6">
         <input id="email" type="email" placeholder="name@company.com"
                class="input-focus w-full bg-white border border-slate-200 rounded-2xl p-4 text-slate-900">
         <input id="password" type="password" placeholder="••••••••"
                class="input-focus w-full bg-white border border-slate-200 rounded-2xl p-4 text-slate-900">
-
-        <div class="flex justify-between items-center px-1">
-            <button type="button" onclick="handlePasswordReset()"
-                    class="text-sm font-semibold text-blue-600 hover:text-blue-700">
-                Forgot password?
-            </button>
-        </div>
-
+        <button type="button" onclick="handlePasswordReset()"
+                class="text-sm font-semibold text-blue-600 hover:text-blue-700 text-left">
+            Forgot password?
+        </button>
         <button onclick="handleAuthSubmit()"
                 class="btn-grad w-full py-4 rounded-2xl flex justify-center items-center">
-            <span id="btn-text">Sign In / Up</span>
+            <span id="btn-text">Enter Workspace</span>
             <div id="btn-loader" class="hidden flex gap-1">
                 <div class="w-2 h-2 bg-white rounded-full loader-dot"></div>
                 <div class="w-2 h-2 bg-white rounded-full loader-dot"></div>
                 <div class="w-2 h-2 bg-white rounded-full loader-dot"></div>
             </div>
         </button>
-
-        <p class="text-center text-xs text-slate-400">
-            One account for both Sign In and Sign Up
-        </p>
     </div>
-
-    <div class="relative my-8">
-        <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-slate-200"></div></div>
-        <div class="relative flex justify-center text-xs uppercase"><span class="bg-white px-2 text-slate-400">Or continue with</span></div>
-    </div>
-
     <button onclick="handleGoogleSignIn()"
-            class="w-full bg-white text-black py-4 rounded-2xl flex justify-center gap-3 border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors">
+            class="mt-10 w-full bg-white text-black py-4 rounded-2xl flex justify-center gap-3 border border-slate-200 shadow-sm">
         <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5">
-        Google Account
+        Continue with Google
     </button>
 </div>
-
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import {
@@ -112,9 +118,8 @@ import {
     getRedirectResult,
     onAuthStateChanged,
     sendPasswordResetEmail,
-    fetchSignInMethodsForEmail
+    signOut
 } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
 const firebaseConfig = {
     apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
     authDomain: "multi-post-daefc.firebaseapp.com",
@@ -124,72 +129,132 @@ const firebaseConfig = {
     appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd",
     measurementId: "G-NY0N8KKH0N"
 };
-
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 
-getRedirectResult(auth).catch((error) => alert(error.message));
+const STATE_KEYS = ["folders", "activeFolder", "activeFolderId", "activeFolderName"];
+const SCOPED_PREFIXES = ["folders:", "activeFolder:", "activeFolderId:", "activeFolderName:"];
 
+const clearWorkspaceState = () => {
+    STATE_KEYS.forEach(key => localStorage.removeItem(key));
+    SCOPED_PREFIXES.forEach(prefix => {
+        Object.keys(localStorage).forEach(k => {
+            if (k.startsWith(prefix)) {
+                localStorage.removeItem(k);
+            }
+        });
+    });
+};
+
+const setActiveUserScope = (user) => {
+    const scope = (user && (user.uid || user.email)) || "guest";
+    const previous = localStorage.getItem("currentUserKey");
+
+    if (previous && previous !== scope) {
+        clearWorkspaceState();
+    }
+
+    localStorage.setItem("currentUserKey", scope);
+    if (user && user.email) {
+        localStorage.setItem("userEmail", user.email);
+    }
+};
+
+getRedirectResult(auth)
+    .then((result) => {
+        if (result && result.user) {
+            setActiveUserScope(result.user);
+            window.location.href = "index.html";
+        }
+    })
+    .catch((error) => {
+        alert(error.message);
+    });
+let currentMode = "login";
+window.switchMode = (mode) => {
+    currentMode = mode;
+    const tabLogin = document.getElementById("tab-login");
+    const tabSignup = document.getElementById("tab-signup");
+    if (mode === "signup") {
+        tabSignup.classList.add("bg-blue-600", "shadow-lg");
+        tabSignup.classList.remove("text-slate-500");
+        tabLogin.classList.remove("bg-blue-600", "shadow-lg");
+        tabLogin.classList.add("text-slate-500");
+    } else {
+        tabLogin.classList.add("bg-blue-600", "shadow-lg");
+        tabLogin.classList.remove("text-slate-500");
+        tabSignup.classList.remove("bg-blue-600", "shadow-lg");
+        tabSignup.classList.add("text-slate-500");
+    }
+    document.getElementById("form-hint").innerText =
+        mode === "signup"
+            ? "Start your multi-posting journey today"
+            : "Secure access to your multi-channel dashboard";
+};
 window.handleAuthSubmit = async () => {
     const btnText = document.getElementById("btn-text");
     const btnLoader = document.getElementById("btn-loader");
-    const email = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
-
-    if (!email || !password) {
-        alert("Please enter email and password");
-        return;
-    }
-
     btnText.classList.add("hidden");
     btnLoader.classList.remove("hidden");
-
+    const emailInput = document.getElementById("email");
+    const passwordInput = document.getElementById("password");
     try {
-        // Try login first
-        await signInWithEmailAndPassword(auth, email, password);
-        window.location.href = "app.html";
-    } catch (err) {
-        if (err.code === 'auth/user-not-found') {
-            // User doesn't exist, try creating
-            try {
-                await createUserWithEmailAndPassword(auth, email, password);
-                window.location.href = "app.html";
-            } catch (createErr) {
-                alert(createErr.message);
-            }
-        } else if (err.code === 'auth/wrong-password') {
-            alert("Incorrect password. Please try again.");
-        } else if (err.code === 'auth/invalid-credential' || err.code === 'auth/invalid-email') {
-             // Some modern Firebase versions return invalid-credential for non-existent users too
-             try {
-                await createUserWithEmailAndPassword(auth, email, password);
-                window.location.href = "app.html";
-             } catch(e) {
-                alert(err.message);
-             }
+        if (currentMode === "login") {
+            await signInWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
         } else {
-            alert(err.message);
+            await createUserWithEmailAndPassword(auth, emailInput.value, passwordInput.value);
         }
+        setActiveUserScope(auth.currentUser);
+        window.location.href = "index.html";
+    } catch (err) {
+        alert(err.message);
         btnText.classList.remove("hidden");
         btnLoader.classList.add("hidden");
     }
 };
-
-window.handleGoogleSignIn = () => signInWithRedirect(auth, provider);
-
+window.handleGoogleSignIn = () => {
+    signInWithRedirect(auth, provider);
+};
 window.handlePasswordReset = async () => {
-    const email = document.getElementById("email").value.trim();
-    if (!email) { alert("Enter your email first"); return; }
+    const emailInput = document.getElementById("email");
+    const email = emailInput.value.trim();
+    if (!email) {
+        alert("Enter your email to reset your password.");
+        emailInput.focus();
+        return;
+    }
     try {
         await sendPasswordResetEmail(auth, email);
-        alert("Password reset email sent!");
-    } catch (err) { alert(err.message); }
+        alert("Password reset email sent. Check your inbox.");
+    } catch (err) {
+        alert(err.message);
+    }
 };
-
 onAuthStateChanged(auth, (user) => {
-    if (user) window.location.href = "app.html";
+    if (user) {
+        setActiveUserScope(user);
+        if (window.location.pathname.includes("signin.html") || window.location.pathname === "/") {
+            window.location.href = "index.html";
+        }
+    } else {
+        clearWorkspaceState();
+        localStorage.removeItem("currentUserKey");
+        localStorage.removeItem("userEmail");
+        // Stay on signin if already there; otherwise redirect to signin
+        if (!window.location.pathname.includes("signin")) {
+            window.location.href = "signin.html";
+        }
+    }
 });
+window.signOutUser = () => {
+    signOut(auth).then(() => {
+        clearWorkspaceState();
+        localStorage.removeItem("currentUserKey");
+        localStorage.removeItem("userEmail");
+        window.location.href = "signin.html";
+    });
+};
 </script>
 </body>
 </html>

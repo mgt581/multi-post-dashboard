@@ -1,4 +1,5 @@
-// worker.js - PRODUCTION STABLE VERSION
+// worker.js - Full Production v2.4.0
+// Features: Hard-coded Custom Domain Redirects, Multi-Account Persistence, and Workers AI
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -7,169 +8,180 @@ var worker_default = {
       "Access-Control-Allow-Headers": "Content-Type"
     };
 
-    if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+    // Handle Preflight CORS requests
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: corsHeaders });
+    }
 
     const url = new URL(request.url);
-    // Use configured base URL for OAuth callbacks to ensure consistency
-    // Falls back to request hostname if not configured
-    const baseUrl = env.BASE_URL || `https://${url.hostname}`;
+    const baseUrl = `https://${url.hostname}`;
     
-    // Frontend URL for redirects after OAuth (can be different from API base URL)
-    // If not set, assumes frontend is served from same domain as API
-    const frontendUrl = env.FRONTEND_URL || baseUrl;
+    // Hard-coded redirect URI for Google/YouTube to match Custom Domain
+    const redirectUri = "https://multipostapp.co.uk/api/auth/callback/youtube";
 
-    // Helpers
-    const nowMs = () => Date.now();
-    const safeJson = async (res) => {
-      const text = await res.text();
-      try { return JSON.parse(text); } catch { return { raw: text }; }
-    };
-    const encodeState = (obj) => btoa(JSON.stringify(obj));
-    const decodeState = (stateStr) => {
-      if (!stateStr) return { folderId: null, userId: null };
-      try { return JSON.parse(atob(stateStr)); } catch { return { folderId: stateStr, userId: null }; }
-    };
-
-    const upsertToken = async ({ folderId, platform, accountId, accessToken, refreshToken, expiresAt, scope, userId }) => {
-      if (!folderId || !platform || !accountId || !accessToken) return;
-      await env.DB.prepare(`
-        INSERT INTO tokens (folder_id, platform, account_id, access_token, refresh_token, expires_at, scope, updated_at, user_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%s','now'), ?)
-        ON CONFLICT(folder_id, platform, account_id)
-        DO UPDATE SET access_token=excluded.access_token, refresh_token=excluded.refresh_token, expires_at=excluded.expires_at, updated_at=strftime('%s','now'), user_id=COALESCE(excluded.user_id, tokens.user_id)
-      `).bind(folderId, platform, accountId, accessToken, refreshToken, expiresAt, scope, userId).run();
+    /**
+     * Decodes the Base64 state string from the frontend
+     * Format: btoa("folderId|userId")
+     */
+    const decodeState = (state) => {
+      try {
+        const decoded = atob(state);
+        const [fId, uId] = decoded.split("|");
+        return { folderId: fId, userId: uId };
+      } catch (e) {
+        console.error("State Decode Error:", e);
+        return { folderId: state, userId: null };
+      }
     };
 
     try {
+      // --- FOLDER MANAGEMENT ---
       if (url.pathname === "/api/get-folders") {
         const userId = url.searchParams.get("user_id");
-        const { results } = await env.DB.prepare("SELECT * FROM folders WHERE user_id = ? ORDER BY created_at DESC").bind(userId).all();
+        if (!userId) return new Response("Missing User ID", { status: 400, headers: corsHeaders });
+        
+        const { results } = await env.DB.prepare("SELECT * FROM folders WHERE user_id = ? ORDER BY created_at DESC")
+          .bind(userId)
+          .all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
 
       if (url.pathname === "/api/add-folder") {
         const { name, user_id } = await request.json();
-        await env.DB.prepare("INSERT INTO folders (name, user_id) VALUES (?, ?)").bind(name, user_id).run();
+        await env.DB.prepare("INSERT INTO folders (name, user_id) VALUES (?, ?)")
+          .bind(name, user_id)
+          .run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
       if (url.pathname === "/api/delete-folder") {
         const { id, user_id, type } = await request.json();
         if (type === "account_only") {
-          await env.DB.prepare("DELETE FROM accounts WHERE id = ? AND user_id = ?").bind(id, user_id).run();
+          await env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(id).run();
         } else {
           await env.DB.prepare("DELETE FROM accounts WHERE folder_id = ?").bind(id).run();
-          await env.DB.prepare("DELETE FROM tokens WHERE folder_id = ?").bind(id).run();
           await env.DB.prepare("DELETE FROM folders WHERE id = ? AND user_id = ?").bind(id, user_id).run();
         }
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
+      // --- ACCOUNT MANAGEMENT ---
       if (url.pathname === "/api/get-accounts") {
-        const { results } = await env.DB.prepare("SELECT * FROM accounts WHERE folder_id = ? AND user_id = ?").bind(url.searchParams.get("folder_id"), url.searchParams.get("user_id")).all();
+        const folder_id = url.searchParams.get("folder_id");
+        const { results } = await env.DB.prepare("SELECT * FROM accounts WHERE folder_id = ?")
+          .bind(folder_id)
+          .all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
 
-      // AUTH START - Using dynamic baseUrl
-      if (url.pathname.startsWith("/api/auth/")) {
-        const platform = url.pathname.split("/")[3];
-        
-        // Log the redirect URI for debugging
-        const redirect = `${baseUrl}/api/auth/callback/${platform}`;
-        console.log(`Initiating OAuth for ${platform} with redirect URI: ${redirect}`);
-        console.log(`BASE_URL env: ${env.BASE_URL || 'not set'}, Using: ${baseUrl}`);
-        
-        const state = encodeState({ folderId: url.searchParams.get("folder_id"), userId: url.searchParams.get("user_id"), platform });
-
-        if (platform === "youtube") {
-          return Response.redirect(`https://accounts.google.com/o/oauth2/v2/auth?client_id=${env.GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirect)}&response_type=code&scope=https://www.googleapis.com/auth/youtube.upload&access_type=offline&prompt=select_account+consent&state=${state}`);
-        }
-        if (platform === "tiktok") {
-          return Response.redirect(`https://www.tiktok.com/v2/auth/authorize/?client_key=${env.TIKTOK_CLIENT_KEY}&scope=video.upload,video.publish,user.info.basic&response_type=code&redirect_uri=${encodeURIComponent(redirect)}&state=${state}`);
-        }
-        if (platform === "facebook") {
-          return Response.redirect(`https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.FB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirect)}&scope=pages_manage_posts,pages_show_list&state=${state}`);
-        }
+      // --- OAUTH INITIATION (PERSISTENCE LOGIC) ---
+      if (url.pathname === "/api/auth/youtube") {
+        const state = url.searchParams.get("state");
+        // Using hard-coded redirectUri for consistency
+        const target = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${env.GOOGLE_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=https://www.googleapis.com/auth/youtube.upload&access_type=offline&prompt=select_account&state=${state}`;
+        return Response.redirect(target);
       }
 
-      // CALLBACKS
-      if (url.pathname.includes("/api/auth/callback/")) {
-        const platform = url.pathname.split("/")[4];
+      if (url.pathname === "/api/auth/tiktok") {
+        const state = url.searchParams.get("state");
+        const ttRedirect = `${baseUrl}/api/auth/callback/tiktok`;
+        const target = `https://www.tiktok.com/v2/auth/authorize/?client_key=${env.TIKTOK_CLIENT_KEY}&scope=video.upload,video.publish,user.info.basic&response_type=code&redirect_uri=${encodeURIComponent(ttRedirect)}&state=${state}`;
+        return Response.redirect(target);
+      }
+
+      if (url.pathname === "/api/auth/facebook") {
+        const state = url.searchParams.get("state");
+        const fbRedirect = `${baseUrl}/api/auth/callback/facebook`;
+        const target = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.FB_CLIENT_ID}&redirect_uri=${encodeURIComponent(fbRedirect)}&config_id=1283545206972587&response_type=code&auth_type=reauthenticate&state=${state}`;
+        return Response.redirect(target);
+      }
+
+      // --- OAUTH CALLBACKS ---
+      if (url.pathname === "/api/auth/callback/youtube") {
         const code = url.searchParams.get("code");
-        const error = url.searchParams.get("error");
-        const { folderId, userId } = decodeState(url.searchParams.get("state"));
-        const callbackUri = `${baseUrl}/api/auth/callback/${platform}`;
-
-        console.log(`OAuth callback for ${platform}, callbackUri: ${callbackUri}, has code: ${!!code}, error: ${error || 'none'}`);
-
-        // Handle OAuth errors (e.g., user denied access or redirect URI mismatch)
-        if (error || !code) {
-          console.error(`OAuth error for ${platform}:`, error || 'No authorization code received');
-          return Response.redirect(`${frontendUrl}/folder.html?id=${folderId}&error=${encodeURIComponent(error || 'auth_failed')}`);
-        }
-
-        let tokenUrl, body, authHeader;
-        if (platform === "youtube") {
-          tokenUrl = "https://oauth2.googleapis.com/token";
-          body = new URLSearchParams({ code, client_id: env.GOOGLE_CLIENT_ID, client_secret: env.GOOGLE_CLIENT_SECRET, redirect_uri: callbackUri, grant_type: "authorization_code" });
-        } else if (platform === "tiktok") {
-          tokenUrl = "https://open.tiktokapis.com/v2/oauth/token/";
-          body = new URLSearchParams({ client_key: env.TIKTOK_CLIENT_KEY, client_secret: env.TIKTOK_CLIENT_SECRET, code, grant_type: "authorization_code", redirect_uri: callbackUri });
-        } else if (platform === "facebook") {
-          tokenUrl = "https://graph.facebook.com/v18.0/oauth/access_token";
-          body = new URLSearchParams({ code, client_id: env.FB_CLIENT_ID, client_secret: env.FB_CLIENT_SECRET, redirect_uri: callbackUri });
-        }
-
-        console.log(`Exchanging code for ${platform} at ${tokenUrl}`);
-        const tRes = await fetch(tokenUrl, { method: "POST", body });
-        const tokens = await safeJson(tRes);
-        const accessToken = tokens.access_token || tokens.data?.access_token;
-
-        // Check if token exchange failed
-        if (!accessToken || tokens.error) {
-          console.error(`Token exchange failed for ${platform}:`, tokens.error || tokens);
-          return Response.redirect(`${frontendUrl}/folder.html?id=${folderId}&error=token_exchange_failed`);
-        }
-
-        console.log(`Successfully authenticated ${platform} for folder ${folderId}`);
-        // Delete any existing account for this folder/user/platform combination before inserting
-        await env.DB.prepare("DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = ?").bind(folderId, userId, platform).run();
-        await env.DB.prepare("INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(folderId, userId, platform, "Linked Account", accessToken, tokens.refresh_token, nowMs() + (tokens.expires_in || 0) * 1000).run();
-        await upsertToken({ folderId, userId, platform, accountId: "me", accessToken, refreshToken: tokens.refresh_token, expiresAt: nowMs() + (tokens.expires_in || 0) * 1000 });
-
-        return Response.redirect(`${frontendUrl}/folder.html?id=${folderId}`);
+        const { folderId } = decodeState(url.searchParams.get("state"));
+        
+        const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            code,
+            client_id: env.GOOGLE_CLIENT_ID,
+            client_secret: env.GOOGLE_CLIENT_SECRET,
+            redirect_uri: redirectUri,
+            grant_type: "authorization_code"
+          })
+        });
+        const tokens = await tokenRes.json();
+        
+        await env.DB.prepare("INSERT INTO accounts (folder_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, 'youtube', 'YouTube Channel', ?, ?, ?)")
+          .bind(folderId, tokens.access_token, tokens.refresh_token, Date.now() + (tokens.expires_in * 1000))
+          .run();
+        
+        return Response.redirect(`${baseUrl}/folder.html`);
       }
 
-      if (url.pathname === "/api/generate-seo") {
+      if (url.pathname === "/api/auth/callback/tiktok") {
+        const code = url.searchParams.get("code");
+        const { folderId } = decodeState(url.searchParams.get("state"));
+        
+        const tokenRes = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            client_key: env.TIKTOK_CLIENT_KEY,
+            client_secret: env.TIKTOK_CLIENT_SECRET,
+            code,
+            grant_type: "authorization_code",
+            redirect_uri: `${baseUrl}/api/auth/callback/tiktok`
+          })
+        });
+        const tokens = await tokenRes.json();
+        
+        await env.DB.prepare("INSERT INTO accounts (folder_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, 'tiktok', 'TikTok User', ?, ?, ?)")
+          .bind(folderId, tokens.access_token, tokens.refresh_token, Date.now() + (tokens.expires_in * 1000))
+          .run();
+        
+        return Response.redirect(`${baseUrl}/folder.html`);
+      }
+
+      if (url.pathname === "/api/auth/callback/facebook") {
+        const code = url.searchParams.get("code");
+        const { folderId } = decodeState(url.searchParams.get("state"));
+        
+        const fbRedirect = `${baseUrl}/api/auth/callback/facebook`;
+        const tokenRes = await fetch(`https://graph.facebook.com/v18.0/oauth/access_token?client_id=${env.FB_CLIENT_ID}&redirect_uri=${fbRedirect}&client_secret=${env.FB_CLIENT_SECRET}&code=${code}`);
+        const tokens = await tokenRes.json();
+        
+        await env.DB.prepare("INSERT INTO accounts (folder_id, platform, nickname, access_token, expires_at) VALUES (?, 'facebook', 'FB Page', ?, ?)")
+          .bind(folderId, tokens.access_token, Date.now() + (tokens.expires_in || 5184000) * 1000)
+          .run();
+        
+        return Response.redirect(`${baseUrl}/folder.html`);
+      }
+
+      // --- AI SERVICES ---
+      if (url.pathname === "/api/generate-seo" && request.method === "POST") {
         const { prompt } = await request.json();
-
-        // Using Cloudflare Workers AI as requested in the snippet
-        const aiResponse = await env.AI.run('@cf/meta/llama-3.1-8b-instruct-awq', {
+        const aiResponse = await env.AI.run("@cf/meta/llama-3-8b-instruct", {
           messages: [
-            {
-              role: "system",
-              content: "You are an SEO expert for YouTube, TikTok, and Instagram. Create high-engagement titles and descriptions with relevant keywords. Output ONLY raw JSON with keys: youtube, tiktok, facebook."
-            },
-            {
-              role: "user",
-              content: `Write viral SEO content for: ${prompt}`
-            }
-          ],
-          response_format: { type: "json_object" }
+            { role: "system", content: "You are a viral social media SEO expert. Output ONLY valid JSON with 'title', 'description', and 'hashtags'." },
+            { role: "user", content: `Generate SEO for: ${prompt}` }
+          ]
         });
-
-        // The result from env.AI.run varies by model, usually it's in .response
-        const content = aiResponse.response || aiResponse;
-
-        return new Response(JSON.stringify({ success: true, data: content }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        });
+        return new Response(JSON.stringify({ success: true, data: aiResponse }), { headers: corsHeaders });
       }
 
-      return fetch(request);
+      return new Response("Multipost API v2.4.0 - Custom Domain Enabled", { headers: corsHeaders });
+
     } catch (err) {
-      return new Response(JSON.stringify({ success: false, error: err.message }), { headers: corsHeaders });
+      console.error("Worker Error:", err.message);
+      return new Response(JSON.stringify({ success: false, error: err.message }), { 
+        status: 500, 
+        headers: { ...corsHeaders, "Content-Type": "application/json" } 
+      });
     }
   }
 };
+
 export { worker_default as default };

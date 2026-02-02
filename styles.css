@@ -18,32 +18,38 @@
 
 body {
   margin: 0;
-  padding: 0 0 var(--nav-height) 0;
-  background: var(--bg);
-  font-family: 'Inter', -apple-system, system-ui, sans-serif;
-  color: var(--text);
-  line-height: 1.5;
+  padding: 0;
+  height: 100%;
+  background: #f5f7fb;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  color: #0f172a;
 }
 
-.app-container {
-  max-width: 500px;
-  margin: 0 auto;
-  min-height: 100vh;
-  position: relative;
+/* Explicit reset instead of universal * selector */
+body * {
+  box-sizing: border-box;
+}
+
+/* =========================
+   APP WRAPPER
 }
 
 /* =========================
    HEADER
 ========================= */
 .header {
-  padding: 24px 20px 10px;
+  height: 64px;
+  background: #ffffff;
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  background: var(--bg);
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  padding: 0 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.title {
+  font-weight: 800;
+  font-size: 16px;
+  color: #0f172a;
 }
 
 .header h1 {
@@ -53,11 +59,8 @@ body {
   letter-spacing: -0.5px;
 }
 
-.header-btn {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: var(--card);
+/* =========================
+   HERO (BLUE CLOUD PANEL)
   display: flex;
   align-items: center;
   justify-content: center;
@@ -139,31 +142,50 @@ body {
 /* =========================
    BUTTONS
 ========================= */
-.btn-primary {
-  background: var(--primary);
-  color: white;
-  border: none;
-  padding: 14px 24px;
+.cards {
+  padding: 0 14px 20px;
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 16px;
-  font-weight: 700;
-  width: 100%;
-  cursor: pointer;
-  box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.3);
+  display: flex;
+  align-items: center;
+  padding: 14px;
+  margin-bottom: 14px;
+  color: #0f172a;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+}
+
+.account-card {
+  gap: 8px;
+}
+
+/* Left icon */
+.icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
 }
 
-.btn-secondary {
-  background: var(--card);
-  color: var(--text);
-  border: 1px solid var(--border);
-  padding: 14px 24px;
-  border-radius: 16px;
-  font-weight: 700;
-  width: 100%;
-  cursor: pointer;
+.platform-icon {
+  border: 1px solid #e2e8f0;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
+}
+
+.platform-icon-img {
+  width: 28px;
+  height: 28px;
+}
+
+/* Text block */
+.card-text {
+  flex: 1;
 }
 
 textarea, input {
@@ -173,6 +195,93 @@ textarea, input {
   border: 1px solid var(--border);
   background: var(--card);
   font-size: 15px;
-  font-family: inherit;
-  margin-bottom: 12px;
+  font-weight: 800;
+  color: #0f172a;
 }
+
+.card-text span {
+  display: block;
+  font-size: 12px;
+  margin-top: 4px;
+  opacity: 0.75;
+  color: #64748b;
+}
+
+.platform-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.platform-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.platform-logo {
+  width: 14px;
+  height: 14px;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-connected {
+  color: #16a34a;
+}
+
+.status-connected .status-dot {
+  background: #16a34a;
+}
+
+.status-disconnected {
+  color: #dc2626;
+}
+
+.status-disconnected .status-dot {
+  background: #dc2626;
+}
+
+.btn-ghost {
+  background: #f8fafc;
+  color: #0f172a;
+  border: 1px solid #e2e8f0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-ghost:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Chevron */
+.arrow {
+  font-size: 28px;
+  font-weight: 900;
+  color: #ff6a6a;
+}
+
+/* =========================
+   PLATFORM COLOURS

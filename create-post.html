@@ -172,13 +172,13 @@
   <div class="page">
     <header>
       <div class="brand">
-        <a href="app.html" style="text-decoration: none;"><div class="badge">← Back</div></a>
+        <div class="badge">Multipost Studio</div>
         <div>
           <p class="small">Cross-post optimizer</p>
           <h1>Create & SEO</h1>
         </div>
       </div>
-      <div class="badge" id="authBadge">Verifying...</div>
+      <div class="badge">Worker live</div>
     </header>
 
     <section class="card hero">
@@ -186,7 +186,7 @@
       <textarea id="videoPrompt" rows="3" placeholder="Example: 60-second recap of CES AI gadgets with upbeat music"></textarea>
       <div class="controls">
         <button id="generateBtn" class="btn" onclick="generateSEO()">Analyze trends</button>
-        <span id="status" class="status">Waiting for secure session...</span>
+        <span id="status" class="status">Waiting for your prompt</span>
       </div>
     </section>
 
@@ -233,36 +233,9 @@
     </section>
   </div>
 
-  <script type="module">
-    // --- FIREBASE SECURITY BRAIN ---
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
-      authDomain: "multi-post-daefc.firebaseapp.com",
-      projectId: "multi-post-daefc",
-      storageBucket: "multi-post-daefc.appspot.com",
-      messagingSenderId: "1099160429576",
-      appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-
-    onAuthStateChanged(auth, (user) => {
-      if (!user) {
-        window.location.href = "signin.html";
-        return;
-      }
-      window.userScope = user.uid || user.email;
-      document.getElementById("authBadge").innerText = "Secure Active";
-      document.getElementById("status").innerText = "Ready for prompt";
-    });
-  </script>
-
   <script>
     const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
+
     const statusEl = document.getElementById("status");
     const generateBtn = document.getElementById("generateBtn");
 
@@ -272,16 +245,30 @@
       return String(value);
     };
 
+    /**
+     * Logic to extract the viral text from AI response
+     * Priority: allInOne > caption > text > prompt fallback
+     */
     const normalizeTikTok = (tiktok, prompt, keywords) => {
       if (!tiktok) return prompt;
       if (typeof tiktok === "string") return tiktok;
-      const direct = tiktok.allInOne || tiktok.all_in_one || tiktok.caption || tiktok.text;
+      
+      const direct =
+        tiktok.allInOne ||
+        tiktok.all_in_one ||
+        tiktok.caption ||
+        tiktok.text;
+        
       if (direct) return coerceToText(direct);
+
+      // If object keys are present (headline, hashtags etc)
       const parts = [];
       const orderedKeys = ["headline", "hook", "description", "hashtags", "cta"];
+
       orderedKeys.forEach(key => {
         if (tiktok[key]) parts.push(`${key.toUpperCase()}: ${coerceToText(tiktok[key])}`);
       });
+
       if (!parts.length) return prompt || coerceToText(keywords) || "";
       return parts.join("\n\n");
     };
@@ -290,6 +277,7 @@
       if (!value) return null;
       if (typeof value !== "string") return value;
       const trimmed = value.trim();
+      // Removes AI markdown code blocks if present
       const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
       const body = fenced ? fenced[1].trim() : trimmed;
       try { return JSON.parse(body); } catch { return null; }
@@ -315,46 +303,52 @@
         return;
       }
 
-      if (!window.userScope) {
-        alert("Security Error: Waiting for session...");
-        return;
-      }
-
       setLoading(true);
-      setStatus("Calling AI worker securely...", "working");
+      setStatus("Calling AI worker…", "working");
 
       try {
         const res = await fetch(`${apiBase}/generate-seo`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          // ADDED user_id to prevent data crossing
-          body: JSON.stringify({ prompt, user_id: window.userScope })
+          body: JSON.stringify({ prompt })
         });
 
         const bodyText = await res.text();
         if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
-        let json = JSON.parse(bodyText);
+        let json;
+        try { json = JSON.parse(bodyText); } catch (e) { throw new Error("Bad JSON from server"); }
+
         if (!json.success) throw new Error(json.error || "AI Error");
 
+        // Navigate the response structure
         const raw = json?.data?.response ?? json?.data ?? json;
         const parsed = parseJsonSafe(raw) || raw || {};
         const d = parsed?.data ?? parsed ?? {};
 
-        document.getElementById("ytTitle").value = coerceToText(d.youtube?.title || prompt);
-        document.getElementById("ytDesc").value = coerceToText(d.youtube?.description || prompt);
-        document.getElementById("ytKeywords").value = coerceToText(d.youtube?.keywords || d.youtube?.tags || "");
+        const youtube = d.youtube || {};
+        const tiktok = d.tiktok || {};
+        const facebook = d.facebook || {};
 
-        const ttContent = normalizeTikTok(d.tiktok, prompt, d.youtube?.keywords);
+        // 1. Process YouTube
+        document.getElementById("ytTitle").value = coerceToText(youtube.title || prompt);
+        document.getElementById("ytDesc").value = coerceToText(youtube.description || prompt);
+        document.getElementById("ytKeywords").value = coerceToText(youtube.keywords || youtube.tags || "");
+
+        // 2. Process TikTok (The Fix)
+        // This ensures the box gets the generated caption, not the URL from the prompt
+        const ttContent = normalizeTikTok(tiktok, prompt, youtube.keywords);
         document.getElementById("ttAllInOne").value = ttContent;
 
-        document.getElementById("fbTitle").value = coerceToText(d.facebook?.title || prompt);
-        document.getElementById("fbDetails").value = coerceToText(d.facebook?.descriptionAndTags || d.facebook?.description || prompt);
+        // 3. Process Facebook
+        document.getElementById("fbTitle").value = coerceToText(facebook.title || prompt);
+        document.getElementById("fbDetails").value = coerceToText(facebook.descriptionAndTags || facebook.description || prompt);
 
-        setStatus("AI response received securely", "success");
+        setStatus("AI response received", "success");
       } catch (err) {
         console.error(err);
         setStatus(err.message || "Something went wrong", "error");
+        alert("Error: " + (err.message || err));
       } finally {
         setLoading(false);
       }
@@ -369,7 +363,9 @@
       try {
         await navigator.clipboard.writeText(safeText);
         setStatus(`${label} copied to clipboard`, "success");
-        if (url) setTimeout(() => window.open(url, "_blank"), 600);
+        if (url) {
+          setTimeout(() => window.open(url, "_blank"), 600);
+        }
       } catch (err) {
         setStatus("Clipboard unavailable", "error");
         alert("Copy failed. Please copy manually.");
@@ -396,5 +392,5 @@
       copyAndOpen(block, "Facebook", "https://www.facebook.com/reels/create");
     }
   </script>
-</body>
+  </body>
 </html>

@@ -1,7 +1,5 @@
 # Deployment Guide for Multipost Worker
 
-> 📌 **Looking for the redirect URIs?** See [REDIRECT_URI_GUIDE.md](./REDIRECT_URI_GUIDE.md) for a quick reference of all platform OAuth redirect URIs.
-
 ## Prerequisites
 
 1. **Cloudflare Account** - Sign up at [cloudflare.com](https://cloudflare.com)
@@ -39,26 +37,9 @@ database_id = "paste-your-database-id-here"
 wrangler d1 execute multipost-db --file=./schema.sql
 ```
 
-## Step 4: Set BASE_URL and OAuth Secrets
+## Step 4: Set OAuth Secrets
 
-**IMPORTANT:** Set your BASE_URL and optionally FRONTEND_URL:
-
-```bash
-wrangler secret put BASE_URL
-# Enter the worker URL: https://your-worker-name.workers.dev
-# This is used for OAuth redirect URIs and MUST match what you configure in OAuth apps
-
-# If your frontend (HTML files) is hosted separately (e.g., on GitHub Pages):
-wrangler secret put FRONTEND_URL
-# Enter: https://your-frontend-domain.com (e.g., https://multipostapp.co.uk)
-# If not set, users will be redirected back to BASE_URL after authentication
-```
-
-**Deployment Scenarios:**
-1. **All-in-one (Worker serves everything):** Only set BASE_URL to your worker URL
-2. **Separate frontend:** Set BASE_URL to worker URL, FRONTEND_URL to where HTML files are hosted
-
-Then set each OAuth secret using the following commands:
+Set each secret using the following commands:
 
 ```bash
 wrangler secret put GOOGLE_CLIENT_ID
@@ -71,30 +52,23 @@ wrangler secret put FB_CLIENT_SECRET
 
 ### Getting OAuth Credentials
 
-**CRITICAL:** Use your BASE_URL (worker URL) in the redirect URIs below. The redirect URIs **must match exactly** what you set in BASE_URL.
-
 **YouTube (Google OAuth):**
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a new project
 3. Enable YouTube Data API v3
 4. Create OAuth 2.0 credentials
-5. Add authorized redirect URI: `YOUR_BASE_URL/api/auth/callback/youtube`
-   - Example: `https://multipostapp.co.uk/api/auth/callback/youtube`
+5. Add authorized redirect URI: `https://your-worker.workers.dev/api/auth/callback/youtube`
 
 **TikTok:**
 1. Go to [TikTok for Developers](https://developers.tiktok.com/)
 2. Create an app
-3. Add redirect URI: `YOUR_BASE_URL/api/auth/callback/tiktok`
-   - Example: `https://multipostapp.co.uk/api/auth/callback/tiktok`
-   - **IMPORTANT:** TikTok requires an exact match - verify no trailing slash is added
-   - The redirect URI must use HTTPS (HTTP and localhost are not accepted)
+3. Add redirect URI: `https://your-worker.workers.dev/api/auth/callback/tiktok`
 
 **Facebook:**
 1. Go to [Meta for Developers](https://developers.facebook.com/)
 2. Create an app
 3. Add Facebook Login product
-4. Add redirect URI: `YOUR_BASE_URL/api/auth/callback/facebook`
-   - Example: `https://multipostapp.co.uk/api/auth/callback/facebook`
+4. Add redirect URI: `https://your-worker.workers.dev/api/auth/callback/facebook`
 
 ## Step 5: Deploy Worker
 
@@ -129,36 +103,6 @@ wrangler deploy
 ```
 
 ## Troubleshooting
-
-### TikTok OAuth "redirect_uri" Error
-
-If you see an error like "We couldn't log in with TikTok. This may be due to specific app settings. redirect_uri":
-
-1. **Verify BASE_URL is set correctly:**
-   ```bash
-   wrangler secret list
-   # BASE_URL should appear in the list
-   ```
-
-2. **Check the redirect URI in TikTok Developer Portal:**
-   - Go to your app settings at [TikTok for Developers](https://developers.tiktok.com/)
-   - Under "Redirect URI", ensure it exactly matches: `YOUR_BASE_URL/api/auth/callback/tiktok`
-   - Example: `https://multipostapp.co.uk/api/auth/callback/tiktok`
-   - **No trailing slash** after "tiktok"
-   - **Must use HTTPS** (not HTTP)
-
-3. **Common issues:**
-   - BASE_URL set as `http://` instead of `https://`
-   - BASE_URL includes a trailing slash (should be `https://domain.com` not `https://domain.com/`)
-   - TikTok redirect URI doesn't match BASE_URL (case-sensitive, character-for-character match)
-   - Using a different domain than what's set in BASE_URL (e.g., accessing via workers.dev when BASE_URL is set to custom domain)
-
-4. **Test the OAuth flow:**
-   - Access your app via the exact domain specified in BASE_URL
-   - If BASE_URL is `https://multipostapp.co.uk`, access the app at `https://multipostapp.co.uk`
-   - Do NOT access via `https://worker-name.workers.dev` if your BASE_URL is different
-
-### Other OAuth Issues
 
 **View logs:**
 ```bash

@@ -14,7 +14,19 @@ binding = "AI"
 
 # Environment Variables (Secrets)
 # Set these using: wrangler secret put <SECRET_NAME>
-# Required: BASE_URL, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, FB_CLIENT_ID, FB_CLIENT_SECRET
-# Optional: FRONTEND_URL (if frontend is hosted separately from the worker)
-# Note: BASE_URL is used for OAuth redirect URIs and must match what's configured in OAuth apps (e.g., https://multipost-seo-worker.workers.dev)
-# Note: FRONTEND_URL is where users are redirected after OAuth (e.g., https://multipostapp.co.uk). If not set, uses BASE_URL.
+# 
+# Required secrets:
+# - GOOGLE_CLIENT_ID
+# - GOOGLE_CLIENT_SECRET
+# - TIKTOK_CLIENT_KEY
+# - TIKTOK_CLIENT_SECRET
+# - FB_CLIENT_ID
+# - FB_CLIENT_SECRET
+
+# Example commands to set secrets:
+# wrangler secret put GOOGLE_CLIENT_ID
+# wrangler secret put GOOGLE_CLIENT_SECRET
+# wrangler secret put TIKTOK_CLIENT_KEY
+# wrangler secret put TIKTOK_CLIENT_SECRET
+# wrangler secret put FB_CLIENT_ID
+# wrangler secret put FB_CLIENT_SECRET
