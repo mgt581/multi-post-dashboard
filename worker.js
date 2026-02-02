@@ -75,7 +75,7 @@ var worker_default = {
         
         // Check if BASE_URL might be incorrectly set to the frontend URL
         // Common mistake: using GitHub Pages URL or custom domain instead of worker URL
-        if (!baseHostname.includes('workers.dev') && !baseHostname.includes('workers.dev')) {
+        if (!baseHostname.includes('workers.dev')) {
           // This might be a custom domain for the worker (valid) or frontend URL (invalid)
           // Warn if it doesn't look like a worker URL
           console.warn('⚠️  IMPORTANT: BASE_URL Configuration Check');
@@ -228,7 +228,7 @@ var worker_default = {
               '3. Ensure no trailing slashes in BASE_URL',
               '4. Use FRONTEND_URL for where users should be redirected after OAuth (optional)'
             ],
-            documentation: 'See OAUTH_REDIRECT_URI_FIX.md for detailed troubleshooting'
+            documentation: 'See TROUBLESHOOTING_REDIRECT_URI_MISMATCH.md for detailed troubleshooting'
           }
         };
         return new Response(JSON.stringify(configInfo, null, 2), {
