@@ -1,13 +1,18 @@
-name = "multi-post-dashboard"
-main = "index.js"
-compatibility_date = "2026-02-02"
-d1_databases = [{
-  binding = "DB"
-  database_name = "accountsmultipostapp"
-  database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
-}]
-ai = ""
+name = "multipost-seo-worker"
+main = "worker.js"
+compatibility_date = "2024-01-01"
 
-[[routes]]
-  pattern = "multipostapp.co.uk/*"
-  custom_domain = true
+# Custom Domain Route
+routes = [
+  { pattern = "multipostapp.co.uk/*", custom_domain = true }
+]
+
+# D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "accountsmultipostapp"
+database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
+
+# AI Binding for Llama Model
+[ai]
+binding = "AI"
