@@ -2,6 +2,12 @@
 
 A cross-platform social media management tool built on Cloudflare Workers.
 
+## ⚠️ Getting "redirect_uri_mismatch" Error?
+
+**👉 [OAUTH_REDIRECT_URI_FIX.md](./OAUTH_REDIRECT_URI_FIX.md)** - Complete fix guide for OAuth errors
+
+**Common issue:** You need to use your **worker URL** (not frontend URL) in OAuth provider redirect URIs.
+
 ## Quick Start
 
 ### Platform OAuth Redirect URIs
@@ -29,6 +35,6 @@ YOUR_BASE_URL/api/auth/callback/{platform}
 - **TikTok:** `YOUR_BASE_URL/api/auth/callback/tiktok`
 - **Facebook:** `YOUR_BASE_URL/api/auth/callback/facebook`
 
-Replace `YOUR_BASE_URL` with your Cloudflare Worker URL.
+**Important:** Replace `YOUR_BASE_URL` with your **Cloudflare Worker URL** (e.g., `https://your-worker.workers.dev`), NOT your frontend URL.
 
 See [REDIRECT_URI_GUIDE.md](./REDIRECT_URI_GUIDE.md) for full details and examples.
