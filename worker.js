@@ -87,6 +87,33 @@ var worker_default = {
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
 
+      // Configuration check endpoint for debugging OAuth setup
+      if (url.pathname === "/api/config-check") {
+        const configInfo = {
+          baseUrl: baseUrl,
+          frontendUrl: frontendUrl,
+          hasBaseUrlEnv: !!env.BASE_URL,
+          hasFrontendUrlEnv: !!env.FRONTEND_URL,
+          redirectUris: {
+            youtube: `${baseUrl}/api/auth/callback/youtube`,
+            tiktok: `${baseUrl}/api/auth/callback/tiktok`,
+            facebook: `${baseUrl}/api/auth/callback/facebook`
+          },
+          requiredSecrets: {
+            BASE_URL: !!env.BASE_URL,
+            GOOGLE_CLIENT_ID: !!env.GOOGLE_CLIENT_ID,
+            GOOGLE_CLIENT_SECRET: !!env.GOOGLE_CLIENT_SECRET,
+            TIKTOK_CLIENT_KEY: !!env.TIKTOK_CLIENT_KEY,
+            TIKTOK_CLIENT_SECRET: !!env.TIKTOK_CLIENT_SECRET,
+            FB_CLIENT_ID: !!env.FB_CLIENT_ID,
+            FB_CLIENT_SECRET: !!env.FB_CLIENT_SECRET
+          }
+        };
+        return new Response(JSON.stringify(configInfo, null, 2), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
       // AUTH START - OAuth Initiation
       // ============================================================================
       // This endpoint initiates the OAuth flow by redirecting to the provider
@@ -95,6 +122,15 @@ var worker_default = {
       // ============================================================================
       if (url.pathname.startsWith("/api/auth/")) {
         const platform = url.pathname.split("/")[3];
+        
+        // Validate platform to prevent injection
+        const validPlatforms = ['youtube', 'tiktok', 'facebook'];
+        if (!validPlatforms.includes(platform)) {
+          return new Response(JSON.stringify({ error: 'Invalid platform' }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
         
         // Construct the canonical redirect URI for this platform
         // This MUST be identical to what's used in the callback handler below
@@ -128,6 +164,13 @@ var worker_default = {
         const code = url.searchParams.get("code");
         const error = url.searchParams.get("error");
         const { folderId, userId } = decodeState(url.searchParams.get("state"));
+        
+        // Validate platform to prevent injection
+        const validPlatforms = ['youtube', 'tiktok', 'facebook'];
+        if (!validPlatforms.includes(platform)) {
+          console.error(`Invalid platform in callback: ${platform}`);
+          return Response.redirect(`${frontendUrl}/folder.html?id=${folderId}&error=invalid_platform`);
+        }
         
         // Use the SAME redirect URI construction as in auth initiation
         const callbackUri = `${baseUrl}/api/auth/callback/${platform}`;
