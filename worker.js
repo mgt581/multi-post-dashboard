@@ -12,7 +12,7 @@ var worker_default = {
     const url = new URL(request.url);
     // Use configured base URL for OAuth callbacks to ensure consistency
     // Falls back to request hostname if not configured
-    const baseUrl = env.BASE_URL || `https://multipostapp.co.uk}`;
+    const baseUrl = env.BASE_URL || `https://${url.hostname}`;
     
     // Frontend URL for redirects after OAuth (can be different from API base URL)
     // If not set, assumes frontend is served from same domain as API
