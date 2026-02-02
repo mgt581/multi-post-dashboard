@@ -10,7 +10,15 @@ database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
 [ai]
 binding = "AI"
 
+# OAuth Client IDs (Public - safe to include)
 [vars]
-FB_CLIENT_SECRET = "762eebd35d5d0e823f8d91861908d362"
-TIKTOK_CLIENT_SECRET = "UCnmHMrMivdw8LFDuXXr2hAPUw1DTtBG"
-GOOGLE_CLIENT_SECRET = "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"
+GOOGLE_CLIENT_ID = "1099160429576-38kfvgqfgahc80oc11v1abl79n1gdspm.apps.googleusercontent.com"
+TIKTOK_CLIENT_KEY = "your_tiktok_client_key"
+FB_CLIENT_ID = "your_facebook_app_id"
+
+# OAuth Client Secrets (Sensitive - must be set via CLI)
+# Set these using: wrangler secret put <SECRET_NAME>
+# Required secrets:
+#   - GOOGLE_CLIENT_SECRET
+#   - TIKTOK_CLIENT_SECRET
+#   - FB_CLIENT_SECRET
