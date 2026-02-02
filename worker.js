@@ -59,7 +59,44 @@ var worker_default = {
       return normalized;
     };
     
+    // Validate BASE_URL configuration
+    // CRITICAL: BASE_URL must be the Cloudflare Worker URL, NOT the frontend URL
+    const validateBaseUrl = (baseUrlCandidate, hostname) => {
+      // If BASE_URL is not set explicitly, warn about fallback
+      if (!env.BASE_URL) {
+        console.warn('⚠️  BASE_URL environment variable not set!');
+        console.warn(`   Falling back to: https://${hostname}`);
+        console.warn('   This may cause OAuth redirect_uri_mismatch errors.');
+        console.warn('   Set BASE_URL to your Cloudflare Worker URL: wrangler secret put BASE_URL');
+      } else {
+        // BASE_URL is set - validate it's a worker URL, not a custom domain
+        const parsedUrl = new URL(baseUrlCandidate);
+        const baseHostname = parsedUrl.hostname;
+        
+        // Check if BASE_URL might be incorrectly set to the frontend URL
+        // Common mistake: using GitHub Pages URL or custom domain instead of worker URL
+        if (!baseHostname.includes('workers.dev') && !baseHostname.includes('workers.dev')) {
+          // This might be a custom domain for the worker (valid) or frontend URL (invalid)
+          // Warn if it doesn't look like a worker URL
+          console.warn('⚠️  IMPORTANT: BASE_URL Configuration Check');
+          console.warn(`   BASE_URL is set to: ${baseUrlCandidate}`);
+          console.warn(`   This does not appear to be a workers.dev URL.`);
+          console.warn('   ');
+          console.warn('   ✅ If this is your Cloudflare Worker custom domain, you can ignore this warning.');
+          console.warn('   ❌ If this is your FRONTEND URL (GitHub Pages/custom site), this is INCORRECT!');
+          console.warn('   ');
+          console.warn('   OAuth redirect URIs MUST use your WORKER URL, not your frontend URL.');
+          console.warn('   Example correct BASE_URL: https://your-worker.workers.dev');
+          console.warn('   Example incorrect: https://multipostapp.co.uk (this should be FRONTEND_URL instead)');
+          console.warn('   ');
+          console.warn('   To fix: wrangler secret put BASE_URL → <your-worker-url>');
+          console.warn('           wrangler secret put FRONTEND_URL → <your-frontend-url>');
+        }
+      }
+    };
+    
     const baseUrl = normalizeUrl(env.BASE_URL || `https://${url.hostname}`);
+    validateBaseUrl(baseUrl, url.hostname);
     
     // Frontend URL for redirects after OAuth (can be different from API base URL)
     // If not set, assumes frontend is served from same domain as API
@@ -120,10 +157,51 @@ var worker_default = {
       // Configuration check endpoint for debugging OAuth setup
       // IMPORTANT: In production, consider restricting access to this endpoint
       if (url.pathname === "/api/config-check") {
+        // Parse BASE_URL to check if it looks correct
+        const baseUrlParsed = new URL(baseUrl);
+        const isWorkersUrl = baseUrlParsed.hostname.includes('workers.dev');
+        
+        // Detect potential misconfiguration
+        const warnings = [];
+        const errors = [];
+        
+        if (!env.BASE_URL) {
+          errors.push({
+            severity: 'ERROR',
+            message: 'BASE_URL environment variable is NOT set',
+            impact: 'OAuth will likely fail with redirect_uri_mismatch',
+            solution: 'Run: wrangler secret put BASE_URL → <your-worker-url>'
+          });
+        }
+        
+        if (!isWorkersUrl && env.BASE_URL) {
+          warnings.push({
+            severity: 'WARNING',
+            message: `BASE_URL (${baseUrl}) does not appear to be a workers.dev URL`,
+            impact: 'This could be correct if using a custom domain, OR incorrect if using frontend URL',
+            check: 'Verify this is your Cloudflare Worker URL, NOT your frontend/GitHub Pages URL',
+            correctExample: 'https://your-worker.workers.dev',
+            incorrectExample: 'https://multipostapp.co.uk (use FRONTEND_URL for this instead)'
+          });
+        }
+        
+        // Check if BASE_URL and FRONTEND_URL are the same (might be intentional or might be wrong)
+        if (env.BASE_URL && env.FRONTEND_URL && baseUrl === frontendUrl) {
+          warnings.push({
+            severity: 'WARNING',
+            message: 'BASE_URL and FRONTEND_URL are identical',
+            impact: 'This is only correct if your worker serves the frontend too',
+            check: 'If frontend is on GitHub Pages or separate hosting, these should be different'
+          });
+        }
+        
         // Only show configuration in non-sensitive way
         const configInfo = {
+          status: errors.length > 0 ? 'MISCONFIGURED' : (warnings.length > 0 ? 'CHECK_WARNINGS' : 'OK'),
           baseUrl: baseUrl,
           frontendUrl: frontendUrl,
+          currentRequestHost: url.hostname,
+          isWorkersUrl: isWorkersUrl,
           redirectUris: {
             youtube: `${baseUrl}/api/auth/callback/youtube`,
             tiktok: `${baseUrl}/api/auth/callback/tiktok`,
@@ -132,12 +210,25 @@ var worker_default = {
           // Only show boolean status of secrets, not their values
           secretsConfigured: {
             BASE_URL: !!env.BASE_URL,
+            FRONTEND_URL: !!env.FRONTEND_URL,
             GOOGLE_CLIENT_ID: !!env.GOOGLE_CLIENT_ID,
             GOOGLE_CLIENT_SECRET: !!env.GOOGLE_CLIENT_SECRET,
             TIKTOK_CLIENT_KEY: !!env.TIKTOK_CLIENT_KEY,
             TIKTOK_CLIENT_SECRET: !!env.TIKTOK_CLIENT_SECRET,
             FB_CLIENT_ID: !!env.FB_CLIENT_ID,
             FB_CLIENT_SECRET: !!env.FB_CLIENT_SECRET
+          },
+          errors: errors,
+          warnings: warnings,
+          help: {
+            message: 'Getting redirect_uri_mismatch errors?',
+            steps: [
+              '1. Verify BASE_URL is set to your WORKER URL (not frontend URL)',
+              '2. Check that redirect URIs above match EXACTLY what is in Google/TikTok/Meta consoles',
+              '3. Ensure no trailing slashes in BASE_URL',
+              '4. Use FRONTEND_URL for where users should be redirected after OAuth (optional)'
+            ],
+            documentation: 'See OAUTH_REDIRECT_URI_FIX.md for detailed troubleshooting'
           }
         };
         return new Response(JSON.stringify(configInfo, null, 2), {
