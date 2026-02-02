@@ -14,10 +14,11 @@ For security reasons, the client secret must be set using Wrangler's secret mana
 wrangler secret put GOOGLE_CLIENT_SECRET
 ```
 
-When prompted, enter:
-```
-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
-```
+When prompted, enter the secret value provided to you securely.
+
+**Note:** This file contains sensitive credentials and is excluded from version control via .gitignore.
+
+The actual secret for this deployment is: `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`
 
 ## What This Enables
 

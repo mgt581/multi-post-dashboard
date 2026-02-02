@@ -1,2 +1,5 @@
 .wrangler/
 node_modules/
+.env
+.env.local
+GOOGLE_OAUTH_SETUP.md
