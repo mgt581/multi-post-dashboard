@@ -20,13 +20,19 @@
 
 /**
  * Get the API base URL
- * Priority:
- * 1. Environment variable (if available via build process)
+ * 
+ * Detection Priority:
+ * 1. API_BASE_URL global variable (if injected during build process)
+ *    Note: The injected variable is API_BASE_URL, but we export as API_BASE
+ *    This allows build systems to inject the URL while keeping a clean export name
  * 2. Auto-detect from current location (for same-domain deployments)
- * 3. Default worker URL (for development)
+ * 3. Default worker URL (for production)
+ * 
+ * @returns {string} The API base URL (e.g., "https://worker.workers.dev/api")
  */
 function getApiBaseUrl() {
   // Check if API_BASE_URL is defined (could be injected during build)
+  // Note: This is the injected variable name; we export as API_BASE below
   if (typeof API_BASE_URL !== 'undefined' && API_BASE_URL) {
     return API_BASE_URL;
   }

@@ -88,18 +88,19 @@ var worker_default = {
       }
 
       // Configuration check endpoint for debugging OAuth setup
+      // IMPORTANT: In production, consider restricting access to this endpoint
       if (url.pathname === "/api/config-check") {
+        // Only show configuration in non-sensitive way
         const configInfo = {
           baseUrl: baseUrl,
           frontendUrl: frontendUrl,
-          hasBaseUrlEnv: !!env.BASE_URL,
-          hasFrontendUrlEnv: !!env.FRONTEND_URL,
           redirectUris: {
             youtube: `${baseUrl}/api/auth/callback/youtube`,
             tiktok: `${baseUrl}/api/auth/callback/tiktok`,
             facebook: `${baseUrl}/api/auth/callback/facebook`
           },
-          requiredSecrets: {
+          // Only show boolean status of secrets, not their values
+          secretsConfigured: {
             BASE_URL: !!env.BASE_URL,
             GOOGLE_CLIENT_ID: !!env.GOOGLE_CLIENT_ID,
             GOOGLE_CLIENT_SECRET: !!env.GOOGLE_CLIENT_SECRET,
@@ -123,7 +124,9 @@ var worker_default = {
       if (url.pathname.startsWith("/api/auth/")) {
         const platform = url.pathname.split("/")[3];
         
-        // Validate platform to prevent injection
+        // SECURITY: Validate platform immediately to prevent injection attacks
+        // Using allowlist approach - only accept known platforms
+        // Generic error message prevents information leakage
         const validPlatforms = ['youtube', 'tiktok', 'facebook'];
         if (!validPlatforms.includes(platform)) {
           return new Response(JSON.stringify({ error: 'Invalid platform' }), {
@@ -165,7 +168,9 @@ var worker_default = {
         const error = url.searchParams.get("error");
         const { folderId, userId } = decodeState(url.searchParams.get("state"));
         
-        // Validate platform to prevent injection
+        // SECURITY: Validate platform immediately to prevent injection attacks
+        // Using allowlist approach - only accept known platforms
+        // Redirect with error to avoid exposing system details
         const validPlatforms = ['youtube', 'tiktok', 'facebook'];
         if (!validPlatforms.includes(platform)) {
           console.error(`Invalid platform in callback: ${platform}`);
