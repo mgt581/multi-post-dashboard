@@ -178,7 +178,10 @@ var worker_default = {
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     } catch (err) {
-      return new Response(JSON.stringify({ success: false, error: err.message }), { headers: corsHeaders });
+      return new Response(JSON.stringify({ success: false, error: err.message }), { 
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
     }
   }
 };
