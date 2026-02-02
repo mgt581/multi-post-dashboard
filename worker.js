@@ -132,6 +132,8 @@ var worker_default = {
         }
 
         console.log(`Successfully authenticated ${platform} for folder ${folderId}`);
+        // Delete any existing account for this folder/user/platform combination before inserting
+        await env.DB.prepare("DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = ?").bind(folderId, userId, platform).run();
         await env.DB.prepare("INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(folderId, userId, platform, "Linked Account", accessToken, tokens.refresh_token, nowMs() + (tokens.expires_in || 0) * 1000).run();
         await upsertToken({ folderId, userId, platform, accountId: "me", accessToken, refreshToken: tokens.refresh_token, expiresAt: nowMs() + (tokens.expires_in || 0) * 1000 });
 
