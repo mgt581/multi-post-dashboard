@@ -10,9 +10,14 @@ A cross-platform social media management tool built on Cloudflare Workers.
 
 **Quick diagnosis:**
 ```bash
-# Check your current configuration
+# Check your current configuration via command line
 curl https://your-worker.workers.dev/api/config-check
+
+# OR use the visual configuration checker
+# Open oauth-config-checker.html in your browser
 ```
+
+**🔧 [oauth-config-checker.html](./oauth-config-checker.html)** - Visual tool to check your OAuth configuration
 
 **Common mistakes:**
 1. ❌ Setting `BASE_URL` to frontend URL (e.g., `https://multipostapp.co.uk`)
