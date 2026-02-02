@@ -4,17 +4,46 @@ A cross-platform social media management tool built on Cloudflare Workers.
 
 ## ⚠️ Getting "redirect_uri_mismatch" Error?
 
-**👉 [OAUTH_REDIRECT_URI_FIX.md](./OAUTH_REDIRECT_URI_FIX.md)** - Complete fix guide for OAuth errors
+### 🔴 CRITICAL: BASE_URL must be your WORKER URL, not your frontend URL!
 
-**Common issues:**
-1. You need to use your **worker URL** (not frontend URL) in OAuth provider redirect URIs
-2. **NO TRAILING SLASHES** - BASE_URL must not end with `/`
-3. Ensure identical redirect_uri in authorization request and token exchange
+**🚀 Quick Fix (5 min):** [QUICK_FIX_GUIDE.md](./QUICK_FIX_GUIDE.md) - **Start here!**
 
-**Canonical format:** `https://multipost-seo-worker.alexbryant.work` (no trailing slash!)
+**📖 Detailed Troubleshooting:** [TROUBLESHOOTING_REDIRECT_URI_MISMATCH.md](./TROUBLESHOOTING_REDIRECT_URI_MISMATCH.md)
+
+**Quick diagnosis:**
+```bash
+# Check your current configuration via command line
+curl https://your-worker.workers.dev/api/config-check
+
+# OR use the visual configuration checker
+# Open oauth-config-checker.html in your browser
+```
+
+**🔧 [oauth-config-checker.html](./oauth-config-checker.html)** - Visual tool to check your OAuth configuration
+
+**Common mistakes:**
+1. ❌ Setting `BASE_URL` to frontend URL (e.g., `https://multipostapp.co.uk`)
+   - ✅ **Fix:** `BASE_URL` should be your worker URL (e.g., `https://your-worker.workers.dev`)
+2. ❌ Not setting `BASE_URL` at all
+   - ✅ **Fix:** Run `wrangler secret put BASE_URL` with your worker URL
+3. ❌ Trailing slash in BASE_URL
+   - ✅ **Fix:** Remove trailing slash - use `https://your-worker.workers.dev` not `https://your-worker.workers.dev/`
+
+**Correct configuration:**
+```bash
+# BASE_URL = Your Cloudflare Worker URL (required for OAuth)
+wrangler secret put BASE_URL
+# Enter: https://your-worker.workers.dev
+
+# FRONTEND_URL = Where your HTML files are hosted (optional)
+wrangler secret put FRONTEND_URL
+# Enter: https://multipostapp.co.uk
+```
 
 ## 📚 Documentation
 
+- **[TROUBLESHOOTING_REDIRECT_URI_MISMATCH.md](./TROUBLESHOOTING_REDIRECT_URI_MISMATCH.md)** - 🆕 **Comprehensive troubleshooting guide**
+- **[OAUTH_REDIRECT_URI_FIX.md](./OAUTH_REDIRECT_URI_FIX.md)** - Complete fix guide for OAuth errors
 - **[OAUTH_IMPLEMENTATION_SUMMARY.md](./OAUTH_IMPLEMENTATION_SUMMARY.md)** - Complete OAuth implementation details
 - **[DEPLOY.md](./DEPLOY.md)** - Complete deployment guide
 - **[OAUTH_FIX_README.md](./OAUTH_FIX_README.md)** - Detailed OAuth setup and troubleshooting

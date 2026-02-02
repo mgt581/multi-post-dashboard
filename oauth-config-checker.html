@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Configuration Checker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 30px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        #results {
+            margin-top: 30px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .status-ok {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .config-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .config-section h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .config-item {
+            margin: 8px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .config-label {
+            color: #666;
+            display: inline-block;
+            min-width: 120px;
+        }
+
+        .config-value {
+            color: #333;
+            word-break: break-all;
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            color: #856404;
+        }
+
+        .alert h4 {
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+
+        .alert p {
+            margin: 5px 0;
+            font-size: 13px;
+        }
+
+        .help-section {
+            background: #e7f3ff;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+
+        .help-section h3 {
+            color: #0056b3;
+            margin-bottom: 10px;
+        }
+
+        .help-section ol {
+            margin-left: 20px;
+        }
+
+        .help-section li {
+            margin: 5px 0;
+            color: #333;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .error-message {
+            color: #dc3545;
+            padding: 15px;
+            background: #f8d7da;
+            border-radius: 6px;
+            margin-top: 20px;
+        }
+
+        pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 OAuth Configuration Checker</h1>
+        <p class="subtitle">Diagnose OAuth redirect_uri_mismatch errors quickly</p>
+
+        <div class="input-group">
+            <label for="workerUrl">Cloudflare Worker URL:</label>
+            <input 
+                type="text" 
+                id="workerUrl" 
+                placeholder="https://your-worker.workers.dev"
+                value="https://multipost-seo-worker.alexbryant.workers.dev"
+            />
+        </div>
+
+        <button id="checkBtn" onclick="checkConfig()">Check Configuration</button>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        async function checkConfig() {
+            const resultsDiv = document.getElementById('results');
+            const workerUrl = document.getElementById('workerUrl').value.trim();
+            const checkBtn = document.getElementById('checkBtn');
+
+            if (!workerUrl) {
+                resultsDiv.innerHTML = '<div class="error-message">Please enter a worker URL</div>';
+                return;
+            }
+
+            checkBtn.disabled = true;
+            resultsDiv.innerHTML = '<div class="loading">Checking configuration...</div>';
+
+            try {
+                const url = workerUrl.replace(/\/$/, '') + '/api/config-check';
+                const response = await fetch(url);
+                const config = await response.json();
+
+                let html = '';
+
+                // Status badge
+                const statusClass = config.status === 'OK' ? 'status-ok' : 
+                                   config.status === 'CHECK_WARNINGS' ? 'status-warning' : 
+                                   'status-error';
+                html += `<div class="status-badge ${statusClass}">Status: ${config.status}</div>`;
+
+                // Errors
+                if (config.errors && config.errors.length > 0) {
+                    html += '<h3 style="color: #dc3545; margin-top: 20px;">❌ Errors</h3>';
+                    config.errors.forEach(error => {
+                        html += `
+                            <div class="alert alert-error">
+                                <h4>${error.severity}: ${error.message}</h4>
+                                ${error.impact ? `<p><strong>Impact:</strong> ${error.impact}</p>` : ''}
+                                ${error.solution ? `<p><strong>Solution:</strong> ${error.solution}</p>` : ''}
+                                ${error.check ? `<p><strong>Check:</strong> ${error.check}</p>` : ''}
+                            </div>
+                        `;
+                    });
+                }
+
+                // Warnings
+                if (config.warnings && config.warnings.length > 0) {
+                    html += '<h3 style="color: #ffc107; margin-top: 20px;">⚠️ Warnings</h3>';
+                    config.warnings.forEach(warning => {
+                        html += `
+                            <div class="alert alert-warning">
+                                <h4>${warning.severity}: ${warning.message}</h4>
+                                ${warning.impact ? `<p><strong>Impact:</strong> ${warning.impact}</p>` : ''}
+                                ${warning.check ? `<p><strong>Check:</strong> ${warning.check}</p>` : ''}
+                            </div>
+                        `;
+                    });
+                }
+
+                // Configuration details
+                html += `
+                    <div class="config-section">
+                        <h3>📋 Current Configuration</h3>
+                        <div class="config-item">
+                            <span class="config-label">Base URL:</span>
+                            <span class="config-value">${config.baseUrl}</span>
+                        </div>
+                        <div class="config-item">
+                            <span class="config-label">Frontend URL:</span>
+                            <span class="config-value">${config.frontendUrl}</span>
+                        </div>
+                        <div class="config-item">
+                            <span class="config-label">Is Workers URL:</span>
+                            <span class="config-value">${config.isWorkersUrl ? '✅ Yes' : '❌ No'}</span>
+                        </div>
+                    </div>
+                `;
+
+                // Redirect URIs
+                html += `
+                    <div class="config-section">
+                        <h3>🔗 OAuth Redirect URIs</h3>
+                        <p style="margin-bottom: 10px; color: #666;">These must match exactly in your OAuth provider consoles:</p>
+                        <div class="config-item">
+                            <span class="config-label">YouTube:</span>
+                            <span class="config-value">${config.redirectUris.youtube}</span>
+                        </div>
+                        <div class="config-item">
+                            <span class="config-label">TikTok:</span>
+                            <span class="config-value">${config.redirectUris.tiktok}</span>
+                        </div>
+                        <div class="config-item">
+                            <span class="config-label">Facebook:</span>
+                            <span class="config-value">${config.redirectUris.facebook}</span>
+                        </div>
+                    </div>
+                `;
+
+                // Secrets configured
+                html += `
+                    <div class="config-section">
+                        <h3>🔐 Secrets Configured</h3>
+                `;
+                Object.keys(config.secretsConfigured).forEach(key => {
+                    const value = config.secretsConfigured[key];
+                    html += `
+                        <div class="config-item">
+                            <span class="config-label">${key}:</span>
+                            <span class="config-value">${value ? '✅ Set' : '❌ Not Set'}</span>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+
+                // Help section
+                if (config.help) {
+                    html += `
+                        <div class="help-section">
+                            <h3>💡 ${config.help.message}</h3>
+                            <ol>
+                                ${config.help.steps.map(step => `<li>${step}</li>`).join('')}
+                            </ol>
+                            <p style="margin-top: 10px;"><strong>Documentation:</strong> ${config.help.documentation}</p>
+                        </div>
+                    `;
+                }
+
+                resultsDiv.innerHTML = html;
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="error-message">
+                        <h3>Error checking configuration:</h3>
+                        <p>${error.message}</p>
+                        <p style="margin-top: 10px;">Make sure the worker URL is correct and the worker is deployed.</p>
+                    </div>
+                `;
+            } finally {
+                checkBtn.disabled = false;
+            }
+        }
+
+        // Allow Enter key to trigger check
+        document.getElementById('workerUrl').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                checkConfig();
+            }
+        });
+    </script>
+</body>
+</html>
