@@ -200,9 +200,9 @@
         </div>
         <input id="ytTitle" placeholder="YouTube Title" />
         <textarea id="ytDesc" placeholder="Full Description"></textarea>
-        <textarea id="ytKeywords" placeholder="20 Trending Keywords"></textarea>
+        <textarea id="ytKeywords" placeholder="20 Trending Keywords (comma-separated for YouTube)"></textarea>
         <div class="controls">
-          <button class="btn secondary" onclick="copyYoutube()">🚀 Copy & Go to YouTube</button>
+          <button class="btn secondary" onclick="copyYoutube()">📋 Copy to YouTube</button>
         </div>
       </div>
 
@@ -214,7 +214,7 @@
         </div>
         <textarea id="ttAllInOne" placeholder="AI-generated caption with hook and hashtags..."></textarea>
         <div class="controls">
-          <button class="btn secondary" onclick="copyGeneric('ttAllInOne', 'TikTok', 'https://www.tiktok.com/upload')">📱 Copy & Go to TikTok</button>
+          <button class="btn secondary" onclick="copyGeneric('ttAllInOne', 'TikTok', 'https://www.tiktok.com/upload')">📋 Copy to TikTok</button>
         </div>
       </div>
 
@@ -227,7 +227,7 @@
         <input id="fbTitle" placeholder="Reel Title" />
         <textarea id="fbDetails" placeholder="Description, tags & keywords"></textarea>
         <div class="controls">
-          <button class="btn secondary" onclick="copyFB()">📸 Copy & Go to Facebook</button>
+          <button class="btn secondary" onclick="copyFB()">📋 Copy to Facebook</button>
         </div>
       </div>
     </section>
@@ -261,8 +261,11 @@
     });
   </script>
 
+  <!-- Centralized API Configuration -->
+  <script src="config.js"></script>
+  
   <script>
-    const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
+    const apiBase = API_BASE;
     const statusEl = document.getElementById("status");
     const generateBtn = document.getElementById("generateBtn");
 

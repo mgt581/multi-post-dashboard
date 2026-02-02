@@ -3,110 +3,58 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Workspace | Multipost</title>
+  <title>Workspace View | Multipost SEO</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-  <style>
-    .status-dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      display: inline-block;
-      margin-right: 8px;
-    }
-    .status-online { background-color: #10b981; box-shadow: 0 0 8px rgba(16, 185, 129, 0.5); }
-    .status-offline { background-color: #94a3b8; }
-
-    .platform-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
-      padding: 0 4px;
-    }
-
-    .account-badge {
-      background: var(--bg);
-      padding: 4px 12px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--muted);
-      border: 1px solid var(--border);
-    }
-
-    .add-btn-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 24px;
-    }
-
-    .mini-add-btn {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 8px;
-      padding: 16px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .mini-add-btn:hover { border-color: var(--primary); background: #f5f3ff; }
-    .mini-add-btn i { font-size: 20px; }
-  </style>
 </head>
 <body>
   <div class="app-container">
     <header class="header">
       <button class="header-btn" onclick="location.href='app.html'">
-        <i class="fa-solid fa-house"></i>
+        <i class="fa-solid fa-arrow-left"></i>
       </button>
-      <h1 id="title">Workspace</h1>
+      <h1 id="title">Loading...</h1>
       <div style="width:40px;"></div>
     </header>
     
     <div class="section" style="margin-top:20px;">
-      <div class="card" style="background: var(--primary); color: white; border: none; padding: 20px;">
+      <div class="card" style="background: var(--primary); color: white; border: none;">
+        <div class="card-icon" style="background: rgba(255,255,255,0.2); color: white;">
+          <i class="fa-solid fa-briefcase"></i>
+        </div>
         <div class="card-content">
-          <span class="card-sub" style="color: rgba(255,255,255,0.7); text-transform: uppercase; letter-spacing: 1px;">Current Brand</span>
-          <h2 id="name" style="margin: 4px 0 0; font-size: 24px; color: white;">---</h2>
+          <span class="card-title" id="name" style="color:white;">---</span>
+          <span class="card-sub" id="count" style="color:rgba(255,255,255,0.8);">Initializing...</span>
         </div>
       </div>
     </div>
 
     <div class="section">
-      <div class="section-title">Add New Connections</div>
-      <div class="add-btn-row">
-        <div class="mini-add-btn" onclick="addAccount('facebook')">
-          <i class="fa-brands fa-facebook" style="color: #1877f2;"></i>
-          <span style="font-size: 11px; font-weight: 800;">FACEBOOK</span>
-        </div>
-        <div class="mini-add-btn" onclick="addAccount('tiktok')">
-          <i class="fa-brands fa-tiktok" style="color: #000;"></i>
-          <span style="font-size: 11px; font-weight: 800;">TIKTOK</span>
-        </div>
-        <div class="mini-add-btn" onclick="addAccount('youtube')">
-          <i class="fa-brands fa-youtube" style="color: #ff0000;"></i>
-          <span style="font-size: 11px; font-weight: 800;">YOUTUBE</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">Managed Accounts</div>
+      <div class="section-title">Connected Platforms</div>
       <div id="accountList">
-        <div class="card" style="justify-content: center; opacity: 0.5;">
-          <p class="card-sub">Checking connections...</p>
+        <div class="card" style="justify-content: center; border: 1px dashed var(--muted); opacity: 0.6;">
+          <p class="card-sub">Fetching platform data...</p>
         </div>
       </div>
     </div>
 
-    <div class="section" style="margin-top: 20px; padding-bottom: 40px;">
-      <button class="btn-primary" onclick="location.href='create-post.html'" style="background: var(--accent);">
-        <i class="fa-solid fa-wand-magic-sparkles"></i> Create AI Content
+    <div class="section">
+      <div class="section-title">Link New Account</div>
+      <div class="card">
+        <div class="card-content" style="display:flex; gap:10px;">
+          <select id="platformSelect" style="flex:1; padding: 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--bg); font-weight: 600;">
+            <option value="tiktok">TikTok</option>
+            <option value="youtube">YouTube</option>
+            <option value="facebook">Facebook</option>
+          </select>
+          <button class="btn-primary" onclick="addAccount()" style="width:auto; padding: 0 24px;">Link</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" style="margin-top: 20px;">
+      <button class="btn-primary" onclick="location.href='create-post.html'" style="background: var(--accent); box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3);">
+        <i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;"></i> Create AI SEO Post
       </button>
     </div>
 
@@ -129,6 +77,7 @@
   <script>
     const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
     let userScope = null;
+
     const scopedKey = name => `${name}:${userScope}`;
 
     const platformMeta = {
@@ -150,16 +99,13 @@
       const listContainer = document.getElementById("accountList");
       
       try {
-        const res = await fetch(`${apiBase}/get-accounts?folder_id=${fId}&user_id=${encodeURIComponent(userScope)}`);
+        const url = `${apiBase}/get-accounts?folder_id=${fId}&user_id=${encodeURIComponent(userScope)}`;
+        const res = await fetch(url);
         const accs = await res.json();
+        document.getElementById("count").innerText = `${accs.length} accounts connected`;
 
         if (accs.length === 0) {
-          listContainer.innerHTML = `
-            <div class="card" style="flex-direction:column; padding: 30px; text-align:center; border: 1px dashed var(--muted);">
-              <i class="fa-solid fa-link-slash" style="font-size: 24px; color: var(--muted); margin-bottom: 12px;"></i>
-              <span class="card-title">No accounts linked</span>
-              <span class="card-sub">Use the buttons above to connect Facebook, TikTok or YouTube.</span>
-            </div>`;
+          listContainer.innerHTML = `<div class="card"><div class="card-content"><p class="card-sub">No accounts linked to this brand yet.</p></div></div>`;
           return;
         }
 
@@ -171,31 +117,37 @@
                 <i class="${meta.icon}"></i>
               </div>
               <div class="card-content">
-                <span class="card-title">${acc.nickname || 'Connected Account'}</span>
-                <div style="display:flex; align-items:center; margin-top:4px;">
-                  <span class="status-dot status-online"></span>
-                  <span class="card-sub" style="color: #10b981; font-weight:800; font-size:11px;">LINKED</span>
-                </div>
+                <span class="card-title">${acc.nickname || 'Active Account'}</span>
+                <span class="card-sub" style="color:${meta.color}; font-weight:700;">${meta.name} Connected</span>
               </div>
-              <button class="header-btn" style="color:#ef4444; border:none; box-shadow:none; background:transparent;" onclick="removeAccount(${acc.id})">
+              <button class="header-btn" style="color:#ef4444; border:none; box-shadow:none; background:transparent;" onclick="removeAccount(${acc.id}, this)">
                 <i class="fa-solid fa-trash-can"></i>
               </button>
             </div>`;
         }).join("");
       } catch (err) {
-        listContainer.innerHTML = `<p style="color:red; text-align:center;">Connection error. Try refreshing.</p>`;
+        listContainer.innerHTML = `<p style="color:red; text-align:center;">Session Error.</p>`;
       }
     }
 
-    function addAccount(platform) {
+    function addAccount() {
+      const platform = document.getElementById("platformSelect").value;
       const fId = localStorage.getItem(scopedKey("activeFolderId"));
       if (!fId || !userScope) return alert("Security Error: No session found.");
-      // Ensure we pass the full URL for callback calculation in worker
-      window.location.href = `${apiBase}/auth/${platform}?folder_id=${fId}&user_id=${userScope}`;
+
+      // Validate platform against known platforms to prevent misuse of DOM-derived value
+      const allowedPlatforms = Object.keys(platformMeta || {});
+      if (!allowedPlatforms.includes(platform)) {
+        alert("Invalid platform selection.");
+        return;
+      }
+
+      const safePlatform = encodeURIComponent(platform);
+      window.location.href = `${apiBase}/auth/${safePlatform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
     }
 
-    async function removeAccount(accountId) {
-      if (!confirm("Unlink this account from this brand?")) return;
+    async function removeAccount(accountId, btnEl) {
+      if (!confirm("Remove this account?")) return;
       try {
         await fetch(`${apiBase}/delete-folder`, {
           method: "POST",
