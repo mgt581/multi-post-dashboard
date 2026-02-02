@@ -10,8 +10,25 @@ var worker_default = {
     if (request.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
     const url = new URL(request.url);
-    // Use configured base URL for OAuth callbacks to ensure consistency
-    // Falls back to request hostname if not configured
+    
+    // ============================================================================
+    // OAUTH REDIRECT URI CONFIGURATION
+    // ============================================================================
+    // BASE_URL: The worker URL used for OAuth callbacks (MUST be set via wrangler secret)
+    // Example: https://multipost-seo-worker.alexbryant.workers.dev
+    // 
+    // This is the canonical base URL for OAuth redirect URIs:
+    //   - YouTube: {BASE_URL}/api/auth/callback/youtube
+    //   - TikTok:  {BASE_URL}/api/auth/callback/tiktok
+    //   - Facebook: {BASE_URL}/api/auth/callback/facebook
+    //
+    // CRITICAL: This MUST match exactly what's configured in OAuth provider consoles:
+    //   - Google Cloud Console (YouTube)
+    //   - TikTok Developer Portal
+    //   - Meta Developer Dashboard (Facebook)
+    //
+    // Falls back to request hostname if not configured (for development/testing)
+    // ============================================================================
     const baseUrl = env.BASE_URL || `https://${url.hostname}`;
     
     // Frontend URL for redirects after OAuth (can be different from API base URL)
@@ -70,11 +87,56 @@ var worker_default = {
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
 
-      // AUTH START - Using dynamic baseUrl
+      // Configuration check endpoint for debugging OAuth setup
+      // IMPORTANT: In production, consider restricting access to this endpoint
+      if (url.pathname === "/api/config-check") {
+        // Only show configuration in non-sensitive way
+        const configInfo = {
+          baseUrl: baseUrl,
+          frontendUrl: frontendUrl,
+          redirectUris: {
+            youtube: `${baseUrl}/api/auth/callback/youtube`,
+            tiktok: `${baseUrl}/api/auth/callback/tiktok`,
+            facebook: `${baseUrl}/api/auth/callback/facebook`
+          },
+          // Only show boolean status of secrets, not their values
+          secretsConfigured: {
+            BASE_URL: !!env.BASE_URL,
+            GOOGLE_CLIENT_ID: !!env.GOOGLE_CLIENT_ID,
+            GOOGLE_CLIENT_SECRET: !!env.GOOGLE_CLIENT_SECRET,
+            TIKTOK_CLIENT_KEY: !!env.TIKTOK_CLIENT_KEY,
+            TIKTOK_CLIENT_SECRET: !!env.TIKTOK_CLIENT_SECRET,
+            FB_CLIENT_ID: !!env.FB_CLIENT_ID,
+            FB_CLIENT_SECRET: !!env.FB_CLIENT_SECRET
+          }
+        };
+        return new Response(JSON.stringify(configInfo, null, 2), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
+
+      // AUTH START - OAuth Initiation
+      // ============================================================================
+      // This endpoint initiates the OAuth flow by redirecting to the provider
+      // The redirect_uri parameter MUST match exactly what's registered in the
+      // OAuth provider console (Google/TikTok/Meta)
+      // ============================================================================
       if (url.pathname.startsWith("/api/auth/")) {
         const platform = url.pathname.split("/")[3];
         
-        // Log the redirect URI for debugging
+        // SECURITY: Validate platform immediately to prevent injection attacks
+        // Using allowlist approach - only accept known platforms
+        // Generic error message prevents information leakage
+        const validPlatforms = ['youtube', 'tiktok', 'facebook'];
+        if (!validPlatforms.includes(platform)) {
+          return new Response(JSON.stringify({ error: 'Invalid platform' }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+        
+        // Construct the canonical redirect URI for this platform
+        // This MUST be identical to what's used in the callback handler below
         const redirect = `${baseUrl}/api/auth/callback/${platform}`;
         console.log(`Initiating OAuth for ${platform} with redirect URI: ${redirect}`);
         console.log(`BASE_URL env: ${env.BASE_URL || 'not set'}, Using: ${baseUrl}`);
@@ -92,12 +154,30 @@ var worker_default = {
         }
       }
 
-      // CALLBACKS
+      // CALLBACKS - OAuth Token Exchange
+      // ============================================================================
+      // This endpoint receives the authorization code from the OAuth provider
+      // and exchanges it for an access token.
+      // 
+      // CRITICAL: The redirect_uri used here MUST match exactly the one used
+      // during OAuth initiation above. OAuth providers validate this match.
+      // ============================================================================
       if (url.pathname.includes("/api/auth/callback/")) {
         const platform = url.pathname.split("/")[4];
         const code = url.searchParams.get("code");
         const error = url.searchParams.get("error");
         const { folderId, userId } = decodeState(url.searchParams.get("state"));
+        
+        // SECURITY: Validate platform immediately to prevent injection attacks
+        // Using allowlist approach - only accept known platforms
+        // Redirect with error to avoid exposing system details
+        const validPlatforms = ['youtube', 'tiktok', 'facebook'];
+        if (!validPlatforms.includes(platform)) {
+          console.error(`Invalid platform in callback: ${platform}`);
+          return Response.redirect(`${frontendUrl}/folder.html?id=${folderId}&error=invalid_platform`);
+        }
+        
+        // Use the SAME redirect URI construction as in auth initiation
         const callbackUri = `${baseUrl}/api/auth/callback/${platform}`;
 
         console.log(`OAuth callback for ${platform}, callbackUri: ${callbackUri}, has code: ${!!code}, error: ${error || 'none'}`);
