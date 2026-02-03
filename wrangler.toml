@@ -1,10 +1,32 @@
-name = "your-worker-name"
-type = "javascript"
+name = "multipost-seo-worker"
+main = "worker.js"
+compatibility_date = "2024-01-01"
 
-[env]
-  GOOGLE_CLIENT_ID = "1099160429576-b8kba9n0qc3gj1ismai36mv4ifelrdfq.apps.googleusercontent.com"
-  TIKTOK_CLIENT_KEY = "awfqyscbk5kl6pu8"
-  FACEBOOK_APP_ID = "1596560914709231"
+# D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "accountsmultipostapp"
+database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
 
-[build]
-  command = "npm run build"
+# AI Binding for Llama Model
+[ai]
+binding = "AI"
+
+# Environment Variables (Secrets)
+# Set these using: wrangler secret put <SECRET_NAME>
+# 
+# Required secrets:
+# - GOOGLE_CLIENT_ID
+# - GOOGLE_CLIENT_SECRET
+# - TIKTOK_CLIENT_KEY
+# - TIKTOK_CLIENT_SECRET
+# - FB_CLIENT_ID
+# - FB_CLIENT_SECRET
+
+# Example commands to set secrets:
+# wrangler secret put GOOGLE_CLIENT_ID
+# wrangler secret put GOOGLE_CLIENT_SECRET
+# wrangler secret put TIKTOK_CLIENT_KEY
+# wrangler secret put TIKTOK_CLIENT_SECRET
+# wrangler secret put FB_CLIENT_ID
+# wrangler secret put FB_CLIENT_SECRET
