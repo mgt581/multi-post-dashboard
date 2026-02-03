@@ -110,12 +110,15 @@ var worker_default = {
           return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
         }
 
+        // remove tokens while folder row still exists so user scoping applies
+        await env.DB.prepare(`
+          DELETE FROM tokens
+          WHERE folder_id IN (SELECT id FROM folders WHERE id = ? AND user_id = ?)
+        `).bind(id, userId).run();
+
         // keep original deletes but scope by user
         await env.DB.prepare("DELETE FROM accounts WHERE folder_id = ? AND user_id = ?").bind(id, userId).run();
         await env.DB.prepare("DELETE FROM folders WHERE id = ? AND user_id = ?").bind(id, userId).run();
-
-        // added: also remove tokens for this folder (must not rely on folder still existing)
-        await env.DB.prepare("DELETE FROM tokens WHERE folder_id = ?").bind(id).run();
 
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
