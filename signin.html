@@ -170,24 +170,26 @@
             <button id="tab-signup" class="tab" onclick="switchMode('signup')">Sign Up</button>
         </div>
 
-        <div class="form-group">
-            <input id="email" type="email" placeholder="Email Address">
+        <div id="auth-form">
+            <div class="form-group">
+                <input id="email" type="email" placeholder="Email Address">
+            </div>
+            <div class="form-group">
+                <input id="password" type="password" placeholder="Password">
+            </div>
+
+            <button class="btn" onclick="handleAuthSubmit()">
+                <span id="btn-text">Enter Workspace</span>
+                <div id="btn-loader" class="loader"></div>
+            </button>
+
+            <button class="btn btn-google" onclick="handleGoogleSignIn()">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18">
+                Continue with Google
+            </button>
+
+            <a href="#" class="forgot-link" onclick="handlePasswordReset()">Forgot your password?</a>
         </div>
-        <div class="form-group">
-            <input id="password" type="password" placeholder="Password">
-        </div>
-
-        <button class="btn" onclick="handleAuthSubmit()">
-            <span id="btn-text">Enter Workspace</span>
-            <div id="btn-loader" class="loader"></div>
-        </button>
-
-        <button class="btn btn-google" onclick="handleGoogleSignIn()">
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18">
-            Continue with Google
-        </button>
-
-        <a href="#" class="forgot-link" onclick="handlePasswordReset()">Forgot your password?</a>
     </div>
 
     <script type="module">
@@ -218,6 +220,16 @@
 
         let currentMode = "login";
 
+        // Logic for handling Google redirect result
+        getRedirectResult(auth).then((result) => {
+            if (result?.user) {
+                localStorage.setItem("currentUserKey", result.user.email || result.user.uid);
+                window.location.replace("app.html"); // Redirect to Dashboard
+            }
+        }).catch((error) => {
+            console.error("Google Auth Error:", error);
+        });
+
         window.switchMode = (mode) => {
             currentMode = mode;
             document.getElementById("tab-login").classList.toggle("active", mode === "login");
@@ -243,7 +255,6 @@
                 } else {
                     await createUserWithEmailAndPassword(auth, email, password);
                 }
-                window.location.href = "index.html";
             } catch (err) {
                 alert(err.message);
                 btnText.style.display = "block";
@@ -267,7 +278,9 @@
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 localStorage.setItem("currentUserKey", user.email || user.uid);
-                window.location.href = "index.html";
+                if (window.location.pathname.includes("signin.html")) {
+                    window.location.replace("app.html"); // Redirect to Dashboard
+                }
             }
         });
     </script>
