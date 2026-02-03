@@ -384,12 +384,15 @@ var worker_default = {
         const newResponse = new Response(response.body, response);
         
         // Add Content-Security-Policy header to allow TikTok embeds and scripts
+        // Note: 'unsafe-inline' and 'unsafe-eval' are required because:
+        // - HTML files contain inline scripts for Firebase auth and UI logic
+        // - Firebase SDK and some third-party libraries may use eval
         newResponse.headers.set("Content-Security-Policy",
           "default-src 'self'; " +
           "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdnjs.cloudflare.com https://sf-security.ibytedtos.com; " +
           "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; " +
           "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; " +
-          "img-src 'self' data: https:; " +
+          "img-src 'self' data: https://www.gstatic.com https://p16-sign-va.tiktokcdn.com https://graph.facebook.com; " +
           "connect-src 'self' https://multipost-seo-worker.alexbryant.workers.dev https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com https://open.tiktokapis.com https://www.tiktok.com https://graph.facebook.com https://www.facebook.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://libraweb-i18n.tiktok.com https://mcs-i18n.tiktok.com; " +
           "frame-src 'self' https://accounts.google.com https://www.facebook.com https://www.tiktok.com; " +
           "object-src 'none'; " +
