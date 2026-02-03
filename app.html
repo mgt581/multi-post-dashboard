@@ -4,51 +4,140 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Multipost | Dashboard</title>
-  <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
+
+    :root {
+      --bg: linear-gradient(135deg, #0f172a, #0b2f52 60%, #0ea5e9);
+      --card: #0b1829;
+      --border: rgba(255, 255, 255, 0.08);
+      --muted: #94a3b8;
+      --text: #e2e8f0;
+      --accent: #7c3aed;
+      --accent-2: #0ea5e9;
+      --shadow: 0 14px 40px rgba(15, 23, 42, 0.45);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      font-family: 'Manrope', sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      padding: 28px 16px 80px;
+    }
+
+    .page { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+    header { display: flex; align-items: center; justify-content: space-between; }
+
+    .greeting p { margin: 0; font-size: 14px; color: var(--muted); font-weight: 700; }
+    .greeting h1 { margin: 4px 0 0; font-size: 26px; }
+
+    .header-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--muted);
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .btn {
+      width: 100%;
+      border: none;
+      border-radius: 12px;
+      padding: 14px;
+      font-weight: 800;
+      font-size: 16px;
+      cursor: pointer;
+      color: white;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 12px 28px rgba(14, 165, 233, 0.35);
+      transition: transform 0.1s;
+    }
+    .btn:active { transform: scale(0.98); }
+
+    .section-title { font-weight: 800; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-left: 4px; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .icon-box {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: white;
+    }
+
+    .card-content { flex: 1; }
+    .card-title { display: block; font-weight: 700; font-size: 17px; }
+    .card-sub { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+    .chevron { color: var(--muted); font-size: 14px; }
+
+    /* Bottom Nav */
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(11, 24, 41, 0.85); backdrop-filter: blur(12px); display: flex; justify-content: space-around; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); z-index: 100; }
+    .nav-item { text-decoration: none; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 10px; font-weight: 800; }
+    .nav-item.active { color: var(--accent-2); }
+    .nav-item i { font-size: 20px; }
+  </style>
 </head>
 <body>
-  <div class="app-container">
-    <header class="header">
-      <div>
-        <p style="margin:0; font-size:12px; color:var(--muted); font-weight:600;">Welcome back,</p>
-        <h1 id="userGreeting">Your Workspaces</h1>
+  <div class="page">
+    <header>
+      <div class="greeting">
+        <p>Welcome back,</p>
+        <h1 id="userGreeting">Your Brands</h1>
       </div>
       <button class="header-btn" onclick="location.href='settings.html'">
         <i class="fa-solid fa-cog"></i>
       </button>
     </header>
 
-    <div class="section" style="margin-top: 20px;">
-      <button class="btn-primary" onclick="createNewFolder()" style="background: var(--accent); box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3);">
+    <div>
+      <button class="btn" onclick="createNewFolder()">
         <i class="fa-solid fa-plus" style="margin-right:8px;"></i> Create New Brand
       </button>
     </div>
 
-    <div class="section">
-      <div class="section-title">Active Clients</div>
-      <div id="folderContainer">
-        <div class="card" style="justify-content: center; border: 1px dashed var(--muted); opacity: 0.6;">
+    <div>
+      <div class="section-title">Active Brands</div>
+      <div id="folderContainer" style="margin-top: 10px;">
+        <div class="card" style="justify-content: center; border-style: dashed; opacity: 0.7;">
           <p class="card-sub">Loading your brands...</p>
         </div>
       </div>
     </div>
-
-    <nav class="bottom-nav">
-      <a href="app.html" class="nav-item active">
-        <i class="fa-solid fa-house"></i>
-        <span>HOME</span>
-      </a>
-      <a href="create-post.html" class="nav-item">
-        <i class="fa-solid fa-wand-magic-sparkles"></i>
-        <span>AI SEO</span>
-      </a>
-      <a href="settings.html" class="nav-item">
-        <i class="fa-solid fa-user"></i>
-        <span>PROFILE</span>
-      </a>
-    </nav>
   </div>
+
+  <nav class="bottom-nav">
+    <a href="app.html" class="nav-item active"><i class="fa-solid fa-house"></i><span>HOME</span></a>
+    <a href="create-post.html" class="nav-item"><i class="fa-solid fa-wand-magic-sparkles"></i><span>AI SEO</span></a>
+    <a href="settings.html" class="nav-item"><i class="fa-solid fa-user"></i><span>PROFILE</span></a>
+  </nav>
 
   <script>
     const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
@@ -65,34 +154,29 @@
         const folders = await res.json();
 
         if (folders.length === 0) {
-          container.innerHTML = `<div class="card"><div class="card-content"><p class="card-sub">No brands yet. Start by creating one!</p></div></div>`;
+          container.innerHTML = `<div class="card" style="border-style:dashed; justify-content:center; opacity:0.7;"><p class="card-sub">No brands yet. Start by creating one!</p></div>`;
           return;
         }
 
         container.innerHTML = folders.map(f => `
-          <div class="card folder-card" data-folder-id="${f.id}" data-folder-name="${f.name}">
-            <div class="card-icon" style="background:#ecfdf5; color:var(--accent);">
-              <i class="fa-solid fa-folder"></i>
-            </div>
+          <a href="#" class="card folder-card" data-folder-id="${f.id}" data-folder-name="${f.name}">
+            <div class="icon-box"><i class="fa-solid fa-folder"></i></div>
             <div class="card-content">
               <span class="card-title">${f.name}</span>
-              <span class="card-sub">Manage assets and accounts</span>
+              <span class="card-sub">Manage assets & accounts</span>
             </div>
-            <i class="fa-solid fa-chevron-right" style="color:var(--muted); font-size:12px;"></i>
-          </div>
+            <i class="fa-solid fa-chevron-right chevron"></i>
+          </a>
         `).join('');
 
-        // Attach click handlers after rendering to avoid inline JS and manual escaping
-        const cards = container.querySelectorAll('.folder-card');
-        cards.forEach(card => {
-          card.addEventListener('click', () => {
-            const id = card.dataset.folderId;
-            const name = card.dataset.folderName;
-            openFolder(id, name);
+        container.querySelectorAll('.folder-card').forEach(card => {
+          card.addEventListener('click', (e) => {
+            e.preventDefault();
+            openFolder(card.dataset.folderId, card.dataset.folderName);
           });
         });
       } catch (err) {
-        container.innerHTML = `<p style="color:red; text-align:center;">Failed to load data. Try refreshing.</p>`;
+        container.innerHTML = `<p style="color:var(--error); text-align:center;">Failed to load brands.</p>`;
       }
     }
 
@@ -138,7 +222,7 @@
         return;
       }
       userScope = user.uid || user.email;
-      const greeting = user.displayName ? `Hi, ${user.displayName.split(' ')[0]}` : "Your Workspaces";
+      const greeting = user.displayName ? `${user.displayName.split(' ')[0]}` : "Your Brands";
       document.getElementById("userGreeting").innerText = greeting;
       loadFolders();
     });

@@ -1,127 +1,198 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Settings | Multipost SEO</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        body { font-family:sans-serif; margin:0; background:#f9f9f9; color:#111; }
-        .app-container { padding-bottom: 80px; }
-        .header { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; background:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1); }
-        .header-btn { background:none; border:none; font-size:20px; cursor:pointer; }
-        .section { margin:16px; }
-        .card { background:#fff; border-radius:12px; padding:16px; display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; box-shadow:0 2px 5px rgba(0,0,0,0.05); cursor:pointer; }
-        .card:hover { background:#f1f5f9; }
-        .card-content { flex:1; }
-        .card-title { font-weight:700; font-size:16px; }
-        .btn-primary { background:#10b981; color:#fff; border:none; padding:12px 24px; border-radius:12px; cursor:pointer; font-weight:600; width:100%; }
-        .bottom-nav { position:fixed; bottom:0; left:0; width:100%; display:flex; justify-content:space-around; padding:8px 0; background:#fff; box-shadow:0 -2px 5px rgba(0,0,0,0.1); }
-        .nav-item { text-align:center; color:#555; font-size:12px; text-decoration:none; display:flex; flex-direction:column; align-items:center; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Multipost | Profile</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
+
+    :root {
+      --bg: linear-gradient(135deg, #0f172a, #0b2f52 60%, #0ea5e9);
+      --card: #0b1829;
+      --border: rgba(255, 255, 255, 0.08);
+      --muted: #94a3b8;
+      --text: #e2e8f0;
+      --accent: #7c3aed;
+      --accent-2: #0ea5e9;
+      --error: #f43f5e;
+      --shadow: 0 14px 40px rgba(15, 23, 42, 0.45);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      font-family: 'Manrope', sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      padding: 28px 16px 80px;
+    }
+
+    .page { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+    header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+
+    .badge {
+      display: inline-flex;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.04);
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .profile-hero {
+      flex-direction: column;
+      text-align: center;
+      background: radial-gradient(circle at top right, rgba(124, 58, 237, 0.15), transparent), var(--card);
+    }
+
+    .avatar {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      color: white;
+      margin-bottom: 12px;
+    }
+
+    h1 { margin: 0; font-size: 24px; }
+    .email { color: var(--muted); font-size: 14px; margin-top: 4px; }
+
+    .section-title { font-weight: 800; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-left: 4px; }
+
+    .action-card { cursor: pointer; transition: transform 0.1s; }
+    .action-card:active { transform: scale(0.98); }
+
+    .icon-box {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .action-info { flex: 1; }
+    .action-title { display: block; font-weight: 700; font-size: 16px; }
+    .action-sub { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+    .btn-logout { color: var(--error); }
+    .btn-logout .icon-box { background: rgba(244, 63, 94, 0.1); color: var(--error); }
+
+    /* Bottom Nav */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: rgba(11, 24, 41, 0.85);
+      backdrop-filter: blur(12px);
+      display: flex;
+      justify-content: space-around;
+      padding: 12px 0 calc(12px + env(safe-area-inset-bottom));
+      border-top: 1px solid var(--border);
+      z-index: 100;
+    }
+
+    .nav-item {
+      text-decoration: none;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 800;
+    }
+
+    .nav-item.active { color: var(--accent-2); }
+    .nav-item i { font-size: 20px; }
+  </style>
 </head>
 <body>
-<div class="app-container">
-    <header class="header">
-        <button class="header-btn" onclick="location.href='app.html'">
-            <i class="fa-solid fa-arrow-left"></i>
-        </button>
-        <h1>Settings</h1>
-        <div style="width:40px;"></div>
+  <div class="page">
+    <header>
+      <div class="badge">Account Settings</div>
+      <div class="badge">Live</div>
     </header>
 
-    <div class="section">
-        <div class="section-title" style="font-weight:700; margin-bottom:8px;">User</div>
-        <div class="card" id="userCard">
-            <div class="card-content" id="userInfo">Loading user...</div>
-            <button class="header-btn" onclick="logout()">
-                <i class="fa-solid fa-right-from-bracket"></i>
-            </button>
-        </div>
+    <div class="card profile-hero">
+      <div class="avatar">
+        <i class="fa-solid fa-user"></i>
+      </div>
+      <h1 id="userName">Loading...</h1>
+      <p id="userEmail" class="email">---</p>
     </div>
 
-    <div class="section">
-        <div class="section-title" style="font-weight:700; margin-bottom:8px;">Folders</div>
-        <div id="folderList">
-            <p style="text-align:center; opacity:0.6;">Loading folders...</p>
-        </div>
-        <button class="btn-primary" onclick="createFolder()" style="margin-top:12px;">+ Create New Folder</button>
+    <div class="section-title">Security</div>
+
+    <div class="card action-card btn-logout" onclick="handleSignOut()">
+      <div class="icon-box"><i class="fa-solid fa-right-from-bracket"></i></div>
+      <div class="action-info">
+        <span class="action-title">Sign Out</span>
+        <span class="action-sub">Securely end your session</span>
+      </div>
     </div>
 
-    <nav class="bottom-nav">
-        <a href="app.html" class="nav-item"><i class="fa-solid fa-house"></i><span>HOME</span></a>
-        <a href="create-post.html" class="nav-item"><i class="fa-solid fa-wand-magic-sparkles"></i><span>AI SEO</span></a>
-        <a href="settings.html" class="nav-item"><i class="fa-solid fa-user"></i><span>PROFILE</span></a>
-    </nav>
-</div>
+    <div class="card action-card" onclick="deleteAccount()" style="border-color: rgba(244, 63, 94, 0.3);">
+      <div class="icon-box" style="color: var(--error);"><i class="fa-solid fa-user-slash"></i></div>
+      <div class="action-info">
+        <span class="action-title" style="color: var(--error);">Delete Account</span>
+        <span class="action-sub">Permanently erase all data</span>
+      </div>
+    </div>
 
-<script>
-    const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
-    let userScope = null;
+    <div class="section-title">Legal</div>
+    <a href="terms.html" class="card action-card" style="text-decoration: none; color: inherit;">
+      <div class="icon-box"><i class="fa-solid fa-file-contract"></i></div>
+      <div class="action-info">
+        <span class="action-title">Terms of Service</span>
+        <span class="action-sub">Usage agreement and rules</span>
+      </div>
+    </a>
+  </div>
 
-    const scopedKey = name => `${name}:${userScope}`;
+  <nav class="bottom-nav">
+    <a href="app.html" class="nav-item">
+      <i class="fa-solid fa-house"></i>
+      <span>HOME</span>
+    </a>
+    <a href="create-post.html" class="nav-item">
+      <i class="fa-solid fa-wand-magic-sparkles"></i>
+      <span>AI SEO</span>
+    </a>
+    <a href="settings.html" class="nav-item active">
+      <i class="fa-solid fa-user"></i>
+      <span>PROFILE</span>
+    </a>
+  </nav>
 
-    async function renderFolders() {
-      const container = document.getElementById("folderList");
-      container.innerHTML = `<p style="text-align:center; opacity:0.6;">Loading folders...</p>`;
-
-      try {
-        const res = await fetch(`${apiBase}/get-folders?user_id=${encodeURIComponent(userScope)}`);
-        const folders = await res.json();
-
-        if (!folders.length) {
-          container.innerHTML = `<p style="text-align:center; opacity:0.6;">No folders created yet.</p>`;
-          return;
-        }
-
-        container.innerHTML = folders.map(f => `
-          <div class="card" onclick="selectFolder(${f.id}, '${f.name}')">
-            <div class="card-content">
-              <span class="card-title">${f.name}</span>
-              <span class="card-sub" style="font-size:12px; color:#555;">ID: ${f.id}</span>
-            </div>
-          </div>
-        `).join("");
-
-      } catch (err) {
-        container.innerHTML = `<p style="color:red; text-align:center;">Failed to fetch folders.</p>`;
-      }
-    }
-
-    function selectFolder(id, name) {
-      localStorage.setItem(scopedKey("activeFolderId"), id);
-      localStorage.setItem(scopedKey("activeFolderName"), name);
-      alert(`Switched to folder: ${name}`);
-    }
-
-    async function createFolder() {
-      const folderName = prompt("Enter folder name:");
-      if (!folderName) return;
-
-      try {
-        await fetch(`${apiBase}/create-folder`, {
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ name: folderName, user_id: userScope })
-        });
-        renderFolders();
-      } catch (err) {
-        alert("Failed to create folder.");
-      }
-    }
-
-    function logout() {
-      if (confirm("Logout?")) {
-        localStorage.removeItem(scopedKey("activeFolderId"));
-        localStorage.removeItem(scopedKey("activeFolderName"));
-        window.location.href = "signin.html";
-      }
-    }
-
-    // Initialize Firebase Auth
+  <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getAuth, onAuthStateChanged, signOut, deleteUser } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
@@ -135,15 +206,35 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
 
-    onAuthStateChanged(auth, user => {
+    onAuthStateChanged(auth, (user) => {
       if (!user) {
         window.location.href = "signin.html";
         return;
       }
-      userScope = user.uid || user.email;
-      document.getElementById("userInfo").innerText = user.displayName || user.email || "Anonymous";
-      renderFolders();
+      document.getElementById("userName").innerText = user.displayName || "Multipost User";
+      document.getElementById("userEmail").innerText = user.email;
     });
-</script>
+
+    window.handleSignOut = async () => {
+      if(confirm("Sign out of Multipost?")) {
+        await signOut(auth);
+        localStorage.clear();
+        window.location.href = "signin.html";
+      }
+    };
+
+    window.deleteAccount = async () => {
+      if(confirm("DANGER: This will permanently delete your account. Proceed?")) {
+        try {
+          const user = auth.currentUser;
+          await deleteUser(user);
+          localStorage.clear();
+          window.location.href = "index.html";
+        } catch (e) {
+          alert("Please sign out and back in to delete your account for security.");
+        }
+      }
+    };
+  </script>
 </body>
 </html>
