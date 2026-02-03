@@ -1,0 +1,10 @@
+name = "your-worker-name"
+type = "javascript"
+
+[env]
+  GOOGLE_CLIENT_ID = "1099160429576-b8kba9n0qc3gj1ismai36mv4ifelrdfq.apps.googleusercontent.com"
+  TIKTOK_CLIENT_KEY = "awfqyscbk5kl6pu8"
+  FACEBOOK_APP_ID = "1596560914709231"
+
+[build]
+  command = "npm run build"
