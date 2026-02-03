@@ -2,11 +2,21 @@
 // Features: Hard-coded Custom Domain Redirects, Multi-Account Persistence, and Workers AI
 export default {
   async fetch(request, env) {
+    // Content Security Policy - Allow TikTok authentication domains
+    const cspDirectives = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://sf16-website-login.neutral.tiktokcdn-eu.com https://sf16-website-login.neutral.ttwstatic.com",
+      "connect-src 'self' https://www.tiktok.com https://open.tiktokapis.com https://accounts.google.com https://oauth2.googleapis.com https://www.facebook.com https://graph.facebook.com https://sf16-website-login.neutral.tiktokcdn-eu.com https://sf16-website-login.neutral.ttwstatic.com",
+      "img-src 'self' https: data:",
+      "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com",
+      "frame-src 'self' https://www.tiktok.com https://accounts.google.com https://www.facebook.com"
+    ];
+    
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
-      "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://sf16-website-login.neutral.tiktokcdn-eu.com https://sf16-website-login.neutral.ttwstatic.com; connect-src 'self' https://www.tiktok.com https://open.tiktokapis.com https://accounts.google.com https://oauth2.googleapis.com https://www.facebook.com https://graph.facebook.com https://sf16-website-login.neutral.tiktokcdn-eu.com https://sf16-website-login.neutral.ttwstatic.com; img-src 'self' https: data:; style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; frame-src 'self' https://www.tiktok.com https://accounts.google.com https://www.facebook.com"
+      "Content-Security-Policy": cspDirectives.join("; ")
     };
 
     // Handle Preflight CORS requests
