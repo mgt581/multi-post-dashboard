@@ -189,10 +189,11 @@
           <div class="muted">Welcome back</div>
         </div>
       </div>
-      <div class="auth-actions">
-        <button id="signInBtn" class="btn btn-blue small">Sign In</button>
-        <button id="signOutBtn" class="btn btn-pink small">Sign Out</button>
-      </div>
+     <div class="auth-actions">
+       <button id="settingsBtn" class="btn btn-green small" onclick="window.location.href='settings.html'">Settings</button>
+       <button id="signInBtn" class="btn btn-blue small">Sign In</button>
+       <button id="signOutBtn" class="btn btn-pink small">Sign Out</button>
+     </div>
     </header>
 
     <div class="stats">
@@ -364,7 +365,11 @@
       if (!name) return;
 
       try {
-        if (!userScope) return;
+        if (!userScope) {
+          alert("Please sign in to create a workspace.");
+          window.location.href = 'signin.html';
+          return;
+        }
         const res = await fetch(`${apiBase}/add-folder`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -482,15 +487,20 @@
     function updateAuthButtons(isSignedIn) {
       const signInBtn = document.getElementById('signInBtn');
       const signOutBtn = document.getElementById('signOutBtn');
+      const settingsBtn = document.getElementById('settingsBtn');
       if (signInBtn) signInBtn.style.display = isSignedIn ? 'none' : 'inline-flex';
       if (signOutBtn) signOutBtn.style.display = isSignedIn ? 'inline-flex' : 'none';
+      if (settingsBtn) settingsBtn.style.display = isSignedIn ? 'inline-flex' : 'none';
       if (signInBtn) signInBtn.onclick = () => window.location.href = 'signin.html';
     }
   
     window.onload = function() {
-      updateAuthButtons(!!localStorage.getItem('currentUserKey'));
-      if (localStorage.getItem('currentUserKey')) {
+      const signedIn = !!localStorage.getItem('currentUserKey');
+      updateAuthButtons(signedIn);
+      if (signedIn) {
         loadFolders();
+      } else {
+        renderFolders([]);
       }
     };
   </script>
@@ -543,7 +553,7 @@
         return;
       }
 
-      const scope = user.uid || user.email;
+      const scope = user.email || user.uid;
       localStorage.setItem('currentUserKey', scope);
       if (user.email) {
         localStorage.setItem('userEmail', user.email);
