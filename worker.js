@@ -5,7 +5,7 @@ export default {
     // Content Security Policy - Allow TikTok authentication domains
     const cspDirectives = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://sf16-website-login.neutral.tiktokcdn-eu.com https://sf16-website-login.neutral.ttwstatic.com",
+      "script-src 'self' 'unsafe-inline' 'inline-speculation-rules' https://cdn.tailwindcss.com https://sf16-website-login.neutral.tiktokcdn-eu.com https://sf16-website-login.neutral.ttwstatic.com",
       "connect-src 'self' https://www.tiktok.com https://open.tiktokapis.com https://accounts.google.com https://oauth2.googleapis.com https://www.facebook.com https://graph.facebook.com https://sf16-website-login.neutral.tiktokcdn-eu.com https://sf16-website-login.neutral.ttwstatic.com",
       "img-src 'self' https: data:",
       "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com",
@@ -26,9 +26,10 @@ export default {
 
     const url = new URL(request.url);
     const baseUrl = `https://${url.hostname}`;
-    
-    // Hard-coded redirect URI for Google/YouTube to match Custom Domain
-    const redirectUri = "https://multipostapp.co.uk/api/auth/callback/youtube";
+
+    // Prefer configured BASE_URL; fall back to current host
+    const apiBase = (env.BASE_URL || baseUrl).replace(/\/$/, "");
+    const redirectUri = `${apiBase}/api/auth/callback/youtube`;
 
     /**
      * Decodes the Base64 state string from the frontend
@@ -95,14 +96,14 @@ export default {
 
       if (url.pathname === "/api/auth/tiktok") {
         const state = url.searchParams.get("state");
-        const ttRedirect = `${baseUrl}/api/auth/callback/tiktok`;
+        const ttRedirect = `${apiBase}/api/auth/callback/tiktok`;
         const target = `https://www.tiktok.com/v2/auth/authorize/?client_key=${env.TIKTOK_CLIENT_KEY}&scope=video.upload,video.publish,user.info.basic&response_type=code&redirect_uri=${encodeURIComponent(ttRedirect)}&state=${state}`;
         return Response.redirect(target);
       }
 
       if (url.pathname === "/api/auth/facebook") {
         const state = url.searchParams.get("state");
-        const fbRedirect = `${baseUrl}/api/auth/callback/facebook`;
+        const fbRedirect = `${apiBase}/api/auth/callback/facebook`;
         const target = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.FB_CLIENT_ID}&redirect_uri=${encodeURIComponent(fbRedirect)}&config_id=1283545206972587&response_type=code&auth_type=reauthenticate&state=${state}`;
         return Response.redirect(target);
       }
