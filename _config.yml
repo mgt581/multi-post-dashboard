@@ -1,2 +1,30 @@
+# Site settings
+title: "Multipost SEO Dashboard"
+description: "Manage and post content to YouTube, TikTok, and Facebook with AI SEO support."
+baseurl: ""       # leave empty if deploying to root
+url: "https://your-worker-name.alexbryant.workers.dev"
+
+# Markdown
 markdown: kramdown
-exclude: [node_modules]
+kramdown:
+  input: GFM          # GitHub Flavored Markdown
+  hard_wrap: false
+  syntax_highlighter: rouge
+
+# Exclusions
+exclude:
+  - node_modules
+  - vendor
+  - Gemfile
+  - Gemfile.lock
+
+# Theme
+theme: minima
+
+# Plugins
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+
+# Build settings
+permalink: /:title/
