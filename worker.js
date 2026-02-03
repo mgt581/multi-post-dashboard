@@ -28,7 +28,8 @@ export default {
     const baseUrl = `https://${url.hostname}`;
 
     // Prefer configured BASE_URL; fall back to current host
-    const apiBase = (env.BASE_URL || baseUrl).replace(/\/$/, "");
+    const configuredBase = (env.BASE_URL || "").trim();
+    const apiBase = (configuredBase || baseUrl).replace(/\/$/, "");
     const redirectUri = `${apiBase}/api/auth/callback/youtube`;
 
     /**
