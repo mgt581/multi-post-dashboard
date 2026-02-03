@@ -2,7 +2,7 @@
 title: "Multipost SEO Dashboard"
 description: "Manage and post content to YouTube, TikTok, and Facebook with AI SEO support."
 baseurl: ""       # leave empty if deploying to root
-url: "https://your-worker-name.alexbryant.workers.dev"
+url: "https://multipostapp.co.uk"
 
 # Markdown
 markdown: kramdown
