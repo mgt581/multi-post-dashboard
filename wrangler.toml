@@ -1,4 +1,4 @@
-name = "your-worker-name"
+name = "multipost-seo-worker"
 main = "worker.js"
 compatibility_date = "2024-01-01"
 
