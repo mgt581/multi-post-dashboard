@@ -11,6 +11,7 @@ var worker_default = {
 
     const url = new URL(request.url);
     const baseUrl = `https://${url.hostname}`;
+    const requireUser = (val) => val && typeof val === "string" ? val : null;
 
     // Hard-coded redirect URIs for custom domain compatibility
     const redirectUri = "https://multipostapp.co.uk/api/auth/callback/youtube";
@@ -76,33 +77,48 @@ var worker_default = {
     try {
       // --- FOLDERS ---
       if (url.pathname === "/api/get-folders") {
-        const { results } = await env.DB.prepare("SELECT * FROM folders ORDER BY created_at DESC").all();
+        const userId = requireUser(url.searchParams.get("user_id"));
+        if (!userId) return new Response("Missing user_id", { status: 400, headers: corsHeaders });
+        const { results } = await env.DB.prepare("SELECT * FROM folders WHERE user_id = ? ORDER BY created_at DESC").bind(userId).all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
 
       if (url.pathname === "/api/add-folder") {
-        const { name } = await request.json();
-        await env.DB.prepare("INSERT INTO folders (name) VALUES (?)").bind(name).run();
+        const { name, user_id } = await request.json();
+        const userId = requireUser(user_id);
+        if (!name || !userId) return new Response("Missing name or user_id", { status: 400, headers: corsHeaders });
+        await env.DB.prepare("INSERT INTO folders (name, user_id) VALUES (?, ?)").bind(name, userId).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
       if (url.pathname === "/api/rename-folder") {
-        const { id, name } = await request.json();
-        if (!id || !name) return new Response("Missing id or name", { status: 400, headers: corsHeaders });
-        await env.DB.prepare("UPDATE folders SET name = ? WHERE id = ?").bind(name, id).run();
+        const { id, name, user_id } = await request.json();
+        const userId = requireUser(user_id);
+        if (!id || !name || !userId) return new Response("Missing id, name or user_id", { status: 400, headers: corsHeaders });
+        await env.DB.prepare("UPDATE folders SET name = ? WHERE id = ? AND user_id = ?").bind(name, id, userId).run();
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
       if (url.pathname === "/api/delete-folder") {
-        const { id } = await request.json();
-        if (!id) return new Response("Missing id", { status: 400, headers: corsHeaders });
+        const { id, user_id, type } = await request.json();
+        const userId = requireUser(user_id);
+        if (!id || !userId) return new Response("Missing id or user_id", { status: 400, headers: corsHeaders });
 
-        // keep original deletes
-        await env.DB.prepare("DELETE FROM accounts WHERE folder_id = ?").bind(id).run();
-        await env.DB.prepare("DELETE FROM folders WHERE id = ?").bind(id).run();
+        // account-only removal path (used by UI)
+        if (type === "account_only") {
+          await env.DB.prepare("DELETE FROM accounts WHERE id = ? AND user_id = ?").bind(id, userId).run();
+          return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+        }
 
-        // added: also remove tokens for this folder (doesn't remove anything)
-        await env.DB.prepare("DELETE FROM tokens WHERE folder_id = ?").bind(id).run();
+        // keep original deletes but scope by user
+        await env.DB.prepare("DELETE FROM accounts WHERE folder_id = ? AND user_id = ?").bind(id, userId).run();
+        await env.DB.prepare("DELETE FROM folders WHERE id = ? AND user_id = ?").bind(id, userId).run();
+
+        // added: also remove tokens for this folder (user scoped)
+        await env.DB.prepare(`
+          DELETE FROM tokens
+          WHERE folder_id IN (SELECT id FROM folders WHERE id = ? AND user_id = ?)
+        `).bind(id, userId).run();
 
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
@@ -110,7 +126,9 @@ var worker_default = {
       // --- ACCOUNTS (legacy UI still uses this; we keep it) ---
       if (url.pathname === "/api/get-accounts") {
         const folder_id = url.searchParams.get("folder_id");
-        const { results } = await env.DB.prepare("SELECT * FROM accounts WHERE folder_id = ?").bind(folder_id).all();
+        const userId = requireUser(url.searchParams.get("user_id"));
+        if (!folder_id || !userId) return new Response(JSON.stringify([]), { headers: corsHeaders });
+        const { results } = await env.DB.prepare("SELECT * FROM accounts WHERE folder_id = ? AND user_id = ?").bind(folder_id, userId).all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
 
@@ -118,7 +136,12 @@ var worker_default = {
       if (url.pathname === "/api/get-tokens") {
         const folder_id = url.searchParams.get("folder_id");
         const platform = url.searchParams.get("platform");
-        if (!folder_id) return new Response(JSON.stringify([]), { headers: corsHeaders });
+        const userId = requireUser(url.searchParams.get("user_id"));
+        if (!folder_id || !userId) return new Response(JSON.stringify([]), { headers: corsHeaders });
+
+        // ensure folder belongs to user
+        const folderExists = await env.DB.prepare("SELECT 1 FROM folders WHERE id = ? AND user_id = ? LIMIT 1").bind(folder_id, userId).first();
+        if (!folderExists) return new Response(JSON.stringify([]), { headers: corsHeaders });
 
         let q = "SELECT folder_id, platform, account_id, expires_at, updated_at FROM tokens WHERE folder_id = ?";
         const binds = [folder_id];
@@ -135,9 +158,10 @@ var worker_default = {
         const legacyState = url.searchParams.get("state");
         const stateObj = decodeState(legacyState);
         const folderId = url.searchParams.get("folder_id") || stateObj.folderId;
+        const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId);
 
-        // upgraded state (folder + platform) while still compatible
-        const state = encodeState({ folderId, platform: "youtube" });
+        // upgraded state (folder + platform + user) while still compatible
+        const state = encodeState({ folderId, platform: "youtube", userId });
 
         const googleAuthUrl =
           `https://accounts.google.com/o/oauth2/v2/auth?client_id=${env.GOOGLE_CLIENT_ID}` +
@@ -152,11 +176,12 @@ var worker_default = {
 
       if (url.pathname === "/api/auth/tiktok") {
         const folderId = url.searchParams.get("folder_id");
+        const userId = requireUser(url.searchParams.get("user_id"));
         const redirectUri = `${baseUrl}/api/auth/callback/tiktok`;
         const scopes = "video.upload,video.publish,user.info.basic";
 
         // upgraded state (folder + platform) while still compatible
-        const state = encodeState({ folderId, platform: "tiktok" });
+        const state = encodeState({ folderId, platform: "tiktok", userId });
 
         const tiktokAuthUrl =
           `https://www.tiktok.com/v2/auth/authorize/?client_key=${env.TIKTOK_CLIENT_KEY}` +
@@ -172,9 +197,10 @@ var worker_default = {
         const legacyState = url.searchParams.get("state");
         const stateObj = decodeState(legacyState);
         const folderId = url.searchParams.get("folder_id") || stateObj.folderId;
+        const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId);
 
-        // upgraded state (folder + platform) while still compatible
-        const state = encodeState({ folderId, platform: "facebook" });
+        // upgraded state (folder + platform + user) while still compatible
+        const state = encodeState({ folderId, platform: "facebook", userId });
 
         const fbAuthUrl =
           `https://www.facebook.com/v18.0/dialog/oauth?client_id=${env.FB_CLIENT_ID}` +
@@ -192,6 +218,8 @@ var worker_default = {
         // state can be encoded JSON or old plain folderId
         const stateObj = decodeState(url.searchParams.get("state"));
         const folderId = stateObj.folderId;
+        const userId = requireUser(stateObj.userId);
+        if (!folderId || !userId) return new Response("Missing state", { status: 400, headers: corsHeaders });
 
         const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
           method: "POST",
@@ -218,9 +246,10 @@ var worker_default = {
 
         // KEEP original behaviour (accounts table) so your UI doesn't break
         await env.DB.prepare(
-          "INSERT INTO accounts (folder_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, 'youtube', ?, ?, ?, ?)"
+          "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'youtube', ?, ?, ?, ?)"
         ).bind(
           folderId,
+          userId,
           channelName,
           tokens.access_token,
           tokens.refresh_token,
@@ -247,6 +276,8 @@ var worker_default = {
         // state can be encoded JSON or old plain folderId
         const stateObj = decodeState(url.searchParams.get("state"));
         const folderId = stateObj.folderId;
+        const userId = requireUser(stateObj.userId);
+        if (!folderId || !userId) return new Response("Missing state", { status: 400, headers: corsHeaders });
 
         const tokenRes = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
           method: "POST",
@@ -274,9 +305,10 @@ var worker_default = {
 
         // KEEP original behaviour (accounts table) so your UI doesn't break
         await env.DB.prepare(
-          "INSERT INTO accounts (folder_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, 'tiktok', 'Linked TikTok', ?, ?, ?)"
+          "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'tiktok', 'Linked TikTok', ?, ?, ?)"
         ).bind(
           folderId,
+          userId,
           accessToken,
           refreshToken,
           nowMs() + expiresIn * 1e3
@@ -302,6 +334,8 @@ var worker_default = {
         // state can be encoded JSON or old plain folderId
         const stateObj = decodeState(url.searchParams.get("state"));
         const folderId = stateObj.folderId;
+        const userId = requireUser(stateObj.userId);
+        if (!folderId || !userId) return new Response("Missing state", { status: 400, headers: corsHeaders });
 
         const tokenRes = await fetch(
           `https://graph.facebook.com/v18.0/oauth/access_token?client_id=${env.FB_CLIENT_ID}` +
@@ -326,9 +360,10 @@ var worker_default = {
 
         // KEEP original behaviour (accounts table) so your UI doesn't break
         await env.DB.prepare(
-          "INSERT INTO accounts (folder_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, 'facebook', 'FB Page', ?, NULL, ?)"
+          "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'facebook', 'FB Page', ?, NULL, ?)"
         ).bind(
           folderId,
+          userId,
           accessToken,
           nowMs() + expiresIn * 1e3
         ).run();
