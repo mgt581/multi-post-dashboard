@@ -114,8 +114,12 @@ var worker_default = {
         await env.DB.prepare("DELETE FROM accounts WHERE folder_id = ? AND user_id = ?").bind(id, userId).run();
         await env.DB.prepare("DELETE FROM folders WHERE id = ? AND user_id = ?").bind(id, userId).run();
 
-        // added: also remove tokens for this folder (doesn't remove anything)
-        await env.DB.prepare("DELETE FROM tokens WHERE folder_id = ?").bind(id).run();
+        // added: also remove tokens for this folder (user scoped)
+        await env.DB.prepare(`
+          DELETE FROM tokens
+          WHERE folder_id = ?
+            AND EXISTS (SELECT 1 FROM folders f WHERE f.id = tokens.folder_id AND f.user_id = ?)
+        `).bind(id, userId).run();
 
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
