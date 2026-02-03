@@ -117,9 +117,8 @@ var worker_default = {
         // added: also remove tokens for this folder (user scoped)
         await env.DB.prepare(`
           DELETE FROM tokens
-          WHERE folder_id = ?
-            AND EXISTS (SELECT 1 FROM folders f WHERE f.id = ? AND f.user_id = ?)
-        `).bind(id, id, userId).run();
+          WHERE folder_id IN (SELECT id FROM folders WHERE id = ? AND user_id = ?)
+        `).bind(id, userId).run();
 
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
@@ -141,8 +140,8 @@ var worker_default = {
         if (!folder_id || !userId) return new Response(JSON.stringify([]), { headers: corsHeaders });
 
         // ensure folder belongs to user
-        const owned = await env.DB.prepare("SELECT 1 FROM folders WHERE id = ? AND user_id = ? LIMIT 1").bind(folder_id, userId).first();
-        if (!owned) return new Response(JSON.stringify([]), { headers: corsHeaders });
+        const folderExists = await env.DB.prepare("SELECT 1 FROM folders WHERE id = ? AND user_id = ? LIMIT 1").bind(folder_id, userId).first();
+        if (!folderExists) return new Response(JSON.stringify([]), { headers: corsHeaders });
 
         let q = "SELECT folder_id, platform, account_id, expires_at, updated_at FROM tokens WHERE folder_id = ?";
         const binds = [folder_id];
