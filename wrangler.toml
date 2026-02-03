@@ -1,11 +1,10 @@
 name = "your-worker-name"
-main = "worker.js"
-compatibility_date = "2024-01-01"
+type = "javascript"
 
-[[d1_databases]]
-binding = "DB"
-database_name = "accountsmultipostapp"
-database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
+[env]
+GOOGLE_CLIENT_ID = "1099160429576-b8kba9n0qc3gj1ismai36mv4ifelrdfq.apps.googleusercontent.com"
+TIKTOK_CLIENT_KEY = "awfqyscbk5kl6pu8"
+FACEBOOK_APP_ID = "1596560914709231"
 
-[ai]
-binding = "AI"
+[build]
+command = "npm run build"
