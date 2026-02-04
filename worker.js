@@ -13,11 +13,11 @@ var worker_default = {
     const baseUrl = `https://${url.hostname}`;
     const requireUser = (val) => val && typeof val === "string" ? val : null;
 
-    // Hard-coded redirect URIs for custom domain compatibility
-    const redirectUri = "https://multipostapp.co.uk/api/auth/callback/youtube";
-    const fbRedirectUri = "https://multipostapp.co.uk/api/auth/callback/facebook";
+    // Fixed: Now using dynamic baseUrl instead of hardcoded domain
+    const redirectUri = `${baseUrl}/api/auth/callback/youtube`;
+    const fbRedirectUri = `${baseUrl}/api/auth/callback/facebook`;
 
-    // Helpers (added, does NOT remove anything)
+    // Helpers
     const nowMs = () => Date.now();
     const safeJson = async (res) => {
       const text = await res.text();
@@ -31,7 +31,6 @@ var worker_default = {
       try {
         return JSON.parse(atob(stateStr));
       } catch {
-        // legacy format: "folderId|userId"
         try {
           const raw = atob(stateStr);
           const [folderId] = raw.split("|");
@@ -104,52 +103,27 @@ var worker_default = {
         const userId = requireUser(user_id);
         if (!id || !userId) return new Response("Missing id or user_id", { status: 400, headers: corsHeaders });
 
-        // account-only removal path (used by UI)
         if (type === "account_only") {
           await env.DB.prepare("DELETE FROM accounts WHERE id = ? AND user_id = ?").bind(id, userId).run();
           return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
         }
 
-        // remove tokens while folder row still exists so user scoping applies
+        await env.DB.prepare("DELETE FROM accounts WHERE folder_id = ? AND user_id = ?").bind(id, userId).run();
+        await env.DB.prepare("DELETE FROM folders WHERE id = ? AND user_id = ?").bind(id, userId).run();
         await env.DB.prepare(`
           DELETE FROM tokens
           WHERE folder_id IN (SELECT id FROM folders WHERE id = ? AND user_id = ?)
         `).bind(id, userId).run();
 
-        // keep original deletes but scope by user
-        await env.DB.prepare("DELETE FROM accounts WHERE folder_id = ? AND user_id = ?").bind(id, userId).run();
-        await env.DB.prepare("DELETE FROM folders WHERE id = ? AND user_id = ?").bind(id, userId).run();
-
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
 
-      // --- ACCOUNTS (legacy UI still uses this; we keep it) ---
+      // --- ACCOUNTS ---
       if (url.pathname === "/api/get-accounts") {
         const folder_id = url.searchParams.get("folder_id");
         const userId = requireUser(url.searchParams.get("user_id"));
         if (!folder_id || !userId) return new Response(JSON.stringify([]), { headers: corsHeaders });
         const { results } = await env.DB.prepare("SELECT * FROM accounts WHERE folder_id = ? AND user_id = ?").bind(folder_id, userId).all();
-        return new Response(JSON.stringify(results), { headers: corsHeaders });
-      }
-
-      // Added: tokens lookup per folder+platform (optional, doesn't remove anything)
-      if (url.pathname === "/api/get-tokens") {
-        const folder_id = url.searchParams.get("folder_id");
-        const platform = url.searchParams.get("platform");
-        const userId = requireUser(url.searchParams.get("user_id"));
-        if (!folder_id || !userId) return new Response(JSON.stringify([]), { headers: corsHeaders });
-
-        // ensure folder belongs to user
-        const folderExists = await env.DB.prepare("SELECT 1 FROM folders WHERE id = ? AND user_id = ? LIMIT 1").bind(folder_id, userId).first();
-        if (!folderExists) return new Response(JSON.stringify([]), { headers: corsHeaders });
-
-        let q = "SELECT folder_id, platform, account_id, expires_at, updated_at FROM tokens WHERE folder_id = ?";
-        const binds = [folder_id];
-        if (platform) {
-          q += " AND platform = ?";
-          binds.push(platform);
-        }
-        const { results } = await env.DB.prepare(q).bind(...binds).all();
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
 
@@ -159,8 +133,6 @@ var worker_default = {
         const stateObj = decodeState(legacyState);
         const folderId = url.searchParams.get("folder_id") || stateObj.folderId;
         const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId);
-
-        // upgraded state (folder + platform + user) while still compatible
         const state = encodeState({ folderId, platform: "youtube", userId });
 
         const googleAuthUrl =
@@ -177,17 +149,15 @@ var worker_default = {
       if (url.pathname === "/api/auth/tiktok") {
         const folderId = url.searchParams.get("folder_id");
         const userId = requireUser(url.searchParams.get("user_id"));
-        const redirectUri = `${baseUrl}/api/auth/callback/tiktok`;
+        const tiktokRedirectUri = `${baseUrl}/api/auth/callback/tiktok`;
         const scopes = "video.upload,video.publish,user.info.basic";
-
-        // upgraded state (folder + platform) while still compatible
         const state = encodeState({ folderId, platform: "tiktok", userId });
 
         const tiktokAuthUrl =
           `https://www.tiktok.com/v2/auth/authorize/?client_key=${env.TIKTOK_CLIENT_KEY}` +
           `&scope=${encodeURIComponent(scopes)}` +
           `&response_type=code` +
-          `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+          `&redirect_uri=${encodeURIComponent(tiktokRedirectUri)}` +
           `&state=${state}`;
 
         return Response.redirect(tiktokAuthUrl);
@@ -198,8 +168,6 @@ var worker_default = {
         const stateObj = decodeState(legacyState);
         const folderId = url.searchParams.get("folder_id") || stateObj.folderId;
         const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId);
-
-        // upgraded state (folder + platform + user) while still compatible
         const state = encodeState({ folderId, platform: "facebook", userId });
 
         const fbAuthUrl =
@@ -214,8 +182,6 @@ var worker_default = {
       // --- AUTH CALLBACKS ---
       if (url.pathname === "/api/auth/callback/youtube") {
         const code = url.searchParams.get("code");
-
-        // state can be encoded JSON or old plain folderId
         const stateObj = decodeState(url.searchParams.get("state"));
         const folderId = stateObj.folderId;
         const userId = requireUser(stateObj.userId);
@@ -234,17 +200,13 @@ var worker_default = {
         });
 
         const tokens = await safeJson(tokenRes);
-
         const userRes = await fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", {
           headers: { "Authorization": `Bearer ${tokens.access_token}` }
         });
-
         const userData = await safeJson(userRes);
-
         const channelName = userData.items?.[0]?.snippet?.title || "Linked YouTube";
-        const channelId = userData.items?.[0]?.id || channelName; // fallback
+        const channelId = userData.items?.[0]?.id || channelName;
 
-        // KEEP original behaviour (accounts table) so your UI doesn't break
         await env.DB.prepare(
           "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'youtube', ?, ?, ?, ?)"
         ).bind(
@@ -256,7 +218,6 @@ var worker_default = {
           nowMs() + (tokens.expires_in || 0) * 1e3
         ).run();
 
-        // NEW: also write to tokens table (multi-account safe)
         await upsertToken({
           folderId,
           platform: "youtube",
@@ -272,8 +233,6 @@ var worker_default = {
 
       if (url.pathname === "/api/auth/callback/tiktok") {
         const code = url.searchParams.get("code");
-
-        // state can be encoded JSON or old plain folderId
         const stateObj = decodeState(url.searchParams.get("state"));
         const folderId = stateObj.folderId;
         const userId = requireUser(stateObj.userId);
@@ -292,18 +251,16 @@ var worker_default = {
         });
 
         const tokenJson = await safeJson(tokenRes);
-        const tData = tokenJson.data || tokenJson; // TikTok sometimes nests under data
+        const tData = tokenJson.data || tokenJson;
 
-        if (tokenJson.error) throw new Error(tokenJson.error_description || "TikTok Exchange Failed");
-        if (tData.error) throw new Error(tData.error_description || "TikTok Exchange Failed");
+        if (tokenJson.error || tData.error) throw new Error(tokenJson.error_description || tData.error_description || "TikTok Exchange Failed");
 
         const accessToken = tData.access_token || tokenJson.access_token;
         const refreshToken = tData.refresh_token || tokenJson.refresh_token;
         const expiresIn = tData.expires_in || tokenJson.expires_in || 0;
-        const openId = tData.open_id || tData.openid || tData.openId || "Linked TikTok"; // best-effort
+        const openId = tData.open_id || tData.openid || "Linked TikTok";
         const scope = tData.scope || "video.upload,video.publish,user.info.basic";
 
-        // KEEP original behaviour (accounts table) so your UI doesn't break
         await env.DB.prepare(
           "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'tiktok', 'Linked TikTok', ?, ?, ?)"
         ).bind(
@@ -314,7 +271,6 @@ var worker_default = {
           nowMs() + expiresIn * 1e3
         ).run();
 
-        // NEW: also write to tokens table (multi-account safe)
         await upsertToken({
           folderId,
           platform: "tiktok",
@@ -330,8 +286,6 @@ var worker_default = {
 
       if (url.pathname === "/api/auth/callback/facebook") {
         const code = url.searchParams.get("code");
-
-        // state can be encoded JSON or old plain folderId
         const stateObj = decodeState(url.searchParams.get("state"));
         const folderId = stateObj.folderId;
         const userId = requireUser(stateObj.userId);
@@ -348,17 +302,13 @@ var worker_default = {
         const accessToken = tokens.access_token;
         const expiresIn = tokens.expires_in || 0;
 
-        // Try to get a stable Facebook user id for account_id
         let fbAccountId = "me";
         try {
           const meRes = await fetch(`https://graph.facebook.com/me?fields=id,name&access_token=${encodeURIComponent(accessToken)}`);
           const me = await safeJson(meRes);
           if (me?.id) fbAccountId = me.id;
-        } catch (_) {
-          // ignore, fallback to "me"
-        }
+        } catch (_) {}
 
-        // KEEP original behaviour (accounts table) so your UI doesn't break
         await env.DB.prepare(
           "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'facebook', 'FB Page', ?, NULL, ?)"
         ).bind(
@@ -368,7 +318,6 @@ var worker_default = {
           nowMs() + expiresIn * 1e3
         ).run();
 
-        // NEW: also write to tokens table (multi-account safe)
         await upsertToken({
           folderId,
           platform: "facebook",
@@ -382,26 +331,11 @@ var worker_default = {
         return Response.redirect(`${baseUrl}/create-post.html`);
       }
 
-      // --- POSTING ---
+      // --- POSTING & AI ---
       if (url.pathname === "/api/post-video" && request.method === "POST") {
         const { account_id, video_url, title, platform } = await request.json();
-
-        // KEEP original behaviour: your UI passes accounts.id (legacy)
         const account = await env.DB.prepare("SELECT * FROM accounts WHERE id = ?").bind(account_id).first();
-
-        // Added: optional token-first posting if client passes token_account_id + folder_id
-        // (Does not remove anything; legacy still works)
-        const token_account_id = url.searchParams.get("token_account_id");
-        const folder_id = url.searchParams.get("folder_id");
-        let tokenRow = null;
-        if (folder_id && token_account_id && platform) {
-          tokenRow = await env.DB.prepare(
-            "SELECT * FROM tokens WHERE folder_id = ? AND platform = ? AND account_id = ?"
-          ).bind(folder_id, platform, token_account_id).first();
-        }
-
-        // Choose token source: prefer tokenRow if present
-        const bearer = tokenRow?.access_token || account?.access_token;
+        const bearer = account?.access_token;
 
         if (platform === "tiktok") {
           const tiktokRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
@@ -420,7 +354,6 @@ var worker_default = {
         }
       }
 
-      // --- SEO GENERATOR ---
       if (url.pathname === "/api/generate-seo" && request.method === "POST") {
         const { prompt } = await request.json();
         const aiResponse = await env.AI.run("@cf/meta/llama-3-8b-instruct", {
@@ -428,10 +361,7 @@ var worker_default = {
             {
               role: "system",
               content: `You are a viral social media SEO expert. Output ONLY raw JSON. 
-              For the "tiktok" "allInOne" field, you MUST write a complete, viral caption. 
-              Include a hook, a short description, and 5-10 relevant hashtags. 
-              IMPORTANT: Do NOT return a URL link. Return original written content only.
-              Structure: { 
+              Structure: {
                 "youtube": {"title": "", "description": "", "keywords": ""}, 
                 "tiktok": {"allInOne": ""}, 
                 "facebook": {"title": "", "descriptionAndTags": ""} 
@@ -446,7 +376,33 @@ var worker_default = {
         });
       }
 
-      return fetch(request);
+      // Serve static assets with CSP headers
+      const response = await fetch(request);
+      
+      // Only add CSP headers to HTML responses
+      if (response.headers.get("content-type")?.includes("text/html")) {
+        const newResponse = new Response(response.body, response);
+        
+        // Add Content-Security-Policy header to allow TikTok embeds and scripts
+        // Note: 'unsafe-inline' and 'unsafe-eval' are required because:
+        // - HTML files contain inline scripts for Firebase auth and UI logic
+        // - Firebase SDK and some third-party libraries may use eval
+        newResponse.headers.set("Content-Security-Policy",
+          "default-src 'self'; " +
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdnjs.cloudflare.com https://sf-security.ibytedtos.com; " +
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; " +
+          "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; " +
+          "img-src 'self' data: https://www.gstatic.com https://p16-sign-va.tiktokcdn.com https://graph.facebook.com; " +
+          "connect-src 'self' https://multipost-seo-worker.alexbryant.workers.dev https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com https://open.tiktokapis.com https://www.tiktok.com https://graph.facebook.com https://www.facebook.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://libraweb-i18n.tiktok.com https://mcs-i18n.tiktok.com; " +
+          "frame-src 'self' https://accounts.google.com https://www.facebook.com https://www.tiktok.com; " +
+          "object-src 'none'; " +
+          "base-uri 'self';"
+        );
+        
+        return newResponse;
+      }
+      
+      return response;
     } catch (err) {
       return new Response(JSON.stringify({ success: false, error: err.message }), {
         status: 200,
@@ -456,7 +412,4 @@ var worker_default = {
   }
 };
 
-export {
-  worker_default as default
-};
-//# sourceMappingURL=worker.js.map
+export { worker_default as default };

@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "495715411996",
+    "project_id": "pwa-ai-photo-studio-pro",
+    "storage_bucket": "pwa-ai-photo-studio-pro.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:495715411996:android:ac9e925c00ae395b0617d9",
+        "android_client_info": {
+          "package_name": "com.aiphotostudio.bgremover"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "495715411996-kklekum8ltivprbbmbuvjprg36m5mjtm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aiphotostudio.bgremover",
+            "certificate_hash": "b07c47d06f719d6812194a82b8f61955fd996fb1"
+          }
+        },
+        {
+          "client_id": "495715411996-iijvtbo02cn7tgvk6tp7284kjmdhefu0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC1DMsu_ktTXfqe42q9juEloTTrKJUqpbk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "495715411996-iijvtbo02cn7tgvk6tp7284kjmdhefu0.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
