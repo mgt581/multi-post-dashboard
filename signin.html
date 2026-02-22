@@ -31,6 +31,7 @@
             align-items: center;
             justify-content: center;
             padding: 20px;
+            flex-direction: column;
         }
 
         .auth-card {
@@ -155,6 +156,29 @@
         }
 
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Footer Styling */
+        footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .footer-links {
+            margin-bottom: 10px;
+        }
+
+        .footer-links a {
+            color: var(--muted);
+            text-decoration: none;
+            margin: 0 10px;
+            font-weight: 700;
+        }
+
+        .footer-links a:hover {
+            color: var(--accent-2);
+        }
     </style>
 </head>
 <body>
@@ -192,6 +216,14 @@
         </div>
     </div>
 
+    <footer>
+        <div class="footer-links">
+            <a href="privacy.html">Privacy Policy</a>
+            <a href="terms.html">Terms of Service</a>
+        </div>
+        <div>&copy; 2026 Bryant Group Holdings Ltd.</div>
+    </footer>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import {
@@ -220,11 +252,10 @@
 
         let currentMode = "login";
 
-        // Logic for handling Google redirect result
         getRedirectResult(auth).then((result) => {
             if (result?.user) {
                 localStorage.setItem("currentUserKey", result.user.email || result.user.uid);
-                window.location.replace("app.html"); // Redirect to Dashboard
+                window.location.replace("app.html"); 
             }
         }).catch((error) => {
             console.error("Google Auth Error:", error);
@@ -279,7 +310,7 @@
             if (user) {
                 localStorage.setItem("currentUserKey", user.email || user.uid);
                 if (window.location.pathname.includes("signin.html")) {
-                    window.location.replace("app.html"); // Redirect to Dashboard
+                    window.location.replace("app.html"); 
                 }
             }
         });
