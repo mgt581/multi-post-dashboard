@@ -14,3 +14,18 @@ database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
 
 [ai]
 binding = "AI"
+
+[observability]
+enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false
+persist = true
+head_sampling_rate = 1
