@@ -169,180 +169,228 @@
   </style>
 </head>
 <body>
-<div class="page">
-<header>
-  <div class="brand">
-    <div class="badge">Multipost Studio</div>
-    <div>
-      <p class="small">Cross-post optimizer</p>
-      <h1>Create & SEO</h1>
-    </div>
+  <div class="page">
+    <header>
+      <div class="brand">
+        <div class="badge">Multipost Studio</div>
+        <div>
+          <p class="small">Cross-post optimizer</p>
+          <h1>Create & SEO</h1>
+        </div>
+      </div>
+      <div class="badge">Worker live</div>
+    </header>
+
+    <section class="card hero">
+      <label for="videoPrompt">Describe your video or idea</label>
+      <textarea id="videoPrompt" rows="3" placeholder="Example: 60-second recap of CES AI gadgets with upbeat music"></textarea>
+      <div class="controls">
+        <button id="generateBtn" class="btn" onclick="generateSEO()">Analyze trends</button>
+        <span id="status" class="status">Waiting for your prompt</span>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card outputs">
+        <div class="section-title">YouTube</div>
+        <div class="pill-row">
+          <span class="pill">Title</span>
+          <span class="pill">Description</span>
+          <span class="pill">Keywords</span>
+        </div>
+        <input id="ytTitle" placeholder="YouTube Title" />
+        <textarea id="ytDesc" placeholder="Full Description"></textarea>
+        <textarea id="ytKeywords" placeholder="20 Trending Keywords"></textarea>
+        <div class="controls">
+          <button class="btn secondary" onclick="copyYoutube()">🚀 Copy & Go to YouTube</button>
+        </div>
+      </div>
+
+      <div class="card outputs">
+        <div class="section-title">TikTok</div>
+        <div class="pill-row">
+          <span class="pill">All-in-one</span>
+          <span class="pill">Caption</span>
+        </div>
+        <textarea id="ttAllInOne" placeholder="AI-generated caption with hook and hashtags..."></textarea>
+        <div class="controls">
+          <button class="btn secondary" onclick="copyGeneric('ttAllInOne', 'TikTok', 'https://www.tiktok.com/upload')">📱 Copy & Go to TikTok</button>
+        </div>
+      </div>
+
+      <div class="card outputs">
+        <div class="section-title">Facebook Reels</div>
+        <div class="pill-row">
+          <span class="pill">Title</span>
+          <span class="pill">Description</span>
+        </div>
+        <input id="fbTitle" placeholder="Reel Title" />
+        <textarea id="fbDetails" placeholder="Description, tags & keywords"></textarea>
+        <div class="controls">
+          <button class="btn secondary" onclick="copyFB()">📸 Copy & Go to Facebook</button>
+        </div>
+      </div>
+    </section>
   </div>
-  <div class="badge">Worker live</div>
-</header>
 
-<section class="card hero">
-  <label for="videoPrompt">Describe your video or idea</label>
-  <textarea id="videoPrompt" rows="3"></textarea>
-  <div class="controls">
-    <button id="generateBtn" class="btn" onclick="generateSEO()">Analyze trends</button>
-    <span id="status" class="status">Waiting for your prompt</span>
-  </div>
-</section>
+  <script>
+    const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
 
-<section class="grid">
-  <div class="card outputs">
-    <div class="section-title">YouTube</div>
-    <input id="ytTitle" />
-    <textarea id="ytDesc"></textarea>
-    <textarea id="ytKeywords"></textarea>
-    <div class="controls">
-      <button class="btn secondary" onclick="copyYoutube()">🚀 Copy & Go to YouTube</button>
-    </div>
-  </div>
+    const statusEl = document.getElementById("status");
+    const generateBtn = document.getElementById("generateBtn");
 
-  <div class="card outputs">
-    <div class="section-title">TikTok</div>
-    <textarea id="ttAllInOne"></textarea>
-    <div class="controls">
-      <button class="btn secondary" onclick="copyGeneric('ttAllInOne','TikTok','https://www.tiktok.com/upload')">📱 Copy & Go to TikTok</button>
-    </div>
-  </div>
+    const coerceToText = (value) => {
+      if (Array.isArray(value)) return value.join(", ");
+      if (value === null || value === undefined) return "";
+      return String(value);
+    };
 
-  <div class="card outputs">
-    <div class="section-title">Facebook Reels</div>
-    <input id="fbTitle" />
-    <textarea id="fbDetails"></textarea>
-    <div class="controls">
-      <button class="btn secondary" onclick="copyFB()">📸 Copy & Go to Facebook</button>
-    </div>
-  </div>
-</section>
-</div>
+    /**
+     * Logic to extract the viral text from AI response
+     * Priority: allInOne > caption > text > prompt fallback
+     */
+    const normalizeTikTok = (tiktok, prompt, keywords) => {
+      if (!tiktok) return prompt;
+      if (typeof tiktok === "string") return tiktok;
+      
+      const direct =
+        tiktok.allInOne ||
+        tiktok.all_in_one ||
+        tiktok.caption ||
+        tiktok.text;
+        
+      if (direct) return coerceToText(direct);
 
-<script>
-const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
-const statusEl = document.getElementById("status");
-const generateBtn = document.getElementById("generateBtn");
+      // If object keys are present (headline, hashtags etc)
+      const parts = [];
+      const orderedKeys = ["headline", "hook", "description", "hashtags", "cta"];
 
-const coerceToText = (value) => {
-  if (Array.isArray(value)) return value.join(", ");
-  if (value === null || value === undefined) return "";
-  return String(value);
-};
+      orderedKeys.forEach(key => {
+        if (tiktok[key]) parts.push(`${key.toUpperCase()}: ${coerceToText(tiktok[key])}`);
+      });
 
-const normalizeTikTok = (tiktok) => {
-  if (!tiktok) return "";
-  if (typeof tiktok === "string") {
-    const clean = tiktok.trim();
-    if (clean.startsWith("http")) return "";
-    return clean;
-  }
-  const direct = tiktok.allInOne || tiktok.all_in_one || tiktok.caption || tiktok.text;
-  if (direct) return coerceToText(direct);
+      if (!parts.length) return prompt || coerceToText(keywords) || "";
+      return parts.join("\n\n");
+    };
 
-  const parts = [];
-  ["headline","hook","description","hashtags","cta"].forEach(key=>{
-    if(tiktok[key]) parts.push(coerceToText(tiktok[key]));
-  });
-  return parts.join("\n\n");
-};
+    const parseJsonSafe = (value) => {
+      if (!value) return null;
+      if (typeof value !== "string") return value;
+      const trimmed = value.trim();
+      // Removes AI markdown code blocks if present
+      const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+      const body = fenced ? fenced[1].trim() : trimmed;
+      try { return JSON.parse(body); } catch { return null; }
+    };
 
-const parseJsonSafe = (value) => {
-  if (!value) return null;
-  if (typeof value !== "string") return value;
-  const trimmed = value.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const body = fenced ? fenced[1].trim() : trimmed;
-  try { return JSON.parse(body); } catch { return null; }
-};
+    function setStatus(message, tone = "info") {
+      statusEl.textContent = message;
+      statusEl.classList.remove("success", "error", "working");
+      if (tone === "success") statusEl.classList.add("success");
+      if (tone === "error") statusEl.classList.add("error");
+      if (tone === "working") statusEl.classList.add("working");
+    }
 
-function setStatus(message, tone="info"){
-  statusEl.textContent = message;
-  statusEl.classList.remove("success","error","working");
-  if(tone==="success") statusEl.classList.add("success");
-  if(tone==="error") statusEl.classList.add("error");
-  if(tone==="working") statusEl.classList.add("working");
-}
+    function setLoading(isLoading) {
+      generateBtn.disabled = isLoading;
+      generateBtn.textContent = isLoading ? "Analyzing trends…" : "Analyze trends";
+    }
 
-function setLoading(isLoading){
-  generateBtn.disabled = isLoading;
-  generateBtn.textContent = isLoading ? "Analyzing trends…" : "Analyze trends";
-}
+    async function generateSEO() {
+      const prompt = document.getElementById("videoPrompt").value.trim();
+      if (!prompt) {
+        alert("Please describe your video");
+        return;
+      }
 
-async function generateSEO(){
-  const prompt = document.getElementById("videoPrompt").value.trim();
-  if(!prompt){ alert("Please describe your video"); return; }
+      setLoading(true);
+      setStatus("Calling AI worker…", "working");
 
-  setLoading(true);
-  setStatus("Calling AI worker…","working");
+      try {
+        const res = await fetch(`${apiBase}/generate-seo`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt })
+        });
 
-  try{
-    const res = await fetch(`${apiBase}/generate-seo`,{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({prompt})
-    });
+        const bodyText = await res.text();
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
-    const bodyText = await res.text();
-    if(!res.ok) throw new Error(`Server error: ${res.status}`);
+        let json;
+        try { json = JSON.parse(bodyText); } catch (e) { throw new Error("Bad JSON from server"); }
 
-    let json;
-    try{ json = JSON.parse(bodyText);}catch{ throw new Error("Bad JSON from server"); }
-    if(!json.success) throw new Error(json.error || "AI Error");
+        if (!json.success) throw new Error(json.error || "AI Error");
 
-    let d = {};
-    const possible = json.data?.response ?? json.data;
-    const parsed = parseJsonSafe(possible) || possible;
-    d = parsed?.data ?? parsed ?? {};
+        // Navigate the response structure
+        const raw = json?.data?.response ?? json?.data ?? json;
+        const parsed = parseJsonSafe(raw) || raw || {};
+        const d = parsed?.data ?? parsed ?? {};
 
-    const youtube = d.youtube || {};
-    const tiktok = d.tiktok || {};
-    const facebook = d.facebook || {};
+        const youtube = d.youtube || {};
+        const tiktok = d.tiktok || {};
+        const facebook = d.facebook || {};
 
-    document.getElementById("ytTitle").value = coerceToText(youtube.title);
-    document.getElementById("ytDesc").value = coerceToText(youtube.description);
-    document.getElementById("ytKeywords").value = coerceToText(youtube.keywords || youtube.tags);
-    document.getElementById("ttAllInOne").value = normalizeTikTok(tiktok);
-    document.getElementById("fbTitle").value = coerceToText(facebook.title);
-    document.getElementById("fbDetails").value = coerceToText(facebook.descriptionAndTags || facebook.description);
+        // 1. Process YouTube
+        document.getElementById("ytTitle").value = coerceToText(youtube.title || prompt);
+        document.getElementById("ytDesc").value = coerceToText(youtube.description || prompt);
+        document.getElementById("ytKeywords").value = coerceToText(youtube.keywords || youtube.tags || "");
 
-    setStatus("AI response received","success");
-  }catch(err){
-    console.error(err);
-    setStatus(err.message || "Something went wrong","error");
-    alert("Error: "+(err.message || err));
-  }finally{
-    setLoading(false);
-  }
-}
+        // 2. Process TikTok (The Fix)
+        // This ensures the box gets the generated caption, not the URL from the prompt
+        const ttContent = normalizeTikTok(tiktok, prompt, youtube.keywords);
+        document.getElementById("ttAllInOne").value = ttContent;
 
-async function copyAndOpen(text,label,url){
-  const safeText = text.trim();
-  if(!safeText){ alert(`Nothing to copy for ${label}`); return; }
-  try{
-    await navigator.clipboard.writeText(safeText);
-    setStatus(`${label} copied to clipboard`,"success");
-    if(url) setTimeout(()=>window.open(url,"_blank"),600);
-  }catch{
-    setStatus("Clipboard unavailable","error");
-    alert("Copy failed. Please copy manually.");
-  }
-}
+        // 3. Process Facebook
+        document.getElementById("fbTitle").value = coerceToText(facebook.title || prompt);
+        document.getElementById("fbDetails").value = coerceToText(facebook.descriptionAndTags || facebook.description || prompt);
 
-function copyYoutube(){
-  const block = `${ytTitle.value}\n\n${ytDesc.value}\n\nKeywords: ${ytKeywords.value}`.trim();
-  copyAndOpen(block,"YouTube","https://studio.youtube.com/");
-}
+        setStatus("AI response received", "success");
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message || "Something went wrong", "error");
+        alert("Error: " + (err.message || err));
+      } finally {
+        setLoading(false);
+      }
+    }
 
-function copyGeneric(fieldId,label,url){
-  copyAndOpen(document.getElementById(fieldId).value,label,url);
-}
+    async function copyAndOpen(text, label, url) {
+      const safeText = text.trim();
+      if (!safeText) {
+        alert(`Nothing to copy for ${label}`);
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(safeText);
+        setStatus(`${label} copied to clipboard`, "success");
+        if (url) {
+          setTimeout(() => window.open(url, "_blank"), 600);
+        }
+      } catch (err) {
+        setStatus("Clipboard unavailable", "error");
+        alert("Copy failed. Please copy manually.");
+      }
+    }
 
-function copyFB(){
-  const block = `${fbTitle.value}\n\n${fbDetails.value}`.trim();
-  copyAndOpen(block,"Facebook","https://www.facebook.com/reels/create");
-}
-</script>
-</body>
+    function copyYoutube() {
+      const title = document.getElementById("ytTitle").value;
+      const desc = document.getElementById("ytDesc").value;
+      const keywords = document.getElementById("ytKeywords").value;
+      const block = `${title}\n\n${desc}\n\nKeywords: ${keywords}`.trim();
+      copyAndOpen(block, "YouTube", "https://studio.youtube.com/");
+    }
+
+    function copyGeneric(fieldId, label, url) {
+      const value = document.getElementById(fieldId).value;
+      copyAndOpen(value, label, url);
+    }
+
+    function copyFB() {
+      const title = document.getElementById("fbTitle").value;
+      const details = document.getElementById("fbDetails").value;
+      const block = `${title}\n\n${details}`.trim();
+      copyAndOpen(block, "Facebook", "https://www.facebook.com/reels/create");
+    }
+  </script>
+  </body>
 </html>
