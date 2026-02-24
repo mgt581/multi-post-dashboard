@@ -10,18 +10,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Check out the repository so the workflow has access to the code
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install Node
+      # Set up Node.js environment. Wrangler requires a fairly recent version of Node.
+      - name: Use Node.js 20
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
+      # Globally install the Cloudflare Wrangler CLI, which is needed to deploy Workers
       - name: Install Wrangler
         run: npm install -g wrangler
 
+      # Deploy the Cloudflare Worker using Wrangler. The API token and account ID are
+      # provided via secrets so they are not exposed in the repository.
       - name: Deploy Worker
         run: wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
