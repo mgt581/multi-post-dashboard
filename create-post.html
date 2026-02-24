@@ -152,14 +152,32 @@
     .outputs textarea { min-height: 110px; }
 
     .pill-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-    .pill { 
-      background: rgba(255, 255, 255, 0.05); 
-      border: 1px solid var(--border); 
-      padding: 6px 10px; 
-      border-radius: 10px; 
-      color: var(--muted); 
-      font-weight: 700; 
-      font-size: 12px; 
+    .pill {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 10px;
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    /* ✅ NEW: Header right-side controls (Home button) */
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    /* ✅ NEW: Home button style in header (matches your theme) */
+    .home-btn {
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      box-shadow: none;
+      padding: 10px 14px;
     }
 
     @media (max-width: 640px) {
@@ -178,7 +196,12 @@
           <h1>Create & SEO</h1>
         </div>
       </div>
-      <div class="badge">Worker live</div>
+
+      <!-- ✅ UPDATED: right side now includes Home + Worker live (nothing removed) -->
+      <div class="header-actions">
+        <button class="btn secondary home-btn" type="button" onclick="goHome()">🏠 Home</button>
+        <div class="badge">Worker live</div>
+      </div>
     </header>
 
     <section class="card hero">
@@ -239,6 +262,11 @@
     const statusEl = document.getElementById("status");
     const generateBtn = document.getElementById("generateBtn");
 
+    // ✅ NEW: Home button redirect (kept simple + safe)
+    function goHome() {
+      window.location.href = "index.html";
+    }
+
     const coerceToText = (value) => {
       if (Array.isArray(value)) return value.join(", ");
       if (value === null || value === undefined) return "";
@@ -252,13 +280,13 @@
     const normalizeTikTok = (tiktok, prompt, keywords) => {
       if (!tiktok) return prompt;
       if (typeof tiktok === "string") return tiktok;
-      
+
       const direct =
         tiktok.allInOne ||
         tiktok.all_in_one ||
         tiktok.caption ||
         tiktok.text;
-        
+
       if (direct) return coerceToText(direct);
 
       // If object keys are present (headline, hashtags etc)
