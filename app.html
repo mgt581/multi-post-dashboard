@@ -78,6 +78,7 @@
       cursor: pointer;
       color: var(--text);
       text-decoration: none;
+      position: relative;
     }
 
     .icon-box {
@@ -97,6 +98,27 @@
     .card-sub { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
 
     .chevron { color: var(--muted); font-size: 14px; }
+
+    /* NEW: Folder action buttons */
+    .folder-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .action-btn {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 8px;
+      padding: 6px 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .action-btn.delete {
+      color: #f87171;
+      border-color: rgba(248,113,113,0.3);
+    }
 
     /* Bottom Nav */
     .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(11, 24, 41, 0.85); backdrop-filter: blur(12px); display: flex; justify-content: space-around; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); z-index: 100; }
@@ -159,24 +181,70 @@
         }
 
         container.innerHTML = folders.map(f => `
-          <a href="#" class="card folder-card" data-folder-id="${f.id}" data-folder-name="${f.name}">
+          <div class="card folder-card" data-folder-id="${f.id}" data-folder-name="${f.name}">
             <div class="icon-box"><i class="fa-solid fa-folder"></i></div>
             <div class="card-content">
               <span class="card-title">${f.name}</span>
               <span class="card-sub">Manage assets & accounts</span>
             </div>
+            <div class="folder-actions">
+              <button class="action-btn rename-btn" data-id="${f.id}" data-name="${f.name}">
+                <i class="fa-solid fa-pen"></i>
+              </button>
+              <button class="action-btn delete delete-btn" data-id="${f.id}">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
             <i class="fa-solid fa-chevron-right chevron"></i>
-          </a>
+          </div>
         `).join('');
 
+        // Open folder click
         container.querySelectorAll('.folder-card').forEach(card => {
           card.addEventListener('click', (e) => {
-            e.preventDefault();
+            if (e.target.closest('.rename-btn') || e.target.closest('.delete-btn')) return;
             openFolder(card.dataset.folderId, card.dataset.folderName);
           });
         });
+
+        // Rename
+        container.querySelectorAll('.rename-btn').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            const currentName = btn.dataset.name;
+            const newName = prompt("Rename Brand:", currentName);
+            if (!newName || !newName.trim()) return;
+
+            await fetch(`${apiBase}/rename-folder`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id, name: newName.trim(), user_id: userScope })
+            });
+
+            loadFolders();
+          });
+        });
+
+        // Delete
+        container.querySelectorAll('.delete-btn').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            if (!confirm("Delete this brand and all linked accounts?")) return;
+
+            await fetch(`${apiBase}/delete-folder`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id, user_id: userScope })
+            });
+
+            loadFolders();
+          });
+        });
+
       } catch (err) {
-        container.innerHTML = `<p style="color:var(--error); text-align:center;">Failed to load brands.</p>`;
+        container.innerHTML = `<p style="color:#f87171; text-align:center;">Failed to load brands.</p>`;
       }
     }
 
