@@ -14,11 +14,27 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # Set up Node.js environment. Wrangler requires a fairly recent version of Node.
-      - name: Use Node.js 20
-        uses: actions/setup-node@v4
+      # Set up the Node.js environment.  Cloudflare Wrangler requires a fairly
+      # recent version of Node to run, so we configure a specific version here.
+      # The official setup‑node action accepts a wide array of options, but we
+      # only specify the required `node-version` to avoid overriding other
+      # defaults.  If you need to customise cache settings or registry scopes
+      # later, the commented options below serve as a reference.
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v6.2.0
         with:
+          # Specify the exact version of Node.js required for your project.
           node-version: 20
+          # architecture: x64               # optional: defaults to system arch
+          # check-latest: false             # optional: set true to always use latest matching version
+          # registry-url: ''                # optional: set for private registry auth
+          # scope: ''                       # optional: scope for npm packages
+          # token: ${{ github.token }}      # optional: token for private mirrors
+          # cache: ''                       # optional: npm|yarn|pnpm to enable package caching
+          # package-manager-cache: true      # optional: disable automatic caching
+          # cache-dependency-path: ''        # optional: path(s) to dependency files
+          # mirror: ''                       # optional: alternative Node distribution mirror
+          # mirror-token: ''                 # optional: authorization token for mirror
 
       # Globally install the Cloudflare Wrangler CLI, which is needed to deploy Workers
       - name: Install Wrangler
