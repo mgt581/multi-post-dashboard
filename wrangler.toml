@@ -3,7 +3,7 @@ main = "worker.js"
 compatibility_date = "2024-01-01"
 
 [vars]
-GOOGLE_CLIENT_ID = "72559136598-p0tbkiiit42vuronhcigtdru23vcktvj.apps.googleusercontent.com
+GOOGLE_CLIENT_ID = "72559136598-p0tbkiiit42vuronhcigtdru23vcktvj.apps.googleusercontent.com"
 TIKTOK_CLIENT_KEY = "7594881305372821516"
 FB_CLIENT_ID = "1596560914709231"
 
