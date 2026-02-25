@@ -9,7 +9,7 @@ FB_CLIENT_ID = "1596560914709231"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "multipost-youtube-api"
+database_name = "accountsmultipostapp"
 database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
 
 [ai]
