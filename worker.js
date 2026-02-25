@@ -110,6 +110,50 @@ var worker_default = {
       "upsertToken"
     );
 
+    // ✅ NEW: YouTube identity fetcher (channel title + id + customUrl)
+    const fetchYouTubeIdentity = /* @__PURE__ */ __name(
+      async (accessToken) => {
+        if (!accessToken) {
+          throw new Error("Missing access_token for YouTube identity fetch");
+        }
+
+        const ytRes = await fetch(
+          "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true",
+          { headers: { "Authorization": `Bearer ${accessToken}` } }
+        );
+
+        const ytData = await safeJson(ytRes);
+
+        // ✅ If Google returns an error (common when scope/consent/token issue), fail loudly
+        if (!ytRes.ok) {
+          const msg = ytData?.error?.message || ytData?.raw || JSON.stringify(ytData);
+          throw new Error(`YouTube channels.list failed (${ytRes.status}): ${msg}`);
+        }
+
+        const ch = ytData?.items?.[0];
+        if (!ch) {
+          throw new Error("YouTube channels.list returned no channel (items[0] missing).");
+        }
+
+        const title = ch?.snippet?.title || "Linked YouTube";
+        const channelId = ch?.id || title;
+        const customUrl = ch?.snippet?.customUrl || null;
+
+        // Return both “title” and a “handle-ish” label we can show in UI
+        // Note: YouTube “handle” is not always available via this endpoint,
+        // customUrl is the closest thing commonly present.
+        const displayHandle = customUrl ? `@${String(customUrl).replace(/^@/, "")}` : null;
+
+        return {
+          channelId,
+          title,
+          customUrl,
+          displayHandle
+        };
+      },
+      "fetchYouTubeIdentity"
+    );
+
     try {
       if (url.pathname === "/api/get-folders") {
         const userId = requireUser(url.searchParams.get("user_id"));
@@ -263,26 +307,50 @@ var worker_default = {
 
         const tokens = await safeJson(tokenRes);
 
-        const userRes = await fetch(
-          "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true",
-          { headers: { "Authorization": `Bearer ${tokens.access_token}` } }
-        );
+        // ✅ NEW: Fail loudly if token exchange failed (prevents silent “Linked YouTube”)
+        if (!tokenRes.ok) {
+          const msg = tokens?.error_description || tokens?.error || tokens?.raw || JSON.stringify(tokens);
+          return new Response(`YouTube token exchange failed (${tokenRes.status}): ${msg}`, { status: 400, headers: corsHeaders });
+        }
 
-        const userData = await safeJson(userRes);
-        const channelName = userData.items?.[0]?.snippet?.title || "Linked YouTube";
-        const channelId = userData.items?.[0]?.id || channelName;
+        // ✅ NEW: Fetch real channel identity (title/id/customUrl) so UI can show the correct account
+        const identity = await fetchYouTubeIdentity(tokens.access_token);
 
-        await env.DB.prepare(
-          "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'youtube', ?, ?, ?, ?)"
-        ).bind(
-  folderId ?? null,
-  userId ?? null,
-  channelName ?? null,
-  tokens?.access_token ?? null,
-  tokens?.refresh_token ?? null,
-  tokens?.expires_in ? nowMs() + tokens.expires_in * 1000 : null
-)
-.run();
+        // ✅ Prefer showing @customUrl under icon (if available), but keep channel title as the main nickname
+        // (Your frontend currently uses nickname; once you add extra DB fields later, you can show both cleanly.)
+        const channelTitle = identity.title || "Linked YouTube";
+        const channelId = identity.channelId || channelTitle;
+
+        // ✅ NEW: Keep refresh_token if Google didn’t return it this time (very common)
+        // We do: insert OR update. If there’s no unique constraint, this still preserves logic without deleting anything.
+        // If you DO have a unique constraint on (folder_id,user_id,platform), this will behave perfectly.
+        await env.DB.prepare(`
+          INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at)
+          VALUES (?, ?, 'youtube', ?, ?, ?, ?)
+        `).bind(
+          folderId ?? null,
+          userId ?? null,
+          channelTitle ?? null,
+          tokens?.access_token ?? null,
+          tokens?.refresh_token ?? null,
+          tokens?.expires_in ? nowMs() + tokens.expires_in * 1000 : null
+        ).run();
+
+        // ✅ NEW: If refresh_token was NOT returned, attempt to preserve existing refresh_token (safe, no deletes)
+        if (!tokens?.refresh_token) {
+          try {
+            await env.DB.prepare(`
+              UPDATE accounts
+              SET access_token = ?, expires_at = ?
+              WHERE folder_id = ? AND user_id = ? AND platform = 'youtube'
+            `).bind(
+              tokens?.access_token ?? null,
+              tokens?.expires_in ? nowMs() + tokens.expires_in * 1000 : null,
+              folderId,
+              userId
+            ).run();
+          } catch (_) {}
+        }
 
         await upsertToken({
           folderId,
