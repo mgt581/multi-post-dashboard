@@ -275,13 +275,14 @@ var worker_default = {
         await env.DB.prepare(
           "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'youtube', ?, ?, ?, ?)"
         ).bind(
-          folderId,
-          userId,
-          channelName,
-          tokens.access_token,
-          tokens.refresh_token,
-          nowMs() + (tokens.expires_in || 0) * 1e3
-        ).run();
+  folderId ?? null,
+  userId ?? null,
+  channelName ?? null,
+  tokens?.access_token ?? null,
+  tokens?.refresh_token ?? null,
+  tokens?.expires_in ? nowMs() + tokens.expires_in * 1000 : null
+)
+.run();
 
         await upsertToken({
           folderId,
