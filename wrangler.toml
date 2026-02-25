@@ -4,7 +4,7 @@ compatibility_date = "2024-01-01"
 
 [vars]
 GOOGLE_CLIENT_ID = "72559136598-p0tbkiiit42vuronhcigtdru23vcktvj.apps.googleusercontent.com
-TIKTOK_CLIENT_KEY = "awfqyscbk5kl6pu8"
+TIKTOK_CLIENT_KEY = "UCnmHMrMivdw8LFDuXXr2hAPUw1DTtBG"
 FB_CLIENT_ID = "1596560914709231"
 
 [[d1_databases]]
