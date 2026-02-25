@@ -72,6 +72,27 @@
       align-items: center; justify-content: center; font-size: 20px;
     }
 
+    /* ✅ Added: left stack so the account identifier can sit under the icon */
+    .platform-left {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      width: 76px;
+      flex: 0 0 76px;
+    }
+    .platform-handle {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--success);
+      max-width: 76px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      line-height: 1.1;
+      text-align: center;
+    }
+
     .platform-info { flex: 1; }
     .platform-info strong { display: block; font-size: 17px; font-weight: 700; }
     .platform-info span { display: block; font-size: 13px; font-weight: 700; margin-top: 2px; }
@@ -146,6 +167,39 @@
       document.getElementById("name").innerText = folderName;
     }
 
+    // ✅ Added: basic HTML escape to prevent any accidental injection in templates
+    function escapeHTML(str) {
+      return String(str ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    // ✅ Added: pick the best “this is THAT account” label we can find from your API response
+    function accountLabelFor(linked, platformKey) {
+      // Try a bunch of common field names across platforms (YouTube/TikTok/Facebook)
+      const candidates = [
+        linked.handle,
+        linked.username,
+        linked.user_name,
+        linked.screen_name,
+        linked.email,
+        linked.account_email,
+        linked.channel_handle,
+        linked.channel_title,
+        linked.channel_name,
+        linked.page_name,
+        linked.profile_name,
+        linked.nickname
+      ].filter(Boolean);
+
+      // If it's YouTube and we have something that isn't already “YouTube”, show it.
+      const label = candidates[0] || "";
+      return label;
+    }
+
     async function render() {
       const fId = localStorage.getItem(scopedKey("activeFolderId"));
       if (!fId || !userScope) return;
@@ -164,11 +218,17 @@
           const linked = linkedAccounts.find(acc => acc.platform === key);
 
           if (linked) {
+            const acctLabel = accountLabelFor(linked, key);
+            const acctLabelSafe = escapeHTML(acctLabel);
+
             return `
               <div class="platform-card">
-                <div class="platform-icon" style="background:${meta.bg}; color:${meta.color};"><i class="${meta.icon}"></i></div>
+                <div class="platform-left">
+                  <div class="platform-icon" style="background:${meta.bg}; color:${meta.color};"><i class="${meta.icon}"></i></div>
+                  <div class="platform-handle">${acctLabelSafe || "Connected"}</div>
+                </div>
                 <div class="platform-info">
-                  <strong>${linked.nickname || meta.name}</strong>
+                  <strong>${escapeHTML(linked.nickname || meta.name)}</strong>
                   <span style="color: var(--success);">Connected</span>
                 </div>
                 <button class="btn btn-remove" onclick="removeAccount(${linked.id})">Remove</button>
