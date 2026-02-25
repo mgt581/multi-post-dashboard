@@ -1,6 +1,6 @@
 name = "multipost-seo-worker"
 main = "worker.js"
-compatibility_date = "2024-01-01"
+compatibility_date = "2026-02-25"
 
 [vars]
 GOOGLE_CLIENT_ID = "72559136598-p0tbkiiit42vuronhcigtdru23vcktvj.apps.googleusercontent.com"
