@@ -11,6 +11,7 @@ routes = [
   { pattern = "www.multipostapp.co.uk/api/*", zone_name = "multipostapp.co.uk" }
 ]
 
+
 [vars]
 BASE_URL = "https://multipostapp.co.uk"
 FRONTEND_URL = "https://multipostapp.co.uk"
