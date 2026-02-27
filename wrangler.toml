@@ -11,10 +11,11 @@ routes = [
   { pattern = "www.multipostapp.co.uk/api/*", zone_name = "multipostapp.co.uk" }
 ]
 
+
 [vars]
 BASE_URL = "https://multipostapp.co.uk"
 FRONTEND_URL = "https://multipostapp.co.uk"
-GOOGLE_CLIENT_ID = "1099160429576-b8kba9n0qc3gj1ismai36mv4ifelrdfq.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = "72559136598-p0tbkiiit42vuronhcigtdru23vcktvj.apps.googleusercontent.com"
 TIKTOK_CLIENT_KEY = "awfqyscbk5kl6pu8"
 FB_CLIENT_ID = "1596560914709231"
 
