@@ -4,6 +4,8 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 // worker.js
 var __defProp2 = Object.defineProperty;
 var __name2 = /* @__PURE__ */ __name((target, value) => __defProp2(target, "name", { value, configurable: true }), "__name");
+var __defProp22 = Object.defineProperty;
+var __name22 = /* @__PURE__ */ __name2((target, value) => __defProp22(target, "name", { value, configurable: true }), "__name");
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -20,14 +22,14 @@ var worker_default = {
     if (url.pathname === "/" || url.pathname === "") {
       return Response.redirect(frontendBaseUrl, 302);
     }
-    const requireUser = /* @__PURE__ */ __name2(
+    const requireUser = /* @__PURE__ */ __name22(
       (val) => val && typeof val === "string" ? val : null,
       "requireUser"
     );
     const redirectUri = `${siteBaseUrl}/api/auth/callback/youtube`;
     const fbRedirectUri = `${siteBaseUrl}/api/auth/callback/facebook`;
-    const nowMs = /* @__PURE__ */ __name2(() => Date.now(), "nowMs");
-    const safeJson = /* @__PURE__ */ __name2(async (res) => {
+    const nowMs = /* @__PURE__ */ __name22(() => Date.now(), "nowMs");
+    const safeJson = /* @__PURE__ */ __name22(async (res) => {
       const text = await res.text();
       try {
         return JSON.parse(text);
@@ -35,14 +37,14 @@ var worker_default = {
         return { raw: text };
       }
     }, "safeJson");
-    const encodeState = /* @__PURE__ */ __name2((obj) => {
+    const encodeState = /* @__PURE__ */ __name22((obj) => {
       try {
         return btoa(JSON.stringify(obj));
       } catch {
         return String(obj?.folderId || "");
       }
     }, "encodeState");
-    const decodeState = /* @__PURE__ */ __name2((stateStr) => {
+    const decodeState = /* @__PURE__ */ __name22((stateStr) => {
       if (!stateStr) return { folderId: null, platform: null };
       try {
         return JSON.parse(atob(stateStr));
@@ -56,7 +58,7 @@ var worker_default = {
         }
       }
     }, "decodeState");
-    const upsertToken = /* @__PURE__ */ __name2(
+    const upsertToken = /* @__PURE__ */ __name22(
       async ({ folderId, platform, accountId, accessToken, refreshToken, expiresAt, scope }) => {
         if (!folderId || !platform || !accountId || !accessToken) return;
         await env.DB.prepare(`
@@ -82,7 +84,7 @@ var worker_default = {
       },
       "upsertToken"
     );
-    const fetchYouTubeIdentity = /* @__PURE__ */ __name2(
+    const fetchYouTubeIdentity = /* @__PURE__ */ __name22(
       async (accessToken) => {
         if (!accessToken) {
           throw new Error("Missing access_token for YouTube identity fetch");
@@ -408,7 +410,9 @@ var worker_default = {
         const newResponse = new Response(response.body, response);
         newResponse.headers.set(
           "Content-Security-Policy",
-          "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdnjs.cloudflare.com https://sf-security.ibytedtos.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https://www.gstatic.com https://p16-sign-va.tiktokcdn.com https://graph.facebook.com; connect-src 'self' https://multipost-seo-worker.alexbryant.workers.dev https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com https://open.tiktokapis.com https://www.tiktok.com https://graph.facebook.com https://www.facebook.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://libraweb-i18n.tiktok.com https://mcs-i18n.tiktok.com; frame-src 'self' https://accounts.google.com https://www.facebook.com https://www.tiktok.com; object-src 'none'; base-uri 'self';"
+          // ✅ FIX: allow browser calls to your routed production API host (multipostapp.co.uk),
+          // not just workers.dev. Otherwise the UI fetch() calls get blocked by CSP.
+          "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdnjs.cloudflare.com https://sf-security.ibytedtos.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https://www.gstatic.com https://p16-sign-va.tiktokcdn.com https://graph.facebook.com; connect-src 'self' https://multipostapp.co.uk https://www.multipostapp.co.uk https://multipost-seo-worker.alexbryant.workers.dev https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com https://open.tiktokapis.com https://www.tiktok.com https://graph.facebook.com https://www.facebook.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://libraweb-i18n.tiktok.com https://mcs-i18n.tiktok.com; frame-src 'self' https://accounts.google.com https://www.facebook.com https://www.tiktok.com; object-src 'none'; base-uri 'self';"
         );
         return newResponse;
       }
