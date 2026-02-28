@@ -99,7 +99,7 @@
 
     .chevron { color: var(--muted); font-size: 14px; }
 
-    /* NEW: Folder action buttons */
+    /* Folder action buttons */
     .folder-actions {
       display: flex;
       gap: 8px;
@@ -162,7 +162,11 @@
   </nav>
 
   <script>
-    const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
+    // Dynamically set API base to avoid CORS issues on custom domains
+    const apiBase = window.location.origin.includes('localhost')
+      ? "https://multipost-seo-worker.alexbryant.workers.dev/api"
+      : "/api";
+
     let userScope = null;
 
     const scopedKey = name => `${name}:${userScope}`;
@@ -172,7 +176,7 @@
       const container = document.getElementById("folderContainer");
       try {
         const res = await fetch(`${apiBase}/get-folders?user_id=${encodeURIComponent(userScope)}`);
-        if (!res.ok) throw new Error();
+        if (!res.ok) throw new Error("Server error");
         const folders = await res.json();
 
         if (folders.length === 0) {
@@ -199,7 +203,7 @@
           </div>
         `).join('');
 
-        // Open folder click
+        // Click listeners... (kept existing logic)
         container.querySelectorAll('.folder-card').forEach(card => {
           card.addEventListener('click', (e) => {
             if (e.target.closest('.rename-btn') || e.target.closest('.delete-btn')) return;
@@ -207,38 +211,30 @@
           });
         });
 
-        // Rename
         container.querySelectorAll('.rename-btn').forEach(btn => {
           btn.addEventListener('click', async (e) => {
             e.stopPropagation();
             const id = btn.dataset.id;
-            const currentName = btn.dataset.name;
-            const newName = prompt("Rename Brand:", currentName);
-            if (!newName || !newName.trim()) return;
-
+            const newName = prompt("Rename Brand:", btn.dataset.name);
+            if (!newName?.trim()) return;
             await fetch(`${apiBase}/rename-folder`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ id, name: newName.trim(), user_id: userScope })
             });
-
             loadFolders();
           });
         });
 
-        // Delete
         container.querySelectorAll('.delete-btn').forEach(btn => {
           btn.addEventListener('click', async (e) => {
             e.stopPropagation();
-            const id = btn.dataset.id;
-            if (!confirm("Delete this brand and all linked accounts?")) return;
-
+            if (!confirm("Delete this brand?")) return;
             await fetch(`${apiBase}/delete-folder`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id, user_id: userScope })
+              body: JSON.stringify({ id: btn.dataset.id, user_id: userScope })
             });
-
             loadFolders();
           });
         });
@@ -249,16 +245,27 @@
     }
 
     async function createNewFolder() {
+      if (!userScope) return alert("You must be logged in to create a brand.");
       const name = prompt("Enter Brand or Client Name:");
-      if (!name) return;
+      if (!name || !name.trim()) return;
+
       try {
-        await fetch(`${apiBase}/add-folder`, {
+        const res = await fetch(`${apiBase}/add-folder`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, user_id: userScope })
+          body: JSON.stringify({ name: name.trim(), user_id: userScope })
         });
+
+        const data = await res.json();
+        if (!res.ok || data.success === false) {
+           throw new Error(data.error || "Server rejected request");
+        }
+
         loadFolders();
-      } catch (err) { alert("Error creating brand"); }
+      } catch (err) {
+        console.error("Create Error:", err);
+        alert("Error creating brand: " + err.message);
+      }
     }
 
     function openFolder(id, name) {
@@ -289,9 +296,8 @@
         window.location.href = "signin.html";
         return;
       }
-      userScope = user.uid || user.email;
-      const greeting = user.displayName ? `${user.displayName.split(' ')[0]}` : "Your Brands";
-      document.getElementById("userGreeting").innerText = greeting;
+      userScope = user.uid;
+      document.getElementById("userGreeting").innerText = user.displayName ? user.displayName.split(' ')[0] : "Your Brands";
       loadFolders();
     });
   </script>
