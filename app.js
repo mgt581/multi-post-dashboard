@@ -41,6 +41,46 @@ if (activeFolder && activeFolder.accounts) {
 }
 
 // -----------------------------
+// ✅ EMPTY STATE FIX (no folders / no active folder)
+// -----------------------------
+(function ensureFolderSelected() {
+  // If there are literally no folders saved yet, don't blow up later.
+  // Show a helpful message in the UI areas we DO have.
+  if (!folders.length) {
+    // If you have a visual element to show errors, use it.
+    // Otherwise we safely set placeholder text so the page isn't "broken".
+    if (postIdea) {
+      postIdea.placeholder = "No brands yet — create a brand/folder first, then come back here.";
+    }
+
+    // Disable actions that require a folder
+    if (generateBtn) generateBtn.disabled = true;
+    if (copyBtn) copyBtn.disabled = true;
+
+    // Also hide tabs except maybe the first, since nothing is linked
+    tabs.forEach((tab, i) => {
+      tab.style.display = i === 0 ? "" : "none";
+    });
+
+    // Make sure output boxes aren't confusing
+    Object.keys(outputs).forEach(key => {
+      if (outputs[key]) outputs[key].value = "No brand loaded. Create a brand/folder first.";
+    });
+
+    // Stop here (everything else can still exist, but won't error)
+    return;
+  }
+
+  // If folders exist but active index is missing/invalid, default to first folder.
+  const idx = Number(activeFolderIndex);
+  const validIndex = Number.isInteger(idx) && idx >= 0 && idx < folders.length;
+
+  if (!validIndex) {
+    localStorage.setItem("activeFolder", "0");
+  }
+})();
+
+// -----------------------------
 // TAB SWITCHING
 // -----------------------------
 tabs.forEach(tab => {
