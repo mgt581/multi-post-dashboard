@@ -72,7 +72,6 @@
       align-items: center; justify-content: center; font-size: 20px;
     }
 
-    /* ✅ Added: left stack so the account identifier can sit under the icon */
     .platform-left {
       display: flex;
       flex-direction: column;
@@ -113,7 +112,6 @@
       cursor: pointer; text-decoration: none;
     }
 
-    /* Bottom Nav */
     .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(11, 24, 41, 0.85); backdrop-filter: blur(12px); display: flex; justify-content: space-around; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); z-index: 100; }
     .nav-item { text-decoration: none; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 10px; font-weight: 800; }
     .nav-item.active { color: var(--accent-2); }
@@ -150,24 +148,21 @@
   </nav>
 
   <script>
-    // ✅ FIX: use your live routed domain (multipostapp.co.uk/api/*), not workers.dev
-    // This keeps auth + API calls consistent and avoids mixed-host weirdness.
-    const apiBase = "https://multipostapp.co.uk/api";
+    // Dynamically set API base to avoid CORS issues
+    const apiBase = window.location.origin.includes('localhost')
+      ? "https://multipost-seo-worker.alexbryant.workers.dev/api"
+      : "/api";
 
     let userScope = null;
 
     const scopedKey = name => `${name}:${userScope}`;
 
-    // ✅ FIX: read storage with safe fallback
-    // This stops “nothing loads” when older keys were saved without scoping.
     function getLS(name) {
       if (userScope) {
         const scoped = localStorage.getItem(scopedKey(name));
-        if (scoped !== null && scoped !== undefined && scoped !== "") return scoped;
+        if (scoped) return scoped;
       }
-      // fallback to unscoped key (older versions)
-      const raw = localStorage.getItem(name);
-      return raw;
+      return localStorage.getItem(name);
     }
 
     const allPlatforms = {
@@ -182,36 +177,8 @@
       document.getElementById("name").innerText = folderName;
     }
 
-    // ✅ Added: basic HTML escape to prevent any accidental injection in templates
     function escapeHTML(str) {
-      return String(str ?? "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-
-    // ✅ Added: pick the best “this is THAT account” label we can find from your API response
-    function accountLabelFor(linked, platformKey) {
-      const candidates = [
-        linked.handle,
-        linked.username,
-        linked.user_name,
-        linked.screen_name,
-        linked.email,
-        linked.account_email,
-        linked.channel_handle,
-        linked.channel_title,
-        linked.channel_name,
-        linked.page_name,
-        linked.profile_name,
-        linked.nickname,
-        linked.account_id_on_platform,
-        linked.account_id
-      ].filter(Boolean);
-
-      return candidates[0] || "";
+      return String(str ?? "").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#039;"}[m]));
     }
 
     async function render() {
@@ -223,6 +190,7 @@
 
       try {
         const res = await fetch(`${apiBase}/get-accounts?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`);
+        if (!res.ok) throw new Error("Server Error");
         const linkedAccounts = await res.json();
 
         document.getElementById("count").innerText = `${linkedAccounts.length} total accounts connected`;
@@ -232,17 +200,14 @@
           const linked = linkedAccounts.find(acc => acc.platform === key);
 
           if (linked) {
-            const acctLabel = accountLabelFor(linked, key);
-            const acctLabelSafe = escapeHTML(acctLabel);
-
             return `
               <div class="platform-card">
                 <div class="platform-left">
                   <div class="platform-icon" style="background:${meta.bg}; color:${meta.color};"><i class="${meta.icon}"></i></div>
-                  <div class="platform-handle">${acctLabelSafe || "Connected"}</div>
+                  <div class="platform-handle">${escapeHTML(linked.nickname || "Connected")}</div>
                 </div>
                 <div class="platform-info">
-                  <strong>${escapeHTML(linked.nickname || meta.name)}</strong>
+                  <strong>${escapeHTML(meta.name)}</strong>
                   <span style="color: var(--success);">Connected</span>
                 </div>
                 <button class="btn btn-remove" onclick="removeAccount(${linked.id})">Remove</button>
@@ -269,9 +234,7 @@
 
     function addAccount(platform) {
       const fId = getLS("activeFolderId");
-      if (!fId || !userScope) return alert("Session expired. Please log in again.");
-
-      // ✅ FIX: use same host as API base (multipostapp.co.uk)
+      if (!fId || !userScope) return alert("Session expired.");
       window.location.href = `${apiBase}/auth/${platform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
     }
 
@@ -283,7 +246,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id: accountId, user_id: userScope, type: "account_only" }),
         });
-        render(); // Re-render the list to show the change
+        render();
       } catch (err) { alert("Error removing account"); }
     }
   </script>
@@ -306,12 +269,10 @@
 
     onAuthStateChanged(auth, (user) => {
       if (!user) {
-        window.location.href = "signin.html"; // Redirect if not signed in
+        window.location.href = "signin.html";
         return;
       }
-      userScope = user.uid || user.email;
-
-      // ✅ Keep your existing flow, but now reads scoped OR unscoped keys safely.
+      userScope = user.uid;
       initUI();
       render();
     });
