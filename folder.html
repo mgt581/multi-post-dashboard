@@ -150,10 +150,25 @@
   </nav>
 
   <script>
-    const apiBase = "https://multipost-seo-worker.alexbryant.workers.dev/api";
+    // ✅ FIX: use your live routed domain (multipostapp.co.uk/api/*), not workers.dev
+    // This keeps auth + API calls consistent and avoids mixed-host weirdness.
+    const apiBase = "https://multipostapp.co.uk/api";
+
     let userScope = null;
 
     const scopedKey = name => `${name}:${userScope}`;
+
+    // ✅ FIX: read storage with safe fallback
+    // This stops “nothing loads” when older keys were saved without scoping.
+    function getLS(name) {
+      if (userScope) {
+        const scoped = localStorage.getItem(scopedKey(name));
+        if (scoped !== null && scoped !== undefined && scoped !== "") return scoped;
+      }
+      // fallback to unscoped key (older versions)
+      const raw = localStorage.getItem(name);
+      return raw;
+    }
 
     const allPlatforms = {
       youtube: { name: "YouTube", icon: "fa-brands fa-youtube", color: "#ef4444", bg: "rgba(239, 68, 68, 0.1)" },
@@ -162,7 +177,7 @@
     };
 
     function initUI() {
-      const folderName = localStorage.getItem(scopedKey("activeFolderName")) || "Workspace";
+      const folderName = getLS("activeFolderName") || "Workspace";
       document.getElementById("title").innerText = folderName;
       document.getElementById("name").innerText = folderName;
     }
@@ -179,7 +194,6 @@
 
     // ✅ Added: pick the best “this is THAT account” label we can find from your API response
     function accountLabelFor(linked, platformKey) {
-      // Try a bunch of common field names across platforms (YouTube/TikTok/Facebook)
       const candidates = [
         linked.handle,
         linked.username,
@@ -192,23 +206,23 @@
         linked.channel_name,
         linked.page_name,
         linked.profile_name,
-        linked.nickname
+        linked.nickname,
+        linked.account_id_on_platform,
+        linked.account_id
       ].filter(Boolean);
 
-      // If it's YouTube and we have something that isn't already “YouTube”, show it.
-      const label = candidates[0] || "";
-      return label;
+      return candidates[0] || "";
     }
 
     async function render() {
-      const fId = localStorage.getItem(scopedKey("activeFolderId"));
+      const fId = getLS("activeFolderId");
       if (!fId || !userScope) return;
 
       const listContainer = document.getElementById("accountList");
       listContainer.innerHTML = `<p style="text-align:center; color: var(--muted);">Fetching platforms...</p>`;
 
       try {
-        const res = await fetch(`${apiBase}/get-accounts?folder_id=${fId}&user_id=${encodeURIComponent(userScope)}`);
+        const res = await fetch(`${apiBase}/get-accounts?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`);
         const linkedAccounts = await res.json();
 
         document.getElementById("count").innerText = `${linkedAccounts.length} total accounts connected`;
@@ -236,7 +250,10 @@
           } else {
             return `
               <div class="platform-card">
-                <div class="platform-icon" style="background:rgba(255,255,255,0.04); color:var(--muted);"><i class="${meta.icon}"></i></div>
+                <div class="platform-left">
+                  <div class="platform-icon" style="background:rgba(255,255,255,0.04); color:var(--muted);"><i class="${meta.icon}"></i></div>
+                  <div class="platform-handle" style="color: var(--muted);">Not linked</div>
+                </div>
                 <div class="platform-info">
                   <strong>${meta.name}</strong>
                   <span style="color: var(--muted);">Not Linked</span>
@@ -251,10 +268,11 @@
     }
 
     function addAccount(platform) {
-      const fId = localStorage.getItem(scopedKey("activeFolderId"));
+      const fId = getLS("activeFolderId");
       if (!fId || !userScope) return alert("Session expired. Please log in again.");
 
-      window.location.href = `${apiBase}/auth/${platform}?folder_id=${fId}&user_id=${userScope}`;
+      // ✅ FIX: use same host as API base (multipostapp.co.uk)
+      window.location.href = `${apiBase}/auth/${platform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
     }
 
     async function removeAccount(accountId) {
@@ -292,6 +310,8 @@
         return;
       }
       userScope = user.uid || user.email;
+
+      // ✅ Keep your existing flow, but now reads scoped OR unscoped keys safely.
       initUI();
       render();
     });
