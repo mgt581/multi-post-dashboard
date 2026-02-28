@@ -277,5 +277,22 @@
       render();
     });
   </script>
+
+  <script>
+    // Check if this is running in a service worker context
+    if ('serviceWorker' in navigator) {
+      console.log('Running in a service worker context');
+    } else {
+      console.log('Not running in a service worker context');
+      // Fallback behavior:
+      // Load the worker code directly as a module
+      import('./worker.js').then(worker => {
+        // Optionally, you can call worker.fetch(request, env) directly here
+        // if needed. But since we're on the client-side, direct calls to
+        // fetch API are more appropriate.
+        console.log('Worker loaded as a module.', worker);
+      });
+    }
+  </script>
 </body>
 </html>
