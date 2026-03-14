@@ -124,9 +124,14 @@
     h1 { margin: 0; font-size: 24px; letter-spacing: -0.4px; }
     p { margin: 0; color: var(--muted); }
 
-    label { display: block; font-weight: 700; margin-bottom: 8px; color: #cbd5e1; }
+    label {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #cbd5e1;
+    }
 
-    textarea, input {
+    textarea, input, select {
       width: 100%;
       padding: 12px 14px;
       border-radius: 12px;
@@ -212,7 +217,13 @@
 
     .outputs textarea { min-height: 110px; }
 
-    .pill-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .pill-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
     .pill {
       background: rgba(255, 255, 255, 0.05);
       border: 1px solid var(--border);
@@ -261,6 +272,22 @@
       color: var(--success);
     }
 
+    .upload-box {
+      margin-top: 12px;
+      padding: 14px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .upload-help {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 700;
+      line-height: 1.5;
+    }
+
     @media (max-width: 640px) {
       body { padding: 18px 12px 32px; }
       .page { gap: 12px; }
@@ -302,8 +329,7 @@
       </div>
 
       <div class="notice">
-        This page now follows the selected folder, but opening YouTube Studio in the browser still uses your browser’s active Google account.
-        For guaranteed posting to the correct folder channel every time, the final publish step must happen through your backend using that folder’s stored token.
+        This page follows the selected folder. Publishing to YouTube from this page uses the folder’s stored YouTube connection, not the browser’s current Studio account.
       </div>
     </section>
 
@@ -334,8 +360,27 @@
         <textarea id="ytDesc" placeholder="Full Description"></textarea>
         <textarea id="ytKeywords" placeholder="20 Trending Keywords"></textarea>
 
+        <div class="upload-box">
+          <label for="ytVideoFile">Video file</label>
+          <input id="ytVideoFile" type="file" accept="video/*">
+
+          <div style="margin-top: 12px;">
+            <label for="ytPrivacy">Privacy</label>
+            <select id="ytPrivacy">
+              <option value="private">Private</option>
+              <option value="unlisted">Unlisted</option>
+              <option value="public">Public</option>
+            </select>
+          </div>
+
+          <div class="upload-help">
+            Direct YouTube upload is currently limited to 500MB per file.
+          </div>
+        </div>
+
         <div class="controls">
           <button class="btn secondary" onclick="copyYoutubeOnly()">📋 Copy YouTube Content</button>
+          <button class="btn" onclick="publishYouTube()">🚀 Publish to YouTube</button>
           <button class="btn warning" onclick="openYouTubeStudio()">⚠️ Open YouTube Studio</button>
         </div>
       </div>
@@ -612,6 +657,71 @@
       }
     }
 
+    async function publishYouTube() {
+      if (!activeFolderId || !userScope) {
+        alert("Missing folder context.");
+        return;
+      }
+
+      const fileInput = document.getElementById("ytVideoFile");
+      const file = fileInput.files?.[0];
+
+      if (!file) {
+        alert("Please choose a video file first.");
+        return;
+      }
+
+      const title = document.getElementById("ytTitle").value.trim();
+      const description = document.getElementById("ytDesc").value.trim();
+      const keywords = document.getElementById("ytKeywords").value.trim();
+      const privacyStatus = document.getElementById("ytPrivacy").value;
+
+      if (!title) {
+        alert("Please enter a YouTube title.");
+        return;
+      }
+
+      const form = new FormData();
+      form.append("folder_id", activeFolderId);
+      form.append("user_id", userScope);
+      form.append("title", title);
+      form.append("description", description);
+      form.append("keywords", keywords);
+      form.append("privacyStatus", privacyStatus);
+      form.append("video", file);
+
+      try {
+        setStatus(`Uploading to "${activeYouTubeName}"…`, "working");
+
+        const res = await fetch(`${apiBase}/youtube/upload`, {
+          method: "POST",
+          body: form
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || "Upload failed");
+        }
+
+        setStatus(`Published to "${activeYouTubeName}"`, "success");
+
+        if (data.youtubeUrl) {
+          const openNow = confirm(
+            `Upload complete for "${activeYouTubeName}".\n\nOpen the uploaded video now?`
+          );
+
+          if (openNow) {
+            window.open(data.youtubeUrl, "_blank");
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        setStatus(err.message || "YouTube upload failed", "error");
+        alert(`Upload failed: ${err.message || err}`);
+      }
+    }
+
     function openYouTubeStudio() {
       const proceed = confirm(
         `Workspace: ${activeFolderName}\n` +
@@ -665,6 +775,7 @@
 
     window.generateSEO = generateSEO;
     window.copyYoutubeOnly = copyYoutubeOnly;
+    window.publishYouTube = publishYouTube;
     window.openYouTubeStudio = openYouTubeStudio;
     window.copyGeneric = copyGeneric;
     window.copyFB = copyFB;
