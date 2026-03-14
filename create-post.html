@@ -17,6 +17,7 @@
       --accent-2: #0ea5e9;
       --success: #22c55e;
       --error: #f43f5e;
+      --warning: #f59e0b;
       --shadow: 0 14px 40px rgba(15, 23, 42, 0.45);
     }
 
@@ -44,12 +45,14 @@
       align-items: center;
       justify-content: space-between;
       gap: 14px;
+      flex-wrap: wrap;
     }
 
     .brand {
       display: flex;
       align-items: center;
       gap: 12px;
+      flex-wrap: wrap;
     }
 
     .badge {
@@ -74,9 +77,48 @@
     }
 
     .hero {
-      background: radial-gradient(circle at 20% 20%, rgba(124, 58, 237, 0.25), transparent 25%),
-                  radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.25), transparent 28%),
-                  var(--card);
+      background:
+        radial-gradient(circle at 20% 20%, rgba(124, 58, 237, 0.25), transparent 25%),
+        radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.25), transparent 28%),
+        var(--card);
+    }
+
+    .workspace-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .workspace-box {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+    }
+
+    .workspace-box .label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 800;
+      color: var(--accent-2);
+      margin-bottom: 8px;
+    }
+
+    .workspace-box .value {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1.2;
+      word-break: break-word;
+    }
+
+    .workspace-box .subvalue {
+      margin-top: 6px;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 700;
+      word-break: break-word;
     }
 
     h1 { margin: 0; font-size: 24px; letter-spacing: -0.4px; }
@@ -117,9 +159,23 @@
       background: linear-gradient(135deg, var(--accent), var(--accent-2));
       box-shadow: 0 12px 28px rgba(14, 165, 233, 0.35);
       transition: transform 0.08s ease, opacity 0.2s ease;
+      font-family: inherit;
     }
 
-    .btn.secondary { background: rgba(255, 255, 255, 0.06); color: var(--text); box-shadow: none; }
+    .btn.secondary {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      box-shadow: none;
+      border: 1px solid var(--border);
+    }
+
+    .btn.warning {
+      background: rgba(245, 158, 11, 0.14);
+      color: #fde68a;
+      box-shadow: none;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+
     .btn:active { transform: translateY(1px); }
     .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
@@ -142,6 +198,11 @@
       font-weight: 800;
       letter-spacing: 0.5px;
       margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
     }
 
     .small {
@@ -162,7 +223,6 @@
       font-size: 12px;
     }
 
-    /* ✅ NEW: Header right-side controls (Home button) */
     .header-actions {
       display: flex;
       align-items: center;
@@ -171,7 +231,6 @@
       justify-content: flex-end;
     }
 
-    /* ✅ NEW: Home button style in header (matches your theme) */
     .home-btn {
       border: 1px solid var(--border);
       background: rgba(255, 255, 255, 0.06);
@@ -180,9 +239,33 @@
       padding: 10px 14px;
     }
 
+    .notice {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      background: rgba(245, 158, 11, 0.08);
+      color: #fde68a;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.5;
+    }
+
+    .platform-target {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .platform-target strong {
+      color: var(--success);
+    }
+
     @media (max-width: 640px) {
       body { padding: 18px 12px 32px; }
       .page { gap: 12px; }
+      .controls { flex-direction: column; align-items: stretch; }
+      .controls .btn { width: 100%; }
     }
   </style>
 </head>
@@ -197,16 +280,37 @@
         </div>
       </div>
 
-      <!-- ✅ UPDATED: right side now includes Home + Worker live (nothing removed) -->
       <div class="header-actions">
-        <button class="btn secondary home-btn" type="button" onclick="goHome()">🏠 Home</button>
+        <button class="btn secondary home-btn" type="button" onclick="goBackToWorkspace()">← Workspace</button>
         <div class="badge">Worker live</div>
       </div>
     </header>
 
     <section class="card hero">
+      <div class="workspace-bar">
+        <div class="workspace-box">
+          <div class="label">Active workspace</div>
+          <div id="workspaceName" class="value">Loading…</div>
+          <div id="workspaceId" class="subvalue">Preparing folder context…</div>
+        </div>
+
+        <div class="workspace-box">
+          <div class="label">Connected YouTube</div>
+          <div id="youtubeTarget" class="value">Checking…</div>
+          <div id="youtubeTargetSub" class="subvalue">This is the channel stored on this folder.</div>
+        </div>
+      </div>
+
+      <div class="notice">
+        This page now follows the selected folder, but opening YouTube Studio in the browser still uses your browser’s active Google account.
+        For guaranteed posting to the correct folder channel every time, the final publish step must happen through your backend using that folder’s stored token.
+      </div>
+    </section>
+
+    <section class="card hero">
       <label for="videoPrompt">Describe your video or idea</label>
       <textarea id="videoPrompt" rows="3" placeholder="Example: 60-second recap of CES AI gadgets with upbeat music"></textarea>
+
       <div class="controls">
         <button id="generateBtn" class="btn" onclick="generateSEO()">Analyze trends</button>
         <span id="status" class="status">Waiting for your prompt</span>
@@ -215,17 +319,24 @@
 
     <section class="grid">
       <div class="card outputs">
-        <div class="section-title">YouTube</div>
+        <div class="section-title">
+          <span>YouTube</span>
+          <span class="platform-target">Target: <strong id="ytTargetInline">Checking…</strong></span>
+        </div>
+
         <div class="pill-row">
           <span class="pill">Title</span>
           <span class="pill">Description</span>
           <span class="pill">Keywords</span>
         </div>
+
         <input id="ytTitle" placeholder="YouTube Title" />
         <textarea id="ytDesc" placeholder="Full Description"></textarea>
         <textarea id="ytKeywords" placeholder="20 Trending Keywords"></textarea>
+
         <div class="controls">
-          <button class="btn secondary" onclick="copyYoutube()">🚀 Copy & Go to YouTube</button>
+          <button class="btn secondary" onclick="copyYoutubeOnly()">📋 Copy YouTube Content</button>
+          <button class="btn warning" onclick="openYouTubeStudio()">⚠️ Open YouTube Studio</button>
         </div>
       </div>
 
@@ -256,28 +367,65 @@
     </section>
   </div>
 
-  <script>
-    const apiBase = `${window.location.origin}/api`;
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
+      authDomain: "multi-post-daefc.firebaseapp.com",
+      projectId: "multi-post-daefc",
+      storageBucket: "multi-post-daefc.appspot.com",
+      messagingSenderId: "1099160429576",
+      appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    const apiBase = window.location.origin.includes("localhost")
+      ? "https://multipost-seo-worker.alexbryant.workers.dev/api"
+      : `${window.location.origin}/api`;
 
     const statusEl = document.getElementById("status");
     const generateBtn = document.getElementById("generateBtn");
 
-    // ✅ NEW: Home button redirect (kept simple + safe)
-    function goHome() {
-      window.location.href = "index.html";
+    let userScope = null;
+    let activeFolderId = null;
+    let activeFolderName = "Workspace";
+    let activeYouTubeName = "Not linked";
+
+    function scopedKey(name) {
+      return `${name}:${userScope}`;
     }
 
-    const coerceToText = (value) => {
+    function getUrlParam(name) {
+      return new URLSearchParams(window.location.search).get(name);
+    }
+
+    function getStoredValue(name) {
+      if (userScope) {
+        const scoped = localStorage.getItem(scopedKey(name));
+        if (scoped) return scoped;
+      }
+      return localStorage.getItem(name);
+    }
+
+    function setStoredValue(name, value) {
+      if (value === null || value === undefined) return;
+      localStorage.setItem(name, value);
+      if (userScope) {
+        localStorage.setItem(scopedKey(name), value);
+      }
+    }
+
+    function coerceToText(value) {
       if (Array.isArray(value)) return value.join(", ");
       if (value === null || value === undefined) return "";
       return String(value);
-    };
+    }
 
-    /**
-     * Logic to extract the viral text from AI response
-     * Priority: allInOne > caption > text > prompt fallback
-     */
-    const normalizeTikTok = (tiktok, prompt, keywords) => {
+    function normalizeTikTok(tiktok, prompt, keywords) {
       if (!tiktok) return prompt;
       if (typeof tiktok === "string") return tiktok;
 
@@ -289,7 +437,6 @@
 
       if (direct) return coerceToText(direct);
 
-      // If object keys are present (headline, hashtags etc)
       const parts = [];
       const orderedKeys = ["headline", "hook", "description", "hashtags", "cta"];
 
@@ -299,17 +446,16 @@
 
       if (!parts.length) return prompt || coerceToText(keywords) || "";
       return parts.join("\n\n");
-    };
+    }
 
-    const parseJsonSafe = (value) => {
+    function parseJsonSafe(value) {
       if (!value) return null;
       if (typeof value !== "string") return value;
       const trimmed = value.trim();
-      // Removes AI markdown code blocks if present
       const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
       const body = fenced ? fenced[1].trim() : trimmed;
       try { return JSON.parse(body); } catch { return null; }
-    };
+    }
 
     function setStatus(message, tone = "info") {
       statusEl.textContent = message;
@@ -322,6 +468,54 @@
     function setLoading(isLoading) {
       generateBtn.disabled = isLoading;
       generateBtn.textContent = isLoading ? "Analyzing trends…" : "Analyze trends";
+    }
+
+    function updateContextUI() {
+      document.getElementById("workspaceName").textContent = activeFolderName || "Workspace";
+      document.getElementById("workspaceId").textContent = activeFolderId
+        ? `Folder ID: ${activeFolderId}`
+        : "No folder selected";
+
+      document.getElementById("youtubeTarget").textContent = activeYouTubeName || "Not linked";
+      document.getElementById("ytTargetInline").textContent = activeYouTubeName || "Not linked";
+    }
+
+    async function loadFolderContext() {
+      const urlFolderId = getUrlParam("folder_id");
+      const urlFolderName = getUrlParam("folder_name");
+
+      activeFolderId = urlFolderId || getStoredValue("activeFolderId");
+      activeFolderName = urlFolderName || getStoredValue("activeFolderName") || "Workspace";
+
+      if (activeFolderId) setStoredValue("activeFolderId", activeFolderId);
+      if (activeFolderName) setStoredValue("activeFolderName", activeFolderName);
+
+      updateContextUI();
+
+      if (!activeFolderId || !userScope) {
+        activeYouTubeName = "No folder selected";
+        updateContextUI();
+        return;
+      }
+
+      try {
+        const res = await fetch(
+          `${apiBase}/get-accounts?folder_id=${encodeURIComponent(activeFolderId)}&user_id=${encodeURIComponent(userScope)}`
+        );
+
+        if (!res.ok) {
+          throw new Error("Failed to load accounts");
+        }
+
+        const accounts = await res.json();
+        const yt = accounts.find(acc => acc.platform === "youtube");
+
+        activeYouTubeName = yt?.nickname || "Not linked";
+        updateContextUI();
+      } catch (err) {
+        activeYouTubeName = "Error loading channel";
+        updateContextUI();
+      }
     }
 
     async function generateSEO() {
@@ -338,18 +532,26 @@
         const res = await fetch(`${apiBase}/generate-seo`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt })
+          body: JSON.stringify({
+            prompt,
+            folder_id: activeFolderId,
+            folder_name: activeFolderName,
+            youtube_channel: activeYouTubeName
+          })
         });
 
         const bodyText = await res.text();
         if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
         let json;
-        try { json = JSON.parse(bodyText); } catch (e) { throw new Error("Bad JSON from server"); }
+        try {
+          json = JSON.parse(bodyText);
+        } catch {
+          throw new Error("Bad JSON from server");
+        }
 
         if (!json.success) throw new Error(json.error || "AI Error");
 
-        // Navigate the response structure
         const raw = json?.data?.response ?? json?.data ?? json;
         const parsed = parseJsonSafe(raw) || raw || {};
         const d = parsed?.data ?? parsed ?? {};
@@ -358,21 +560,19 @@
         const tiktok = d.tiktok || {};
         const facebook = d.facebook || {};
 
-        // 1. Process YouTube
         document.getElementById("ytTitle").value = coerceToText(youtube.title || prompt);
         document.getElementById("ytDesc").value = coerceToText(youtube.description || prompt);
         document.getElementById("ytKeywords").value = coerceToText(youtube.keywords || youtube.tags || "");
 
-        // 2. Process TikTok (The Fix)
-        // This ensures the box gets the generated caption, not the URL from the prompt
         const ttContent = normalizeTikTok(tiktok, prompt, youtube.keywords);
         document.getElementById("ttAllInOne").value = ttContent;
 
-        // 3. Process Facebook
         document.getElementById("fbTitle").value = coerceToText(facebook.title || prompt);
-        document.getElementById("fbDetails").value = coerceToText(facebook.descriptionAndTags || facebook.description || prompt);
+        document.getElementById("fbDetails").value = coerceToText(
+          facebook.descriptionAndTags || facebook.description || prompt
+        );
 
-        setStatus("AI response received", "success");
+        setStatus(`AI response received for workspace "${activeFolderName}"`, "success");
       } catch (err) {
         console.error(err);
         setStatus(err.message || "Something went wrong", "error");
@@ -382,30 +582,54 @@
       }
     }
 
-    async function copyAndOpen(text, label, url) {
+    async function copyToClipboard(text, label) {
       const safeText = text.trim();
       if (!safeText) {
         alert(`Nothing to copy for ${label}`);
-        return;
+        return false;
       }
+
       try {
         await navigator.clipboard.writeText(safeText);
         setStatus(`${label} copied to clipboard`, "success");
-        if (url) {
-          setTimeout(() => window.open(url, "_blank"), 600);
-        }
+        return true;
       } catch (err) {
         setStatus("Clipboard unavailable", "error");
         alert("Copy failed. Please copy manually.");
+        return false;
       }
     }
 
-    function copyYoutube() {
+    async function copyYoutubeOnly() {
       const title = document.getElementById("ytTitle").value;
       const desc = document.getElementById("ytDesc").value;
       const keywords = document.getElementById("ytKeywords").value;
       const block = `${title}\n\n${desc}\n\nKeywords: ${keywords}`.trim();
-      copyAndOpen(block, "YouTube", "https://studio.youtube.com/");
+
+      const ok = await copyToClipboard(block, `YouTube content for ${activeYouTubeName}`);
+      if (ok) {
+        setStatus(`YouTube content copied for channel "${activeYouTubeName}"`, "success");
+      }
+    }
+
+    function openYouTubeStudio() {
+      const proceed = confirm(
+        `Workspace: ${activeFolderName}\n` +
+        `Stored YouTube: ${activeYouTubeName}\n\n` +
+        `Opening YouTube Studio will use the Google account currently active in your browser, which may be different from this folder.\n\n` +
+        `Continue anyway?`
+      );
+
+      if (!proceed) return;
+
+      window.open("https://studio.youtube.com/", "_blank");
+    }
+
+    async function copyAndOpen(text, label, url) {
+      const ok = await copyToClipboard(text, label);
+      if (ok && url) {
+        setTimeout(() => window.open(url, "_blank"), 500);
+      }
     }
 
     function copyGeneric(fieldId, label, url) {
@@ -419,6 +643,32 @@
       const block = `${title}\n\n${details}`.trim();
       copyAndOpen(block, "Facebook", "https://www.facebook.com/reels/create");
     }
+
+    function goBackToWorkspace() {
+      if (activeFolderId) {
+        window.location.href = `folder.html?id=${encodeURIComponent(activeFolderId)}`;
+        return;
+      }
+      window.location.href = "app.html";
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        window.location.href = "signin.html";
+        return;
+      }
+
+      userScope = user.uid;
+      await loadFolderContext();
+      setStatus("Ready for your prompt");
+    });
+
+    window.generateSEO = generateSEO;
+    window.copyYoutubeOnly = copyYoutubeOnly;
+    window.openYouTubeStudio = openYouTubeStudio;
+    window.copyGeneric = copyGeneric;
+    window.copyFB = copyFB;
+    window.goBackToWorkspace = goBackToWorkspace;
   </script>
-  </body>
+</body>
 </html>
