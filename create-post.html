@@ -326,18 +326,6 @@
           <div id="youtubeTarget" class="value">Checking…</div>
           <div id="youtubeTargetSub" class="subvalue">This is the channel stored on this folder.</div>
         </div>
-
-        <div class="workspace-box">
-          <div class="label">Connected Facebook</div>
-          <div id="facebookTarget" class="value">Checking…</div>
-          <div id="facebookTargetSub" class="subvalue">This is the Facebook account stored on this folder.</div>
-        </div>
-
-        <div class="workspace-box">
-          <div class="label">Connected TikTok</div>
-          <div id="tiktokTarget" class="value">Checking…</div>
-          <div id="tiktokTargetSub" class="subvalue">This is the TikTok account stored on this folder.</div>
-        </div>
       </div>
 
       <div class="notice">
@@ -396,39 +384,25 @@
       </div>
 
       <div class="card outputs">
-        <div class="section-title">
-          <span>TikTok</span>
-          <span class="platform-target">Target: <strong id="ttTargetInline">Checking…</strong></span>
-        </div>
-
+        <div class="section-title">TikTok</div>
         <div class="pill-row">
           <span class="pill">All-in-one</span>
           <span class="pill">Caption</span>
         </div>
-
         <textarea id="ttAllInOne" placeholder="AI-generated caption with hook and hashtags..."></textarea>
-
         <div class="controls">
-          <button class="btn secondary" onclick="copyGeneric('ttAllInOne', 'TikTok', 'https://www.tiktok.com/upload')">
-            📱 Copy & Go to TikTok
-          </button>
+          <button class="btn secondary" onclick="copyGeneric('ttAllInOne', 'TikTok', 'https://www.tiktok.com/upload')">📱 Copy & Go to TikTok</button>
         </div>
       </div>
 
       <div class="card outputs">
-        <div class="section-title">
-          <span>Facebook Reels</span>
-          <span class="platform-target">Target: <strong id="fbTargetInline">Checking…</strong></span>
-        </div>
-
+        <div class="section-title">Facebook Reels</div>
         <div class="pill-row">
           <span class="pill">Title</span>
           <span class="pill">Description</span>
         </div>
-
         <input id="fbTitle" placeholder="Reel Title" />
         <textarea id="fbDetails" placeholder="Description, tags & keywords"></textarea>
-
         <div class="controls">
           <button class="btn secondary" onclick="copyFB()">📸 Copy & Go to Facebook</button>
         </div>
@@ -463,8 +437,6 @@
     let activeFolderId = null;
     let activeFolderName = "Workspace";
     let activeYouTubeName = "Not linked";
-    let activeFacebookName = "Not linked";
-    let activeTikTokName = "Not linked";
 
     function scopedKey(name) {
       return `${name}:${userScope}`;
@@ -549,21 +521,11 @@
 
       document.getElementById("youtubeTarget").textContent = activeYouTubeName || "Not linked";
       document.getElementById("ytTargetInline").textContent = activeYouTubeName || "Not linked";
-
-      const facebookTarget = document.getElementById("facebookTarget");
-      const fbTargetInline = document.getElementById("fbTargetInline");
-      if (facebookTarget) facebookTarget.textContent = activeFacebookName || "Not linked";
-      if (fbTargetInline) fbTargetInline.textContent = activeFacebookName || "Not linked";
-
-      const tiktokTarget = document.getElementById("tiktokTarget");
-      const ttTargetInline = document.getElementById("ttTargetInline");
-      if (tiktokTarget) tiktokTarget.textContent = activeTikTokName || "Not linked";
-      if (ttTargetInline) ttTargetInline.textContent = activeTikTokName || "Not linked";
     }
 
     async function loadFolderContext() {
-      const urlFolderId = getUrlParam("folder_id") || getUrlParam("id");
-      const urlFolderName = getUrlParam("folder_name") || getUrlParam("name");
+      const urlFolderId = getUrlParam("folder_id");
+      const urlFolderName = getUrlParam("folder_name");
 
       activeFolderId = urlFolderId || getStoredValue("activeFolderId");
       activeFolderName = urlFolderName || getStoredValue("activeFolderName") || "Workspace";
@@ -575,8 +537,6 @@
 
       if (!activeFolderId || !userScope) {
         activeYouTubeName = "No folder selected";
-        activeFacebookName = "No folder selected";
-        activeTikTokName = "No folder selected";
         updateContextUI();
         return;
       }
@@ -592,24 +552,17 @@
 
         const accounts = await res.json();
         const yt = accounts.find(acc => acc.platform === "youtube");
-        const fb = accounts.find(acc => acc.platform === "facebook");
-        const tt = accounts.find(acc => acc.platform === "tiktok");
 
         activeYouTubeName = yt?.nickname || "Not linked";
-        activeFacebookName = fb?.nickname || "Not linked";
-        activeTikTokName = tt?.nickname || "Not linked";
         updateContextUI();
       } catch (err) {
-        activeYouTubeName = "Error loading account";
-        activeFacebookName = "Error loading account";
-        activeTikTokName = "Error loading account";
+        activeYouTubeName = "Error loading channel";
         updateContextUI();
       }
     }
 
     async function generateSEO() {
       const prompt = document.getElementById("videoPrompt").value.trim();
-
       if (!prompt) {
         alert("Please describe your video");
         return;
@@ -618,240 +571,230 @@
       setLoading(true);
       setStatus("Calling AI worker…", "working");
 
-      try {
-        const res = await fetch(`${apiBase}/generate-seo`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt,
-            folder_id: activeFolderId,
-            folder_name: activeFolderName,
-            youtube_channel: activeYouTubeName,
-            facebook_account: activeFacebookName,
-            tiktok_account: activeTikTokName
-          })
-        });
+     try {
+  const res = await fetch(`${apiBase}/generate-seo`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      prompt,
+      folder_id: activeFolderId,
+      folder_name: activeFolderName,
+      youtube_channel: activeYouTubeName
+    })
+  });
 
-        const bodyText = await res.text();
-        if (!res.ok) throw new Error(`Server error: ${res.status}`);
+  const bodyText = await res.text();
+  if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
-        let json;
-        try {
-          json = JSON.parse(bodyText);
-        } catch {
-          throw new Error("Bad JSON from server");
-        }
+  let json;
+  try {
+    json = JSON.parse(bodyText);
+  } catch {
+    throw new Error("Bad JSON from server");
+  }
 
-        if (!json.success) throw new Error(json.error || "AI Error");
+  if (!json.success) throw new Error(json.error || "AI Error");
 
-        const raw = json?.data?.response ?? json?.data ?? json;
-        const parsed = parseJsonSafe(raw) || raw || {};
-        const d = parsed?.data ?? parsed ?? {};
+  const raw = json?.data?.response ?? json?.data ?? json;
+  const parsed = parseJsonSafe(raw) || raw || {};
+  const d = parsed?.data ?? parsed ?? {};
 
-        const youtube = d.youtube || {};
-        const tiktok = d.tiktok || {};
-        const facebook = d.facebook || {};
+  const youtube = d.youtube || {};
+  const tiktok = d.tiktok || {};
+  const facebook = d.facebook || {};
 
-        document.getElementById("ytTitle").value =
-          coerceToText(youtube.title) || "";
+  document.getElementById("ytTitle").value =
+    coerceToText(youtube.title) || "";
 
-        document.getElementById("ytDesc").value =
-          coerceToText(youtube.description) || "";
+  document.getElementById("ytDesc").value =
+    coerceToText(youtube.description) || "";
 
-        document.getElementById("ytKeywords").value =
-          coerceToText(youtube.keywords || youtube.tags) || "";
+  document.getElementById("ytKeywords").value =
+    coerceToText(youtube.keywords || youtube.tags) || "";
 
-        const ttContent = normalizeTikTok(tiktok, prompt, youtube.keywords);
-        document.getElementById("ttAllInOne").value = ttContent;
+  const ttContent = normalizeTikTok(tiktok, prompt, youtube.keywords);
+  document.getElementById("ttAllInOne").value = ttContent;
 
-        document.getElementById("fbTitle").value =
-          coerceToText(facebook.title) || "";
+  document.getElementById("fbTitle").value =
+    coerceToText(facebook.title) || "";
 
-        document.getElementById("fbDetails").value =
-          coerceToText(facebook.descriptionAndTags || facebook.description) || "";
+  document.getElementById("fbDetails").value =
+    coerceToText(facebook.descriptionAndTags || facebook.description) || "";
 
-        setStatus(`AI response received for workspace "${activeFolderName}"`, "success");
-      } catch (err) {
-        console.error(err);
-        setStatus(err.message || "Something went wrong", "error");
-        alert("Error: " + (err.message || err));
-      } finally {
-        setLoading(false);
-      }
-    }
+  setStatus(`AI response received for workspace "${activeFolderName}"`, "success");
 
-    async function copyToClipboard(text, label) {
-      const safeText = text.trim();
+} catch (err) {
 
-      if (!safeText) {
-        alert(`Nothing to copy for ${label}`);
-        return false;
-      }
+  console.error(err);
 
-      try {
-        await navigator.clipboard.writeText(safeText);
-        setStatus(`${label} copied to clipboard`, "success");
-        return true;
-      } catch (err) {
-        setStatus("Clipboard unavailable", "error");
-        alert("Copy failed. Please copy manually.");
-        return false;
-      }
-    }
+  setStatus(err.message || "Something went wrong", "error");
 
-    async function publishYouTube() {
-      const btn = document.querySelector('button[onclick="publishYouTube()"]');
+  alert("Error: " + (err.message || err));
 
-      if (!activeFolderId || !userScope) {
-        alert("Missing folder context.");
-        return;
-      }
+} finally {
 
-      const fileInput = document.getElementById("ytVideoFile");
-      const file = fileInput.files?.[0];
+  setLoading(false);
 
-      if (!file) {
-        alert("Please choose a video file first.");
-        return;
-      }
+}
 
-      const title = document.getElementById("ytTitle").value.trim();
-      const description = document.getElementById("ytDesc").value.trim();
-      const keywords = document.getElementById("ytKeywords").value.trim();
-      const privacyStatus = document.getElementById("ytPrivacy").value;
+async function copyToClipboard(text, label) {
 
-      if (!title) {
-        alert("Please enter a YouTube title.");
-        return;
-      }
+  const safeText = text.trim();
 
-      const form = new FormData();
-      form.append("folder_id", activeFolderId);
-      form.append("user_id", userScope);
-      form.append("title", title);
-      form.append("description", description);
-      form.append("keywords", keywords);
-      form.append("privacyStatus", privacyStatus);
-      form.append("video", file);
+  if (!safeText) {
+    alert(`Nothing to copy for ${label}`);
+    return false;
+  }
 
-      try {
-        btn.disabled = true;
-        btn.textContent = "Uploading video...";
+  try {
 
-        setStatus(`Uploading to "${activeYouTubeName}"…`, "working");
+    await navigator.clipboard.writeText(safeText);
 
-        const res = await fetch(`${apiBase}/youtube/upload`, {
-          method: "POST",
-          body: form
-        });
+    setStatus(`${label} copied to clipboard`, "success");
 
-        const data = await res.json();
+    return true;
 
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || "Upload failed");
-        }
+  } catch (err) {
 
-        setStatus(`Published to "${activeYouTubeName}"`, "success");
-        btn.textContent = "✅ Uploaded";
+    setStatus("Clipboard unavailable", "error");
 
-        if (data.youtubeUrl) {
-          const openNow = confirm(
-            `Upload complete for "${activeYouTubeName}".\n\nOpen the uploaded video now?`
-          );
+    alert("Copy failed. Please copy manually.");
 
-          if (openNow) {
-            window.open(data.youtubeUrl, "_blank");
-          }
-        }
-      } catch (err) {
-        console.error(err);
-        btn.disabled = false;
-        btn.textContent = "🚀 Publish to YouTube";
-        setStatus(err.message || "YouTube upload failed", "error");
-        alert(`Upload failed: ${err.message || err}`);
-      }
-    }
+    return false;
+  }
 
-    async function copyAndOpen(text, label, url) {
-      const ok = await copyToClipboard(text, label);
+}
 
-      if (ok && url) {
-        setTimeout(() => window.open(url, "_blank"), 500);
-      }
-    }
+async function publishYouTube() {
 
-    function copyGeneric(fieldId, label, url) {
-      const value = document.getElementById(fieldId).value;
-      copyAndOpen(value, label, url);
-    }
+  const btn = document.querySelector('button[onclick="publishYouTube()"]');
 
-    function copyFB() {
-      const title = document.getElementById("fbTitle").value;
-      const details = document.getElementById("fbDetails").value;
-      const block = `${title}\n\n${details}`.trim();
-      copyAndOpen(block, "Facebook", "https://www.facebook.com/reels/create");
-    }
+  if (!activeFolderId || !userScope) {
+    alert("Missing folder context.");
+    return;
+  }
 
-    function goBackToWorkspace() {
-      if (activeFolderId) {
-        window.location.href = `folder.html?id=${encodeURIComponent(activeFolderId)}`;
-        return;
-      }
+  const fileInput = document.getElementById("ytVideoFile");
+  const file = fileInput.files?.[0];
 
-      window.location.href = "app.html";
-    }
+  if (!file) {
+    alert("Please choose a video file first.");
+    return;
+  }
 
-    // IMPORTANT: module scripts don't expose functions globally, but inline onclick needs window.*
-    window.generateSEO = generateSEO;
-    window.publishYouTube = publishYouTube;
-    window.copyGeneric = copyGeneric;
-    window.copyFB = copyFB;
-    window.goBackToWorkspace = goBackToWorkspace;
+  const title = document.getElementById("ytTitle").value.trim();
+  const description = document.getElementById("ytDesc").value.trim();
+  const keywords = document.getElementById("ytKeywords").value.trim();
+  const privacyStatus = document.getElementById("ytPrivacy").value;
 
-    onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        window.location.href = "signin.html";
-        return;
-      }
+  if (!title) {
+    alert("Please enter a YouTube title.");
+    return;
+  }
 
-      userScope = user.uid;
-      await loadFolderContext();
+  const form = new FormData();
 
-      const youtubeConnected = getUrlParam("youtube_connected");
-      const facebookConnected = getUrlParam("facebook_connected");
-      const tiktokConnected = getUrlParam("tiktok_connected");
+  form.append("folder_id", activeFolderId);
+  form.append("user_id", userScope);
+  form.append("title", title);
+  form.append("description", description);
+  form.append("keywords", keywords);
+  form.append("privacyStatus", privacyStatus);
+  form.append("video", file);
 
-      const youtubeError = getUrlParam("youtube_error");
-      const facebookError = getUrlParam("facebook_error");
-      const tiktokError = getUrlParam("tiktok_error");
+  try {
 
-      if (youtubeConnected) {
-        await loadFolderContext();
-        setStatus("YouTube account connected to this folder", "success");
-      }
+    btn.disabled = true;
+    btn.textContent = "Uploading video...";
 
-      if (facebookConnected) {
-        await loadFolderContext();
-        setStatus("Facebook account connected to this folder", "success");
-      }
+    setStatus(`Uploading to "${activeYouTubeName}"…`, "working");
 
-      if (tiktokConnected) {
-        await loadFolderContext();
-        setStatus("TikTok account connected to this folder", "success");
-      }
-
-      if (youtubeError) {
-        setStatus(`YouTube connection failed: ${youtubeError}`, "error");
-      }
-
-      if (facebookError) {
-        setStatus(`Facebook connection failed: ${facebookError}`, "error");
-      }
-
-      if (tiktokError) {
-        setStatus(`TikTok connection failed: ${tiktokError}`, "error");
-      }
+    const res = await fetch(`${apiBase}/youtube/upload`, {
+      method: "POST",
+      body: form
     });
-  </script>
-</body>
-</html>
+
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || "Upload failed");
+    }
+
+    setStatus(`Published to "${activeYouTubeName}"`, "success");
+
+    btn.textContent = "✅ Uploaded";
+
+    if (data.youtubeUrl) {
+
+      const openNow = confirm(
+        `Upload complete for "${activeYouTubeName}".\n\nOpen the uploaded video now?`
+      );
+
+      if (openNow) {
+        window.open(data.youtubeUrl, "_blank");
+      }
+
+    }
+
+  } catch (err) {
+
+    console.error(err);
+
+    btn.disabled = false;
+    btn.textContent = "🚀 Publish to YouTube";
+
+    setStatus(err.message || "YouTube upload failed", "error");
+
+    alert(`Upload failed: ${err.message || err}`);
+
+  }
+
+}
+
+async function copyAndOpen(text, label, url) {
+
+  const ok = await copyToClipboard(text, label);
+
+  if (ok && url) {
+    setTimeout(() => window.open(url, "_blank"), 500);
+  }
+
+}
+
+function copyGeneric(fieldId, label, url) {
+
+  const value = document.getElementById(fieldId).value;
+
+  copyAndOpen(value, label, url);
+
+}
+
+function copyFB() {
+
+  const title = document.getElementById("fbTitle").value;
+  const details = document.getElementById("fbDetails").value;
+
+  const block = `${title}\n\n${details}`.trim();
+
+  copyAndOpen(block, "Facebook", "https://www.facebook.com/reels/create");
+
+}
+
+function goBackToWorkspace() {
+
+  if (activeFolderId) {
+    window.location.href = `folder.html?id=${encodeURIComponent(activeFolderId)}`;
+    return;
+  }
+
+  window.location.href = "app.html";
+
+}
+
+onAuthStateChanged(auth, async (user) => {
+
+  if (!user) {
+
+    window.location.href = "signin.html";
+
+    return;
