@@ -126,6 +126,44 @@ tabs.forEach((tab) => {
 showPlatform(activePlatform);
 
 // -----------------------------
+// SIMPLE GENERATOR HELPERS
+// -----------------------------
+function cleanText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function generateYouTubeTitle(idea, brand) {
+  const cleanIdea = cleanText(idea);
+  const cleanBrand = cleanText(brand);
+
+  if (!cleanIdea) return cleanBrand || "YouTube Video";
+  return `${cleanIdea} | ${cleanBrand}`;
+}
+
+function generateFacebookPost(idea, brand, hashtags) {
+  const cleanIdea = cleanText(idea);
+  const cleanBrand = cleanText(brand);
+
+  return `${cleanBrand}\n${cleanIdea}\n\n${hashtags}`.trim();
+}
+
+function generateInstagramCaption(idea, hashtags) {
+  const cleanIdea = cleanText(idea);
+  return `${cleanIdea} 🔥\n\n${hashtags}`.trim();
+}
+
+function generateTikTokCaption(idea, hashtags) {
+  const cleanIdea = cleanText(idea);
+
+  // Slightly stronger fallback than just copying raw text with no structure
+  if (/^pov[:\s-]/i.test(cleanIdea)) {
+    return `${cleanIdea} 😮\n\n${hashtags}`.trim();
+  }
+
+  return `POV: ${cleanIdea} 😮\n\n${hashtags}`.trim();
+}
+
+// -----------------------------
 // GENERATE CONTENT
 // -----------------------------
 generateBtn &&
@@ -139,13 +177,22 @@ generateBtn &&
     const brandTag = brand.replace(/[^\w\s]/g, "").replace(/\s+/g, "");
     const hashtags = brandTag ? `#${brandTag}` : "";
 
-    if (outputs.facebook)
-      outputs.facebook.value = `${brand}\n${idea}\n\n${hashtags}`;
-    if (outputs.instagram)
-      outputs.instagram.value = `${idea} 🔥\n\n${hashtags}`;
-    if (outputs.tiktok) outputs.tiktok.value = `${idea} 😮\n\n${hashtags}`;
-    if (outputs.youtube)
-      outputs.youtube.value = `${idea} | ${brand}`;
+    // Generate safer platform-specific fallback content
+    let facebookText = generateFacebookPost(idea, brand, hashtags);
+    let instagramText = generateInstagramCaption(idea, hashtags);
+    let tiktokText = generateTikTokCaption(idea, hashtags);
+    let youtubeText = generateYouTubeTitle(idea, brand);
+
+    // Extra fallback protection
+    facebookText = facebookText || `${brand}\n${idea}\n\n${hashtags}`;
+    instagramText = instagramText || `${idea} 🔥\n\n${hashtags}`;
+    tiktokText = tiktokText || `${idea} 😮\n\n${hashtags}`;
+    youtubeText = youtubeText || `${idea} | ${brand}`;
+
+    if (outputs.facebook) outputs.facebook.value = facebookText;
+    if (outputs.instagram) outputs.instagram.value = instagramText;
+    if (outputs.tiktok) outputs.tiktok.value = tiktokText;
+    if (outputs.youtube) outputs.youtube.value = youtubeText;
   });
 
 // -----------------------------
