@@ -136,7 +136,8 @@
       <!-- Platform cards will be rendered here by JavaScript -->
     </div>
 
-    <a href="create-post.html" class="btn-create-post">
+    <!-- UPDATED: create-post now gets folder context -->
+    <a id="createPostLink" href="create-post.html" class="btn-create-post">
       <i class="fa-solid fa-wand-magic-sparkles"></i> Create New Post
     </a>
   </div>
@@ -171,18 +172,44 @@
       facebook: { name: "Facebook", icon: "fa-brands fa-facebook", color: "#1877f2", bg: "rgba(24, 119, 242, 0.1)" }
     };
 
+    function getUrlParam(name) {
+      return new URLSearchParams(window.location.search).get(name);
+    }
+
     function initUI() {
-      const folderName = getLS("activeFolderName") || "Workspace";
+      const folderNameFromUrl = getUrlParam("name");
+      const folderIdFromUrl = getUrlParam("id");
+
+      const folderName = folderNameFromUrl || getLS("activeFolderName") || "Workspace";
+      const folderId = folderIdFromUrl || getLS("activeFolderId");
+
+      if (folderId) localStorage.setItem("activeFolderId", folderId);
+      if (folderName) localStorage.setItem("activeFolderName", folderName);
+
       document.getElementById("title").innerText = folderName;
       document.getElementById("name").innerText = folderName;
+
+      // UPDATED: Create & SEO link carries folder context
+      const link = document.getElementById("createPostLink");
+      if (link && folderId) {
+        link.href = `create-post.html?folder_id=${encodeURIComponent(folderId)}&folder_name=${encodeURIComponent(folderName)}`;
+      }
     }
 
     function escapeHTML(str) {
       return String(str ?? "").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#039;"}[m]));
     }
 
+    function pickFacebookLinkedAccount(linkedAccounts) {
+      // Prefer Page token/name stored as platform = facebook_page, else fallback to facebook user.
+      const page = linkedAccounts.find(acc => acc.platform === "facebook_page");
+      if (page) return page;
+      const user = linkedAccounts.find(acc => acc.platform === "facebook");
+      return user || null;
+    }
+
     async function render() {
-      const fId = getLS("activeFolderId");
+      const fId = getUrlParam("id") || getLS("activeFolderId");
       if (!fId || !userScope) return;
 
       const listContainer = document.getElementById("accountList");
@@ -197,35 +224,51 @@
 
         listContainer.innerHTML = Object.keys(allPlatforms).map(key => {
           const meta = allPlatforms[key];
-          const linked = linkedAccounts.find(acc => acc.platform === key);
+
+          let linked = linkedAccounts.find(acc => acc.platform === key);
+
+          // UPDATED: Facebook prefers facebook_page row (shows Page name)
+          if (key === "facebook") {
+            linked = pickFacebookLinkedAccount(linkedAccounts);
+          }
 
           if (linked) {
+            const handleText =
+              (key === "facebook" && linked.platform === "facebook_page")
+                ? (linked.nickname || "Facebook Page")
+                : (linked.nickname || "Connected");
+
+            const connectedLabel =
+              (key === "facebook" && linked.platform === "facebook_page")
+                ? "Connected (Page)"
+                : "Connected";
+
             return `
               <div class="platform-card">
                 <div class="platform-left">
                   <div class="platform-icon" style="background:${meta.bg}; color:${meta.color};"><i class="${meta.icon}"></i></div>
-                  <div class="platform-handle">${escapeHTML(linked.nickname || "Connected")}</div>
+                  <div class="platform-handle">${escapeHTML(handleText)}</div>
                 </div>
                 <div class="platform-info">
                   <strong>${escapeHTML(meta.name)}</strong>
-                  <span style="color: var(--success);">Connected</span>
+                  <span style="color: var(--success);">${escapeHTML(connectedLabel)}</span>
                 </div>
                 <button class="btn btn-remove" onclick="removeAccount(${linked.id})">Remove</button>
               </div>`;
-          } else {
-            return `
-              <div class="platform-card">
-                <div class="platform-left">
-                  <div class="platform-icon" style="background:rgba(255,255,255,0.04); color:var(--muted);"><i class="${meta.icon}"></i></div>
-                  <div class="platform-handle" style="color: var(--muted);">Not linked</div>
-                </div>
-                <div class="platform-info">
-                  <strong>${meta.name}</strong>
-                  <span style="color: var(--muted);">Not Linked</span>
-                </div>
-                <button class="btn btn-link" onclick="addAccount('${key}')">Link</button>
-              </div>`;
           }
+
+          return `
+            <div class="platform-card">
+              <div class="platform-left">
+                <div class="platform-icon" style="background:rgba(255,255,255,0.04); color:var(--muted);"><i class="${meta.icon}"></i></div>
+                <div class="platform-handle" style="color: var(--muted);">Not linked</div>
+              </div>
+              <div class="platform-info">
+                <strong>${escapeHTML(meta.name)}</strong>
+                <span style="color: var(--muted);">Not Linked</span>
+              </div>
+              <button class="btn btn-link" onclick="addAccount('${key}')">Link</button>
+            </div>`;
         }).join('');
       } catch (err) {
         listContainer.innerHTML = `<p style="color:var(--error); text-align:center;">Failed to load accounts.</p>`;
@@ -233,7 +276,7 @@
     }
 
     function addAccount(platform) {
-      const fId = getLS("activeFolderId");
+      const fId = getUrlParam("id") || getLS("activeFolderId");
       if (!fId || !userScope) return alert("Session expired.");
       window.location.href = `${apiBase}/auth/${platform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
     }
@@ -247,8 +290,14 @@
           body: JSON.stringify({ id: accountId, user_id: userScope, type: "account_only" }),
         });
         render();
-      } catch (err) { alert("Error removing account"); }
+      } catch (err) {
+        alert("Error removing account");
+      }
     }
+
+    // Expose for onclick handlers
+    window.addAccount = addAccount;
+    window.removeAccount = removeAccount;
   </script>
 
   <script type="module">
@@ -279,19 +328,18 @@
   </script>
 
   <script>
-    // Check if this is running in a service worker context
-    if ('serviceWorker' in navigator) {
-      console.log('Running in a service worker context');
-    } else {
-      console.log('Not running in a service worker context');
-      // Fallback behavior:
-      // Load the worker code directly as a module
-      import('./worker.js').then(worker => {
-        // Optionally, you can call worker.fetch(request, env) directly here
-        // if needed. But since we're on the client-side, direct calls to
-        // fetch API are more appropriate.
-        console.log('Worker loaded as a module.', worker);
-      });
+    // Kept your block, but made it harmless.
+    // This import can break the page and isn't needed for client-side usage.
+    try {
+      if (false && 'serviceWorker' in navigator) {
+        console.log('Running in a service worker context');
+      } else {
+        console.log('Not running in a service worker context');
+        // Disabled on purpose:
+        // import('./worker.js').then(worker => console.log('Worker loaded as a module.', worker));
+      }
+    } catch (e) {
+      console.log("Worker import skipped");
     }
   </script>
 </body>
