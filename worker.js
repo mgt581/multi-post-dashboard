@@ -167,6 +167,69 @@ var worker_default = {
       },
       "publishFacebookReelFromUrl"
     );
+
+    const cleanText = /* @__PURE__ */ __name22((value) => {
+      return String(value || "").replace(/\s+/g, " ").trim();
+    }, "cleanText");
+
+    const makeKeywords = /* @__PURE__ */ __name22((prompt) => {
+      const cleaned = cleanText(prompt)
+        .toLowerCase()
+        .replace(/[^\w\s]/g, " ");
+      const words = cleaned
+        .split(/\s+/)
+        .filter(Boolean)
+        .filter((w) => w.length > 2);
+
+      const unique = [...new Set(words)];
+      const base = unique.slice(0, 8);
+
+      const extras = [
+        "viral meme",
+        "funny clip",
+        "relatable content",
+        "social media humor",
+        "public interaction",
+        "meme plug"
+      ];
+
+      return [...new Set([...base, ...extras])].join(", ");
+    }, "makeKeywords");
+
+    const fallbackSeo = /* @__PURE__ */ __name22((prompt) => {
+      const idea = cleanText(prompt) || "viral meme clip";
+      const lower = idea.toLowerCase();
+
+      let youtubeTitle = idea;
+      if (!/[|:-]/.test(youtubeTitle)) {
+        youtubeTitle = `${idea} | Meme Plug`;
+      }
+
+      let youtubeDescription = `Funny viral content based on: ${idea}. Perfect for meme lovers, relatable moments, and short-form social content. #MemePlug #viral #meme`;
+      let tiktokCaption = `POV: ${lower} 💀 #MemePlug #viral #funnymeme #relatable`;
+      let facebookTitle = idea.charAt(0).toUpperCase() + idea.slice(1);
+      let facebookDescriptionAndTags = `${idea} 😂 Follow for more relatable meme content. #MemePlug #viral #meme #funny`;
+
+      if (/pov[:\s-]/i.test(idea)) {
+        tiktokCaption = `${idea} 💀 #MemePlug #viral #funnymeme #relatable`;
+      }
+
+      return {
+        youtube: {
+          title: youtubeTitle,
+          description: youtubeDescription,
+          keywords: makeKeywords(idea)
+        },
+        tiktok: {
+          allInOne: tiktokCaption
+        },
+        facebook: {
+          title: facebookTitle,
+          descriptionAndTags: facebookDescriptionAndTags
+        }
+      };
+    }, "fallbackSeo");
+
     try {
       if (url.pathname === "/api/get-folders") {
         const userId = requireUser(url.searchParams.get("user_id"));
@@ -565,11 +628,16 @@ var worker_default = {
           );
         }
 
-        const aiResponse = await env.AI.run("@cf/meta/llama-3-8b-instruct", {
-          messages: [
-            {
-              role: "system",
-              content: `You are a viral social media SEO expert.
+        let parsed = null;
+        let aiResponse = null;
+        let rawText = "";
+
+        try {
+          aiResponse = await env.AI.run("@cf/meta/llama-3-8b-instruct", {
+            messages: [
+              {
+                role: "system",
+                content: `You are a viral social media SEO expert.
 
 Return ONLY valid JSON.
 Do not use markdown.
@@ -591,46 +659,44 @@ Use exactly this structure:
     "descriptionAndTags": ""
   }
 }`
-            },
-            {
-              role: "user",
-              content: `Generate viral 2026 SEO content for this post idea: ${prompt}`
-            }
-          ]
-        });
+              },
+              {
+                role: "user",
+                content: `Generate viral SEO content for this post idea, even if it is short, messy, vague, or misspelled: ${prompt}`
+              }
+            ]
+          });
 
-        let rawText = "";
+          if (typeof aiResponse === "string") {
+            rawText = aiResponse;
+          } else if (typeof aiResponse?.response === "string") {
+            rawText = aiResponse.response;
+          } else if (typeof aiResponse?.result?.response === "string") {
+            rawText = aiResponse.result.response;
+          } else {
+            rawText = JSON.stringify(aiResponse);
+          }
 
-        if (typeof aiResponse === "string") {
-          rawText = aiResponse;
-        } else if (typeof aiResponse?.response === "string") {
-          rawText = aiResponse.response;
-        } else if (typeof aiResponse?.result?.response === "string") {
-          rawText = aiResponse.result.response;
-        } else {
-          rawText = JSON.stringify(aiResponse);
-        }
+          rawText = rawText
+            .trim()
+            .replace(/^```json\s*/i, "")
+            .replace(/^```\s*/i, "")
+            .replace(/\s*```$/i, "")
+            .trim();
 
-        rawText = rawText.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+          const firstBrace = rawText.indexOf("{");
+          const lastBrace = rawText.lastIndexOf("}");
 
-        let parsed;
-        try {
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            rawText = rawText.slice(firstBrace, lastBrace + 1).trim();
+          }
+
           parsed = JSON.parse(rawText);
-        } catch (e) {
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: "AI returned invalid JSON",
-              raw: rawText
-            }),
-            {
-              status: 200,
-              headers: { ...corsHeaders, "Content-Type": "application/json" }
-            }
-          );
+        } catch (_) {
+          parsed = null;
         }
 
-        const cleanData = {
+        const cleanData = parsed ? {
           youtube: {
             title: String(parsed?.youtube?.title || ""),
             description: String(parsed?.youtube?.description || ""),
@@ -643,9 +709,13 @@ Use exactly this structure:
             title: String(parsed?.facebook?.title || ""),
             descriptionAndTags: String(parsed?.facebook?.descriptionAndTags || "")
           }
-        };
+        } : fallbackSeo(prompt);
 
-        return new Response(JSON.stringify({ success: true, data: cleanData }), {
+        return new Response(JSON.stringify({
+          success: true,
+          data: cleanData,
+          fallbackUsed: !parsed
+        }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
