@@ -4,6 +4,8 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 // worker.js
 var __defProp2 = Object.defineProperty;
 var __name2 = /* @__PURE__ */ __name((target, value) => __defProp2(target, "name", { value, configurable: true }), "__name");
+var __defProp22 = Object.defineProperty;
+var __name22 = /* @__PURE__ */ __name2((target, value) => __defProp22(target, "name", { value, configurable: true }), "__name");
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -11,34 +13,24 @@ var worker_default = {
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type"
     };
-
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
     }
-
     const url = new URL(request.url);
     const HARD_DEFAULT_SITE = "https://multipostapp.co.uk";
-    const siteBaseUrl = env.BASE_URL && String(env.BASE_URL).trim()
-      ? String(env.BASE_URL).trim()
-      : HARD_DEFAULT_SITE;
-    const frontendBaseUrl = env.FRONTEND_URL && String(env.FRONTEND_URL).trim()
-      ? String(env.FRONTEND_URL).trim()
-      : siteBaseUrl;
-
+    const siteBaseUrl = env.BASE_URL && String(env.BASE_URL).trim() ? String(env.BASE_URL).trim() : HARD_DEFAULT_SITE;
+    const frontendBaseUrl = env.FRONTEND_URL && String(env.FRONTEND_URL).trim() ? String(env.FRONTEND_URL).trim() : siteBaseUrl;
     if (url.pathname === "/" || url.pathname === "") {
       return Response.redirect(frontendBaseUrl, 302);
     }
-
-    const requireUser = /* @__PURE__ */ __name2(
+    const requireUser = /* @__PURE__ */ __name22(
       (val) => val && typeof val === "string" && val.trim() ? val.trim() : null,
       "requireUser"
     );
-
     const redirectUri = `${siteBaseUrl}/api/auth/callback/youtube`;
     const fbRedirectUri = `${siteBaseUrl}/api/auth/callback/facebook`;
-    const nowMs = /* @__PURE__ */ __name2(() => Date.now(), "nowMs");
-
-    const safeJson = /* @__PURE__ */ __name2(async (res) => {
+    const nowMs = /* @__PURE__ */ __name22(() => Date.now(), "nowMs");
+    const safeJson = /* @__PURE__ */ __name22(async (res) => {
       const text = await res.text();
       try {
         return JSON.parse(text);
@@ -46,16 +38,14 @@ var worker_default = {
         return { raw: text };
       }
     }, "safeJson");
-
-    const encodeState = /* @__PURE__ */ __name2((obj) => {
+    const encodeState = /* @__PURE__ */ __name22((obj) => {
       try {
         return btoa(JSON.stringify(obj));
       } catch {
         return String(obj?.folderId || "");
       }
     }, "encodeState");
-
-    const decodeState = /* @__PURE__ */ __name2((stateStr) => {
+    const decodeState = /* @__PURE__ */ __name22((stateStr) => {
       if (!stateStr) return { folderId: null, userId: null, platform: null };
       try {
         return JSON.parse(atob(stateStr));
@@ -69,8 +59,7 @@ var worker_default = {
         }
       }
     }, "decodeState");
-
-    const upsertToken = /* @__PURE__ */ __name2(
+    const upsertToken = /* @__PURE__ */ __name22(
       async ({ folderId, platform, accountId, accessToken, refreshToken, expiresAt, scope }) => {
         const safeFolderId = folderId == null ? null : String(folderId);
         const safePlatform = platform == null ? null : String(platform);
@@ -79,11 +68,9 @@ var worker_default = {
         const safeRefreshToken = refreshToken == null ? null : String(refreshToken);
         const safeExpiresAt = expiresAt == null ? null : Number(expiresAt);
         const safeScope = scope == null ? null : String(scope);
-
         if (!safeFolderId || !safePlatform || !safeAccountId || !safeAccessToken) {
           return;
         }
-
         await env.DB.prepare(`
           INSERT INTO tokens (
             folder_id, platform, account_id, access_token, refresh_token, expires_at, scope, updated_at
@@ -107,17 +94,13 @@ var worker_default = {
       },
       "upsertToken"
     );
-
-    // -------------------- ADDED: strict env getter + FB helpers (NO deletions) --------------------
-    const requireEnv = /* @__PURE__ */ __name2((envVal, name) => {
+    const requireEnv = /* @__PURE__ */ __name22((envVal, name) => {
       const v = envVal && String(envVal).trim() ? String(envVal).trim() : null;
       if (!v) throw new Error(`Missing ${name} env var`);
       return v;
     }, "requireEnv");
-
     const fbGraph = "https://graph.facebook.com/v18.0";
-
-    const fbSafe = /* @__PURE__ */ __name2(async (res) => {
+    const fbSafe = /* @__PURE__ */ __name22(async (res) => {
       const data = await safeJson(res);
       if (!res.ok) {
         throw new Error(`Facebook API ${res.status}: ${JSON.stringify(data)}`);
@@ -127,21 +110,18 @@ var worker_default = {
       }
       return data;
     }, "fbSafe");
-
-    const fetchFbJson = /* @__PURE__ */ __name2(async (fbUrl, init) => {
+    const fetchFbJson = /* @__PURE__ */ __name22(async (fbUrl, init) => {
       const res = await fetch(fbUrl, init);
       return fbSafe(res);
     }, "fetchFbJson");
-
-    const fetchPageTokens = /* @__PURE__ */ __name2(async (userAccessToken) => {
+    const fetchPageTokens = /* @__PURE__ */ __name22(async (userAccessToken) => {
       const fbUrl = `${fbGraph}/me/accounts?fields=id,name,access_token&access_token=${encodeURIComponent(
         userAccessToken
       )}`;
       const out = await fetchFbJson(fbUrl);
       return Array.isArray(out?.data) ? out.data : [];
     }, "fetchPageTokens");
-
-    const publishFacebookReelFromUrl = /* @__PURE__ */ __name2(
+    const publishFacebookReelFromUrl = /* @__PURE__ */ __name22(
       async ({ pageId, pageAccessToken, videoUrl, description }) => {
         const startRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels`, {
           method: "POST",
@@ -151,19 +131,16 @@ var worker_default = {
             upload_phase: "start"
           })
         });
-
         const videoId = startRes?.video_id;
         const uploadUrl = startRes?.upload_url;
         if (!videoId || !uploadUrl) {
           throw new Error(`Bad reels start response: ${JSON.stringify(startRes)}`);
         }
-
         const vidRes = await fetch(videoUrl);
         if (!vidRes.ok) {
           throw new Error(`Failed to fetch video_url: ${vidRes.status}`);
         }
         const buf = await vidRes.arrayBuffer();
-
         const upRes = await fetch(uploadUrl, {
           method: "POST",
           headers: {
@@ -172,12 +149,10 @@ var worker_default = {
           },
           body: buf
         });
-
         const upText = await upRes.text();
         if (!upRes.ok) {
           throw new Error(`Reels upload failed ${upRes.status}: ${upText}`);
         }
-
         const finishRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels`, {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -188,125 +163,94 @@ var worker_default = {
             description: description || ""
           })
         });
-
         return { video_id: videoId, finish: finishRes };
       },
       "publishFacebookReelFromUrl"
     );
-    // -------------------- END ADDED FB helpers --------------------
-
     try {
       if (url.pathname === "/api/get-folders") {
         const userId = requireUser(url.searchParams.get("user_id"));
         if (!userId) {
           return new Response("Missing user_id", { status: 400, headers: corsHeaders });
         }
-
         const { results } = await env.DB.prepare(
           "SELECT * FROM folders WHERE user_id = ? ORDER BY created_at DESC"
         ).bind(userId).all();
-
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
-
       if (url.pathname === "/api/add-folder") {
         const { name, user_id } = await request.json();
         const userId = requireUser(user_id);
-
         if (!name || !userId) {
           return new Response("Missing name or user_id", { status: 400, headers: corsHeaders });
         }
-
         await env.DB.prepare(
           "INSERT INTO folders (name, user_id) VALUES (?, ?)"
         ).bind(name, userId).run();
-
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
-
       if (url.pathname === "/api/rename-folder") {
         const { id, name, user_id } = await request.json();
         const userId = requireUser(user_id);
-
         if (!id || !name || !userId) {
           return new Response("Missing id, name or user_id", { status: 400, headers: corsHeaders });
         }
-
         await env.DB.prepare(
           "UPDATE folders SET name = ? WHERE id = ? AND user_id = ?"
         ).bind(name, id, userId).run();
-
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
-
       if (url.pathname === "/api/delete-folder") {
         const { id, user_id, type } = await request.json();
         const userId = requireUser(user_id);
-
         if (!id || !userId) {
           return new Response("Missing id or user_id", { status: 400, headers: corsHeaders });
         }
-
         if (type === "account_only") {
           await env.DB.prepare(
             "DELETE FROM accounts WHERE id = ? AND user_id = ?"
           ).bind(id, userId).run();
-
           return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
         }
-
         await env.DB.prepare(
           "DELETE FROM accounts WHERE folder_id = ? AND user_id = ?"
         ).bind(id, userId).run();
-
         await env.DB.prepare(
           "DELETE FROM folders WHERE id = ? AND user_id = ?"
         ).bind(id, userId).run();
-
         await env.DB.prepare(`
           DELETE FROM tokens
           WHERE folder_id IN (SELECT id FROM folders WHERE id = ? AND user_id = ?)
         `).bind(id, userId).run();
-
         return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
       }
-
       if (url.pathname === "/api/get-accounts") {
         const folder_id = url.searchParams.get("folder_id");
         const userId = requireUser(url.searchParams.get("user_id"));
-
         if (!folder_id || !userId) {
           return new Response(JSON.stringify([]), { headers: corsHeaders });
         }
-
         const { results } = await env.DB.prepare(
           "SELECT * FROM accounts WHERE folder_id = ? AND user_id = ?"
         ).bind(folder_id, userId).all();
-
         return new Response(JSON.stringify(results), { headers: corsHeaders });
       }
-
       if (url.pathname === "/api/auth/youtube") {
         const legacyState = url.searchParams.get("state");
         const stateObj = decodeState(legacyState);
         const folderId = url.searchParams.get("folder_id") || stateObj.folderId;
         const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId);
         const state = encodeState({ folderId, platform: "youtube", userId });
-
         if (!env.GOOGLE_CLIENT_ID) {
           return new Response("Missing GOOGLE_CLIENT_ID env var", { status: 500, headers: corsHeaders });
         }
-
         if (!env.GOOGLE_CLIENT_SECRET) {
           return new Response("Missing GOOGLE_CLIENT_SECRET env var", { status: 500, headers: corsHeaders });
         }
-
         const scope = "https://www.googleapis.com/auth/youtube.upload";
         const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(env.GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&include_granted_scopes=true&prompt=${encodeURIComponent("consent select_account")}&state=${encodeURIComponent(state)}`;
-
         return Response.redirect(googleAuthUrl);
       }
-
       if (url.pathname === "/api/auth/tiktok") {
         const folderId = url.searchParams.get("folder_id");
         const userId = requireUser(url.searchParams.get("user_id"));
@@ -314,20 +258,15 @@ var worker_default = {
         const scopes = "video.upload,video.publish,user.info.basic";
         const state = encodeState({ folderId, platform: "tiktok", userId });
         const tiktokAuthUrl = `https://www.tiktok.com/v2/auth/authorize/?client_key=${env.TIKTOK_CLIENT_KEY}&scope=${encodeURIComponent(scopes)}&response_type=code&redirect_uri=${encodeURIComponent(tiktokRedirectUri)}&state=${encodeURIComponent(state)}`;
-
         return Response.redirect(tiktokAuthUrl);
       }
-
       if (url.pathname === "/api/auth/facebook") {
         const legacyState = url.searchParams.get("state");
         const stateObj = decodeState(legacyState);
         const folderId = url.searchParams.get("folder_id") || stateObj.folderId;
         const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId);
-
-        // ADDED: fail fast so you don't get "Invalid app ID" HTML
         const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
         requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
-
         const state = encodeState({ folderId, platform: "facebook", userId });
         const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${encodeURIComponent(
           fbClientId
@@ -336,25 +275,20 @@ var worker_default = {
         )}&scope=${encodeURIComponent(
           "pages_manage_posts,pages_show_list"
         )}&response_type=code&state=${encodeURIComponent(state)}`;
-
         return Response.redirect(fbAuthUrl);
       }
-
       if (url.pathname === "/api/auth/callback/youtube") {
         const code = url.searchParams.get("code");
         const stateObj = decodeState(url.searchParams.get("state"));
         const folderId = stateObj.folderId;
         const userId = requireUser(stateObj.userId);
-
         if (!folderId || !userId) {
           return new Response("Missing state", { status: 400, headers: corsHeaders });
         }
-
         if (!code) {
           const err = url.searchParams.get("error") || "missing_code";
           return new Response(`YouTube OAuth failed: ${err}`, { status: 400, headers: corsHeaders });
         }
-
         const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -366,18 +300,14 @@ var worker_default = {
             grant_type: "authorization_code"
           })
         });
-
         const tokens = await safeJson(tokenRes);
-
         const userRes = await fetch(
           "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true",
           { headers: { Authorization: `Bearer ${tokens.access_token}` } }
         );
-
         const userData = await safeJson(userRes);
         const channelName = userData.items?.[0]?.snippet?.title || "Linked YouTube";
         const channelId = userData.items?.[0]?.id || channelName;
-
         await env.DB.prepare(
           "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'youtube', ?, ?, ?, ?)"
         ).bind(
@@ -386,37 +316,31 @@ var worker_default = {
           String(channelName),
           String(tokens.access_token),
           tokens.refresh_token ? String(tokens.refresh_token) : null,
-          nowMs() + (Number(tokens.expires_in || 0) * 1e3)
+          nowMs() + Number(tokens.expires_in || 0) * 1e3
         ).run();
-
         await upsertToken({
           folderId: String(folderId),
           platform: "youtube",
           accountId: String(channelId),
           accessToken: String(tokens.access_token),
           refreshToken: tokens.refresh_token ? String(tokens.refresh_token) : null,
-          expiresAt: nowMs() + (Number(tokens.expires_in || 0) * 1e3),
+          expiresAt: nowMs() + Number(tokens.expires_in || 0) * 1e3,
           scope: "https://www.googleapis.com/auth/youtube.upload"
         });
-
         return Response.redirect(`${frontendBaseUrl}/create-post.html`);
       }
-
       if (url.pathname === "/api/auth/callback/tiktok") {
         const code = url.searchParams.get("code");
         const stateObj = decodeState(url.searchParams.get("state"));
         const folderId = stateObj.folderId;
         const userId = requireUser(stateObj.userId);
-
         if (!folderId || !userId) {
           return new Response("Missing state", { status: 400, headers: corsHeaders });
         }
-
         if (!code) {
           const err = url.searchParams.get("error") || "missing_code";
           return new Response(`TikTok OAuth failed: ${err}`, { status: 400, headers: corsHeaders });
         }
-
         const tokenRes = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -428,20 +352,16 @@ var worker_default = {
             redirect_uri: `${siteBaseUrl}/api/auth/callback/tiktok`
           })
         });
-
         const tokenJson = await safeJson(tokenRes);
         const tData = tokenJson.data || tokenJson;
-
         if (tokenJson.error || tData.error) {
           throw new Error(tokenJson.error_description || tData.error_description || "TikTok Exchange Failed");
         }
-
         const accessToken = tData.access_token || tokenJson.access_token;
         const refreshToken = tData.refresh_token || tokenJson.refresh_token;
         const expiresIn = tData.expires_in || tokenJson.expires_in || 0;
         const openId = tData.open_id || tData.openid || "Linked TikTok";
         const scope = tData.scope || "video.upload,video.publish,user.info.basic";
-
         await env.DB.prepare(
           "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'tiktok', 'Linked TikTok', ?, ?, ?)"
         ).bind(
@@ -451,7 +371,6 @@ var worker_default = {
           refreshToken ? String(refreshToken) : null,
           nowMs() + Number(expiresIn) * 1e3
         ).run();
-
         await upsertToken({
           folderId: String(folderId),
           platform: "tiktok",
@@ -461,29 +380,22 @@ var worker_default = {
           expiresAt: nowMs() + Number(expiresIn) * 1e3,
           scope: String(scope)
         });
-
         return Response.redirect(`${frontendBaseUrl}/create-post.html`);
       }
-
       if (url.pathname === "/api/auth/callback/facebook") {
         const code = url.searchParams.get("code");
         const stateObj = decodeState(url.searchParams.get("state"));
         const folderId = stateObj.folderId;
         const userId = requireUser(stateObj.userId);
-
         if (!folderId || !userId) {
           return new Response("Missing state", { status: 400, headers: corsHeaders });
         }
-
         if (!code) {
           const err = url.searchParams.get("error") || "missing_code";
           return new Response(`Facebook OAuth failed: ${err}`, { status: 400, headers: corsHeaders });
         }
-
-        // ADDED: strict env checks
         const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
         const fbClientSecret = requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
-
         const tokenRes = await fetch(
           `${fbGraph}/oauth/access_token?client_id=${encodeURIComponent(
             fbClientId
@@ -493,11 +405,9 @@ var worker_default = {
             fbClientSecret
           )}&code=${encodeURIComponent(code)}`
         );
-
         const tokens = await fbSafe(tokenRes);
         const accessToken = tokens?.access_token ? String(tokens.access_token) : null;
         const expiresIn = Number(tokens?.expires_in || 0);
-
         if (!accessToken) {
           return new Response(
             JSON.stringify({
@@ -511,21 +421,17 @@ var worker_default = {
             }
           );
         }
-
         let fbAccountId = "me";
         let fbAccountName = "Facebook Account";
-
         try {
           const meRes = await fetch(
             `${fbGraph}/me?fields=id,name&access_token=${encodeURIComponent(accessToken)}`
           );
           const me = await fbSafe(meRes);
-
           if (me?.id) fbAccountId = String(me.id);
           if (me?.name) fbAccountName = String(me.name);
         } catch (_) {
         }
-
         await env.DB.prepare(
           "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'facebook', ?, ?, NULL, ?)"
         ).bind(
@@ -533,26 +439,21 @@ var worker_default = {
           String(userId),
           fbAccountName,
           accessToken,
-          nowMs() + (expiresIn * 1e3)
+          nowMs() + expiresIn * 1e3
         ).run();
-
         await upsertToken({
           folderId: String(folderId),
           platform: "facebook",
           accountId: fbAccountId,
           accessToken,
           refreshToken: null,
-          expiresAt: nowMs() + (expiresIn * 1e3),
+          expiresAt: nowMs() + expiresIn * 1e3,
           scope: "pages_manage_posts,pages_show_list"
         });
-
-        // ADDED: fetch pages and store PAGE tokens for publishing
         try {
           const pages = await fetchPageTokens(accessToken);
-
           for (const p of pages) {
             if (!p?.id || !p?.access_token) continue;
-
             await upsertToken({
               folderId: String(folderId),
               platform: "facebook_page",
@@ -562,8 +463,6 @@ var worker_default = {
               expiresAt: null,
               scope: "page_access_token"
             });
-
-            // Optional: insert a page account row so your UI can list it
             try {
               await env.DB.prepare(
                 "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'facebook_page', ?, ?, NULL, NULL)"
@@ -578,17 +477,12 @@ var worker_default = {
           }
         } catch (_) {
         }
-
         return Response.redirect(`${frontendBaseUrl}/create-post.html`);
       }
-
       if (url.pathname === "/api/post-video" && request.method === "POST") {
         const { account_id, video_url, title, platform, description, page_id, folder_id } = await request.json();
-        const account = account_id
-          ? await env.DB.prepare("SELECT * FROM accounts WHERE id = ?").bind(account_id).first()
-          : null;
+        const account = account_id ? await env.DB.prepare("SELECT * FROM accounts WHERE id = ?").bind(account_id).first() : null;
         const bearer = account?.access_token;
-
         if (platform === "tiktok") {
           const tiktokRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
             method: "POST",
@@ -609,100 +503,156 @@ var worker_default = {
               }
             })
           });
-
           const result = await safeJson(tiktokRes);
           return new Response(JSON.stringify(result), { headers: corsHeaders });
         }
-
-        // ADDED: Facebook publish (Reels)
         if (platform === "facebook") {
           const desc = String(description || title || "").trim();
-
-          // Preferred: send page_id + folder_id from UI (most reliable)
           let pageId = page_id ? String(page_id) : null;
           let pageAccessToken = null;
-
-          // If account_id points to a facebook_page row, use it
           if (!pageAccessToken && account?.platform === "facebook_page" && account?.access_token) {
             pageAccessToken = String(account.access_token);
           }
-
-          // If not, pull token from tokens table using folder_id + page_id
           if (!pageAccessToken && pageId && folder_id) {
             const tok = await env.DB.prepare(
               "SELECT access_token FROM tokens WHERE folder_id = ? AND platform = 'facebook_page' AND account_id = ? ORDER BY updated_at DESC LIMIT 1"
             ).bind(String(folder_id), String(pageId)).first();
             if (tok?.access_token) pageAccessToken = String(tok.access_token);
           }
-
           if (!pageId) {
             return new Response(JSON.stringify({ success: false, error: "Missing page_id for facebook" }), {
               status: 400,
               headers: { ...corsHeaders, "Content-Type": "application/json" }
             });
           }
-
           if (!pageAccessToken) {
             return new Response(JSON.stringify({ success: false, error: "Missing Facebook Page access token. Link Facebook first." }), {
               status: 400,
               headers: { ...corsHeaders, "Content-Type": "application/json" }
             });
           }
-
           if (!video_url) {
             return new Response(JSON.stringify({ success: false, error: "Missing video_url" }), {
               status: 400,
               headers: { ...corsHeaders, "Content-Type": "application/json" }
             });
           }
-
           const out = await publishFacebookReelFromUrl({
             pageId,
             pageAccessToken: String(pageAccessToken),
             videoUrl: String(video_url),
             description: desc
           });
-
           return new Response(JSON.stringify({ success: true, data: out }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-
         return new Response(JSON.stringify({ success: false, error: "Unsupported platform" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
-
       if (url.pathname === "/api/generate-seo" && request.method === "POST") {
         const { prompt } = await request.json();
+
+        if (!prompt || !String(prompt).trim()) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Missing prompt" }),
+            {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" }
+            }
+          );
+        }
 
         const aiResponse = await env.AI.run("@cf/meta/llama-3-8b-instruct", {
           messages: [
             {
               role: "system",
-              content: `You are a viral social media SEO expert. Output ONLY raw JSON. 
-              Structure: {
-                "youtube": {"title": "", "description": "", "keywords": ""}, 
-                "tiktok": {"allInOne": ""}, 
-                "facebook": {"title": "", "descriptionAndTags": ""} 
-              }.`
+              content: `You are a viral social media SEO expert.
+
+Return ONLY valid JSON.
+Do not use markdown.
+Do not use code fences.
+Do not add explanations.
+
+Use exactly this structure:
+{
+  "youtube": {
+    "title": "",
+    "description": "",
+    "keywords": ""
+  },
+  "tiktok": {
+    "allInOne": ""
+  },
+  "facebook": {
+    "title": "",
+    "descriptionAndTags": ""
+  }
+}`
             },
-            { role: "user", content: `Generate viral 2026 SEO content for: ${prompt}` }
+            {
+              role: "user",
+              content: `Generate viral 2026 SEO content for this post idea: ${prompt}`
+            }
           ]
         });
 
-        return new Response(JSON.stringify({ success: true, data: aiResponse }), {
+        let rawText = "";
+
+        if (typeof aiResponse === "string") {
+          rawText = aiResponse;
+        } else if (typeof aiResponse?.response === "string") {
+          rawText = aiResponse.response;
+        } else if (typeof aiResponse?.result?.response === "string") {
+          rawText = aiResponse.result.response;
+        } else {
+          rawText = JSON.stringify(aiResponse);
+        }
+
+        rawText = rawText.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+
+        let parsed;
+        try {
+          parsed = JSON.parse(rawText);
+        } catch (e) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: "AI returned invalid JSON",
+              raw: rawText
+            }),
+            {
+              status: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" }
+            }
+          );
+        }
+
+        const cleanData = {
+          youtube: {
+            title: String(parsed?.youtube?.title || ""),
+            description: String(parsed?.youtube?.description || ""),
+            keywords: String(parsed?.youtube?.keywords || "")
+          },
+          tiktok: {
+            allInOne: String(parsed?.tiktok?.allInOne || "")
+          },
+          facebook: {
+            title: String(parsed?.facebook?.title || ""),
+            descriptionAndTags: String(parsed?.facebook?.descriptionAndTags || "")
+          }
+        };
+
+        return new Response(JSON.stringify({ success: true, data: cleanData }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
-
       if (!url.pathname.startsWith("/api/")) {
         return Response.redirect(frontendBaseUrl, 302);
       }
-
       const response = await fetch(request);
-
       if (response.headers.get("content-type")?.includes("text/html")) {
         const newResponse = new Response(response.body, response);
         newResponse.headers.set(
@@ -711,7 +661,6 @@ var worker_default = {
         );
         return newResponse;
       }
-
       return response;
     } catch (err) {
       return new Response(JSON.stringify({ success: false, error: err.message }), {
@@ -721,7 +670,6 @@ var worker_default = {
     }
   }
 };
-
 export {
   worker_default as default
 };
