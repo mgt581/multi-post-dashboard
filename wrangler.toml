@@ -2,6 +2,9 @@ name = "multipost-seo-worker"
 main = "worker.js"
 compatibility_date = "2024-01-01"
 
+workers_dev = true
+preview_urls = true
+
 routes = [
   { pattern = "multipostapp.co.uk/api/*", zone_name = "multipostapp.co.uk" },
   { pattern = "www.multipostapp.co.uk/api/*", zone_name = "multipostapp.co.uk" }
@@ -17,7 +20,7 @@ FACEBOOK_APP_ID = "1596560914709231"
 [[d1_databases]]
 binding = "DB"
 database_name = "accountsmultipostapp"
-database_id = "PUT_REAL_D1_ID_HERE"
+database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
 
 [ai]
 binding = "AI"
