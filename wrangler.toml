@@ -15,8 +15,7 @@ BASE_URL = "https://multipostapp.co.uk"
 FRONTEND_URL = "https://multipostapp.co.uk"
 GOOGLE_CLIENT_ID = "72559136598-p0tbkiiit42vuronhcigtdru23vcktvj.apps.googleusercontent.com"
 TIKTOK_CLIENT_KEY = "awfqyscbk5kl6pu8"
-FACEBOOK_APP_ID = "1596560914709231"
-
+FB_CLIENT_ID = "1596560914709231"
 [[d1_databases]]
 binding = "DB"
 database_name = "accountsmultipostapp"
