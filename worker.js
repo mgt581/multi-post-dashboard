@@ -108,6 +108,93 @@ var worker_default = {
       "upsertToken"
     );
 
+    // -------------------- ADDED: strict env getter + FB helpers (NO deletions) --------------------
+    const requireEnv = /* @__PURE__ */ __name2((envVal, name) => {
+      const v = envVal && String(envVal).trim() ? String(envVal).trim() : null;
+      if (!v) throw new Error(`Missing ${name} env var`);
+      return v;
+    }, "requireEnv");
+
+    const fbGraph = "https://graph.facebook.com/v18.0";
+
+    const fbSafe = /* @__PURE__ */ __name2(async (res) => {
+      const data = await safeJson(res);
+      if (!res.ok) {
+        throw new Error(`Facebook API ${res.status}: ${JSON.stringify(data)}`);
+      }
+      if (data?.error) {
+        throw new Error(`Facebook API error: ${JSON.stringify(data.error)}`);
+      }
+      return data;
+    }, "fbSafe");
+
+    const fetchFbJson = /* @__PURE__ */ __name2(async (fbUrl, init) => {
+      const res = await fetch(fbUrl, init);
+      return fbSafe(res);
+    }, "fetchFbJson");
+
+    const fetchPageTokens = /* @__PURE__ */ __name2(async (userAccessToken) => {
+      const fbUrl = `${fbGraph}/me/accounts?fields=id,name,access_token&access_token=${encodeURIComponent(
+        userAccessToken
+      )}`;
+      const out = await fetchFbJson(fbUrl);
+      return Array.isArray(out?.data) ? out.data : [];
+    }, "fetchPageTokens");
+
+    const publishFacebookReelFromUrl = /* @__PURE__ */ __name2(
+      async ({ pageId, pageAccessToken, videoUrl, description }) => {
+        const startRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            access_token: pageAccessToken,
+            upload_phase: "start"
+          })
+        });
+
+        const videoId = startRes?.video_id;
+        const uploadUrl = startRes?.upload_url;
+        if (!videoId || !uploadUrl) {
+          throw new Error(`Bad reels start response: ${JSON.stringify(startRes)}`);
+        }
+
+        const vidRes = await fetch(videoUrl);
+        if (!vidRes.ok) {
+          throw new Error(`Failed to fetch video_url: ${vidRes.status}`);
+        }
+        const buf = await vidRes.arrayBuffer();
+
+        const upRes = await fetch(uploadUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `OAuth ${pageAccessToken}`,
+            "Content-Type": "application/octet-stream"
+          },
+          body: buf
+        });
+
+        const upText = await upRes.text();
+        if (!upRes.ok) {
+          throw new Error(`Reels upload failed ${upRes.status}: ${upText}`);
+        }
+
+        const finishRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels`, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            access_token: pageAccessToken,
+            upload_phase: "finish",
+            video_id: String(videoId),
+            description: description || ""
+          })
+        });
+
+        return { video_id: videoId, finish: finishRes };
+      },
+      "publishFacebookReelFromUrl"
+    );
+    // -------------------- END ADDED FB helpers --------------------
+
     try {
       if (url.pathname === "/api/get-folders") {
         const userId = requireUser(url.searchParams.get("user_id"));
@@ -237,12 +324,18 @@ var worker_default = {
         const folderId = url.searchParams.get("folder_id") || stateObj.folderId;
         const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId);
 
-        if (!env.FB_CLIENT_ID) {
-          return new Response("Missing FB_CLIENT_ID env var", { status: 500, headers: corsHeaders });
-        }
+        // ADDED: fail fast so you don't get "Invalid app ID" HTML
+        const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
+        requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
 
         const state = encodeState({ folderId, platform: "facebook", userId });
-        const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${encodeURIComponent(env.FB_CLIENT_ID)}&redirect_uri=${encodeURIComponent(fbRedirectUri)}&scope=${encodeURIComponent("pages_manage_posts,pages_show_list")}&state=${encodeURIComponent(state)}`;
+        const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${encodeURIComponent(
+          fbClientId
+        )}&redirect_uri=${encodeURIComponent(
+          fbRedirectUri
+        )}&scope=${encodeURIComponent(
+          "pages_manage_posts,pages_show_list"
+        )}&response_type=code&state=${encodeURIComponent(state)}`;
 
         return Response.redirect(fbAuthUrl);
       }
@@ -387,19 +480,21 @@ var worker_default = {
           return new Response(`Facebook OAuth failed: ${err}`, { status: 400, headers: corsHeaders });
         }
 
-        if (!env.FB_CLIENT_ID) {
-          return new Response("Missing FB_CLIENT_ID env var", { status: 500, headers: corsHeaders });
-        }
-
-        if (!env.FB_CLIENT_SECRET) {
-          return new Response("Missing FB_CLIENT_SECRET secret", { status: 500, headers: corsHeaders });
-        }
+        // ADDED: strict env checks
+        const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
+        const fbClientSecret = requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
 
         const tokenRes = await fetch(
-          `https://graph.facebook.com/v18.0/oauth/access_token?client_id=${encodeURIComponent(env.FB_CLIENT_ID)}&redirect_uri=${encodeURIComponent(fbRedirectUri)}&client_secret=${encodeURIComponent(env.FB_CLIENT_SECRET)}&code=${encodeURIComponent(code)}`
+          `${fbGraph}/oauth/access_token?client_id=${encodeURIComponent(
+            fbClientId
+          )}&redirect_uri=${encodeURIComponent(
+            fbRedirectUri
+          )}&client_secret=${encodeURIComponent(
+            fbClientSecret
+          )}&code=${encodeURIComponent(code)}`
         );
 
-        const tokens = await safeJson(tokenRes);
+        const tokens = await fbSafe(tokenRes);
         const accessToken = tokens?.access_token ? String(tokens.access_token) : null;
         const expiresIn = Number(tokens?.expires_in || 0);
 
@@ -422,9 +517,9 @@ var worker_default = {
 
         try {
           const meRes = await fetch(
-            `https://graph.facebook.com/me?fields=id,name&access_token=${encodeURIComponent(accessToken)}`
+            `${fbGraph}/me?fields=id,name&access_token=${encodeURIComponent(accessToken)}`
           );
-          const me = await safeJson(meRes);
+          const me = await fbSafe(meRes);
 
           if (me?.id) fbAccountId = String(me.id);
           if (me?.name) fbAccountName = String(me.name);
@@ -451,12 +546,47 @@ var worker_default = {
           scope: "pages_manage_posts,pages_show_list"
         });
 
+        // ADDED: fetch pages and store PAGE tokens for publishing
+        try {
+          const pages = await fetchPageTokens(accessToken);
+
+          for (const p of pages) {
+            if (!p?.id || !p?.access_token) continue;
+
+            await upsertToken({
+              folderId: String(folderId),
+              platform: "facebook_page",
+              accountId: String(p.id),
+              accessToken: String(p.access_token),
+              refreshToken: null,
+              expiresAt: null,
+              scope: "page_access_token"
+            });
+
+            // Optional: insert a page account row so your UI can list it
+            try {
+              await env.DB.prepare(
+                "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'facebook_page', ?, ?, NULL, NULL)"
+              ).bind(
+                String(folderId),
+                String(userId),
+                String(p.name || `Facebook Page ${p.id}`),
+                String(p.access_token)
+              ).run();
+            } catch (_) {
+            }
+          }
+        } catch (_) {
+        }
+
         return Response.redirect(`${frontendBaseUrl}/create-post.html`);
       }
 
       if (url.pathname === "/api/post-video" && request.method === "POST") {
-        const { account_id, video_url, title, platform } = await request.json();
-        const account = await env.DB.prepare("SELECT * FROM accounts WHERE id = ?").bind(account_id).first();
+        const { account_id, video_url, title, platform, description, page_id, folder_id } = await request.json();
+        const account = account_id
+          ? await env.DB.prepare("SELECT * FROM accounts WHERE id = ?").bind(account_id).first()
+          : null;
         const bearer = account?.access_token;
 
         if (platform === "tiktok") {
@@ -482,6 +612,60 @@ var worker_default = {
 
           const result = await safeJson(tiktokRes);
           return new Response(JSON.stringify(result), { headers: corsHeaders });
+        }
+
+        // ADDED: Facebook publish (Reels)
+        if (platform === "facebook") {
+          const desc = String(description || title || "").trim();
+
+          // Preferred: send page_id + folder_id from UI (most reliable)
+          let pageId = page_id ? String(page_id) : null;
+          let pageAccessToken = null;
+
+          // If account_id points to a facebook_page row, use it
+          if (!pageAccessToken && account?.platform === "facebook_page" && account?.access_token) {
+            pageAccessToken = String(account.access_token);
+          }
+
+          // If not, pull token from tokens table using folder_id + page_id
+          if (!pageAccessToken && pageId && folder_id) {
+            const tok = await env.DB.prepare(
+              "SELECT access_token FROM tokens WHERE folder_id = ? AND platform = 'facebook_page' AND account_id = ? ORDER BY updated_at DESC LIMIT 1"
+            ).bind(String(folder_id), String(pageId)).first();
+            if (tok?.access_token) pageAccessToken = String(tok.access_token);
+          }
+
+          if (!pageId) {
+            return new Response(JSON.stringify({ success: false, error: "Missing page_id for facebook" }), {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" }
+            });
+          }
+
+          if (!pageAccessToken) {
+            return new Response(JSON.stringify({ success: false, error: "Missing Facebook Page access token. Link Facebook first." }), {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" }
+            });
+          }
+
+          if (!video_url) {
+            return new Response(JSON.stringify({ success: false, error: "Missing video_url" }), {
+              status: 400,
+              headers: { ...corsHeaders, "Content-Type": "application/json" }
+            });
+          }
+
+          const out = await publishFacebookReelFromUrl({
+            pageId,
+            pageAccessToken: String(pageAccessToken),
+            videoUrl: String(video_url),
+            description: desc
+          });
+
+          return new Response(JSON.stringify({ success: true, data: out }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
         }
 
         return new Response(JSON.stringify({ success: false, error: "Unsupported platform" }), {
