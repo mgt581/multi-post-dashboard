@@ -1,0 +1,23 @@
+cat > .gitignore <<'EOF'
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Cloudflare / Wrangler
+.wrangler/
+**/.wrangler/
+node_modules/.cache/
+node_modules/.mf/
+
+# IDE
+.idea/
+.vscode/
+
+# Logs
+firebase-debug.log
+EOF
