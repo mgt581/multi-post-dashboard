@@ -76,9 +76,13 @@ gap:12px;
 text-decoration:none;
 }
 
+/* FIX FOR LOGO TRANSPARENCY */
 .brand img{
 width:44px;
 height:44px;
+background: transparent !important;
+mix-blend-mode: normal;
+display: block;
 }
 
 .brand h1{
@@ -426,8 +430,6 @@ if(user){
 window.location.href="app.html";
 }
 });
-
 </script>
-
 </body>
 </html>
