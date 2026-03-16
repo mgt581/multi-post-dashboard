@@ -2,52 +2,128 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Privacy Policy | Multi Post</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Multipost | Privacy Policy</title>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 40px 20px; background-color: #fff; }
-        h1 { border-bottom: 2px solid #eee; padding-bottom: 10px; color: #1a1a1a; }
-        h2 { margin-top: 25px; color: #2c3e50; border-left: 4px solid #3498db; padding-left: 10px; }
-        p, li { font-size: 15px; }
-        .contact-box { background: #f4f7f6; padding: 20px; border-radius: 10px; margin-top: 30px; border: 1px solid #e1e4e8; }
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
+
+        :root {
+            /* Exact Theme Match from Multipost App */
+            --bg: linear-gradient(135deg, #0f172a, #0b2f52 60%, #0ea5e9);
+            --card: #0b1829;
+            --border: rgba(255, 255, 255, 0.08);
+            --muted: #94a3b8;
+            --text: #e2e8f0;
+            --accent: #7c3aed;
+            --accent-2: #0ea5e9;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            background-attachment: fixed;
+            font-family: 'Manrope', -apple-system, system-ui, sans-serif;
+            color: var(--text);
+            line-height: 1.6;
+            display: flex;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow: 0 14px 40px rgba(15, 23, 42, 0.45);
+        }
+
+        h1 { font-weight: 800; font-size: 2.5rem; margin-bottom: 10px; color: #fff; letter-spacing: -0.5px; }
+        h2 { font-weight: 700; margin-top: 35px; color: var(--accent-2); border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        
+        .last-updated { color: var(--muted); font-size: 0.9rem; margin-bottom: 30px; font-weight: 700; }
+        
+        p { margin-bottom: 20px; }
+        
+        a { color: var(--accent-2); text-decoration: none; font-weight: 700; transition: 0.2s; }
+        a:hover { filter: brightness(1.2); text-decoration: underline; }
+
+        ul { padding-left: 20px; margin-bottom: 20px; }
+        li { margin-bottom: 10px; }
+
+        .highlight-box { 
+            background: rgba(124, 58, 237, 0.1); 
+            padding: 25px; 
+            border-radius: 16px; 
+            margin: 30px 0; 
+            border: 1px solid var(--accent); 
+        }
+        
+        strong { color: #fff; }
+
+        @media (max-width: 640px) {
+            .container { padding: 25px; }
+            h1 { font-size: 1.8rem; }
+        }
     </style>
 </head>
 <body>
-    <h1>Privacy Policy</h1>
-    <p><strong>Last Updated:</strong> January 18, 2026</p>
-    <p>Multi Post ("we," "our," or "us") is committed to protecting your privacy. This policy explains our data practices regarding our application and website.</p>
-    <h2>1. Information We Process</h2>
-    <p>Our application operates on a "Privacy by Design" principle. We do not maintain a centralized database of your personal content.</p>
-    <ul>
-        <li><strong>Authentication Data:</strong> We use official OAuth tokens from Meta, Google, and TikTok to manage your sessions. These are stored securely in your browser/local environment.</li>
-        <li><strong>Metadata:</strong> Social media titles, tags, and descriptions are processed during your active session to facilitate multi-platform posting.</li>
-    </ul>
-    <h2>2. Data Usage and Third-Party API Services</h2>
-    <p>Multi Post uses API Services from Facebook, YouTube, and TikTok. By using this app, you agree to be bound by the respective Terms of Service of these platforms.</p>
-    <ul>
-        <li><strong>Meta:</strong> We access public profile data only when explicitly authorized to facilitate Facebook/Instagram posting.</li>
-        <li><strong>Google/YouTube:</strong> We comply with the YouTube API Services Developer Policies.</li>
-        <li><strong>TikTok:</strong> We use the TikTok for Business API to upload and manage content as directed by you.</li>
-    </ul>
-    <h2>3. Data Retention and Security</h2>
-    <p>We do not store your videos on our servers. Metadata is retained only for the duration of the posting process. We implement industry-standard encryption for all data in transit between your device and the social media APIs.</p>
-    <h2>4. User Rights (GDPR & CCPA)</h2>
-    <p>Under international privacy laws, you have the right to access, rectify, or erase your data. Since we do not store personal profiles, these rights are primarily exercised by revoking app permissions within your social media account settings.</p>
-    <h2>5. User Data Deletion Instructions</h2>
-    <p>To request the deletion of any transient data or to exercise your right to be forgotten regarding our app's integration:</p>
-    <ol>
-        <li>Send an email to <strong>alex@bryantgroupholdings.co.uk</strong> with the subject "Data Deletion Request."</li>
-        <li>Log into your Facebook Account, navigate to "Settings & Privacy" > "Settings" > "Apps and Websites," find <strong>Multi Post</strong>, and click "Remove."</li>
-        <li>Once removed, we lose all access to your tokens, effectively deleting your connection to our service.</li>
-    </ol>
-    <h2>6. Changes to This Policy</h2>
-    <p>We reserve the right to modify this policy at any time. Significant changes will be notified via a notice on our primary website domain.</p>
-    <div class="contact-box">
-        <h2>Contact Information</h2>
-        <p>For questions regarding this policy or our data handling practices, please contact our Data Protection Officer:</p>
-        <p><strong>Entity:</strong> Multi Post / Bryant Group Holdings</p>
-        <p><strong>Email:</strong> alex@bryantgroupholdings.co.uk</p>
-        <p><strong>Official Website:</strong> https://multipostapp.co.uk</p>
+
+    <div class="container">
+        <h1>Privacy Policy</h1>
+        <p class="last-updated">Last Updated: March 16, 2026</p>
+
+        <p>At <strong>Multipost</strong> (multipostapp.co.uk), we take your privacy seriously. This policy explains how we collect, use, and protect your information when you use our multi-platform scheduling and AI optimization services.</p>
+
+        <h2>1. Information We Collect</h2>
+        <p>To provide our services, <strong>Multipost</strong> collects the following types of information:</p>
+        <ul>
+            <li><strong>Account Information:</strong> Your name and email address provided via Firebase Authentication.</li>
+            <li><strong>Connected Social Accounts:</strong> When you link YouTube or TikTok, we receive authorization tokens (OAuth) that allow us to post on your behalf.</li>
+            <li><strong>Media Content:</strong> Video files and metadata (titles/descriptions) you upload to our platform for distribution.</li>
+            <li><strong>AI Interaction Data:</strong> The prompts you provide to our Llama-3 AI engine to generate SEO metadata.</li>
+        </ul>
+
+        <div class="highlight-box">
+            <strong>Data Security:</strong> We do not store your social media passwords. All connections are handled via secure official API tokens which you can revoke at any time from your platform's security settings.
+        </div>
+
+        <h2>2. How We Use Your Data</h2>
+        <p>We use your information solely to operate <strong>Multipost</strong>, including:</p>
+        <ul>
+            <li>Facilitating the upload of videos to your connected YouTube and TikTok channels.</li>
+            <li>Using AI to generate viral-optimized titles and descriptions based on your inputs.</li>
+            <li>Maintaining your workspace folders and account preferences.</li>
+        </ul>
+
+        <h2>3. Third-Party Data Sharing</h2>
+        <p><strong>Multipost</strong> interacts with the following third-party services:</p>
+        <ul>
+            <li><strong>Google/YouTube API:</strong> Used to upload videos. By using this service, you agree to the <a href="https://www.youtube.com/t/terms" target="_blank">YouTube Terms of Service</a> and <a href="https://policies.google.com/privacy" target="_blank">Google Privacy Policy</a>.</li>
+            <li><strong>TikTok API:</strong> Used for content distribution. You can review the <a href="https://www.tiktok.com/legal/privacy-policy" target="_blank">TikTok Privacy Policy</a> for more details.</li>
+            <li><strong>Cloudflare:</strong> We use Cloudflare Workers to process your requests securely at the edge.</li>
+        </ul>
+
+        <h2>4. Data Retention & Deletion</h2>
+        <p>You have full control over your data within <strong>Multipost</strong>:</p>
+        <ul>
+            <li><strong>Revocation:</strong> You can disconnect your social media accounts at any time, which immediately deletes the associated access tokens from our database.</li>
+            <li><strong>Deletion:</strong> You may request full account deletion by contacting support. This will remove all your stored folders, metadata, and personal information.</li>
+        </ul>
+
+        <h2>5. Contact Us</h2>
+        <p>If you have any questions about this Privacy Policy or how <strong>Multipost</strong> handles your data, please reach out to our team:</p>
+        
+        <p>
+            <strong>Email:</strong> support@multipostapp.co.uk<br>
+            <strong>Website:</strong> <a href="https://multipostapp.co.uk">multipostapp.co.uk</a>
+        </p>
+
+        <p style="margin-top: 40px; font-size: 0.8rem; color: var(--muted);">
+            © 2026 Bryant Group Holdings Ltd. Multipost is a registered service of multipostapp.co.uk.
+        </p>
     </div>
+
 </body>
 </html>
