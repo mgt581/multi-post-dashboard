@@ -854,7 +854,7 @@ ANALYZE IMAGE + generate viral SEO content. Match image subject/mood perfectly.`
             title: String(parsed?.facebook?.title || ""),
             descriptionAndTags: String(parsed?.facebook?.descriptionAndTags || "")
           }
-        } : fallbackSeo(prompt);
+        } : fallbackSeo(textPrompt);
 
         return new Response(JSON.stringify({
           success: true,
