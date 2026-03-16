@@ -8,7 +8,6 @@
         @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
 
         :root {
-            /* Exact Theme Match from Multipost App */
             --bg: linear-gradient(135deg, #0f172a, #0b2f52 60%, #0ea5e9);
             --card: #0b1829;
             --border: rgba(255, 255, 255, 0.08);
@@ -22,7 +21,7 @@
             margin: 0;
             background: var(--bg);
             background-attachment: fixed;
-            font-family: 'Manrope', -apple-system, system-ui, sans-serif;
+            font-family: 'Manrope', sans-serif;
             color: var(--text);
             line-height: 1.6;
             display: flex;
@@ -32,98 +31,91 @@
 
         .container {
             max-width: 800px;
+            width: 100%;
             background: var(--card);
             border: 1px solid var(--border);
-            border-radius: 24px;
-            padding: 40px;
+            border-radius: 28px;
+            padding: 50px;
             box-shadow: 0 14px 40px rgba(15, 23, 42, 0.45);
         }
 
-        h1 { font-weight: 800; font-size: 2.5rem; margin-bottom: 10px; color: #fff; letter-spacing: -0.5px; }
-        h2 { font-weight: 700; margin-top: 35px; color: var(--accent-2); border-bottom: 1px solid var(--border); padding-bottom: 10px; }
-        
-        .last-updated { color: var(--muted); font-size: 0.9rem; margin-bottom: 30px; font-weight: 700; }
-        
-        p { margin-bottom: 20px; }
-        
-        a { color: var(--accent-2); text-decoration: none; font-weight: 700; transition: 0.2s; }
-        a:hover { filter: brightness(1.2); text-decoration: underline; }
+        .logo-area { text-align: center; margin-bottom: 30px; }
+        .logo-area img { width: 60px; height: 60px; margin-bottom: 15px; }
 
-        ul { padding-left: 20px; margin-bottom: 20px; }
+        h1 { font-size: 32px; font-weight: 800; margin: 0 0 10px; color: white; text-align: center; }
+        .last-updated { color: var(--accent-2); font-weight: 700; font-size: 14px; display: block; text-align: center; margin-bottom: 40px; }
+
+        h2 { font-size: 20px; font-weight: 800; color: white; margin-top: 30px; border-left: 4px solid var(--accent); padding-left: 15px; }
+        p { color: var(--muted); font-size: 15px; margin-bottom: 20px; }
+        ul { color: var(--muted); font-size: 15px; margin-bottom: 20px; }
         li { margin-bottom: 10px; }
 
-        .highlight-box { 
-            background: rgba(124, 58, 237, 0.1); 
-            padding: 25px; 
-            border-radius: 16px; 
-            margin: 30px 0; 
-            border: 1px solid var(--accent); 
+        .highlight-box {
+            background: rgba(124, 58, 237, 0.1);
+            border: 1px solid rgba(124, 58, 237, 0.2);
+            padding: 20px;
+            border-radius: 16px;
+            margin: 30px 0;
         }
-        
-        strong { color: #fff; }
 
-        @media (max-width: 640px) {
-            .container { padding: 25px; }
-            h1 { font-size: 1.8rem; }
+        .btn-back {
+            display: inline-block;
+            margin-top: 40px;
+            color: var(--text);
+            text-decoration: none;
+            font-weight: 800;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+
+        .btn-back:hover { color: var(--accent-2); }
+
+        @media (max-width: 600px) {
+            .container { padding: 30px 20px; }
+            h1 { font-size: 24px; }
         }
     </style>
 </head>
 <body>
-
     <div class="container">
-        <h1>Privacy Policy</h1>
-        <p class="last-updated">Last Updated: March 16, 2026</p>
+        <div class="logo-area">
+            <img src="logo.png" alt="Logo">
+            <h1>Privacy Policy</h1>
+            <span class="last-updated">EFFECTIVE DATE: MARCH 16, 2026</span>
+        </div>
 
-        <p>At <strong>Multipost</strong> (multipostapp.co.uk), we take your privacy seriously. This policy explains how we collect, use, and protect your information when you use our multi-platform scheduling and AI optimization services.</p>
+        <p>Welcome to <strong>Multipost</strong>. We respect your privacy and are committed to protecting your personal data. This policy explains how we handle your information when you use our platform.</p>
 
         <h2>1. Information We Collect</h2>
-        <p>To provide our services, <strong>Multipost</strong> collects the following types of information:</p>
+        <p>To provide our multi-posting services, we collect:</p>
         <ul>
-            <li><strong>Account Information:</strong> Your name and email address provided via Firebase Authentication.</li>
-            <li><strong>Connected Social Accounts:</strong> When you link YouTube or TikTok, we receive authorization tokens (OAuth) that allow us to post on your behalf.</li>
-            <li><strong>Media Content:</strong> Video files and metadata (titles/descriptions) you upload to our platform for distribution.</li>
-            <li><strong>AI Interaction Data:</strong> The prompts you provide to our Llama-3 AI engine to generate SEO metadata.</li>
+            <li><strong>Account Information:</strong> Your email and name via Firebase Authentication.</li>
+            <li><strong>Connected Accounts:</strong> Secure tokens required to post to your YouTube and TikTok accounts.</li>
+            <li><strong>Content Data:</strong> Media and text you upload for the purpose of social media distribution.</li>
         </ul>
 
         <div class="highlight-box">
-            <strong>Data Security:</strong> We do not store your social media passwords. All connections are handled via secure official API tokens which you can revoke at any time from your platform's security settings.
+            <h2>2. Third-Party API Disclosure (TikTok & Google)</h2>
+            <p>Multipost uses TikTok and Google API Services to enable video distribution. By using Multipost, you also agree to be bound by:</p>
+            <ul>
+                <li><a href="https://www.tiktok.com/legal/page/eea/privacy-policy/en" style="color: var(--accent-2); text-decoration: none;">TikTok Privacy Policy</a></li>
+                <li><a href="https://www.youtube.com/t/terms" style="color: var(--accent-2); text-decoration: none;">YouTube Terms of Service</a></li>
+                <li><a href="https://policies.google.com/privacy" style="color: var(--accent-2); text-decoration: none;">Google Privacy Policy</a></li>
+            </ul>
         </div>
 
-        <h2>2. How We Use Your Data</h2>
-        <p>We use your information solely to operate <strong>Multipost</strong>, including:</p>
+        <h2>3. Data Deletion & Your Rights</h2>
+        <p>You have full control over your data at all times:</p>
         <ul>
-            <li>Facilitating the upload of videos to your connected YouTube and TikTok channels.</li>
-            <li>Using AI to generate viral-optimized titles and descriptions based on your inputs.</li>
-            <li>Maintaining your workspace folders and account preferences.</li>
+            <li><strong>Instant Deletion:</strong> You can use the "Delete Account" button in your Profile settings to permanently erase your account and all associated tokens immediately.</li>
+            <li><strong>Manual Removal:</strong> You may contact support@multipostapp.co.uk to request data removal.</li>
+            <li><strong>Revoking Access:</strong> You can revoke Multipost's access to your social accounts at any time through your Google or TikTok security settings.</li>
         </ul>
 
-        <h2>3. Third-Party Data Sharing</h2>
-        <p><strong>Multipost</strong> interacts with the following third-party services:</p>
-        <ul>
-            <li><strong>Google/YouTube API:</strong> Used to upload videos. By using this service, you agree to the <a href="https://www.youtube.com/t/terms" target="_blank">YouTube Terms of Service</a> and <a href="https://policies.google.com/privacy" target="_blank">Google Privacy Policy</a>.</li>
-            <li><strong>TikTok API:</strong> Used for content distribution. You can review the <a href="https://www.tiktok.com/legal/privacy-policy" target="_blank">TikTok Privacy Policy</a> for more details.</li>
-            <li><strong>Cloudflare:</strong> We use Cloudflare Workers to process your requests securely at the edge.</li>
-        </ul>
+        <h2>4. How We Use Your Data</h2>
+        <p>Your data is used strictly to facilitate the organization and posting of content to your connected accounts. We do not sell your personal data to third parties.</p>
 
-        <h2>4. Data Retention & Deletion</h2>
-        <p>You have full control over your data within <strong>Multipost</strong>:</p>
-        <ul>
-            <li><strong>Revocation:</strong> You can disconnect your social media accounts at any time, which immediately deletes the associated access tokens from our database.</li>
-            <li><strong>Deletion:</strong> You may request full account deletion by contacting support. This will remove all your stored folders, metadata, and personal information.</li>
-        </ul>
-
-        <h2>5. Contact Us</h2>
-        <p>If you have any questions about this Privacy Policy or how <strong>Multipost</strong> handles your data, please reach out to our team:</p>
-        
-        <p>
-            <strong>Email:</strong> support@multipostapp.co.uk<br>
-            <strong>Website:</strong> <a href="https://multipostapp.co.uk">multipostapp.co.uk</a>
-        </p>
-
-        <p style="margin-top: 40px; font-size: 0.8rem; color: var(--muted);">
-            © 2026 Bryant Group Holdings Ltd. Multipost is a registered service of multipostapp.co.uk.
-        </p>
+        <a href="index.html" class="btn-back">← Back to Multipost</a>
     </div>
-
 </body>
 </html>
