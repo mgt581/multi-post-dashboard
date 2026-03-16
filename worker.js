@@ -542,6 +542,137 @@ var worker_default = {
         }
         return Response.redirect(`${frontendBaseUrl}/create-post.html`);
       }
+      if (url.pathname === "/api/youtube/upload" && request.method === "POST") {
+        const folder_id = request.headers.get("folder_id") || "";
+        const user_id = request.headers.get("user_id") || "";
+        if (!folder_id || !user_id) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const formData = await request.formData();
+        const title = String(formData.get("title") || "").trim();
+        const description = String(formData.get("description") || "").trim();
+        const keywords = String(formData.get("keywords") || "").trim();
+        let privacyStatus = String(formData.get("privacyStatus") || "private").toLowerCase();
+        const videoFile = formData.get("video");
+
+        if (!title || title.length < 1 || title.length > 100) {
+          return new Response(JSON.stringify({ success: false, error: "Title required (1-100 chars)" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        if (!videoFile || !(videoFile instanceof File)) {
+          return new Response(JSON.stringify({ success: false, error: "Valid video file required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        if (videoFile.size > 500 * 1024 * 1024) {
+          return new Response(JSON.stringify({ success: false, error: "Video too large (>500MB)" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        // Validate privacyStatus
+        if (!["private", "unlisted", "public"].includes(privacyStatus)) {
+          privacyStatus = "private";
+        }
+
+        // Get YouTube token from DB
+        const token = await env.DB.prepare(`
+          SELECT * FROM tokens 
+          WHERE folder_id = ? AND platform = 'youtube' 
+          ORDER BY updated_at DESC LIMIT 1
+        `).bind(folder_id).first();
+
+        if (!token?.access_token) {
+          return new Response(JSON.stringify({ success: false, error: "No YouTube token found. Link account first." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        try {
+          // Step 1: Initiate resumable upload
+          const initRes = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${token.access_token}`,
+              "X-Upload-Content-Length": videoFile.size,
+              "X-Upload-Content-Type": videoFile.type || "video/mp4"
+            },
+            body: JSON.stringify({
+              snippet: {
+                title,
+                description,
+                tags: keywords ? keywords.split(/[\s,]+/).filter(Boolean) : [],
+                defaultLanguage: "en"
+              },
+              status: {
+                privacyStatus,
+                selfDeclaredMadeForKids: false
+              }
+            })
+          });
+
+          if (!initRes.ok) {
+            const errData = await safeJson(initRes);
+            throw new Error(`YouTube init failed: ${initRes.status} ${JSON.stringify(errData)}`);
+          }
+
+          const location = initRes.headers.get("Location");
+          if (!location) {
+            throw new Error("No upload location returned");
+          }
+
+          // Step 2: Upload video bytes
+          const videoBytes = await videoFile.arrayBuffer();
+          const uploadRes = await fetch(location, {
+            method: "PUT",
+            headers: {
+              "Content-Type": videoFile.type || "video/mp4",
+              "Content-Length": videoFile.size
+            },
+            body: videoBytes
+          });
+
+          if (!uploadRes.ok) {
+            const errText = await uploadRes.text();
+            throw new Error(`YouTube upload failed: ${uploadRes.status} ${errText}`);
+          }
+
+          const uploadData = await safeJson(uploadRes);
+          const videoId = uploadData?.id;
+
+          return new Response(JSON.stringify({
+            success: true,
+            videoId,
+            youtubeUrl: `https://youtube.com/watch?v=${videoId}`,
+            data: uploadData
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+
+        } catch (err) {
+          console.error("YouTube upload error:", err);
+          return new Response(JSON.stringify({ 
+            success: false, 
+            error: err.message || "Upload failed",
+            details: err.stack 
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+      }
+
       if (url.pathname === "/api/post-video" && request.method === "POST") {
         const { account_id, video_url, title, platform, description, page_id, folder_id } = await request.json();
         const account = account_id ? await env.DB.prepare("SELECT * FROM accounts WHERE id = ?").bind(account_id).first() : null;

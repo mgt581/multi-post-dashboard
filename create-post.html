@@ -373,22 +373,40 @@
         <textarea id="ytKeywords" placeholder="20 Trending Keywords"></textarea>
 
         <div class="upload-box">
-          <label for="ytVideoFile">Video file</label>
-          <input id="ytVideoFile" type="file" accept="video/*">
+          <label for="ytVideoFile">Video file <span class="small" style="color: var(--warning);">(≤500MB)</span></label>
+          <input id="ytVideoFile" type="file" accept="video/*" style="margin-bottom: 12px;">
+          <div id="fileInfo" style="font-size: 12px; color: var(--muted); margin-bottom: 8px;"></div>
 
-          <div style="margin-top: 12px;">
+          <div>
             <label for="ytPrivacy">Privacy</label>
             <select id="ytPrivacy">
-              <option value="private">Private</option>
-              <option value="unlisted">Unlisted</option>
-              <option value="public">Public</option>
+              <option value="private">🔒 Private</option>
+              <option value="unlisted">🔗 Unlisted</option>
+              <option value="public">🌐 Public</option>
             </select>
           </div>
 
-          <div class="upload-help">
-            Direct YouTube upload is currently limited to 500MB per file.
+          <div class="upload-help" style="margin-top: 12px;">
+            <span id="ytConnectionStatus" style="font-weight: 700;">Checking connection...</span>
+            <div style="font-size: 12px; opacity: 0.8;">
+              Linked to workspace YouTube →
+            </div>
           </div>
         </div>
+
+        <script>
+          document.getElementById("ytVideoFile").addEventListener("change", function(e) {
+            const file = e.target.files[0];
+            const info = document.getElementById("fileInfo");
+            if (file) {
+              const sizeMB = (file.size / (1024*1024)).toFixed(1);
+              const color = file.size > 500*1024*1024 ? "var(--error)" : "var(--success)";
+              info.innerHTML = `<strong>${file.name}</strong> (${sizeMB}MB) <span style="color: ${color};">✓</span>`;
+            } else {
+              info.innerHTML = "";
+            }
+          });
+        </script>
 
         <div class="controls">
           <button class="btn" onclick="publishYouTube()">🚀 Publish to YouTube</button>
@@ -720,14 +738,19 @@
       const keywords = document.getElementById("ytKeywords").value.trim();
       const privacyStatus = document.getElementById("ytPrivacy").value;
 
-      if (!title) {
-        alert("Please enter a YouTube title.");
-        return;
-      }
+        if (activeYouTubeName === "Not linked" || activeYouTubeName === "No folder selected") {
+          const reconnect = confirm("No YouTube account linked. Go to workspace?");
+          if (reconnect && activeFolderId) {
+            window.location.href = `folder.html?id=${encodeURIComponent(activeFolderId)}`;
+          }
+          return;
+        }
+        if (!title) {
+          alert("Please enter a YouTube title.");
+          return;
+        }
 
       const form = new FormData();
-      form.append("folder_id", activeFolderId);
-      form.append("user_id", userScope);
       form.append("title", title);
       form.append("description", description);
       form.append("keywords", keywords);
@@ -742,6 +765,10 @@
 
         const res = await fetch(`${apiBase}/youtube/upload`, {
           method: "POST",
+          headers: {
+            "folder_id": activeFolderId,
+            "user_id": userScope
+          },
           body: form
         });
 
@@ -768,7 +795,7 @@
         btn.disabled = false;
         btn.textContent = "🚀 Publish to YouTube";
         setStatus(err.message || "YouTube upload failed", "error");
-        alert(`Upload failed: ${err.message || err}`);
+        alert(`Upload failed:\n${err.message}`);
       }
     }
 
