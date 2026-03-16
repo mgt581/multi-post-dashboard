@@ -747,11 +747,19 @@ var worker_default = {
         });
       }
       if (url.pathname === "/api/generate-seo" && request.method === "POST") {
-        const { prompt } = await request.json();
+        const payload = await request.json();
+        const imageBase64 = payload.image_base64;
+        const imageFilename = payload.image_filename;
+        const textPrompt = payload.prompt || "";
+        const folderId = payload.folder_id || "";
+        const folderName = payload.folder_name || "";
+        const ytChannel = payload.youtube_channel || "";
+        const fbAccount = payload.facebook_account || "";
+        const ttAccount = payload.tiktok_account || "";
 
-        if (!prompt || !String(prompt).trim()) {
+        if (!imageBase64 || !imageFilename) {
           return new Response(
-            JSON.stringify({ success: false, error: "Missing prompt" }),
+            JSON.stringify({ success: false, error: "Missing image_base64 or image_filename" }),
             {
               status: 400,
               headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -764,38 +772,44 @@ var worker_default = {
         let rawText = "";
 
         try {
-          aiResponse = await env.AI.run("@cf/meta/llama-3-8b-instruct", {
+          aiResponse = await env.AI.run("@cf/meta/llama-3.1-vision-8b", {
             messages: [
               {
                 role: "system",
-                content: `You are a viral social media SEO expert.
+                content: `Vision AI social media SEO expert.
 
-Return ONLY valid JSON.
-Do not use markdown.
-Do not use code fences.
-Do not add explanations.
+Analyze the uploaded image (thumbnail/post).
 
-Use exactly this structure:
+Return ONLY valid JSON. No markdown, no explanations.
+
+Structure:
 {
   "youtube": {
-    "title": "",
-    "description": "",
-    "keywords": ""
+    "title": "Catchy title based on image (15-60 chars)",
+    "description": "Engaging description (100-150 chars)",
+    "keywords": "15 comma-separated keywords"
   },
   "tiktok": {
-    "allInOne": ""
+    "allInOne": "Complete caption w/ emojis/hashtags (POV style if fits)"
   },
   "facebook": {
-    "title": "",
-    "descriptionAndTags": ""
+    "title": "Reels title",
+    "descriptionAndTags": "Description + hashtags"
   }
 }`
               },
               {
                 role: "user",
-                content: `Generate viral SEO content for this post idea, even if it is short, messy, vague, or misspelled: ${prompt}`
+                content: `Image filename: ${imageFilename}
+Optional text: ${textPrompt}
+
+ANALYZE IMAGE + generate viral SEO content. Match image subject/mood perfectly.`
               }
-            ]
+            ],
+            images: [{
+              data: imageBase64,
+              mimeType: imageFilename.split('.').pop()?.toLowerCase() === 'png' ? 'image/png' : 'image/jpeg'
+            }]
           });
 
           if (typeof aiResponse === "string") {

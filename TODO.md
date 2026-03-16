@@ -1,22 +1,19 @@
-# Fix YouTube Upload Error: "The string did not match the expected pattern"
+🔄 **401 Token Expired - Adding refresh logic**
 
-## Steps (1/5 complete) ✅
+## Current Status
+✅ Endpoint works, hits YouTube API  
+❌ Token expired (normal OAuth behavior)
 
-# 🎉 YouTube Upload Fixed!
+## Quick Fix
+```
+1. folder.html → Remove + re-link YouTube (fresh token)
+2. Test upload again
+```
 
-## Steps (5/7 complete) ✅
+## Permanent Fix (Token Refresh)
+```
+☐ 1. Add token refresh to worker.js before upload  
+☐ 2. Deploy & test
+```
 
-### ☑️ 1. Read current create-post.html (Done)
-### ☑️ 2. Analyzed backend worker.js 
-### ☑️ 3. Added `/api/youtube/upload` endpoint to worker.js 
-### ☑️ 4. Fixed `publishYouTube()`: validation, connection check, headers  
-### ☑️ 5. Enhanced upload UI + file validation
-### ☐ 6. Deploy: `npx wrangler deploy`
-### ☐ 7. Test: Link YouTube → Upload video → Verify
-
-**Status:** Ready to deploy and test. Run `npx wrangler deploy` then test upload flow.
-
-**Test Steps:**
-1. Open `folder.html` → Link YouTube account
-2. Go to `create-post.html` → Select video + title  
-3. Click "Publish to YouTube" → Should upload successfully
+**Re-link first, then test!**
