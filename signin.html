@@ -48,16 +48,22 @@
         .logo-box {
             width: 72px;
             height: 72px;
-            background: linear-gradient(135deg, var(--accent), var(--accent-2));
+            background: transparent !important; /* Fixed: Removed solid gradient that causes black look */
             border-radius: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
             margin: 0 auto 20px;
-            box-shadow: 0 10px 20px rgba(124, 58, 237, 0.3);
+            /* Optional: keeping a subtle glow instead of a solid box */
+            filter: drop-shadow(0 0 15px rgba(124, 58, 237, 0.4)); 
         }
 
-        .logo-box img { width: 44px; height: 44px; }
+        .logo-box img { 
+            width: 60px; /* Slightly larger as box is now transparent */
+            height: auto; 
+            background: transparent !important;
+            mix-blend-mode: normal;
+        }
 
         h1 { font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -1px; }
         p { color: var(--muted); font-size: 15px; margin: 8px 0 30px; }
@@ -157,7 +163,6 @@
 
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Footer Styling */
         footer {
             margin-top: 40px;
             text-align: center;
