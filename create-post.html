@@ -887,6 +887,42 @@
       }
     }
 
+    function bindVideoFileInfo(inputId, infoId) {
+      const input = document.getElementById(inputId);
+      const info = document.getElementById(infoId);
+      if (!input || !info) return;
+      input.addEventListener("change", function(e) {
+        const file = e.target.files[0];
+        if (file) {
+          const sizeMB = (file.size / (1024*1024)).toFixed(1);
+          const color = file.size > 500*1024*1024 ? "var(--error)" : "var(--success)";
+          info.innerHTML = `<strong>${file.name}</strong> (${sizeMB}MB) <span style="color: ${color};">✓</span>`;
+        } else {
+          info.innerHTML = "";
+        }
+      });
+    }
+
+    async function publishTikTok() {
+      if (!activeFolderId || !userScope) {
+        alert("Missing folder context.");
+        return;
+      }
+      const file = document.getElementById("ttVideoFile").files?.[0];
+      if (!file) { alert("Please choose a video file first."); return; }
+      alert("TikTok API publishing is not yet available. Use 'Copy & Go to TikTok' to post manually.");
+    }
+
+    async function publishFacebook() {
+      if (!activeFolderId || !userScope) {
+        alert("Missing folder context.");
+        return;
+      }
+      const file = document.getElementById("fbVideoFile").files?.[0];
+      if (!file) { alert("Please choose a video file first."); return; }
+      alert("Facebook API publishing is not yet available. Use 'Copy & Go to Facebook' to post manually.");
+    }
+
     function copyGeneric(fieldId, label, url) {
       const value = document.getElementById(fieldId).value;
       copyAndOpen(value, label, url);
@@ -908,9 +944,14 @@
       window.location.href = "app.html";
     }
 
+    bindVideoFileInfo("ttVideoFile", "ttFileInfo");
+    bindVideoFileInfo("fbVideoFile", "fbFileInfo");
+
     // IMPORTANT: module scripts don't expose functions globally, but inline onclick needs window.*
     window.generateSEO = generateSEO;
     window.publishYouTube = publishYouTube;
+    window.publishTikTok = publishTikTok;
+    window.publishFacebook = publishFacebook;
     window.copyGeneric = copyGeneric;
     window.copyFB = copyFB;
     window.goBackToWorkspace = goBackToWorkspace;
