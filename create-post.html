@@ -713,11 +713,10 @@
       }
 
       const accounts = await res.json();
-      const yt = accounts.find((acc) => acc.platform === "youtube");
+      const yt     = accounts.find((acc) => acc.platform === "youtube");
       const fbPage = accounts.find((acc) => acc.platform === "facebook_page");
       const fbUser = accounts.find((acc) => acc.platform === "facebook");
-      const fb = fbPage || fbUser;
-      const tt = accounts.find((acc) => acc.platform === "tiktok");
+      const tt     = accounts.find((acc) => acc.platform === "tiktok");
 
       const pickAccountName = (acc, fallback = "Not linked") =>
         acc?.nickname ||
@@ -727,9 +726,12 @@
         acc?.account_name ||
         fallback;
 
-      activeYouTubeName = pickAccountName(yt);
-      activeFacebookName = pickAccountName(fb);
-      activeTikTokName = pickAccountName(tt);
+      activeYouTubeName  = pickAccountName(yt);
+      // Prefer the explicit page name stored by /api/facebook/select-page
+      activeFacebookName = fbPage
+        ? (fbPage.facebook_page_name || fbPage.nickname || "Facebook Page")
+        : pickAccountName(fbUser);
+      activeTikTokName   = pickAccountName(tt);
       updateContextUI();
     } catch {
       activeYouTubeName = "Error loading account";
