@@ -6,6 +6,8 @@ var __defProp2 = Object.defineProperty;
 var __name2 = /* @__PURE__ */ __name((target, value) => __defProp2(target, "name", { value, configurable: true }), "__name");
 var __defProp22 = Object.defineProperty;
 var __name22 = /* @__PURE__ */ __name2((target, value) => __defProp22(target, "name", { value, configurable: true }), "__name");
+var __defProp222 = Object.defineProperty;
+var __name222 = /* @__PURE__ */ __name22((target, value) => __defProp222(target, "name", { value, configurable: true }), "__name");
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -23,15 +25,15 @@ var worker_default = {
     if (url.pathname === "/" || url.pathname === "") {
       return Response.redirect(frontendBaseUrl, 302);
     }
-    const requireUser = /* @__PURE__ */ __name22(
+    const requireUser = /* @__PURE__ */ __name222(
       (val) => val && typeof val === "string" && val.trim() ? val.trim() : null,
       "requireUser"
     );
     const redirectUri = `${siteBaseUrl}/api/auth/callback/youtube`;
     const fbRedirectUri = `${siteBaseUrl}/api/auth/callback/facebook`;
     const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
-    const nowMs = /* @__PURE__ */ __name22(() => Date.now(), "nowMs");
-    const safeJson = /* @__PURE__ */ __name22(async (res) => {
+    const nowMs = /* @__PURE__ */ __name222(() => Date.now(), "nowMs");
+    const safeJson = /* @__PURE__ */ __name222(async (res) => {
       const text = await res.text();
       try {
         return JSON.parse(text);
@@ -39,14 +41,14 @@ var worker_default = {
         return { raw: text };
       }
     }, "safeJson");
-    const encodeState = /* @__PURE__ */ __name22((obj) => {
+    const encodeState = /* @__PURE__ */ __name222((obj) => {
       try {
         return btoa(JSON.stringify(obj));
       } catch {
         return String(obj?.folderId || "");
       }
     }, "encodeState");
-    const decodeState = /* @__PURE__ */ __name22((stateStr) => {
+    const decodeState = /* @__PURE__ */ __name222((stateStr) => {
       if (!stateStr) return { folderId: null, userId: null, platform: null };
       try {
         return JSON.parse(atob(stateStr));
@@ -60,7 +62,7 @@ var worker_default = {
         }
       }
     }, "decodeState");
-    const upsertToken = /* @__PURE__ */ __name22(
+    const upsertToken = /* @__PURE__ */ __name222(
       async ({ folderId, platform, accountId, accessToken, refreshToken, expiresAt, scope }) => {
         const safeFolderId = folderId == null ? null : String(folderId);
         const safePlatform = platform == null ? null : String(platform);
@@ -95,13 +97,13 @@ var worker_default = {
       },
       "upsertToken"
     );
-    const requireEnv = /* @__PURE__ */ __name22((envVal, name) => {
+    const requireEnv = /* @__PURE__ */ __name222((envVal, name) => {
       const v = envVal && String(envVal).trim() ? String(envVal).trim() : null;
       if (!v) throw new Error(`Missing ${name} env var`);
       return v;
     }, "requireEnv");
     const fbGraph = "https://graph.facebook.com/v18.0";
-    const fbSafe = /* @__PURE__ */ __name22(async (res) => {
+    const fbSafe = /* @__PURE__ */ __name222(async (res) => {
       const data = await safeJson(res);
       if (!res.ok) {
         throw new Error(`Facebook API ${res.status}: ${JSON.stringify(data)}`);
@@ -111,18 +113,18 @@ var worker_default = {
       }
       return data;
     }, "fbSafe");
-    const fetchFbJson = /* @__PURE__ */ __name22(async (fbUrl, init) => {
+    const fetchFbJson = /* @__PURE__ */ __name222(async (fbUrl, init) => {
       const res = await fetch(fbUrl, init);
       return fbSafe(res);
     }, "fetchFbJson");
-    const fetchPageTokens = /* @__PURE__ */ __name22(async (userAccessToken) => {
+    const fetchPageTokens = /* @__PURE__ */ __name222(async (userAccessToken) => {
       const fbUrl = `${fbGraph}/me/accounts?fields=id,name,access_token&access_token=${encodeURIComponent(
         userAccessToken
       )}`;
       const out = await fetchFbJson(fbUrl);
       return Array.isArray(out?.data) ? out.data : [];
     }, "fetchPageTokens");
-    const publishFacebookReelFromUrl = /* @__PURE__ */ __name22(
+    const publishFacebookReelFromUrl = /* @__PURE__ */ __name222(
       async ({ pageId, pageAccessToken, videoUrl, description }) => {
         const startRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels`, {
           method: "POST",
@@ -168,23 +170,14 @@ var worker_default = {
       },
       "publishFacebookReelFromUrl"
     );
-
-    const cleanText = /* @__PURE__ */ __name22((value) => {
+    const cleanText = /* @__PURE__ */ __name222((value) => {
       return String(value || "").replace(/\s+/g, " ").trim();
     }, "cleanText");
-
-    const makeKeywords = /* @__PURE__ */ __name22((prompt) => {
-      const cleaned = cleanText(prompt)
-        .toLowerCase()
-        .replace(/[^\w\s]/g, " ");
-      const words = cleaned
-        .split(/\s+/)
-        .filter(Boolean)
-        .filter((w) => w.length > 2);
-
+    const makeKeywords = /* @__PURE__ */ __name222((prompt) => {
+      const cleaned = cleanText(prompt).toLowerCase().replace(/[^\w\s]/g, " ");
+      const words = cleaned.split(/\s+/).filter(Boolean).filter((w) => w.length > 2);
       const unique = [...new Set(words)];
       const base = unique.slice(0, 8);
-
       const extras = [
         "viral meme",
         "funny clip",
@@ -193,28 +186,22 @@ var worker_default = {
         "public interaction",
         "meme plug"
       ];
-
-      return [...new Set([...base, ...extras])].join(", ");
+      return [.../* @__PURE__ */ new Set([...base, ...extras])].join(", ");
     }, "makeKeywords");
-
-    const fallbackSeo = /* @__PURE__ */ __name22((prompt) => {
+    const fallbackSeo = /* @__PURE__ */ __name222((prompt) => {
       const idea = cleanText(prompt) || "viral meme clip";
       const lower = idea.toLowerCase();
-
       let youtubeTitle = idea;
       if (!/[|:-]/.test(youtubeTitle)) {
         youtubeTitle = `${idea} | Meme Plug`;
       }
-
       let youtubeDescription = `Funny viral content based on: ${idea}. Perfect for meme lovers, relatable moments, and short-form social content. #MemePlug #viral #meme`;
-      let tiktokCaption = `POV: ${lower} 💀 #MemePlug #viral #funnymeme #relatable`;
+      let tiktokCaption = `POV: ${lower} \u{1F480} #MemePlug #viral #funnymeme #relatable`;
       let facebookTitle = idea.charAt(0).toUpperCase() + idea.slice(1);
-      let facebookDescriptionAndTags = `${idea} 😂 Follow for more relatable meme content. #MemePlug #viral #meme #funny`;
-
+      let facebookDescriptionAndTags = `${idea} \u{1F602} Follow for more relatable meme content. #MemePlug #viral #meme #funny`;
       if (/pov[:\s-]/i.test(idea)) {
-        tiktokCaption = `${idea} 💀 #MemePlug #viral #funnymeme #relatable`;
+        tiktokCaption = `${idea} \u{1F480} #MemePlug #viral #funnymeme #relatable`;
       }
-
       return {
         youtube: {
           title: youtubeTitle,
@@ -230,7 +217,6 @@ var worker_default = {
         }
       };
     }, "fallbackSeo");
-
     try {
       if (url.pathname === "/api/get-folders") {
         const userId = requireUser(url.searchParams.get("user_id"));
@@ -271,12 +257,10 @@ var worker_default = {
           return new Response("Missing id or user_id", { status: 400, headers: corsHeaders });
         }
         if (type === "account_only") {
-          // Look up the account to determine its platform and folder so we can cascade
           const acct = await env.DB.prepare(
             "SELECT platform, folder_id FROM accounts WHERE id = ? AND user_id = ?"
           ).bind(id, userId).first();
           if (acct && (acct.platform === "facebook" || acct.platform === "facebook_page")) {
-            // Remove all Facebook-related accounts (user token + all page tokens) for this folder
             await env.DB.prepare(
               "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform IN ('facebook', 'facebook_page')"
             ).bind(acct.folder_id, userId).run();
@@ -336,22 +320,22 @@ var worker_default = {
         return Response.redirect(tiktokAuthUrl);
       }
       if (url.pathname === "/api/auth/facebook") {
-        const legacyState = url.searchParams.get("state");
-        const stateObj = decodeState(legacyState);
-        const folderId = url.searchParams.get("folder_id") || stateObj.folderId;
-        const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId);
-        const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
-        requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
-        const state = encodeState({ folderId, platform: "facebook", userId });
-        const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${encodeURIComponent(
-          fbClientId
-        )}&redirect_uri=${encodeURIComponent(
-          fbRedirectUri
-        )}&scope=${encodeURIComponent(
-          "pages_manage_posts,pages_show_list"
-        )}&response_type=code&state=${encodeURIComponent(state)}`;
-        return Response.redirect(fbAuthUrl);
-      }
+  const legacyState = url.searchParams.get("state");
+  const stateObj = decodeState(legacyState) || {};
+  const folderId = url.searchParams.get("folder_id") || stateObj.folderId || "";
+  const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId || "");
+  const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
+  requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
+  const state = encodeState({ folderId, platform: "facebook", userId });
+  const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${encodeURIComponent(
+    fbClientId
+  )}&redirect_uri=${encodeURIComponent(
+    fbRedirectUri
+  )}&scope=${encodeURIComponent(
+    "public_profile,pages_show_list,pages_read_engagement,pages_manage_posts"
+  )}&response_type=code&state=${encodeURIComponent(state)}`;
+  return Response.redirect(fbAuthUrl);
+}
       if (url.pathname === "/api/auth/callback/youtube") {
         const code = url.searchParams.get("code");
         const stateObj = decodeState(url.searchParams.get("state"));
@@ -455,7 +439,8 @@ var worker_default = {
           const displayName = user?.display_name || user?.username || user?.nickname;
           const trimmedName = displayName ? String(displayName).trim() : "";
           if (trimmedName) tiktokNickname = trimmedName;
-        } catch (_) {}
+        } catch (_) {
+        }
         await env.DB.prepare(
           "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'tiktok', ?, ?, ?, ?)"
         ).bind(
@@ -527,7 +512,10 @@ var worker_default = {
           );
           const me = await fbSafe(meRes);
           if (me?.id) fbAccountId = String(me.id);
-          if (me?.name) { fbAccountName = String(me.name); fbRedirectName = fbAccountName; }
+          if (me?.name) {
+            fbAccountName = String(me.name);
+            fbRedirectName = fbAccountName;
+          }
         } catch (_) {
         }
         await env.DB.prepare(
@@ -592,61 +580,49 @@ var worker_default = {
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-
         const formData = await request.formData();
         const title = String(formData.get("title") || "").trim();
         const description = String(formData.get("description") || "").trim();
         const keywords = String(formData.get("keywords") || "").trim();
         let privacyStatus = String(formData.get("privacyStatus") || "private").toLowerCase();
         const videoFile = formData.get("video");
-
         if (!title || title.length < 1 || title.length > 100) {
           return new Response(JSON.stringify({ success: false, error: "Title required (1-100 chars)" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-
         if (!videoFile || !(videoFile instanceof File)) {
           return new Response(JSON.stringify({ success: false, error: "Valid video file required" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-
         if (videoFile.size > MAX_VIDEO_SIZE_BYTES) {
           return new Response(JSON.stringify({ success: false, error: "Video too large (>500MB)" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-
-        // Validate privacyStatus
         if (!["private", "unlisted", "public"].includes(privacyStatus)) {
           privacyStatus = "private";
         }
-
-        // Get YouTube token from DB
         const token = await env.DB.prepare(`
           SELECT * FROM tokens 
           WHERE folder_id = ? AND platform = 'youtube' 
           ORDER BY updated_at DESC LIMIT 1
         `).bind(folder_id).first();
-
         if (!token?.access_token) {
           return new Response(JSON.stringify({ success: false, error: "No YouTube token found. Link account first." }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-
         try {
-          // Step 1: Initiate resumable upload
           const initRes = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
             method: "POST",
             headers: {
               "Authorization": `Bearer ${token.access_token}`,
-              "X-Upload-Content-Length": videoFile.size,
               "X-Upload-Content-Type": videoFile.type || "video/mp4"
             },
             body: JSON.stringify({
@@ -662,36 +638,28 @@ var worker_default = {
               }
             })
           });
-
           if (!initRes.ok) {
             const errData = await safeJson(initRes);
             throw new Error(`YouTube init failed: ${initRes.status} ${JSON.stringify(errData)}`);
           }
-
           const location = initRes.headers.get("Location");
           if (!location) {
             throw new Error("No upload location returned");
           }
-
-          // Step 2: Upload video bytes
           const videoBytes = await videoFile.arrayBuffer();
           const uploadRes = await fetch(location, {
             method: "PUT",
             headers: {
               "Content-Type": videoFile.type || "video/mp4",
-              "Content-Length": videoFile.size
-            },
+  "X-Upload-Content-Length": String(videoFile.size)          },
             body: videoBytes
           });
-
           if (!uploadRes.ok) {
             const errText = await uploadRes.text();
             throw new Error(`YouTube upload failed: ${uploadRes.status} ${errText}`);
           }
-
           const uploadData = await safeJson(uploadRes);
           const videoId = uploadData?.id;
-
           return new Response(JSON.stringify({
             success: true,
             videoId,
@@ -700,20 +668,18 @@ var worker_default = {
           }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
-
         } catch (err) {
           console.error("YouTube upload error:", err);
-          return new Response(JSON.stringify({ 
-            success: false, 
+          return new Response(JSON.stringify({
+            success: false,
             error: err.message || "Upload failed",
-            details: err.stack 
+            details: err.stack
           }), {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
       }
-
       if (url.pathname === "/api/tiktok/upload" && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
@@ -723,58 +689,48 @@ var worker_default = {
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-
         const formData = await request.formData();
         const caption = String(formData.get("caption") || "").trim();
         let privacyStatus = String(formData.get("privacyStatus") || "SELF_ONLY").toUpperCase();
         const videoFile = formData.get("video");
-
         if (!caption) {
           return new Response(JSON.stringify({ success: false, error: "Caption required" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-
         if (!videoFile || !(videoFile instanceof File)) {
           return new Response(JSON.stringify({ success: false, error: "Valid video file required" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-
         if (videoFile.size > MAX_VIDEO_SIZE_BYTES) {
           return new Response(JSON.stringify({ success: false, error: "Video too large (>500MB)" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-
         const validPrivacyLevels = ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY"];
         if (!validPrivacyLevels.includes(privacyStatus)) {
           privacyStatus = "SELF_ONLY";
         }
-
         const token = await env.DB.prepare(`
           SELECT * FROM tokens
           WHERE folder_id = ? AND platform = 'tiktok'
           ORDER BY updated_at DESC LIMIT 1
         `).bind(folder_id).first();
-
         if (!token?.access_token) {
           return new Response(JSON.stringify({ success: false, error: "No TikTok token found. Link account first." }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-
         try {
           const videoBytes = await videoFile.arrayBuffer();
           const videoSize = videoFile.size;
           const chunkSize = Math.min(videoSize, 10 * 1024 * 1024);
           const totalChunks = Math.ceil(videoSize / chunkSize);
-
-          // Step 1: Initialize upload
           const initRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
             method: "POST",
             headers: {
@@ -797,25 +753,19 @@ var worker_default = {
               }
             })
           });
-
           const initData = await safeJson(initRes);
-          if (!initRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
+          if (!initRes.ok || initData?.error?.code && initData.error.code !== "ok") {
             throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
           }
-
           const publishId = initData?.data?.publish_id;
           const uploadUrl = initData?.data?.upload_url;
-
           if (!publishId || !uploadUrl) {
             throw new Error(`TikTok init missing publish_id or upload_url: ${JSON.stringify(initData)}`);
           }
-
-          // Step 2: Upload video in chunks
           for (let i = 0; i < totalChunks; i++) {
             const start = i * chunkSize;
             const end = Math.min(start + chunkSize, videoSize);
             const chunk = videoBytes.slice(start, end);
-
             const uploadRes = await fetch(uploadUrl, {
               method: "PUT",
               headers: {
@@ -825,13 +775,11 @@ var worker_default = {
               },
               body: chunk
             });
-
             if (!uploadRes.ok) {
               const errText = await uploadRes.text();
               throw new Error(`TikTok chunk upload failed: ${uploadRes.status} ${errText}`);
             }
           }
-
           return new Response(JSON.stringify({
             success: true,
             publishId,
@@ -839,7 +787,6 @@ var worker_default = {
           }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
-
         } catch (err) {
           console.error("TikTok upload error:", err);
           return new Response(JSON.stringify({
@@ -851,7 +798,6 @@ var worker_default = {
           });
         }
       }
-
       if (url.pathname === "/api/facebook/upload" && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
@@ -861,43 +807,35 @@ var worker_default = {
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-
         const formData = await request.formData();
         const title = String(formData.get("title") || "").trim();
         const description = String(formData.get("description") || "").trim();
         const videoFile = formData.get("video");
-
         if (!title) {
           return new Response(JSON.stringify({ success: false, error: "Title required" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-
         if (!videoFile || !(videoFile instanceof File)) {
           return new Response(JSON.stringify({ success: false, error: "Valid video file required" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-
         if (videoFile.size > MAX_VIDEO_SIZE_BYTES) {
           return new Response(JSON.stringify({ success: false, error: "Video too large (>500MB)" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-
-        // Prefer page token for posting; fall back to user token
         let pageId = null;
         let pageAccessToken = null;
-
         const pageToken = await env.DB.prepare(`
           SELECT account_id, access_token FROM tokens
           WHERE folder_id = ? AND platform = 'facebook_page'
           ORDER BY updated_at DESC LIMIT 1
         `).bind(folder_id).first();
-
         if (pageToken?.access_token && pageToken?.account_id) {
           pageId = String(pageToken.account_id);
           pageAccessToken = String(pageToken.access_token);
@@ -907,11 +845,8 @@ var worker_default = {
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-
         try {
           const videoBytes = await videoFile.arrayBuffer();
-
-          // Step 1: Initiate reel upload session
           const startRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels`, {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -920,15 +855,11 @@ var worker_default = {
               upload_phase: "start"
             })
           });
-
           const videoId = startRes?.video_id;
           const uploadUrl = startRes?.upload_url;
-
           if (!videoId || !uploadUrl) {
             throw new Error(`Bad reels start response: ${JSON.stringify(startRes)}`);
           }
-
-          // Step 2: Upload video bytes directly
           const upRes = await fetch(uploadUrl, {
             method: "POST",
             headers: {
@@ -938,13 +869,10 @@ var worker_default = {
             },
             body: videoBytes
           });
-
           if (!upRes.ok) {
             const errText = await upRes.text();
             throw new Error(`Facebook reels upload failed ${upRes.status}: ${errText}`);
           }
-
-          // Step 3: Finish upload and publish
           const finishRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels`, {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -952,22 +880,18 @@ var worker_default = {
               access_token: pageAccessToken,
               upload_phase: "finish",
               video_id: String(videoId),
-              title: title,
+              title,
               description: description || ""
             })
           });
-
           return new Response(JSON.stringify({
             success: true,
             videoId,
-            facebookUrl: finishRes?.post_id
-              ? `https://www.facebook.com/${finishRes.post_id}`
-              : `https://www.facebook.com/video/${videoId}`,
+            facebookUrl: finishRes?.post_id ? `https://www.facebook.com/${finishRes.post_id}` : `https://www.facebook.com/video/${videoId}`,
             data: finishRes
           }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
-
         } catch (err) {
           console.error("Facebook upload error:", err);
           return new Response(JSON.stringify({
@@ -979,7 +903,6 @@ var worker_default = {
           });
         }
       }
-
       if (url.pathname === "/api/post-video" && request.method === "POST") {
         const { account_id, video_url, title, platform, description, page_id, folder_id } = await request.json();
         const account = account_id ? await env.DB.prepare("SELECT * FROM accounts WHERE id = ?").bind(account_id).first() : null;
@@ -1063,7 +986,6 @@ var worker_default = {
         const ytChannel = payload.youtube_channel || "";
         const fbAccount = payload.facebook_account || "";
         const ttAccount = payload.tiktok_account || "";
-
         if (!imageBase64 || !imageFilename) {
           return new Response(
             JSON.stringify({ success: false, error: "Missing image_base64 or image_filename" }),
@@ -1073,11 +995,9 @@ var worker_default = {
             }
           );
         }
-
         let parsed = null;
         let aiResponse = null;
         let rawText = "";
-
         try {
           aiResponse = await env.AI.run("@cf/meta/llama-3.1-vision-8b", {
             messages: [
@@ -1115,10 +1035,9 @@ ANALYZE IMAGE + generate viral SEO content. Match image subject/mood perfectly.`
             ],
             images: [{
               data: imageBase64,
-              mimeType: imageFilename.split('.').pop()?.toLowerCase() === 'png' ? 'image/png' : 'image/jpeg'
+              mimeType: imageFilename.split(".").pop()?.toLowerCase() === "png" ? "image/png" : "image/jpeg"
             }]
           });
-
           if (typeof aiResponse === "string") {
             rawText = aiResponse;
           } else if (typeof aiResponse?.response === "string") {
@@ -1128,26 +1047,16 @@ ANALYZE IMAGE + generate viral SEO content. Match image subject/mood perfectly.`
           } else {
             rawText = JSON.stringify(aiResponse);
           }
-
-          rawText = rawText
-            .trim()
-            .replace(/^```json\s*/i, "")
-            .replace(/^```\s*/i, "")
-            .replace(/\s*```$/i, "")
-            .trim();
-
+          rawText = rawText.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
           const firstBrace = rawText.indexOf("{");
           const lastBrace = rawText.lastIndexOf("}");
-
           if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
             rawText = rawText.slice(firstBrace, lastBrace + 1).trim();
           }
-
           parsed = JSON.parse(rawText);
         } catch (_) {
           parsed = null;
         }
-
         const cleanData = parsed ? {
           youtube: {
             title: String(parsed?.youtube?.title || ""),
@@ -1162,7 +1071,6 @@ ANALYZE IMAGE + generate viral SEO content. Match image subject/mood perfectly.`
             descriptionAndTags: String(parsed?.facebook?.descriptionAndTags || "")
           }
         } : fallbackSeo(textPrompt);
-
         return new Response(JSON.stringify({
           success: true,
           data: cleanData,
