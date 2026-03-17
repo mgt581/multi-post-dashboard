@@ -424,13 +424,24 @@ var worker_default = {
         const accessToken = tData.access_token || tokenJson.access_token;
         const refreshToken = tData.refresh_token || tokenJson.refresh_token;
         const expiresIn = tData.expires_in || tokenJson.expires_in || 0;
-        const openId = tData.open_id || tData.openid || "Linked TikTok";
+        const openId = tData.open_id || tData.openid || "";
         const scope = tData.scope || "video.upload,video.publish,user.info.basic";
+        let tiktokNickname = "Linked TikTok";
+        try {
+          const userInfoRes = await fetch(
+            "https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name",
+            { headers: { "Authorization": `Bearer ${accessToken}` } }
+          );
+          const userInfo = await safeJson(userInfoRes);
+          const displayName = userInfo?.data?.user?.display_name;
+          if (displayName) tiktokNickname = String(displayName);
+        } catch (_) {}
         await env.DB.prepare(
-          "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'tiktok', 'Linked TikTok', ?, ?, ?)"
+          "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'tiktok', ?, ?, ?, ?)"
         ).bind(
           String(folderId),
           String(userId),
+          tiktokNickname,
           String(accessToken),
           refreshToken ? String(refreshToken) : null,
           nowMs() + Number(expiresIn) * 1e3
