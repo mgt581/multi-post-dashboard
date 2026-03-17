@@ -896,9 +896,21 @@
         if (file) {
           const sizeMB = (file.size / (1024*1024)).toFixed(1);
           const color = file.size > 500*1024*1024 ? "var(--error)" : "var(--success)";
-          info.innerHTML = `<strong>${file.name}</strong> (${sizeMB}MB) <span style="color: ${color};">✓</span>`;
+          // Clear any existing content
+          info.textContent = "";
+          // Create filename element safely
+          const nameEl = document.createElement("strong");
+          nameEl.textContent = file.name;
+          info.appendChild(nameEl);
+          // Add size text
+          info.appendChild(document.createTextNode(` (${sizeMB}MB) `));
+          // Add colored checkmark
+          const checkEl = document.createElement("span");
+          checkEl.textContent = "✓";
+          checkEl.style.color = color;
+          info.appendChild(checkEl);
         } else {
-          info.innerHTML = "";
+          info.textContent = "";
         }
       });
     }
