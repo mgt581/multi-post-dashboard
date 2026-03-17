@@ -234,14 +234,14 @@
 
           if (linked) {
             const handleText =
-              (key === "facebook" && linked.platform === "facebook_page")
-                ? (linked.nickname || "Facebook Page")
-                : (linked.nickname || "Connected");
+              linked.nickname ||
+              linked.page_name ||
+              linked.username ||
+              linked.name ||
+              linked.account_name ||
+              (key === "facebook" ? "Facebook Account" : key === "tiktok" ? "TikTok Account" : "Connected");
 
-            const connectedLabel =
-              (key === "facebook" && linked.platform === "facebook_page")
-                ? "Connected (Page)"
-                : "Connected";
+            const connectedLabel = "Connected";
 
             return `
               <div class="platform-card">
