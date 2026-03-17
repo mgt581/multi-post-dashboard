@@ -48,6 +48,10 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
 box-sizing:border-box;
 }
 
+html{
+scroll-behavior:smooth;
+}
+
 body{
 margin:0;
 font-family:'Manrope',sans-serif;
@@ -67,6 +71,7 @@ display:flex;
 justify-content:space-between;
 align-items:center;
 padding-bottom:60px;
+gap:20px;
 }
 
 .brand{
@@ -76,19 +81,13 @@ gap:12px;
 text-decoration:none;
 }
 
-/* FIX FOR LOGO TRANSPARENCY */
-.brand img{
-width:44px;
-height:44px;
-background: transparent !important;
-mix-blend-mode: normal;
-display: block;
-}
-
-.brand h1{
+.brand-text{
 margin:0;
 font-size:22px;
-color:white;
+font-weight:800;
+letter-spacing:-0.5px;
+color:#ffffff;
+line-height:1;
 }
 
 .btn{
@@ -99,7 +98,11 @@ font-weight:800;
 cursor:pointer;
 text-decoration:none;
 display:inline-block;
-transition:transform .1s;
+transition:transform .1s ease, opacity .2s ease, border-color .2s ease;
+}
+
+.btn:hover{
+opacity:.96;
 }
 
 .btn:active{
@@ -216,7 +219,7 @@ margin-bottom:20px;
 
 footer{
 margin-top:100px;
-padding:30px 0;
+padding:30px 0 12px;
 text-align:center;
 font-size:14px;
 color:var(--muted);
@@ -225,23 +228,90 @@ border-top:1px solid var(--border);
 
 .footer-links{
 margin-bottom:15px;
+display:flex;
+justify-content:center;
+align-items:center;
+gap:18px;
+flex-wrap:wrap;
 }
 
 .footer-links a{
-color:var(--muted);
+color:#ffffff;
 text-decoration:none;
-margin:0 12px;
 font-weight:700;
+transition:opacity .2s ease, color .2s ease;
 }
 
 .footer-links a:hover{
-color:var(--accent-2);
+opacity:.85;
+color:#ffffff;
+}
+
+.footer-divider{
+color:rgba(255,255,255,0.45);
+font-weight:700;
 }
 
 .nav-actions{
 display:flex;
 align-items:center;
 gap:10px;
+}
+
+@media (max-width:768px){
+body{
+padding:22px 14px;
+}
+
+nav{
+padding-bottom:40px;
+}
+
+.hero{
+margin:30px auto 0;
+}
+
+.hero h2{
+font-size:40px;
+letter-spacing:-1.5px;
+}
+
+.section h2,
+.cta h2{
+font-size:30px;
+}
+
+.hero p{
+font-size:17px;
+}
+}
+
+@media (max-width:560px){
+nav{
+flex-direction:row;
+align-items:center;
+}
+
+.brand-text{
+font-size:20px;
+}
+
+.hero h2{
+font-size:34px;
+line-height:1.12;
+}
+
+.hero p{
+font-size:16px;
+}
+
+.btn{
+width:auto;
+}
+
+.footer-links{
+gap:12px;
+}
 }
 
 </style>
@@ -253,15 +323,11 @@ gap:10px;
 
 <nav>
 
-<a href="/" class="brand">
-<img src="logo.png" alt="Multipost Logo">
-<h1>Multipost</h1>
+<a href="/" class="brand" aria-label="Multipost home">
+<h1 class="brand-text">Multi Post</h1>
 </a>
 
 <div class="nav-actions">
-<a href="privacy.html" class="btn btn-secondary">
-Privacy Policy
-</a>
 <a href="signin.html" class="btn btn-secondary">
 Sign In
 </a>
@@ -402,11 +468,14 @@ Start Using Multipost
 
 <div class="footer-links">
 <a href="privacy.html">Privacy Policy</a>
+<span class="footer-divider">|</span>
 <a href="terms.html">Terms of Service</a>
+<span class="footer-divider">|</span>
+<a href="mailto:alexbryant3234@gmail.com">Contact</a>
 </div>
 
 <div>
-© 2026 Bryant Group Holdings Ltd | Multipost Studio
+© 2026 Bryant Group Holdings Ltd | Multi Post
 </div>
 
 </footer>
