@@ -492,83 +492,124 @@ var worker_default = {
         const expiresIn = Number(tokens?.expires_in || 0);
         if (!accessToken) {
           return new Response(
-            JSON.stringify({
-              success: false,
-              error: "Facebook token missing",
-              data: tokens
-            }),
-            {
-              status: 400,
-              headers: { ...corsHeaders, "Content-Type": "application/json" }
-            }
+            JSON.stringify({ success: false, error: "Facebook token missing", data: tokens }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        let fbAccountId = "me";
-        let fbAccountName = "Facebook Account";
-        let fbRedirectName = "Facebook Account";
+        let fbUserId = "me";
+        let fbUserName = "Facebook Account";
         try {
-          const meRes = await fetch(
+          const me = await fetchFbJson(
             `${fbGraph}/me?fields=id,name&access_token=${encodeURIComponent(accessToken)}`
           );
-          const me = await fbSafe(meRes);
-          if (me?.id) fbAccountId = String(me.id);
-          if (me?.name) {
-            fbAccountName = String(me.name);
-            fbRedirectName = fbAccountName;
-          }
-        } catch (_) {
-        }
-        await env.DB.prepare(
-          "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'facebook', ?, ?, NULL, ?)"
-        ).bind(
-          String(folderId),
-          String(userId),
-          fbAccountName,
-          accessToken,
-          nowMs() + expiresIn * 1e3
-        ).run();
+          if (me?.id) fbUserId = String(me.id);
+          if (me?.name) fbUserName = String(me.name);
+        } catch (_) {}
+        // Atomically replace the facebook user row (D1 batch = single transaction)
+        await env.DB.batch([
+          env.DB.prepare(
+            "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook'"
+          ).bind(String(folderId), String(userId)),
+          env.DB.prepare(
+            "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, facebook_user_id, facebook_user_name, facebook_user_access_token) VALUES (?, ?, 'facebook', ?, ?, ?, ?, ?)"
+          ).bind(
+            String(folderId), String(userId),
+            fbUserName, accessToken,
+            fbUserId, fbUserName, accessToken
+          )
+        ]);
         await upsertToken({
           folderId: String(folderId),
           platform: "facebook",
-          accountId: fbAccountId,
+          accountId: fbUserId,
           accessToken,
           refreshToken: null,
           expiresAt: nowMs() + expiresIn * 1e3,
           scope: "pages_manage_posts,pages_show_list"
         });
-        try {
-          const pages = await fetchPageTokens(accessToken);
-          let firstPageName = null;
-          for (const p of pages) {
-            if (!p?.id || !p?.access_token) continue;
-            await upsertToken({
-              folderId: String(folderId),
-              platform: "facebook_page",
-              accountId: String(p.id),
-              accessToken: String(p.access_token),
-              refreshToken: null,
-              expiresAt: null,
-              scope: "page_access_token"
-            });
-            try {
-              const pageName = String(p.name || `Facebook Page ${p.id}`);
-              await env.DB.prepare(
-                "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'facebook_page', ?, ?, NULL, NULL)"
-              ).bind(
-                String(folderId),
-                String(userId),
-                pageName,
-                String(p.access_token)
-              ).run();
-              if (!firstPageName && pageName) firstPageName = pageName;
-            } catch (_) {
-            }
-          }
-          if (firstPageName) fbRedirectName = firstPageName;
-        } catch (_) {
-        }
+        // Redirect to folder page-picker — user will choose a page there
         return Response.redirect(
-          `${frontendBaseUrl}/create-post.html?facebook_connected=1&account_name=${encodeURIComponent(fbRedirectName)}&folder_id=${encodeURIComponent(folderId)}`
+          `${frontendBaseUrl}/folder.html?id=${encodeURIComponent(folderId)}&facebook=pages`
+        );
+      }
+      if (url.pathname === "/api/facebook/pages" && request.method === "GET") {
+        const folder_id = url.searchParams.get("folder_id") || "";
+        const userId = requireUser(url.searchParams.get("user_id"));
+        if (!folder_id || !userId) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Missing folder_id or user_id" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const fbAccount = await env.DB.prepare(
+          "SELECT facebook_user_access_token FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook' LIMIT 1"
+        ).bind(folder_id, userId).first();
+        if (!fbAccount?.facebook_user_access_token) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Facebook not connected for this folder" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        try {
+          const fbUrl = `${fbGraph}/me/accounts?fields=id,name,access_token,picture&access_token=${encodeURIComponent(String(fbAccount.facebook_user_access_token))}`;
+          const out = await fetchFbJson(fbUrl);
+          const pages = Array.isArray(out?.data) ? out.data.map(p => ({
+            id: String(p.id || ""),
+            name: String(p.name || ""),
+            access_token: String(p.access_token || ""),
+            picture: p.picture?.data?.url || `https://graph.facebook.com/${p.id}/picture?type=square`
+          })) : [];
+          return new Response(
+            JSON.stringify({ success: true, pages }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        } catch (err) {
+          return new Response(
+            JSON.stringify({ success: false, error: err.message || "Failed to fetch pages" }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+      }
+      if (url.pathname === "/api/facebook/select-page" && request.method === "POST") {
+        const body = await request.json();
+        const folder_id = String(body.folder_id || "");
+        const userId = requireUser(String(body.user_id || ""));
+        const page_id = String(body.page_id || "");
+        const page_name = String(body.page_name || "");
+        const page_access_token = String(body.page_access_token || "");
+        const page_picture = String(body.page_picture || "");
+        if (!folder_id || !userId || !page_id || !page_name || !page_access_token) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Missing required fields" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        // Atomically replace the selected page row (D1 batch = single transaction)
+        await env.DB.batch([
+          env.DB.prepare(
+            "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook_page'"
+          ).bind(folder_id, userId),
+          env.DB.prepare(
+            "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, facebook_page_id, facebook_page_name, facebook_page_access_token, facebook_page_picture) VALUES (?, ?, 'facebook_page', ?, ?, ?, ?, ?, ?)"
+          ).bind(
+            folder_id, userId,
+            page_name, page_access_token,
+            page_id, page_name, page_access_token, page_picture || null
+          )
+        ]);
+        // Keep tokens table in sync for any legacy code paths
+        await upsertToken({
+          folderId: folder_id,
+          platform: "facebook_page",
+          accountId: page_id,
+          accessToken: page_access_token,
+          refreshToken: null,
+          expiresAt: null,
+          scope: "page_access_token"
+        });
+        return new Response(
+          JSON.stringify({ success: true }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
       if (url.pathname === "/api/youtube/upload" && request.method === "POST") {
@@ -829,22 +870,18 @@ var worker_default = {
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-        let pageId = null;
-        let pageAccessToken = null;
-        const pageToken = await env.DB.prepare(`
-          SELECT account_id, access_token FROM tokens
-          WHERE folder_id = ? AND platform = 'facebook_page'
-          ORDER BY updated_at DESC LIMIT 1
-        `).bind(folder_id).first();
-        if (pageToken?.access_token && pageToken?.account_id) {
-          pageId = String(pageToken.account_id);
-          pageAccessToken = String(pageToken.access_token);
-        } else {
-          return new Response(JSON.stringify({ success: false, error: "No Facebook Page linked. Please link a Facebook Page to publish." }), {
+        // Use the selected facebook_page row saved via /api/facebook/select-page
+        const pageAccount = await env.DB.prepare(
+          "SELECT facebook_page_id, facebook_page_access_token FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook_page' LIMIT 1"
+        ).bind(folder_id, user_id).first();
+        if (!pageAccount?.facebook_page_id || !pageAccount?.facebook_page_access_token) {
+          return new Response(JSON.stringify({ success: false, error: "No Facebook Page selected. Please select a page in your workspace settings." }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
+        const pageId = String(pageAccount.facebook_page_id);
+        const pageAccessToken = String(pageAccount.facebook_page_access_token);
         try {
           const videoBytes = await videoFile.arrayBuffer();
           const startRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels`, {
