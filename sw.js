@@ -1,6 +1,4 @@
-# create sw.js
-cat > sw.js <<'EOF'
-const SW_VERSION = "2026-03-15-1";
+const SW_VERSION = "2026-03-17-1";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
@@ -20,8 +18,3 @@ self.addEventListener("fetch", (event) => {
 
   event.respondWith(fetch(event.request));
 });
-EOF
-
-git add sw.js
-git commit -m "Add browser service worker; bypass /api cache"
-git push origin main

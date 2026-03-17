@@ -271,9 +271,20 @@ var worker_default = {
           return new Response("Missing id or user_id", { status: 400, headers: corsHeaders });
         }
         if (type === "account_only") {
-          await env.DB.prepare(
-            "DELETE FROM accounts WHERE id = ? AND user_id = ?"
-          ).bind(id, userId).run();
+          // Look up the account to determine its platform and folder so we can cascade
+          const acct = await env.DB.prepare(
+            "SELECT platform, folder_id FROM accounts WHERE id = ? AND user_id = ?"
+          ).bind(id, userId).first();
+          if (acct && (acct.platform === "facebook" || acct.platform === "facebook_page")) {
+            // Remove all Facebook-related accounts (user token + all page tokens) for this folder
+            await env.DB.prepare(
+              "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform IN ('facebook', 'facebook_page')"
+            ).bind(acct.folder_id, userId).run();
+          } else {
+            await env.DB.prepare(
+              "DELETE FROM accounts WHERE id = ? AND user_id = ?"
+            ).bind(id, userId).run();
+          }
           return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
         }
         await env.DB.prepare(
