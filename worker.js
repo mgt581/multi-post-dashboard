@@ -391,7 +391,9 @@ var worker_default = {
           expiresAt: nowMs() + Number(tokens.expires_in || 0) * 1e3,
           scope: "https://www.googleapis.com/auth/youtube.upload"
         });
-        return Response.redirect(`${frontendBaseUrl}/create-post.html`);
+        return Response.redirect(
+          `${frontendBaseUrl}/create-post.html?youtube_connected=1&account_name=${encodeURIComponent(channelName)}&folder_id=${encodeURIComponent(folderId)}`
+        );
       }
       if (url.pathname === "/api/auth/callback/tiktok") {
         const code = url.searchParams.get("code");
@@ -429,12 +431,19 @@ var worker_default = {
         let tiktokNickname = "Linked TikTok";
         try {
           const userInfoRes = await fetch(
-            "https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name",
-            { headers: { "Authorization": `Bearer ${accessToken}` } }
+            "https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name,username",
+            {
+              headers: {
+                "Authorization": `Bearer ${accessToken}`,
+                "Content-Type": "application/json"
+              }
+            }
           );
           const userInfo = await safeJson(userInfoRes);
-          const displayName = userInfo?.data?.user?.display_name;
-          if (displayName) tiktokNickname = String(displayName);
+          const user = userInfo?.data?.user;
+          const displayName = user?.display_name || user?.username || user?.nickname;
+          const trimmedName = displayName ? String(displayName).trim() : "";
+          if (trimmedName) tiktokNickname = trimmedName;
         } catch (_) {}
         await env.DB.prepare(
           "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'tiktok', ?, ?, ?, ?)"
@@ -455,7 +464,9 @@ var worker_default = {
           expiresAt: nowMs() + Number(expiresIn) * 1e3,
           scope: String(scope)
         });
-        return Response.redirect(`${frontendBaseUrl}/create-post.html`);
+        return Response.redirect(
+          `${frontendBaseUrl}/create-post.html?tiktok_connected=1&account_name=${encodeURIComponent(tiktokNickname)}&folder_id=${encodeURIComponent(folderId)}`
+        );
       }
       if (url.pathname === "/api/auth/callback/facebook") {
         const code = url.searchParams.get("code");
@@ -498,13 +509,14 @@ var worker_default = {
         }
         let fbAccountId = "me";
         let fbAccountName = "Facebook Account";
+        let fbRedirectName = "Facebook Account";
         try {
           const meRes = await fetch(
             `${fbGraph}/me?fields=id,name&access_token=${encodeURIComponent(accessToken)}`
           );
           const me = await fbSafe(meRes);
           if (me?.id) fbAccountId = String(me.id);
-          if (me?.name) fbAccountName = String(me.name);
+          if (me?.name) { fbAccountName = String(me.name); fbRedirectName = fbAccountName; }
         } catch (_) {
         }
         await env.DB.prepare(
@@ -527,6 +539,7 @@ var worker_default = {
         });
         try {
           const pages = await fetchPageTokens(accessToken);
+          let firstPageName = null;
           for (const p of pages) {
             if (!p?.id || !p?.access_token) continue;
             await upsertToken({
@@ -539,20 +552,25 @@ var worker_default = {
               scope: "page_access_token"
             });
             try {
+              const pageName = String(p.name || `Facebook Page ${p.id}`);
               await env.DB.prepare(
                 "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'facebook_page', ?, ?, NULL, NULL)"
               ).bind(
                 String(folderId),
                 String(userId),
-                String(p.name || `Facebook Page ${p.id}`),
+                pageName,
                 String(p.access_token)
               ).run();
+              if (!firstPageName && pageName) firstPageName = pageName;
             } catch (_) {
             }
           }
+          if (firstPageName) fbRedirectName = firstPageName;
         } catch (_) {
         }
-        return Response.redirect(`${frontendBaseUrl}/create-post.html`);
+        return Response.redirect(
+          `${frontendBaseUrl}/create-post.html?facebook_connected=1&account_name=${encodeURIComponent(fbRedirectName)}&folder_id=${encodeURIComponent(folderId)}`
+        );
       }
       if (url.pathname === "/api/youtube/upload" && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";

@@ -1195,17 +1195,20 @@
 
     if (youtubeConnected) {
       await loadFolderContext();
-      setStatus("YouTube account connected to this folder", "success");
+      const accountName = getUrlParam("account_name");
+      setStatus(accountName ? `YouTube connected: ${accountName}` : "YouTube account connected to this folder", "success");
     }
 
     if (facebookConnected) {
       await loadFolderContext();
-      setStatus("Facebook account connected to this folder", "success");
+      const accountName = getUrlParam("account_name");
+      setStatus(accountName ? `Facebook connected: ${accountName}` : "Facebook account connected to this folder", "success");
     }
 
     if (tiktokConnected) {
       await loadFolderContext();
-      setStatus("TikTok account connected to this folder", "success");
+      const accountName = getUrlParam("account_name");
+      setStatus(accountName ? `TikTok connected: ${accountName}` : "TikTok account connected to this folder", "success");
     }
 
     if (youtubeError) {
