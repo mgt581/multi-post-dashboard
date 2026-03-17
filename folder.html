@@ -328,18 +328,8 @@
   </script>
 
   <script>
-    // Kept your block, but made it harmless.
-    // This import can break the page and isn't needed for client-side usage.
-    try {
-      if (false && 'serviceWorker' in navigator) {
-        console.log('Running in a service worker context');
-      } else {
-        console.log('Not running in a service worker context');
-        // Disabled on purpose:
-        // import('./worker.js').then(worker => console.log('Worker loaded as a module.', worker));
-      }
-    } catch (e) {
-      console.log("Worker import skipped");
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
     }
   </script>
 </body>
