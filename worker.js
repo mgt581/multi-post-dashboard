@@ -11,7 +11,7 @@ var worker_default = {
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type"
+      "Access-Control-Allow-Headers": "Content-Type, folder_id, user_id"
     };
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
@@ -29,6 +29,7 @@ var worker_default = {
     );
     const redirectUri = `${siteBaseUrl}/api/auth/callback/youtube`;
     const fbRedirectUri = `${siteBaseUrl}/api/auth/callback/facebook`;
+    const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
     const nowMs = /* @__PURE__ */ __name22(() => Date.now(), "nowMs");
     const safeJson = /* @__PURE__ */ __name22(async (res) => {
       const text = await res.text();
@@ -573,7 +574,7 @@ var worker_default = {
           });
         }
 
-        if (videoFile.size > 500 * 1024 * 1024) {
+        if (videoFile.size > MAX_VIDEO_SIZE_BYTES) {
           return new Response(JSON.stringify({ success: false, error: "Video too large (>500MB)" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
@@ -666,6 +667,272 @@ var worker_default = {
             success: false, 
             error: err.message || "Upload failed",
             details: err.stack 
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+      }
+
+      if (url.pathname === "/api/tiktok/upload" && request.method === "POST") {
+        const folder_id = request.headers.get("folder_id") || "";
+        const user_id = request.headers.get("user_id") || "";
+        if (!folder_id || !user_id) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const formData = await request.formData();
+        const caption = String(formData.get("caption") || "").trim();
+        let privacyStatus = String(formData.get("privacyStatus") || "SELF_ONLY").toUpperCase();
+        const videoFile = formData.get("video");
+
+        if (!caption) {
+          return new Response(JSON.stringify({ success: false, error: "Caption required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        if (!videoFile || !(videoFile instanceof File)) {
+          return new Response(JSON.stringify({ success: false, error: "Valid video file required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        if (videoFile.size > MAX_VIDEO_SIZE_BYTES) {
+          return new Response(JSON.stringify({ success: false, error: "Video too large (>500MB)" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const validPrivacyLevels = ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY"];
+        if (!validPrivacyLevels.includes(privacyStatus)) {
+          privacyStatus = "SELF_ONLY";
+        }
+
+        const token = await env.DB.prepare(`
+          SELECT * FROM tokens
+          WHERE folder_id = ? AND platform = 'tiktok'
+          ORDER BY updated_at DESC LIMIT 1
+        `).bind(folder_id).first();
+
+        if (!token?.access_token) {
+          return new Response(JSON.stringify({ success: false, error: "No TikTok token found. Link account first." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        try {
+          const videoBytes = await videoFile.arrayBuffer();
+          const videoSize = videoFile.size;
+          const chunkSize = Math.min(videoSize, 10 * 1024 * 1024);
+          const totalChunks = Math.ceil(videoSize / chunkSize);
+
+          // Step 1: Initialize upload
+          const initRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token.access_token}`,
+              "Content-Type": "application/json; charset=UTF-8"
+            },
+            body: JSON.stringify({
+              post_info: {
+                title: caption,
+                privacy_level: privacyStatus,
+                disable_duet: false,
+                disable_comment: false,
+                disable_stitch: false
+              },
+              source_info: {
+                source: "FILE_UPLOAD",
+                video_size: videoSize,
+                chunk_size: chunkSize,
+                total_chunk_count: totalChunks
+              }
+            })
+          });
+
+          const initData = await safeJson(initRes);
+          if (!initRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
+            throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
+          }
+
+          const publishId = initData?.data?.publish_id;
+          const uploadUrl = initData?.data?.upload_url;
+
+          if (!publishId || !uploadUrl) {
+            throw new Error(`TikTok init missing publish_id or upload_url: ${JSON.stringify(initData)}`);
+          }
+
+          // Step 2: Upload video in chunks
+          for (let i = 0; i < totalChunks; i++) {
+            const start = i * chunkSize;
+            const end = Math.min(start + chunkSize, videoSize);
+            const chunk = videoBytes.slice(start, end);
+
+            const uploadRes = await fetch(uploadUrl, {
+              method: "PUT",
+              headers: {
+                "Content-Type": videoFile.type || "video/mp4",
+                "Content-Length": String(chunk.byteLength),
+                "Content-Range": `bytes ${start}-${end - 1}/${videoSize}`
+              },
+              body: chunk
+            });
+
+            if (!uploadRes.ok) {
+              const errText = await uploadRes.text();
+              throw new Error(`TikTok chunk upload failed: ${uploadRes.status} ${errText}`);
+            }
+          }
+
+          return new Response(JSON.stringify({
+            success: true,
+            publishId,
+            tiktokUrl: `https://www.tiktok.com/`
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+
+        } catch (err) {
+          console.error("TikTok upload error:", err);
+          return new Response(JSON.stringify({
+            success: false,
+            error: err.message || "TikTok upload failed"
+          }), {
+            status: 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+      }
+
+      if (url.pathname === "/api/facebook/upload" && request.method === "POST") {
+        const folder_id = request.headers.get("folder_id") || "";
+        const user_id = request.headers.get("user_id") || "";
+        if (!folder_id || !user_id) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        const formData = await request.formData();
+        const title = String(formData.get("title") || "").trim();
+        const description = String(formData.get("description") || "").trim();
+        const videoFile = formData.get("video");
+
+        if (!title) {
+          return new Response(JSON.stringify({ success: false, error: "Title required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        if (!videoFile || !(videoFile instanceof File)) {
+          return new Response(JSON.stringify({ success: false, error: "Valid video file required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        if (videoFile.size > MAX_VIDEO_SIZE_BYTES) {
+          return new Response(JSON.stringify({ success: false, error: "Video too large (>500MB)" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        // Prefer page token for posting; fall back to user token
+        let pageId = null;
+        let pageAccessToken = null;
+
+        const pageToken = await env.DB.prepare(`
+          SELECT account_id, access_token FROM tokens
+          WHERE folder_id = ? AND platform = 'facebook_page'
+          ORDER BY updated_at DESC LIMIT 1
+        `).bind(folder_id).first();
+
+        if (pageToken?.access_token && pageToken?.account_id) {
+          pageId = String(pageToken.account_id);
+          pageAccessToken = String(pageToken.access_token);
+        } else {
+          return new Response(JSON.stringify({ success: false, error: "No Facebook Page linked. Please link a Facebook Page to publish." }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+
+        try {
+          const videoBytes = await videoFile.arrayBuffer();
+
+          // Step 1: Initiate reel upload session
+          const startRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              access_token: pageAccessToken,
+              upload_phase: "start"
+            })
+          });
+
+          const videoId = startRes?.video_id;
+          const uploadUrl = startRes?.upload_url;
+
+          if (!videoId || !uploadUrl) {
+            throw new Error(`Bad reels start response: ${JSON.stringify(startRes)}`);
+          }
+
+          // Step 2: Upload video bytes directly
+          const upRes = await fetch(uploadUrl, {
+            method: "POST",
+            headers: {
+              Authorization: `OAuth ${pageAccessToken}`,
+              "Content-Type": "application/octet-stream",
+              "Content-Length": String(videoBytes.byteLength)
+            },
+            body: videoBytes
+          });
+
+          if (!upRes.ok) {
+            const errText = await upRes.text();
+            throw new Error(`Facebook reels upload failed ${upRes.status}: ${errText}`);
+          }
+
+          // Step 3: Finish upload and publish
+          const finishRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              access_token: pageAccessToken,
+              upload_phase: "finish",
+              video_id: String(videoId),
+              title: title,
+              description: description || ""
+            })
+          });
+
+          return new Response(JSON.stringify({
+            success: true,
+            videoId,
+            facebookUrl: finishRes?.post_id
+              ? `https://www.facebook.com/${finishRes.post_id}`
+              : `https://www.facebook.com/video/${videoId}`,
+            data: finishRes
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+
+        } catch (err) {
+          console.error("Facebook upload error:", err);
+          return new Response(JSON.stringify({
+            success: false,
+            error: err.message || "Facebook upload failed"
           }), {
             status: 500,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
