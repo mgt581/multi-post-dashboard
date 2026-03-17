@@ -226,28 +226,27 @@ color:var(--muted);
 border-top:1px solid var(--border);
 }
 
-.footer-links{
-margin-bottom:15px;
+.links-inline{
 display:flex;
 justify-content:center;
 align-items:center;
-gap:18px;
+gap:14px;
 flex-wrap:wrap;
 }
 
-.footer-links a{
+.links-inline a{
 color:#ffffff;
 text-decoration:none;
 font-weight:700;
 transition:opacity .2s ease, color .2s ease;
 }
 
-.footer-links a:hover{
+.links-inline a:hover{
 opacity:.85;
 color:#ffffff;
 }
 
-.footer-divider{
+.link-divider{
 color:rgba(255,255,255,0.45);
 font-weight:700;
 }
@@ -255,7 +254,17 @@ font-weight:700;
 .nav-actions{
 display:flex;
 align-items:center;
-gap:10px;
+gap:16px;
+flex-wrap:wrap;
+justify-content:flex-end;
+}
+
+.nav-links{
+font-size:14px;
+}
+
+.footer-links{
+margin-bottom:15px;
 }
 
 @media (max-width:768px){
@@ -284,12 +293,17 @@ font-size:30px;
 .hero p{
 font-size:17px;
 }
+
+.nav-links{
+font-size:13px;
+}
 }
 
 @media (max-width:560px){
 nav{
-flex-direction:row;
-align-items:center;
+flex-direction:column;
+align-items:flex-start;
+gap:14px;
 }
 
 .brand-text{
@@ -307,6 +321,15 @@ font-size:16px;
 
 .btn{
 width:auto;
+}
+
+.nav-actions{
+width:100%;
+justify-content:space-between;
+}
+
+.nav-links{
+justify-content:flex-start;
 }
 
 .footer-links{
@@ -328,6 +351,14 @@ gap:12px;
 </a>
 
 <div class="nav-actions">
+<div class="nav-links links-inline" aria-label="Legal and contact links">
+<a href="privacy.html">Privacy</a>
+<span class="link-divider">|</span>
+<a href="terms.html">Terms</a>
+<span class="link-divider">|</span>
+<a href="mailto:alexbryant3234@gmail.com">Contact</a>
+</div>
+
 <a href="signin.html" class="btn btn-secondary">
 Sign In
 </a>
@@ -466,11 +497,11 @@ Start Using Multipost
 
 <footer>
 
-<div class="footer-links">
+<div class="footer-links links-inline">
 <a href="privacy.html">Privacy Policy</a>
-<span class="footer-divider">|</span>
+<span class="link-divider">|</span>
 <a href="terms.html">Terms of Service</a>
-<span class="footer-divider">|</span>
+<span class="link-divider">|</span>
 <a href="mailto:alexbryant3234@gmail.com">Contact</a>
 </div>
 
