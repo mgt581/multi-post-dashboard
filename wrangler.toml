@@ -20,6 +20,7 @@ FB_CLIENT_ID = "1596560914709231"
 binding = "DB"
 database_name = "accountsmultipostapp"
 database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
+migrations_dir = "migrations"
 
 [ai]
 binding = "AI"
