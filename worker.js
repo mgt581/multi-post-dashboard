@@ -198,30 +198,26 @@ var worker_default = {
       const cleaned = cleanText(prompt).toLowerCase().replace(/[^\w\s]/g, " ");
       const words = cleaned.split(/\s+/).filter(Boolean).filter((w) => w.length > 2);
       const unique = [...new Set(words)];
-      const base = unique.slice(0, 8);
+      const base = unique.slice(0, 10);
       const extras = [
-        "viral meme",
-        "funny clip",
-        "relatable content",
-        "social media humor",
-        "public interaction",
-        "meme plug"
+        "viral", "trending", "shorts", "reels", "fyp",
+        "viral content", "trending now", "must watch"
       ];
       return [.../* @__PURE__ */ new Set([...base, ...extras])].join(", ");
     }, "makeKeywords");
     const fallbackSeo = /* @__PURE__ */ __name222((prompt) => {
-      const idea = cleanText(prompt) || "viral meme clip";
+      const idea = cleanText(prompt) || "viral short video";
       const lower = idea.toLowerCase();
-      let youtubeTitle = idea;
-      if (!/[|:-]/.test(youtubeTitle)) {
-        youtubeTitle = `${idea} | Meme Plug`;
+      let youtubeTitle = idea.length <= 60 ? idea : idea.slice(0, 57) + "...";
+      if (!/[|:-]/.test(youtubeTitle) && youtubeTitle.length <= 55) {
+        youtubeTitle = `${youtubeTitle} | Must Watch`;
       }
-      let youtubeDescription = `Funny viral content based on: ${idea}. Perfect for meme lovers, relatable moments, and short-form social content. #MemePlug #viral #meme`;
-      let tiktokCaption = `POV: ${lower} \u{1F480} #MemePlug #viral #funnymeme #relatable`;
+      let youtubeDescription = `${idea} - Watch this trending video and don't miss out! Like, comment and subscribe for more viral content. Perfect for fans of trending short-form videos.`;
+      let tiktokCaption = `POV: ${lower} \u{1F525} #viral #trending #fyp #foryoupage #foryou #shorts`;
       let facebookTitle = idea.charAt(0).toUpperCase() + idea.slice(1);
-      let facebookDescriptionAndTags = `${idea} \u{1F602} Follow for more relatable meme content. #MemePlug #viral #meme #funny`;
+      let facebookDescriptionAndTags = `${idea} \u{1F525}\nFollow for daily trending content! \u{1F44F}\n\n#viral #trending #reels #foryou #mustwatch #explore`;
       if (/pov[:\s-]/i.test(idea)) {
-        tiktokCaption = `${idea} \u{1F480} #MemePlug #viral #funnymeme #relatable`;
+        tiktokCaption = `${idea} \u{1F525} #viral #trending #fyp #foryoupage #relatable`;
       }
       return {
         youtube: {
@@ -1040,66 +1036,83 @@ var worker_default = {
       }
       if (url.pathname === "/api/generate-seo" && request.method === "POST") {
         const payload = await request.json();
-        const imageBase64 = payload.image_base64;
-        const imageFilename = payload.image_filename;
+        const imageBase64 = payload.image_base64 || "";
+        const imageFilename = payload.image_filename || "";
         const textPrompt = payload.prompt || "";
         const folderId = payload.folder_id || "";
         const folderName = payload.folder_name || "";
         const ytChannel = payload.youtube_channel || "";
         const fbAccount = payload.facebook_account || "";
         const ttAccount = payload.tiktok_account || "";
-        if (!imageBase64 || !imageFilename) {
+        const hasImage = !!(imageBase64 && imageFilename);
+        const hasText = !!(textPrompt.trim());
+        if (!hasImage && !hasText) {
           return new Response(
-            JSON.stringify({ success: false, error: "Missing image_base64 or image_filename" }),
+            JSON.stringify({ success: false, error: "Provide an image, a text prompt, or both" }),
             {
               status: 400,
               headers: { ...corsHeaders, "Content-Type": "application/json" }
             }
           );
         }
-        let parsed = null;
-        let aiResponse = null;
-        let rawText = "";
-        try {
-          aiResponse = await env.AI.run("@cf/meta/llama-3.1-vision-8b", {
-            messages: [
-              {
-                role: "system",
-                content: `Vision AI social media SEO expert.
+        const brandContext = folderName ? `Brand/Channel: ${folderName}. ` : "";
+        const seoSystemPrompt = `You are an expert social media SEO strategist with deep knowledge of YouTube, TikTok, and Facebook algorithms. Your goal is to generate high-quality, trending, platform-optimized SEO content that maximises discoverability and engagement.
 
-Analyze the uploaded image (thumbnail/post).
+Platform requirements:
+- YouTube: Titles must be 50-60 characters, keyword-rich, and compelling. Descriptions must be 150-300 characters with a strong hook and relevant keywords naturally embedded. Keywords must be 15-20 specific, trending, high-volume search terms separated by commas (mix broad + niche terms). Optimize for YouTube search and suggested videos.
+- TikTok: Caption must be under 150 characters with 3-5 highly relevant trending hashtags including #fyp and #foryoupage. Use conversational tone, emojis, and hooks that drive shares. Optimize for the TikTok For You Page algorithm.
+- Facebook: Title must be 40-60 characters. Description must be 100-200 characters followed by 5-8 relevant hashtags. Optimize for Facebook Reels discovery and shares.
 
-Return ONLY valid JSON. No markdown, no explanations.
+Quality rules:
+- Generate SPECIFIC, NICHE content — never generic filler text
+- Use currently trending keywords and hashtags for maximum reach
+- Match the exact content topic/mood — be precise, not vague
+- Each platform's content must be uniquely optimised, not copy-pasted
+- Titles must be clickable and curiosity-driving
+- Keywords must include a mix of high-volume broad terms and specific niche terms
 
-Structure:
+Return ONLY valid JSON with no markdown, no extra text, no explanations:
 {
   "youtube": {
-    "title": "Catchy title based on image (15-60 chars)",
-    "description": "Engaging description (100-150 chars)",
-    "keywords": "15 comma-separated keywords"
+    "title": "Engaging title 50-60 chars",
+    "description": "Compelling description 150-300 chars with keywords embedded naturally",
+    "keywords": "15-20 trending comma-separated keywords, mix of broad and niche"
   },
   "tiktok": {
-    "allInOne": "Complete caption w/ emojis/hashtags (POV style if fits)"
+    "allInOne": "Hook caption under 150 chars with emojis and 3-5 trending hashtags #fyp #foryoupage"
   },
   "facebook": {
-    "title": "Reels title",
-    "descriptionAndTags": "Description + hashtags"
+    "title": "Reels title 40-60 chars",
+    "descriptionAndTags": "Engaging description 100-200 chars\\n\\n#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5"
   }
-}`
-              },
-              {
-                role: "user",
-                content: `Image filename: ${imageFilename}
-Optional text: ${textPrompt}
-
-ANALYZE IMAGE + generate viral SEO content. Match image subject/mood perfectly.`
-              }
-            ],
-            images: [{
-              data: imageBase64,
-              mimeType: imageFilename.split(".").pop()?.toLowerCase() === "png" ? "image/png" : "image/jpeg"
-            }]
-          });
+}`;
+        let parsed = null;
+        let rawText = "";
+        try {
+          let aiResponse = null;
+          if (hasImage) {
+            const mimeType = imageFilename.toLowerCase().split(".").pop() === "png" ? "image/png" : "image/jpeg";
+            const userContent = hasText
+              ? `${brandContext}Analyze this image and the following context to generate platform-optimized SEO content.\n\nContext: ${textPrompt}\n\nGenerate trending, specific SEO — not generic content.`
+              : `${brandContext}Analyze this image carefully and generate platform-optimized SEO content based on what you see.\n\nGenerate trending, specific SEO — not generic content.`;
+            aiResponse = await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
+              messages: [
+                { role: "system", content: seoSystemPrompt },
+                { role: "user", content: userContent }
+              ],
+              images: [{ data: imageBase64, mimeType }]
+            });
+          } else {
+            aiResponse = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+              messages: [
+                { role: "system", content: seoSystemPrompt },
+                {
+                  role: "user",
+                  content: `${brandContext}Generate platform-optimized SEO content for the following:\n\n${textPrompt}\n\nGenerate trending, specific SEO — not generic content.`
+                }
+              ]
+            });
+          }
           if (typeof aiResponse === "string") {
             rawText = aiResponse;
           } else if (typeof aiResponse?.response === "string") {

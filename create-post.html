@@ -346,20 +346,20 @@
     <section class="card hero">
       <div style="display: flex; gap: 12px; flex-direction: column;">
         <div>
-          <label for="seoImage">📸 Upload thumbnail/post image <span class="small" style="color: var(--muted);">(AI analyzes for perfect SEO)</span></label>
+          <label for="seoImage">📸 Upload image <span class="small" style="color: var(--muted);">(optional — AI analyzes image for richer SEO)</span></label>
           <input id="seoImage" type="file" accept="image/*" style="width: 100%; margin-bottom: 8px;">
           <div id="imagePreview" style="width: 100%; height: 200px; border: 2px dashed var(--border); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--muted); background: rgba(255,255,255,0.02); font-size: 14px;">
-            Select image (JPG/PNG, <5MB)
+            Select image (JPG/PNG, &lt;5MB) — optional
           </div>
         </div>
         
-        <label for="videoPrompt">💭 Optional description</label>
-        <textarea id="videoPrompt" rows="2" placeholder="Describe video/idea (optional - AI uses image too)"></textarea>
+        <label for="videoPrompt">💭 Describe your content <span class="small" style="color: var(--muted);">(required if no image — add both for best results)</span></label>
+        <textarea id="videoPrompt" rows="2" placeholder="Describe your video/post topic, niche, or idea (e.g. 'morning gym routine for beginners')"></textarea>
       </div>
 
       <div class="controls">
-        <button id="generateBtn" class="btn" onclick="generateSEO()">✨ AI Analyze Image → Generate SEO</button>
-        <span id="status" class="status">Upload image to start</span>
+        <button id="generateBtn" class="btn" onclick="generateSEO()">✨ Generate Trending SEO</button>
+        <span id="status" class="status">Upload an image, enter a description, or both</span>
       </div>
     </section>
 
@@ -630,8 +630,8 @@
   function setLoading(isLoading) {
     generateBtn.disabled = isLoading;
     generateBtn.textContent = isLoading
-      ? "Analyzing trends…"
-      : "✨ AI Analyze Image → Generate SEO";
+      ? "Generating trending SEO…"
+      : "✨ Generate Trending SEO";
   }
 
   function isLinked(name) {
@@ -746,36 +746,47 @@
     const seoImageInput = document.getElementById("seoImage");
     const imageFile = seoImageInput.files?.[0];
 
-    if (!imageFile) {
-      alert("Please upload an image first");
+    if (!imageFile && !prompt) {
+      alert("Please upload an image, enter a description, or both");
       return;
     }
 
-    if (imageFile.size > 5 * 1024 * 1024) {
+    if (imageFile && imageFile.size > 5 * 1024 * 1024) {
       alert("Image too large (max 5MB)");
       return;
     }
 
     setLoading(true);
-    setStatus("AI analyzing image...", "working");
+    const statusMsg = imageFile && prompt
+      ? "AI analyzing image & description…"
+      : imageFile
+        ? "AI analyzing image…"
+        : "AI generating SEO from description…";
+    setStatus(statusMsg, "working");
 
     try {
-      const imageBase64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = String(reader.result || "");
-          resolve(result.split(",")[1] || "");
-        };
-        reader.onerror = () => reject(new Error("Failed to read image"));
-        reader.readAsDataURL(imageFile);
-      });
+      let imageBase64 = "";
+      let imageFilename = "";
+
+      if (imageFile) {
+        imageBase64 = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = String(reader.result || "");
+            resolve(result.split(",")[1] || "");
+          };
+          reader.onerror = () => reject(new Error("Failed to read image"));
+          reader.readAsDataURL(imageFile);
+        });
+        imageFilename = imageFile.name;
+      }
 
       const res = await fetch(`${apiBase}/generate-seo`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           image_base64: imageBase64,
-          image_filename: imageFile.name,
+          image_filename: imageFilename,
           prompt: prompt || "",
           folder_id: activeFolderId,
           folder_name: activeFolderName,
@@ -824,11 +835,11 @@
       document.getElementById("fbDetails").value =
         coerceToText(facebook.descriptionAndTags || facebook.description) || "";
 
-      setStatus(`✨ AI SEO generated from image "${activeFolderName}"`, "success");
+      setStatus(`✨ Trending SEO generated${activeFolderName ? ` for "${activeFolderName}"` : ""}`, "success");
     } catch (err) {
       console.error(err);
-      setStatus(err?.message || "Image error", "error");
-      alert(`Image processing failed: ${err?.message || err}`);
+      setStatus(err?.message || "SEO generation failed", "error");
+      alert(`SEO generation failed: ${err?.message || err}`);
     } finally {
       setLoading(false);
     }
