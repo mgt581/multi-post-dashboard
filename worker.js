@@ -8,6 +8,8 @@ var __defProp22 = Object.defineProperty;
 var __name22 = /* @__PURE__ */ __name2((target, value) => __defProp22(target, "name", { value, configurable: true }), "__name");
 var __defProp222 = Object.defineProperty;
 var __name222 = /* @__PURE__ */ __name22((target, value) => __defProp222(target, "name", { value, configurable: true }), "__name");
+var __defProp2222 = Object.defineProperty;
+var __name2222 = /* @__PURE__ */ __name222((target, value) => __defProp2222(target, "name", { value, configurable: true }), "__name");
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -25,15 +27,15 @@ var worker_default = {
     if (url.pathname === "/" || url.pathname === "") {
       return Response.redirect(frontendBaseUrl, 302);
     }
-    const requireUser = /* @__PURE__ */ __name222(
+    const requireUser = /* @__PURE__ */ __name2222(
       (val) => val && typeof val === "string" && val.trim() ? val.trim() : null,
       "requireUser"
     );
     const redirectUri = `${siteBaseUrl}/api/auth/callback/youtube`;
     const fbRedirectUri = `${siteBaseUrl}/api/auth/callback/facebook`;
     const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
-    const nowMs = /* @__PURE__ */ __name222(() => Date.now(), "nowMs");
-    const safeJson = /* @__PURE__ */ __name222(async (res) => {
+    const nowMs = /* @__PURE__ */ __name2222(() => Date.now(), "nowMs");
+    const safeJson = /* @__PURE__ */ __name2222(async (res) => {
       const text = await res.text();
       try {
         return JSON.parse(text);
@@ -41,14 +43,14 @@ var worker_default = {
         return { raw: text };
       }
     }, "safeJson");
-    const encodeState = /* @__PURE__ */ __name222((obj) => {
+    const encodeState = /* @__PURE__ */ __name2222((obj) => {
       try {
         return btoa(JSON.stringify(obj));
       } catch {
         return String(obj?.folderId || "");
       }
     }, "encodeState");
-    const decodeState = /* @__PURE__ */ __name222((stateStr) => {
+    const decodeState = /* @__PURE__ */ __name2222((stateStr) => {
       if (!stateStr) return { folderId: null, userId: null, platform: null };
       try {
         return JSON.parse(atob(stateStr));
@@ -62,7 +64,7 @@ var worker_default = {
         }
       }
     }, "decodeState");
-    const upsertToken = /* @__PURE__ */ __name222(
+    const upsertToken = /* @__PURE__ */ __name2222(
       async ({ folderId, platform, accountId, accessToken, refreshToken, expiresAt, scope }) => {
         const safeFolderId = folderId == null ? null : String(folderId);
         const safePlatform = platform == null ? null : String(platform);
@@ -97,13 +99,13 @@ var worker_default = {
       },
       "upsertToken"
     );
-    const requireEnv = /* @__PURE__ */ __name222((envVal, name) => {
+    const requireEnv = /* @__PURE__ */ __name2222((envVal, name) => {
       const v = envVal && String(envVal).trim() ? String(envVal).trim() : null;
       if (!v) throw new Error(`Missing ${name} env var`);
       return v;
     }, "requireEnv");
     const fbGraph = "https://graph.facebook.com/v18.0";
-    const fbSafe = /* @__PURE__ */ __name222(async (res) => {
+    const fbSafe = /* @__PURE__ */ __name2222(async (res) => {
       const data = await safeJson(res);
       if (!res.ok) {
         throw new Error(`Facebook API ${res.status}: ${JSON.stringify(data)}`);
@@ -113,11 +115,11 @@ var worker_default = {
       }
       return data;
     }, "fbSafe");
-    const fetchFbJson = /* @__PURE__ */ __name222(async (fbUrl, init) => {
+    const fetchFbJson = /* @__PURE__ */ __name2222(async (fbUrl, init) => {
       const res = await fetch(fbUrl, init);
       return fbSafe(res);
     }, "fetchFbJson");
-    const appsecretProof = /* @__PURE__ */ __name222(async (accessToken) => {
+    const appsecretProof = /* @__PURE__ */ __name2222(async (accessToken) => {
       const appSecret = env.FB_CLIENT_SECRET ? String(env.FB_CLIENT_SECRET).trim() : null;
       if (!appSecret) {
         console.warn("FB_CLIENT_SECRET not configured; appsecret_proof will be omitted from Facebook API calls");
@@ -133,9 +135,9 @@ var worker_default = {
         ["sign"]
       );
       const sig = await crypto.subtle.sign("HMAC", key, enc.encode(accessToken));
-      return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+      return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
     }, "appsecretProof");
-    const fetchPageTokens = /* @__PURE__ */ __name222(async (userAccessToken) => {
+    const fetchPageTokens = /* @__PURE__ */ __name2222(async (userAccessToken) => {
       const proof = await appsecretProof(userAccessToken);
       const fbUrl = `${fbGraph}/me/accounts?fields=id,name,access_token&access_token=${encodeURIComponent(
         userAccessToken
@@ -143,7 +145,7 @@ var worker_default = {
       const out = await fetchFbJson(fbUrl);
       return Array.isArray(out?.data) ? out.data : [];
     }, "fetchPageTokens");
-    const publishFacebookReelFromUrl = /* @__PURE__ */ __name222(
+    const publishFacebookReelFromUrl = /* @__PURE__ */ __name2222(
       async ({ pageId, pageAccessToken, videoUrl, description }) => {
         const proof = await appsecretProof(pageAccessToken);
         const proofParam = proof ? `?appsecret_proof=${encodeURIComponent(proof)}` : "";
@@ -191,21 +193,27 @@ var worker_default = {
       },
       "publishFacebookReelFromUrl"
     );
-    const cleanText = /* @__PURE__ */ __name222((value) => {
+    const cleanText = /* @__PURE__ */ __name2222((value) => {
       return String(value || "").replace(/\s+/g, " ").trim();
     }, "cleanText");
-    const makeKeywords = /* @__PURE__ */ __name222((prompt) => {
+    const makeKeywords = /* @__PURE__ */ __name2222((prompt) => {
       const cleaned = cleanText(prompt).toLowerCase().replace(/[^\w\s]/g, " ");
       const words = cleaned.split(/\s+/).filter(Boolean).filter((w) => w.length > 2);
       const unique = [...new Set(words)];
       const base = unique.slice(0, 10);
       const extras = [
-        "viral", "trending", "shorts", "reels", "fyp",
-        "viral content", "trending now", "must watch"
+        "viral",
+        "trending",
+        "shorts",
+        "reels",
+        "fyp",
+        "viral content",
+        "trending now",
+        "must watch"
       ];
       return [.../* @__PURE__ */ new Set([...base, ...extras])].join(", ");
     }, "makeKeywords");
-    const fallbackSeo = /* @__PURE__ */ __name222((prompt) => {
+    const fallbackSeo = /* @__PURE__ */ __name2222((prompt) => {
       const idea = cleanText(prompt) || "viral short video";
       const lower = idea.toLowerCase();
       let youtubeTitle = idea.length <= 60 ? idea : idea.slice(0, 57) + "...";
@@ -215,7 +223,10 @@ var worker_default = {
       let youtubeDescription = `${idea} - Watch this trending video and don't miss out! Like, comment and subscribe for more viral content. Perfect for fans of trending short-form videos.`;
       let tiktokCaption = `POV: ${lower} \u{1F525} #viral #trending #fyp #foryoupage #foryou #shorts`;
       let facebookTitle = idea.charAt(0).toUpperCase() + idea.slice(1);
-      let facebookDescriptionAndTags = `${idea} \u{1F525}\nFollow for daily trending content! \u{1F44F}\n\n#viral #trending #reels #foryou #mustwatch #explore`;
+      let facebookDescriptionAndTags = `${idea} \u{1F525}
+Follow for daily trending content! \u{1F44F}
+
+#viral #trending #reels #foryou #mustwatch #explore`;
       if (/pov[:\s-]/i.test(idea)) {
         tiktokCaption = `${idea} \u{1F525} #viral #trending #fyp #foryoupage #relatable`;
       }
@@ -337,22 +348,22 @@ var worker_default = {
         return Response.redirect(tiktokAuthUrl);
       }
       if (url.pathname === "/api/auth/facebook") {
-  const legacyState = url.searchParams.get("state");
-  const stateObj = decodeState(legacyState) || {};
-  const folderId = url.searchParams.get("folder_id") || stateObj.folderId || "";
-  const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId || "");
-  const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
-  requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
-  const state = encodeState({ folderId, platform: "facebook", userId });
-  const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${encodeURIComponent(
-    fbClientId
-  )}&redirect_uri=${encodeURIComponent(
-    fbRedirectUri
-  )}&scope=${encodeURIComponent(
-    "public_profile,pages_show_list,pages_read_engagement,pages_manage_posts"
-  )}&response_type=code&state=${encodeURIComponent(state)}`;
-  return Response.redirect(fbAuthUrl);
-}
+        const legacyState = url.searchParams.get("state");
+        const stateObj = decodeState(legacyState) || {};
+        const folderId = url.searchParams.get("folder_id") || stateObj.folderId || "";
+        const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId || "");
+        const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
+        requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
+        const state = encodeState({ folderId, platform: "facebook", userId });
+        const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${encodeURIComponent(
+          fbClientId
+        )}&redirect_uri=${encodeURIComponent(
+          fbRedirectUri
+        )}&scope=${encodeURIComponent(
+          "public_profile,pages_show_list,pages_read_engagement,pages_manage_posts"
+        )}&response_type=code&state=${encodeURIComponent(state)}`;
+        return Response.redirect(fbAuthUrl);
+      }
       if (url.pathname === "/api/auth/callback/youtube") {
         const code = url.searchParams.get("code");
         const stateObj = decodeState(url.searchParams.get("state"));
@@ -407,11 +418,13 @@ var worker_default = {
           `${frontendBaseUrl}/create-post.html?youtube_connected=1&account_name=${encodeURIComponent(channelName)}&folder_id=${encodeURIComponent(folderId)}`
         );
       }
+      
       if (url.pathname === "/api/auth/callback/tiktok") {
         const code = url.searchParams.get("code");
         const stateObj = decodeState(url.searchParams.get("state"));
         const folderId = stateObj.folderId;
         const userId = requireUser(stateObj.userId);
+
         if (!folderId || !userId) {
           return new Response("Missing state", { status: 400, headers: corsHeaders });
         }
@@ -419,6 +432,8 @@ var worker_default = {
           const err = url.searchParams.get("error") || "missing_code";
           return new Response(`TikTok OAuth failed: ${err}`, { status: 400, headers: corsHeaders });
         }
+
+        // 1. Exchange Code for Tokens
         const tokenRes = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -430,43 +445,55 @@ var worker_default = {
             redirect_uri: `${siteBaseUrl}/api/auth/callback/tiktok`
           })
         });
+
         const tokenJson = await safeJson(tokenRes);
         const tData = tokenJson.data || tokenJson;
+
         if (tokenJson.error || tData.error) {
           throw new Error(tokenJson.error_description || tData.error_description || "TikTok Exchange Failed");
         }
+
         const accessToken = tData.access_token || tokenJson.access_token;
         const refreshToken = tData.refresh_token || tokenJson.refresh_token;
         const expiresIn = tData.expires_in || tokenJson.expires_in || 0;
         const openId = tData.open_id || tData.openid || "";
         const scope = tData.scope || "video.upload,video.publish,user.info.basic";
+        
         let tiktokNickname = "Linked TikTok";
+
+        // 2. Fetch User Profile Name (This fixes the "TikTok Account Connected" issue)
         try {
           const userInfoRes = await fetch(
-            "https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name",
+            "https://open.tiktokapis.com/v2/user/info/?fields=display_name,username",
             {
-              headers: {
-                "Authorization": `Bearer ${accessToken}`
-              }
+              headers: { "Authorization": `Bearer ${accessToken}` }
             }
           );
+          
           const userInfo = await safeJson(userInfoRes);
           const user = userInfo?.data?.user;
-          const displayName = user?.display_name;
-          const trimmedName = displayName ? String(displayName).trim() : "";
-          if (trimmedName) tiktokNickname = trimmedName;
-        } catch (_) {
+          
+          if (user) {
+            // Priority: Display Name -> Username -> Fallback
+            tiktokNickname = (user.display_name || user.username || "TikTok User").trim();
+          }
+        } catch (e) {
+          console.error("TikTok Profile Fetch Error:", e);
         }
+
+        // 3. Save to Database Main Table
         await env.DB.prepare(
           "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'tiktok', ?, ?, ?, ?)"
         ).bind(
           String(folderId),
           String(userId),
-          tiktokNickname,
+          String(tiktokNickname),
           String(accessToken),
           refreshToken ? String(refreshToken) : null,
           nowMs() + Number(expiresIn) * 1e3
         ).run();
+
+        // 4. Update Token Storage (upsert)
         await upsertToken({
           folderId: String(folderId),
           platform: "tiktok",
@@ -476,10 +503,13 @@ var worker_default = {
           expiresAt: nowMs() + Number(expiresIn) * 1e3,
           scope: String(scope)
         });
+
+        // 5. Redirect to frontend with the real account name
         return Response.redirect(
           `${frontendBaseUrl}/create-post.html?tiktok_connected=1&account_name=${encodeURIComponent(tiktokNickname)}&folder_id=${encodeURIComponent(folderId)}`
         );
       }
+      
       if (url.pathname === "/api/auth/callback/facebook") {
         const code = url.searchParams.get("code");
         const stateObj = decodeState(url.searchParams.get("state"));
@@ -521,8 +551,8 @@ var worker_default = {
           );
           if (me?.id) fbUserId = String(me.id);
           if (me?.name) fbUserName = String(me.name);
-        } catch (_) {}
-        // Atomically replace the facebook user row (D1 batch = single transaction)
+        } catch (_) {
+        }
         await env.DB.batch([
           env.DB.prepare(
             "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook'"
@@ -530,9 +560,13 @@ var worker_default = {
           env.DB.prepare(
             "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, facebook_user_id, facebook_user_name, facebook_user_access_token) VALUES (?, ?, 'facebook', ?, ?, ?, ?, ?)"
           ).bind(
-            String(folderId), String(userId),
-            fbUserName, accessToken,
-            fbUserId, fbUserName, accessToken
+            String(folderId),
+            String(userId),
+            fbUserName,
+            accessToken,
+            fbUserId,
+            fbUserName,
+            accessToken
           )
         ]);
         await upsertToken({
@@ -544,7 +578,6 @@ var worker_default = {
           expiresAt: nowMs() + expiresIn * 1e3,
           scope: "pages_manage_posts,pages_show_list"
         });
-        // Redirect to folder page-picker — user will choose a page there
         return Response.redirect(
           `${frontendBaseUrl}/folder.html?id=${encodeURIComponent(folderId)}&facebook=pages`
         );
@@ -572,7 +605,7 @@ var worker_default = {
           const pagesProof = await appsecretProof(userToken);
           const fbUrl = `${fbGraph}/me/accounts?fields=id,name,access_token,picture&access_token=${encodeURIComponent(userToken)}${pagesProof ? `&appsecret_proof=${encodeURIComponent(pagesProof)}` : ""}`;
           const out = await fetchFbJson(fbUrl);
-          const pages = Array.isArray(out?.data) ? out.data.map(p => ({
+          const pages = Array.isArray(out?.data) ? out.data.map((p) => ({
             id: String(p.id || ""),
             name: String(p.name || ""),
             access_token: String(p.access_token || ""),
@@ -603,7 +636,6 @@ var worker_default = {
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        // Atomically replace the selected page row (D1 batch = single transaction)
         await env.DB.batch([
           env.DB.prepare(
             "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook_page'"
@@ -611,12 +643,16 @@ var worker_default = {
           env.DB.prepare(
             "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, facebook_page_id, facebook_page_name, facebook_page_access_token, facebook_page_picture) VALUES (?, ?, 'facebook_page', ?, ?, ?, ?, ?, ?)"
           ).bind(
-            folder_id, userId,
-            page_name, page_access_token,
-            page_id, page_name, page_access_token, page_picture || null
+            folder_id,
+            userId,
+            page_name,
+            page_access_token,
+            page_id,
+            page_name,
+            page_access_token,
+            page_picture || null
           )
         ]);
-        // Keep tokens table in sync for any legacy code paths
         await upsertToken({
           folderId: folder_id,
           platform: "facebook_page",
@@ -711,7 +747,8 @@ var worker_default = {
             method: "PUT",
             headers: {
               "Content-Type": videoFile.type || "video/mp4",
-  "X-Upload-Content-Length": String(videoFile.size)          },
+              "X-Upload-Content-Length": String(videoFile.size)
+            },
             body: videoBytes
           });
           if (!uploadRes.ok) {
@@ -889,7 +926,6 @@ var worker_default = {
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-        // Use the selected facebook_page row saved via /api/facebook/select-page
         const pageAccount = await env.DB.prepare(
           "SELECT facebook_page_id, facebook_page_access_token FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook_page' LIMIT 1"
         ).bind(folder_id, user_id).first();
@@ -1045,7 +1081,7 @@ var worker_default = {
         const fbAccount = payload.facebook_account || "";
         const ttAccount = payload.tiktok_account || "";
         const hasImage = !!(imageBase64 && imageFilename);
-        const hasText = !!(textPrompt.trim());
+        const hasText = !!textPrompt.trim();
         if (!hasImage && !hasText) {
           return new Response(
             JSON.stringify({ success: false, error: "Provide an image, a text prompt, or both" }),
@@ -1064,9 +1100,9 @@ Platform requirements:
 - Facebook: Title must be 40-60 characters. Description must be 100-200 characters followed by 5-8 relevant hashtags. Optimize for Facebook Reels discovery and shares.
 
 Quality rules:
-- Generate SPECIFIC, NICHE content — never generic filler text
+- Generate SPECIFIC, NICHE content \u2014 never generic filler text
 - Use currently trending keywords and hashtags for maximum reach
-- Match the exact content topic/mood — be precise, not vague
+- Match the exact content topic/mood \u2014 be precise, not vague
 - Each platform's content must be uniquely optimised, not copy-pasted
 - Titles must be clickable and curiosity-driving
 - Keywords must include a mix of high-volume broad terms and specific niche terms
@@ -1092,9 +1128,13 @@ Return ONLY valid JSON with no markdown, no extra text, no explanations:
           let aiResponse = null;
           if (hasImage) {
             const mimeType = imageFilename.toLowerCase().split(".").pop() === "png" ? "image/png" : "image/jpeg";
-            const userContent = hasText
-              ? `${brandContext}Analyze this image and the following context to generate platform-optimized SEO content.\n\nContext: ${textPrompt}\n\nGenerate trending, specific SEO — not generic content.`
-              : `${brandContext}Analyze this image carefully and generate platform-optimized SEO content based on what you see.\n\nGenerate trending, specific SEO — not generic content.`;
+            const userContent = hasText ? `${brandContext}Analyze this image and the following context to generate platform-optimized SEO content.
+
+Context: ${textPrompt}
+
+Generate trending, specific SEO \u2014 not generic content.` : `${brandContext}Analyze this image carefully and generate platform-optimized SEO content based on what you see.
+
+Generate trending, specific SEO \u2014 not generic content.`;
             aiResponse = await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
               messages: [
                 { role: "system", content: seoSystemPrompt },
@@ -1108,7 +1148,11 @@ Return ONLY valid JSON with no markdown, no extra text, no explanations:
                 { role: "system", content: seoSystemPrompt },
                 {
                   role: "user",
-                  content: `${brandContext}Generate platform-optimized SEO content for the following:\n\n${textPrompt}\n\nGenerate trending, specific SEO — not generic content.`
+                  content: `${brandContext}Generate platform-optimized SEO content for the following:
+
+${textPrompt}
+
+Generate trending, specific SEO \u2014 not generic content.`
                 }
               ]
             });
