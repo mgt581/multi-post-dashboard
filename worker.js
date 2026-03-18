@@ -461,10 +461,10 @@ Follow for daily trending content! \u{1F44F}
         
         let tiktokNickname = "Linked TikTok";
 
-        // 2. Fetch User Profile Name (This fixes the "TikTok Account Connected" issue)
+        // 2. Fetch User Profile Name
         try {
           const userInfoRes = await fetch(
-            "https://open.tiktokapis.com/v2/user/info/?fields=display_name,username",
+            "https://open.tiktokapis.com/v2/user/info/?fields=display_name",
             {
               headers: { "Authorization": `Bearer ${accessToken}` }
             }
@@ -474,8 +474,7 @@ Follow for daily trending content! \u{1F44F}
           const user = userInfo?.data?.user;
           
           if (user) {
-            // Priority: Display Name -> Username -> Fallback
-            tiktokNickname = (user.display_name || user.username || "TikTok User").trim();
+            tiktokNickname = (user.display_name || "TikTok User").trim();
           }
         } catch (e) {
           console.error("TikTok Profile Fetch Error:", e);
