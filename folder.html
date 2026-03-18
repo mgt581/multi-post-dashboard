@@ -209,7 +209,7 @@
 
   <nav class="bottom-nav">
     <a href="app.html" class="nav-item active"><i class="fa-solid fa-house"></i><span>HOME</span></a>
-    <a href="create-post.html" class="nav-item"><i class="fa-solid fa-wand-magic-sparkles"></i><span>AI SEO</span></a>
+    <a href="create-post.html" id="aiSeoNavLink" class="nav-item"><i class="fa-solid fa-wand-magic-sparkles"></i><span>AI SEO</span></a>
     <a href="settings.html" class="nav-item"><i class="fa-solid fa-user"></i><span>PROFILE</span></a>
   </nav>
 
@@ -243,9 +243,12 @@
       if (folderName) localStorage.setItem("activeFolderName", folderName);
       document.getElementById("title").innerText = folderName;
       document.getElementById("name").innerText  = folderName;
-      const link = document.getElementById("createPostLink");
-      if (link && folderId) {
-        link.href = `create-post.html?folder_id=${encodeURIComponent(folderId)}&folder_name=${encodeURIComponent(folderName)}`;
+      if (folderId) {
+        const postParams = `folder_id=${encodeURIComponent(folderId)}&folder_name=${encodeURIComponent(folderName)}`;
+        const link = document.getElementById("createPostLink");
+        if (link) link.href = `create-post.html?${postParams}`;
+        const aiSeoNav = document.getElementById("aiSeoNavLink");
+        if (aiSeoNav) aiSeoNav.href = `create-post.html?${postParams}`;
       }
     }
 
@@ -260,10 +263,14 @@
     function buildGenericCard(meta, key, linked) {
       if (linked) {
         const handle = linked.nickname || linked.username || linked.name || "Connected";
+        const pic    = linked.profile_picture || "";
+        const iconContent = pic
+          ? `<img src="${escapeHTML(pic)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><i class="${meta.icon}" style="display:none;"></i>`
+          : `<i class="${meta.icon}"></i>`;
         return `
           <div class="platform-card">
             <div class="platform-left">
-              <div class="platform-icon" style="background:${meta.bg};color:${meta.color};"><i class="${meta.icon}"></i></div>
+              <div class="platform-icon" style="background:${meta.bg};color:${meta.color};">${iconContent}</div>
               <div class="platform-handle">${escapeHTML(handle)}</div>
             </div>
             <div class="platform-info">
@@ -316,14 +323,14 @@
       // Page already selected
       if (fbPage) {
         const pageName = fbPage.facebook_page_name || fbPage.nickname || "Facebook Page";
-        const pic      = fbPage.facebook_page_picture || "";
-        const iconHtml = pic
-          ? `<img src="${escapeHTML(pic)}" alt="" onerror="this.style.display='none'">`
+        const pic      = fbPage.profile_picture || fbPage.facebook_page_picture || "";
+        const iconContent = pic
+          ? `<img src="${escapeHTML(pic)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><i class="${meta.icon}" style="display:none;"></i>`
           : `<i class="${meta.icon}"></i>`;
         return `
           <div class="platform-card">
             <div class="platform-left">
-              <div class="platform-icon" style="background:${meta.bg};color:${meta.color};">${iconHtml}</div>
+              <div class="platform-icon" style="background:${meta.bg};color:${meta.color};">${iconContent}</div>
               <div class="platform-handle">${escapeHTML(pageName)}</div>
             </div>
             <div class="platform-info">
@@ -339,10 +346,14 @@
 
       // User connected but no page chosen yet
       const userName = fbUser.facebook_user_name || fbUser.nickname || "Facebook User";
+      const userPic  = fbUser.profile_picture || "";
+      const userIconContent = userPic
+        ? `<img src="${escapeHTML(userPic)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><i class="${meta.icon}" style="display:none;"></i>`
+        : `<i class="${meta.icon}"></i>`;
       return `
         <div class="platform-card">
           <div class="platform-left">
-            <div class="platform-icon" style="background:${meta.bg};color:${meta.color};"><i class="${meta.icon}"></i></div>
+            <div class="platform-icon" style="background:${meta.bg};color:${meta.color};">${userIconContent}</div>
             <div class="platform-handle">${escapeHTML(userName)}</div>
           </div>
           <div class="platform-info">
