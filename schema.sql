@@ -13,7 +13,14 @@ CREATE TABLE IF NOT EXISTS accounts (
   nickname TEXT,
   access_token TEXT,
   refresh_token TEXT,
-  expires_at INTEGER
+  expires_at INTEGER,
+  facebook_user_id TEXT,
+  facebook_user_name TEXT,
+  facebook_user_access_token TEXT,
+  facebook_page_id TEXT,
+  facebook_page_name TEXT,
+  facebook_page_access_token TEXT,
+  facebook_page_picture TEXT
 );
 
 CREATE TABLE IF NOT EXISTS tokens (

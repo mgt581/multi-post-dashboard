@@ -542,11 +542,11 @@ var worker_default = {
           );
         }
         const fbAccount = await env.DB.prepare(
-          "SELECT facebook_user_access_token FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook' LIMIT 1"
+          "SELECT COALESCE(facebook_user_access_token, access_token) AS facebook_user_access_token FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook' LIMIT 1"
         ).bind(folder_id, userId).first();
         if (!fbAccount?.facebook_user_access_token) {
           return new Response(
-            JSON.stringify({ success: false, error: "Facebook not connected for this folder" }),
+            JSON.stringify({ success: false, error: "Facebook not connected for this folder. Please re-link your Facebook account." }),
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }

@@ -418,7 +418,8 @@
         const res  = await fetch(`${apiBase}/facebook/pages?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`);
         const data = await res.json();
         if (!data.success || !Array.isArray(data.pages) || data.pages.length === 0) {
-          listEl.innerHTML = `<p style="color:var(--muted);text-align:center;">No pages found on this account.</p>`;
+          const msg = (!data.success && data.error) ? data.error : "No pages found on this account.";
+          listEl.innerHTML = `<p style="color:var(--muted);text-align:center;">${escapeHTML(msg)}</p>`;
           return;
         }
         fbPagesCache = data.pages;
