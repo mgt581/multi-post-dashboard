@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS accounts (
   facebook_page_id TEXT,
   facebook_page_name TEXT,
   facebook_page_access_token TEXT,
-  facebook_page_picture TEXT
+  facebook_page_picture TEXT,
+  profile_picture TEXT
 );
 
 CREATE TABLE IF NOT EXISTS tokens (

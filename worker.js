@@ -460,11 +460,12 @@ Follow for daily trending content! \u{1F44F}
         const scope = tData.scope || "video.upload,video.publish,user.info.basic";
         
         let tiktokNickname = "Linked TikTok";
+        let tiktokAvatar = null;
 
-        // 2. Fetch User Profile Name
+        // 2. Fetch User Profile Name and Avatar
         try {
           const userInfoRes = await fetch(
-            "https://open.tiktokapis.com/v2/user/info/?fields=display_name",
+            "https://open.tiktokapis.com/v2/user/info/?fields=display_name,avatar_url",
             {
               headers: { "Authorization": `Bearer ${accessToken}` }
             }
@@ -475,6 +476,7 @@ Follow for daily trending content! \u{1F44F}
           
           if (user) {
             tiktokNickname = (user.display_name || "TikTok User").trim();
+            tiktokAvatar = user.avatar_url ? String(user.avatar_url) : null;
           }
         } catch (e) {
           console.error("TikTok Profile Fetch Error:", e);
@@ -482,14 +484,15 @@ Follow for daily trending content! \u{1F44F}
 
         // 3. Save to Database Main Table
         await env.DB.prepare(
-          "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'tiktok', ?, ?, ?, ?)"
+          "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at, profile_picture) VALUES (?, ?, 'tiktok', ?, ?, ?, ?, ?)"
         ).bind(
           String(folderId),
           String(userId),
           String(tiktokNickname),
           String(accessToken),
           refreshToken ? String(refreshToken) : null,
-          nowMs() + Number(expiresIn) * 1e3
+          nowMs() + Number(expiresIn) * 1e3,
+          tiktokAvatar
         ).run();
 
         // 4. Update Token Storage (upsert)
@@ -640,7 +643,7 @@ Follow for daily trending content! \u{1F44F}
             "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook_page'"
           ).bind(folder_id, userId),
           env.DB.prepare(
-            "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, facebook_page_id, facebook_page_name, facebook_page_access_token, facebook_page_picture) VALUES (?, ?, 'facebook_page', ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, facebook_page_id, facebook_page_name, facebook_page_access_token, facebook_page_picture, profile_picture) VALUES (?, ?, 'facebook_page', ?, ?, ?, ?, ?, ?, ?)"
           ).bind(
             folder_id,
             userId,
@@ -649,6 +652,7 @@ Follow for daily trending content! \u{1F44F}
             page_id,
             page_name,
             page_access_token,
+            page_picture || null,
             page_picture || null
           )
         ]);
