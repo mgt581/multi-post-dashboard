@@ -447,17 +447,16 @@ var worker_default = {
         let tiktokNickname = "Linked TikTok";
         try {
           const userInfoRes = await fetch(
-            "https://open.tiktokapis.com/v2/user/info/?fields=open_id,union_id,avatar_url,display_name,username",
+            "https://open.tiktokapis.com/v2/user/info/?fields=open_id,display_name",
             {
               headers: {
-                "Authorization": `Bearer ${accessToken}`,
-                "Content-Type": "application/json"
+                "Authorization": `Bearer ${accessToken}`
               }
             }
           );
           const userInfo = await safeJson(userInfoRes);
           const user = userInfo?.data?.user;
-          const displayName = user?.display_name || user?.username || user?.nickname;
+          const displayName = user?.display_name;
           const trimmedName = displayName ? String(displayName).trim() : "";
           if (trimmedName) tiktokNickname = trimmedName;
         } catch (_) {
