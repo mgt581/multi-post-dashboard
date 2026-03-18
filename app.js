@@ -173,13 +173,11 @@ generateBtn &&
     const idea = (postIdea?.value || "").trim();
     if (!idea) return;
 
-    // UI Feedback
     const originalBtnText = generateBtn.innerText;
-    generateBtn.innerText = "Generating AI SEO...";
+    generateBtn.innerText = "Optimizing SEO...";
     generateBtn.disabled = true;
 
     try {
-      // 1. TRY THE AI WORKER FIRST
       const response = await fetch("/api/generate-seo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -193,61 +191,45 @@ generateBtn &&
       const result = await response.json();
 
       if (result.success && !result.fallbackUsed) {
-        // AI Success: Apply high-quality SEO
+        // --- FACEBOOK & INSTAGRAM ---
         if (outputs.facebook) outputs.facebook.value = result.data.facebook.descriptionAndTags;
-        if (outputs.tiktok) outputs.tiktok.value = result.data.tiktok.allInOne;
-        if (outputs.youtube) outputs.youtube.value = `${result.data.youtube.title}\n\n${result.data.youtube.description}\n\nKeywords: ${result.data.youtube.keywords}`;
-        if (outputs.instagram) outputs.instagram.value = result.data.facebook.descriptionAndTags; // Sharing FB SEO to Insta
+        if (outputs.instagram) outputs.instagram.value = result.data.facebook.descriptionAndTags;
+
+        // --- YOUTUBE ---
+        if (outputs.youtube) {
+          outputs.youtube.value = `TITLE: ${result.data.youtube.title}\n\n${result.data.youtube.description}\n\nTAGS: ${result.data.youtube.keywords}`;
+        }
+
+        // --- TIKTOK (ENHANCED SEO) ---
+        if (outputs.tiktok) {
+          // We ensure the TikTok caption has a clean 'Hook' followed by the AI tags
+          const rawTikTok = result.data.tiktok.allInOne;
+          outputs.tiktok.value = rawTikTok.includes("#") 
+            ? rawTikTok 
+            : `${rawTikTok}\n\n#fyp #foryou #viral #trending`;
+        }
         
-        console.log("AI SEO Generated Successfully");
+        console.log("TikTok & Multi-Platform SEO live.");
       } else {
-        throw new Error("Using fallback");
+        throw new Error("AI Fallback triggered");
       }
 
     } catch (err) {
-      // 2. FALLBACK TO LOCAL TEMPLATES (Your original logic)
-      console.warn("AI Generation failed or fallback requested, using local templates.");
+      console.warn("AI failed, using local backup.");
       
       const brand = activeFolder?.name ? String(activeFolder.name) : "Your Brand";
       const brandTag = brand.replace(/[^\w\s]/g, "").replace(/\s+/g, "");
       const hashtags = brandTag ? `#${brandTag}` : "";
 
-      let facebookText = generateFacebookPost(idea, brand, hashtags);
-      let instagramText = generateInstagramCaption(idea, hashtags);
-      let tiktokText = generateTikTokCaption(idea, hashtags);
-      let youtubeText = generateYouTubeTitle(idea, brand);
-
-      if (outputs.facebook) outputs.facebook.value = facebookText;
-      if (outputs.instagram) outputs.instagram.value = instagramText;
-      if (outputs.tiktok) outputs.tiktok.value = tiktokText;
-      if (outputs.youtube) outputs.youtube.value = youtubeText;
+      if (outputs.facebook) outputs.facebook.value = generateFacebookPost(idea, brand, hashtags);
+      if (outputs.instagram) outputs.instagram.value = generateInstagramCaption(idea, hashtags);
+      if (outputs.tiktok) outputs.tiktok.value = generateTikTokCaption(idea, hashtags);
+      if (outputs.youtube) outputs.youtube.value = generateYouTubeTitle(idea, brand);
     } finally {
       generateBtn.innerText = originalBtnText;
       generateBtn.disabled = false;
     }
   });
-
-// -----------------------------
-// COPY BUTTON
-// -----------------------------
-async function copyText(text) {
-  // Prefer modern clipboard API
-  if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-    await navigator.clipboard.writeText(text);
-    return true;
-  }
-
-  // Fallback: execCommand
-  try {
-    const el = outputs[activePlatform];
-    if (!el) return false;
-    el.focus();
-    el.select();
-    return document.execCommand("copy");
-  } catch (e) {
-    return false;
-  }
-}
 
 copyBtn &&
   (copyBtn.onclick = async () => {
