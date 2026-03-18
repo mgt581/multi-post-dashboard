@@ -1,3 +1,5 @@
+// App.js 
+
 // ELEMENTS 
 const groupList = document.getElementById("groupList");
 const addGroupBtn = document.getElementById("addGroupBtn");
@@ -164,35 +166,65 @@ function generateTikTokCaption(idea, hashtags) {
 }
 
 // -----------------------------
-// GENERATE CONTENT
+// GENERATE CONTENT (AI + FALLBACK)
 // -----------------------------
 generateBtn &&
-  (generateBtn.onclick = () => {
+  (generateBtn.onclick = async () => {
     const idea = (postIdea?.value || "").trim();
     if (!idea) return;
 
-    const brand = activeFolder?.name ? String(activeFolder.name) : "Your Brand";
+    // UI Feedback
+    const originalBtnText = generateBtn.innerText;
+    generateBtn.innerText = "Generating AI SEO...";
+    generateBtn.disabled = true;
 
-    // Keep hashtags clean
-    const brandTag = brand.replace(/[^\w\s]/g, "").replace(/\s+/g, "");
-    const hashtags = brandTag ? `#${brandTag}` : "";
+    try {
+      // 1. TRY THE AI WORKER FIRST
+      const response = await fetch("/api/generate-seo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: idea,
+          folder_id: activeFolder?.id || "",
+          folder_name: activeFolder?.name || "Your Brand"
+        })
+      });
 
-    // Generate safer platform-specific fallback content
-    let facebookText = generateFacebookPost(idea, brand, hashtags);
-    let instagramText = generateInstagramCaption(idea, hashtags);
-    let tiktokText = generateTikTokCaption(idea, hashtags);
-    let youtubeText = generateYouTubeTitle(idea, brand);
+      const result = await response.json();
 
-    // Extra fallback protection
-    facebookText = facebookText || `${brand}\n${idea}\n\n${hashtags}`;
-    instagramText = instagramText || `${idea} 🔥\n\n${hashtags}`;
-    tiktokText = tiktokText || `${idea} 😮\n\n${hashtags}`;
-    youtubeText = youtubeText || `${idea} | ${brand}`;
+      if (result.success && !result.fallbackUsed) {
+        // AI Success: Apply high-quality SEO
+        if (outputs.facebook) outputs.facebook.value = result.data.facebook.descriptionAndTags;
+        if (outputs.tiktok) outputs.tiktok.value = result.data.tiktok.allInOne;
+        if (outputs.youtube) outputs.youtube.value = `${result.data.youtube.title}\n\n${result.data.youtube.description}\n\nKeywords: ${result.data.youtube.keywords}`;
+        if (outputs.instagram) outputs.instagram.value = result.data.facebook.descriptionAndTags; // Sharing FB SEO to Insta
+        
+        console.log("AI SEO Generated Successfully");
+      } else {
+        throw new Error("Using fallback");
+      }
 
-    if (outputs.facebook) outputs.facebook.value = facebookText;
-    if (outputs.instagram) outputs.instagram.value = instagramText;
-    if (outputs.tiktok) outputs.tiktok.value = tiktokText;
-    if (outputs.youtube) outputs.youtube.value = youtubeText;
+    } catch (err) {
+      // 2. FALLBACK TO LOCAL TEMPLATES (Your original logic)
+      console.warn("AI Generation failed or fallback requested, using local templates.");
+      
+      const brand = activeFolder?.name ? String(activeFolder.name) : "Your Brand";
+      const brandTag = brand.replace(/[^\w\s]/g, "").replace(/\s+/g, "");
+      const hashtags = brandTag ? `#${brandTag}` : "";
+
+      let facebookText = generateFacebookPost(idea, brand, hashtags);
+      let instagramText = generateInstagramCaption(idea, hashtags);
+      let tiktokText = generateTikTokCaption(idea, hashtags);
+      let youtubeText = generateYouTubeTitle(idea, brand);
+
+      if (outputs.facebook) outputs.facebook.value = facebookText;
+      if (outputs.instagram) outputs.instagram.value = instagramText;
+      if (outputs.tiktok) outputs.tiktok.value = tiktokText;
+      if (outputs.youtube) outputs.youtube.value = youtubeText;
+    } finally {
+      generateBtn.innerText = originalBtnText;
+      generateBtn.disabled = false;
+    }
   });
 
 // -----------------------------
