@@ -117,16 +117,37 @@ var worker_default = {
       const res = await fetch(fbUrl, init);
       return fbSafe(res);
     }, "fetchFbJson");
+    const appsecretProof = /* @__PURE__ */ __name222(async (accessToken) => {
+      const appSecret = env.FB_CLIENT_SECRET ? String(env.FB_CLIENT_SECRET).trim() : null;
+      if (!appSecret) {
+        console.warn("FB_CLIENT_SECRET not configured; appsecret_proof will be omitted from Facebook API calls");
+        return null;
+      }
+      if (!accessToken) return null;
+      const enc = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw",
+        enc.encode(appSecret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+      );
+      const sig = await crypto.subtle.sign("HMAC", key, enc.encode(accessToken));
+      return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+    }, "appsecretProof");
     const fetchPageTokens = /* @__PURE__ */ __name222(async (userAccessToken) => {
+      const proof = await appsecretProof(userAccessToken);
       const fbUrl = `${fbGraph}/me/accounts?fields=id,name,access_token&access_token=${encodeURIComponent(
         userAccessToken
-      )}`;
+      )}${proof ? `&appsecret_proof=${encodeURIComponent(proof)}` : ""}`;
       const out = await fetchFbJson(fbUrl);
       return Array.isArray(out?.data) ? out.data : [];
     }, "fetchPageTokens");
     const publishFacebookReelFromUrl = /* @__PURE__ */ __name222(
       async ({ pageId, pageAccessToken, videoUrl, description }) => {
-        const startRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels`, {
+        const proof = await appsecretProof(pageAccessToken);
+        const proofParam = proof ? `?appsecret_proof=${encodeURIComponent(proof)}` : "";
+        const startRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels${proofParam}`, {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
@@ -156,7 +177,7 @@ var worker_default = {
         if (!upRes.ok) {
           throw new Error(`Reels upload failed ${upRes.status}: ${upText}`);
         }
-        const finishRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels`, {
+        const finishRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels${proofParam}`, {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
@@ -499,8 +520,9 @@ var worker_default = {
         let fbUserId = "me";
         let fbUserName = "Facebook Account";
         try {
+          const meProof = await appsecretProof(accessToken);
           const me = await fetchFbJson(
-            `${fbGraph}/me?fields=id,name&access_token=${encodeURIComponent(accessToken)}`
+            `${fbGraph}/me?fields=id,name&access_token=${encodeURIComponent(accessToken)}${meProof ? `&appsecret_proof=${encodeURIComponent(meProof)}` : ""}`
           );
           if (me?.id) fbUserId = String(me.id);
           if (me?.name) fbUserName = String(me.name);
@@ -551,7 +573,9 @@ var worker_default = {
           );
         }
         try {
-          const fbUrl = `${fbGraph}/me/accounts?fields=id,name,access_token,picture&access_token=${encodeURIComponent(String(fbAccount.facebook_user_access_token))}`;
+          const userToken = String(fbAccount.facebook_user_access_token);
+          const pagesProof = await appsecretProof(userToken);
+          const fbUrl = `${fbGraph}/me/accounts?fields=id,name,access_token,picture&access_token=${encodeURIComponent(userToken)}${pagesProof ? `&appsecret_proof=${encodeURIComponent(pagesProof)}` : ""}`;
           const out = await fetchFbJson(fbUrl);
           const pages = Array.isArray(out?.data) ? out.data.map(p => ({
             id: String(p.id || ""),
@@ -884,7 +908,9 @@ var worker_default = {
         const pageAccessToken = String(pageAccount.facebook_page_access_token);
         try {
           const videoBytes = await videoFile.arrayBuffer();
-          const startRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels`, {
+          const uploadProof = await appsecretProof(pageAccessToken);
+          const uploadProofParam = uploadProof ? `?appsecret_proof=${encodeURIComponent(uploadProof)}` : "";
+          const startRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels${uploadProofParam}`, {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({
@@ -910,7 +936,7 @@ var worker_default = {
             const errText = await upRes.text();
             throw new Error(`Facebook reels upload failed ${upRes.status}: ${errText}`);
           }
-          const finishRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels`, {
+          const finishRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels${uploadProofParam}`, {
             method: "POST",
             headers: { "Content-Type": "application/x-www-form-urlencoded" },
             body: new URLSearchParams({
