@@ -1201,6 +1201,49 @@ Generate trending, specific SEO \u2014 not generic content.`
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
+      if (url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
+        let body;
+        try {
+          body = await request.json();
+        } catch (_) {
+          return new Response(JSON.stringify({ success: false, error: "Invalid JSON body" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+        if (!body.topic || typeof body.topic !== "string" || !body.topic.trim()) {
+          return new Response(JSON.stringify({ success: false, error: "Missing or empty 'topic' field" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+        const flagshipResponse = await fetch("https://api.openai.com/v1/responses", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${env.OPENAI_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            prompt: {
+              id: "pmpt_69bb3de30e6c8190b0e48b46e4afd3ba043a4d7_",
+              version: "3"
+            },
+            input: {
+              user_message: body.topic
+            }
+          })
+        });
+        const result = await flagshipResponse.json();
+        if (!flagshipResponse.ok) {
+          return new Response(JSON.stringify(result), {
+            status: flagshipResponse.status,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
+        return new Response(JSON.stringify(result), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+      }
       if (!url.pathname.startsWith("/api/")) {
         return Response.redirect(frontendBaseUrl, 302);
       }
