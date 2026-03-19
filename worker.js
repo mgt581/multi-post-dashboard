@@ -57,7 +57,13 @@ var worker_default = {
           }
           let parsed = null;
           try { parsed = JSON.parse(rawText); } catch (_) { parsed = null; }
-          const cleanData = parsed ? {
+          if (!parsed) {
+            return new Response(JSON.stringify({ error: "AI returned invalid JSON" }), {
+              status: 500,
+              headers: { ...corsHeaders, "Content-Type": "application/json" }
+            });
+          }
+          const cleanData = {
             youtube: {
               title: String(parsed?.youtube?.title || ""),
               description: String(parsed?.youtube?.description || ""),
@@ -68,7 +74,7 @@ var worker_default = {
               title: String(parsed?.facebook?.title || ""),
               descriptionAndTags: String(parsed?.facebook?.descriptionAndTags || "")
             }
-          } : {};
+          };
           return new Response(JSON.stringify({ success: true, data: cleanData }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
@@ -86,12 +92,49 @@ var worker_default = {
             },
             input: {
               user_message: body.topic || "",
-              image_url: body.image_url || ""
+              ...(body.image_url ? { image_url: body.image_url } : {})
             }
           })
         });
-        const data = await flagshipResponse.json();
-        return new Response(JSON.stringify(data), {
+        const oaiData = await flagshipResponse.json();
+        if (oaiData?.error) {
+          const errMsg = typeof oaiData.error === "string" ? oaiData.error : (oaiData.error?.message || JSON.stringify(oaiData.error));
+          return new Response(JSON.stringify({ error: errMsg }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        let oaiText = "";
+        if (Array.isArray(oaiData?.output) && oaiData.output.length > 0) {
+          const outputItem = oaiData.output[0];
+          const contentArr = Array.isArray(outputItem?.content) ? outputItem.content : [];
+          const textItem = contentArr.find(c => c.type === "output_text");
+          oaiText = textItem?.text || (typeof outputItem?.content === "string" ? outputItem.content : "");
+        }
+        if (!oaiText) {
+          return new Response(JSON.stringify({ error: "AI returned no content" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        oaiText = oaiText.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+        const firstBrace = oaiText.indexOf("{");
+        const lastBrace = oaiText.lastIndexOf("}");
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+          oaiText = oaiText.slice(firstBrace, lastBrace + 1).trim();
+        }
+        let oaiParsed = null;
+        try { oaiParsed = JSON.parse(oaiText); } catch (_) { oaiParsed = null; }
+        if (!oaiParsed) {
+          return new Response(JSON.stringify({ error: "AI returned invalid JSON" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+        const oaiCleanData = {
+          youtube: {
+            title: String(oaiParsed?.youtube?.title || ""),
+            description: String(oaiParsed?.youtube?.description || ""),
+            keywords: String(oaiParsed?.youtube?.keywords || "")
+          },
+          tiktok: { allInOne: String(oaiParsed?.tiktok?.allInOne || "") },
+          facebook: {
+            title: String(oaiParsed?.facebook?.title || ""),
+            descriptionAndTags: String(oaiParsed?.facebook?.descriptionAndTags || "")
+          }
+        };
+        return new Response(JSON.stringify({ success: true, data: oaiCleanData }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       } catch (err) {
