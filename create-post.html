@@ -370,16 +370,23 @@
     <script>
       const seoImageInput = document.getElementById('seoImage');
       const imagePreview = document.getElementById('imagePreview');
+      window.seoImageDataUrl = null;
       
       seoImageInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
-        if (file && file.size < 5 * 1024 * 1024) { // 5MB limit
+        if (!file) {
+          window.seoImageDataUrl = null;
+          return;
+        }
+        if (file.size < 5 * 1024 * 1024) { // 5MB limit
           const reader = new FileReader();
-          reader.onload = (e) => {
-            imagePreview.innerHTML = `<img src="${e.target.result}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px;">`;
+          reader.onload = (ev) => {
+            window.seoImageDataUrl = ev.target.result;
+            imagePreview.innerHTML = `<img src="${window.seoImageDataUrl}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px;">`;
           };
           reader.readAsDataURL(file);
         } else {
+          window.seoImageDataUrl = null;
           imagePreview.innerHTML = 'Image too large or invalid (JPG/PNG <5MB)';
           imagePreview.style.color = 'var(--error)';
         }
@@ -747,17 +754,16 @@
 
   async function generateSEO() {
     const prompt = document.getElementById("videoPrompt").value.trim();
-    const seoImageInput = document.getElementById("seoImage");
-    const imageFile = seoImageInput.files?.[0];
     const imageUrl = (document.getElementById("seoImageUrl")?.value || "").trim();
+    const resolvedImageUrl = imageUrl || window.seoImageDataUrl || "";
 
-    if (!imageFile && !imageUrl && !prompt) {
+    if (!resolvedImageUrl && !prompt) {
       alert("Please upload an image, paste an image URL, enter a description, or both");
       return;
     }
 
     setLoading(true);
-    const hasImage = !!(imageFile || imageUrl);
+    const hasImage = !!resolvedImageUrl;
     const statusMsg = hasImage && prompt
       ? "AI analyzing image & description…"
       : hasImage
@@ -771,7 +777,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           topic: prompt || "",
-          image_url: imageUrl || "",
+          image_url: resolvedImageUrl,
           folder_id: activeFolderId,
           folder_name: activeFolderName,
           youtube_channel: activeYouTubeName,
@@ -801,27 +807,22 @@
         throw new Error(errorMsg);
       }
 
-      if (!json.success && !json.output && !json.data) {
-        throw new Error("AI Error");
+      if (!json.success && !json.data) {
+        throw new Error("AI returned no content. Please try again.");
       }
 
-      let raw;
-      if (Array.isArray(json.output) && json.output.length > 0) {
-        const outputItem = json.output[0];
-        const contentArr = Array.isArray(outputItem?.content) ? outputItem.content : [];
-        const textContent =
-          contentArr.find(c => c.type === "output_text")?.text ??
-          (typeof outputItem?.content === "string" ? outputItem.content : "");
-        raw = parseJsonSafe(textContent) || textContent || {};
-      } else {
-        raw = json?.data?.response ?? json?.data ?? json;
-      }
+      const raw = json?.data?.response ?? json?.data ?? {};
       const parsed = parseJsonSafe(raw) || raw || {};
       const d = parsed?.data ?? parsed ?? {};
 
       const youtube = d.youtube || {};
       const tiktok = d.tiktok || {};
       const facebook = d.facebook || {};
+
+      const hasContent = youtube.title || youtube.description || tiktok.allInOne || facebook.title;
+      if (!hasContent) {
+        throw new Error("AI returned no content. Please try again.");
+      }
 
       document.getElementById("ytTitle").value = coerceToText(youtube.title) || "";
       document.getElementById("ytDesc").value = coerceToText(youtube.description) || "";
