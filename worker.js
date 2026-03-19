@@ -24,9 +24,48 @@ var worker_default = {
     const HARD_DEFAULT_SITE = "https://multipostapp.co.uk";
     const siteBaseUrl = env.BASE_URL && String(env.BASE_URL).trim() ? String(env.BASE_URL).trim() : HARD_DEFAULT_SITE;
     const frontendBaseUrl = env.FRONTEND_URL && String(env.FRONTEND_URL).trim() ? String(env.FRONTEND_URL).trim() : siteBaseUrl;
+    // 1. Handle Home Page Redirect (Only once)
     if (url.pathname === "/" || url.pathname === "") {
       return Response.redirect(frontendBaseUrl, 302);
     }
+
+    // 2. FLAGSHIP PREMIUM SEO ROUTE
+    if (url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
+      try {
+        const body = await request.json();
+        const apiKey = env['OPEN-AI']; 
+        
+        const flagshipResponse = await fetch("https://api.openai.com/v1/responses", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            prompt: {
+              id: "pmpt_69bb3de30e6c8190b0e48b46e4afd3ba043a4d7_",
+              version: "3"
+            },
+            input: {
+              user_message: body.topic || "",
+              image_url: body.image_url || ""
+            }
+          })
+        });
+
+        const data = await flagshipResponse.json();
+        return new Response(JSON.stringify(data), { 
+          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message }), { 
+          status: 500, 
+          headers: corsHeaders 
+        });
+      }
+    }
+
+    // 3. Helper Functions & Definitions
     const requireUser = /* @__PURE__ */ __name2222(
       (val) => val && typeof val === "string" && val.trim() ? val.trim() : null,
       "requireUser"
@@ -1198,56 +1237,6 @@ Generate trending, specific SEO \u2014 not generic content.`
           data: cleanData,
           fallbackUsed: !parsed
         }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
-        });
-      }
-      if (url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
-        let body;
-        try {
-          body = await request.json();
-        } catch (_) {
-          return new Response(JSON.stringify({ success: false, error: "Invalid JSON body" }), {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
-          });
-        }
-        const imageUrl = typeof body.image_url === "string" ? body.image_url.trim() : "";
-        const hasTopic = !!(body.topic && typeof body.topic === "string" && body.topic.trim());
-        if (!hasTopic && !imageUrl) {
-          return new Response(JSON.stringify({ success: false, error: "Provide a topic, an image URL, or both" }), {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
-          });
-        }
-        const openAIInput = {};
-        if (hasTopic) {
-          openAIInput.user_message = body.topic;
-        }
-        if (imageUrl) {
-          openAIInput.image_url = imageUrl;
-        }
-        const flagshipResponse = await fetch("https://api.openai.com/v1/responses", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${env.OPENAI_API_KEY}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            prompt: {
-              id: "pmpt_69bb3de30e6c8190b0e48b46e4afd3ba043a4d7_",
-              version: "3"
-            },
-            input: openAIInput
-          })
-        });
-        const result = await flagshipResponse.json();
-        if (!flagshipResponse.ok) {
-          return new Response(JSON.stringify(result), {
-            status: flagshipResponse.status,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
-          });
-        }
-        return new Response(JSON.stringify(result), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       }
