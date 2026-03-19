@@ -1,18 +1,4 @@
-var __defProp = Object.defineProperty;
-var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-
-// worker.js
-var __defProp2 = Object.defineProperty;
-var __name2 = /* @__PURE__ */ __name((target, value) => __defProp2(target, "name", { value, configurable: true }), "__name");
-var __defProp22 = Object.defineProperty;
-var __name22 = /* @__PURE__ */ __name2((target, value) => __defProp22(target, "name", { value, configurable: true }), "__name");
-var __defProp222 = Object.defineProperty;
-var __name222 = /* @__PURE__ */ __name22((target, value) => __defProp222(target, "name", { value, configurable: true }), "__name");
-var __defProp2222 = Object.defineProperty;
-var __name2222 = /* @__PURE__ */ __name222((target, value) => __defProp2222(target, "name", { value, configurable: true }), "__name");
-var __defProp22222 = Object.defineProperty;
-var __name22222 = /* @__PURE__ */ __name2222((target, value) => __defProp22222(target, "name", { value, configurable: true }), "__name");
-var worker_default = {
+export default {
   async fetch(request, env) {
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
@@ -23,151 +9,80 @@ var worker_default = {
       return new Response(null, { headers: corsHeaders });
     }
     const url = new URL(request.url);
-    const HARD_DEFAULT_SITE = "https://multipostapp.co.uk";
-    const siteBaseUrl = env.BASE_URL && String(env.BASE_URL).trim() ? String(env.BASE_URL).trim() : HARD_DEFAULT_SITE;
-    const frontendBaseUrl = env.FRONTEND_URL && String(env.FRONTEND_URL).trim() ? String(env.FRONTEND_URL).trim() : siteBaseUrl;
-    if (url.pathname === "/" || url.pathname === "") {
-      return Response.redirect(frontendBaseUrl, 302);
-    }
+    const siteBaseUrl = env.BASE_URL || "https://multipostapp.co.uk";
+    const frontendBaseUrl = env.FRONTEND_URL || siteBaseUrl;
+
+    // --- 1. SEO GENERATION (MUST BE ABOVE REDIRECT TO RETURN 200) ---
     if (url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
       try {
         const body = await request.json();
-        const apiKey = env["OPEN-AI"];
-        if (!apiKey) {
-          // No OpenAI API key configured — fall back to Cloudflare AI
-          const topic = body.topic || "";
-          const folderName = body.folder_name || "";
-          const brandContext = folderName ? `Brand/Channel: ${folderName}. ` : "";
-          const seoSystemPrompt = `You are an expert social media SEO strategist with deep knowledge of YouTube, TikTok, and Facebook algorithms. Your goal is to generate high-quality, trending, platform-optimized SEO content that maximises discoverability and engagement.\n\nPlatform requirements:\n- YouTube: Titles must be 50-60 characters, keyword-rich, and compelling. Descriptions must be 150-300 characters with a strong hook and relevant keywords naturally embedded. Keywords must be 15-20 specific, trending, high-volume search terms separated by commas (mix broad + niche terms). Optimize for YouTube search and suggested videos.\n- TikTok: Caption must be under 150 characters with 3-5 highly relevant trending hashtags including #fyp and #foryoupage. Use conversational tone, emojis, and hooks that drive shares. Optimize for the TikTok For You Page algorithm.\n- Facebook: Title must be 40-60 characters. Description must be 100-200 characters followed by 5-8 relevant hashtags. Optimize for Facebook Reels discovery and shares.\n\nQuality rules:\n- Generate SPECIFIC, NICHE content \u2014 never generic filler text\n- Use currently trending keywords and hashtags for maximum reach\n- Match the exact content topic/mood \u2014 be precise, not vague\n- Each platform's content must be uniquely optimised, not copy-pasted\n- Titles must be clickable and curiosity-driving\n- Keywords must include a mix of high-volume broad terms and specific niche terms\n\nReturn ONLY valid JSON with no markdown, no extra text, no explanations:\n{\n  "youtube": {\n    "title": "Engaging title 50-60 chars",\n    "description": "Compelling description 150-300 chars with keywords embedded naturally",\n    "keywords": "15-20 trending comma-separated keywords, mix of broad and niche"\n  },\n  "tiktok": {\n    "allInOne": "Hook caption under 150 chars with emojis and 3-5 trending hashtags #fyp #foryoupage"\n  },\n  "facebook": {\n    "title": "Reels title 40-60 chars",\n    "descriptionAndTags": "Engaging description 100-200 chars\\n\\n#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5"\n  }\n}`;
-          const aiResponse = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
-            messages: [
-              { role: "system", content: seoSystemPrompt },
-              { role: "user", content: `${brandContext}Generate platform-optimized SEO content for the following:\n${topic}\n\nGenerate trending, specific SEO \u2014 not generic content.` }
-            ]
-          });
-          let rawText = "";
-          if (typeof aiResponse === "string") rawText = aiResponse;
-          else if (typeof aiResponse?.response === "string") rawText = aiResponse.response;
-          else rawText = JSON.stringify(aiResponse);
-          rawText = rawText.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
-          const firstBrace = rawText.indexOf("{");
-          const lastBrace = rawText.lastIndexOf("}");
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            rawText = rawText.slice(firstBrace, lastBrace + 1).trim();
-          }
-          let parsed = null;
-          try { parsed = JSON.parse(rawText); } catch (_) { parsed = null; }
-          if (!parsed) {
-            return new Response(JSON.stringify({ error: "AI returned invalid JSON" }), {
-              status: 500,
-              headers: { ...corsHeaders, "Content-Type": "application/json" }
+        const apiKey = env.OPENAI_API_KEY;
+        const topic = body.topic || "viral video";
+        const folderName = body.folder_name || "";
+        const brandContext = folderName ? `Brand/Channel: ${folderName}. ` : "";
+        const seoSystemPrompt = `You are an expert social media SEO strategist. Return ONLY valid JSON: {"youtube": {"title": "", "description": "", "keywords": ""}, "tiktok": {"allInOne": ""}, "facebook": {"title": "", "descriptionAndTags": ""}}`;
+        let finalData = null;
+        if (apiKey) {
+          try {
+            const flagshipResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+              method: "POST",
+              headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                model: "gpt-4o",
+                messages: [{ role: "system", content: seoSystemPrompt }, { role: "user", content: `${brandContext}Generate SEO for: ${topic}` }],
+                response_format: { type: "json_object" }
+              })
             });
-          }
-          const cleanData = {
-            youtube: {
-              title: String(parsed?.youtube?.title || ""),
-              description: String(parsed?.youtube?.description || ""),
-              keywords: String(parsed?.youtube?.keywords || "")
-            },
-            tiktok: { allInOne: String(parsed?.tiktok?.allInOne || "") },
-            facebook: {
-              title: String(parsed?.facebook?.title || ""),
-              descriptionAndTags: String(parsed?.facebook?.descriptionAndTags || "")
-            }
-          };
-          return new Response(JSON.stringify({ success: true, data: cleanData }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            const oaiData = await flagshipResponse.json();
+            if (oaiData.choices?.[0]?.message?.content) finalData = JSON.parse(oaiData.choices[0].message.content);
+          } catch (e) { console.error("OpenAI failed, falling back...", e.message); }
+        }
+        if (!finalData) {
+          const aiResponse = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+            messages: [{ role: "system", content: seoSystemPrompt }, { role: "user", content: `${brandContext}Generate SEO for: ${topic}` }]
           });
+          let rawText = typeof aiResponse === "string" ? aiResponse : aiResponse.response || JSON.stringify(aiResponse);
+          const start = rawText.indexOf("{");
+          const end = rawText.lastIndexOf("}");
+          if (start === -1 || end === -1 || end <= start) throw new Error("No valid JSON found in AI response");
+          finalData = JSON.parse(rawText.slice(start, end + 1));
         }
-        const flagshipResponse = await fetch("https://api.openai.com/v1/responses", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            prompt: {
-              id: "pmpt_69bb3de30e6c8190b0e48b46e4afd3ba043a4d7_",
-              version: "3"
-            },
-            input: {
-              user_message: body.topic || "",
-              ...(body.image_url ? { image_url: body.image_url } : {})
-            }
-          })
-        });
-        const oaiData = await flagshipResponse.json();
-        if (oaiData?.error) {
-          const errMsg = typeof oaiData.error === "string" ? oaiData.error : (oaiData.error?.message || JSON.stringify(oaiData.error));
-          return new Response(JSON.stringify({ error: errMsg }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-        }
-        let oaiText = "";
-        if (Array.isArray(oaiData?.output) && oaiData.output.length > 0) {
-          const outputItem = oaiData.output[0];
-          const contentArr = Array.isArray(outputItem?.content) ? outputItem.content : [];
-          const textItem = contentArr.find(c => c.type === "output_text");
-          oaiText = textItem?.text || (typeof outputItem?.content === "string" ? outputItem.content : "");
-        }
-        if (!oaiText) {
-          return new Response(JSON.stringify({ error: "AI returned no content" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-        }
-        oaiText = oaiText.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
-        const firstBrace = oaiText.indexOf("{");
-        const lastBrace = oaiText.lastIndexOf("}");
-        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-          oaiText = oaiText.slice(firstBrace, lastBrace + 1).trim();
-        }
-        let oaiParsed = null;
-        try { oaiParsed = JSON.parse(oaiText); } catch (_) { oaiParsed = null; }
-        if (!oaiParsed) {
-          return new Response(JSON.stringify({ error: "AI returned invalid JSON" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-        }
-        const oaiCleanData = {
-          youtube: {
-            title: String(oaiParsed?.youtube?.title || ""),
-            description: String(oaiParsed?.youtube?.description || ""),
-            keywords: String(oaiParsed?.youtube?.keywords || "")
-          },
-          tiktok: { allInOne: String(oaiParsed?.tiktok?.allInOne || "") },
-          facebook: {
-            title: String(oaiParsed?.facebook?.title || ""),
-            descriptionAndTags: String(oaiParsed?.facebook?.descriptionAndTags || "")
-          }
-        };
-        return new Response(JSON.stringify({ success: true, data: oaiCleanData }), {
+        return new Response(JSON.stringify({ success: true, data: finalData }), {
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), {
-          status: 500,
-          headers: corsHeaders
-        });
+        return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
       }
     }
-    const requireUser = /* @__PURE__ */ __name22222(
-      (val) => val && typeof val === "string" && val.trim() ? val.trim() : null,
-      "requireUser"
-    );
+
+    // --- 2. ROOT REDIRECT ---
+    if (url.pathname === "/" || url.pathname === "") {
+      return Response.redirect(frontendBaseUrl, 302);
+    }
+
+    // --- 3. UTILITY HELPERS ---
+    const requireUser = (val) => val && typeof val === "string" && val.trim() ? val.trim() : null;
     const redirectUri = `${siteBaseUrl}/api/auth/callback/youtube`;
     const fbRedirectUri = `${siteBaseUrl}/api/auth/callback/facebook`;
     const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
-    const nowMs = /* @__PURE__ */ __name22222(() => Date.now(), "nowMs");
-    const safeJson = /* @__PURE__ */ __name22222(async (res) => {
+    const nowMs = () => Date.now();
+    const safeJson = async (res) => {
       const text = await res.text();
       try {
         return JSON.parse(text);
       } catch {
         return { raw: text };
       }
-    }, "safeJson");
-    const encodeState = /* @__PURE__ */ __name22222((obj) => {
+    };
+    const encodeState = (obj) => {
       try {
         return btoa(JSON.stringify(obj));
       } catch {
         return String(obj?.folderId || "");
       }
-    }, "encodeState");
-    const decodeState = /* @__PURE__ */ __name22222((stateStr) => {
+    };
+    const decodeState = (stateStr) => {
       if (!stateStr) return { folderId: null, userId: null, platform: null };
       try {
         return JSON.parse(atob(stateStr));
@@ -180,49 +95,46 @@ var worker_default = {
           return { folderId: stateStr, userId: null, platform: null };
         }
       }
-    }, "decodeState");
-    const upsertToken = /* @__PURE__ */ __name22222(
-      async ({ folderId, platform, accountId, accessToken, refreshToken, expiresAt, scope }) => {
-        const safeFolderId = folderId == null ? null : String(folderId);
-        const safePlatform = platform == null ? null : String(platform);
-        const safeAccountId = accountId == null ? null : String(accountId);
-        const safeAccessToken = accessToken == null ? null : String(accessToken);
-        const safeRefreshToken = refreshToken == null ? null : String(refreshToken);
-       const safeExpiresAt = expiresAt == null ? null : String(expiresAt);
-        const safeScope = scope == null ? null : String(scope);
-        if (!safeFolderId || !safePlatform || !safeAccountId || !safeAccessToken) {
-          return;
-        }
-        await env.DB.prepare(`
-          INSERT INTO tokens (
-            folder_id, platform, account_id, access_token, refresh_token, expires_at, scope, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
-          ON CONFLICT(folder_id, platform, account_id)
-          DO UPDATE SET
-            access_token = excluded.access_token,
-            refresh_token = excluded.refresh_token,
-            expires_at = excluded.expires_at,
-            scope = excluded.scope,
-            updated_at = strftime('%s','now')
-        `).bind(
-  safeFolderId,
-  safePlatform,
-  safeAccountId,
-  safeAccessToken,
-  safeRefreshToken,
-  safeExpiresAt, // This is what was causing the error
-  safeScope
-).run();
-      },
-      "upsertToken"
-    );
-    const requireEnv = /* @__PURE__ */ __name22222((envVal, name) => {
+    };
+    const upsertToken = async ({ folderId, platform, accountId, accessToken, refreshToken, expiresAt, scope }) => {
+      const safeFolderId = folderId == null ? null : String(folderId);
+      const safePlatform = platform == null ? null : String(platform);
+      const safeAccountId = accountId == null ? null : String(accountId);
+      const safeAccessToken = accessToken == null ? null : String(accessToken);
+      const safeRefreshToken = refreshToken == null ? null : String(refreshToken);
+      const safeExpiresAt = expiresAt == null ? null : String(expiresAt);
+      const safeScope = scope == null ? null : String(scope);
+      if (!safeFolderId || !safePlatform || !safeAccountId || !safeAccessToken) {
+        return;
+      }
+      await env.DB.prepare(`
+        INSERT INTO tokens (
+          folder_id, platform, account_id, access_token, refresh_token, expires_at, scope, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
+        ON CONFLICT(folder_id, platform, account_id)
+        DO UPDATE SET
+          access_token = excluded.access_token,
+          refresh_token = excluded.refresh_token,
+          expires_at = excluded.expires_at,
+          scope = excluded.scope,
+          updated_at = strftime('%s','now')
+      `).bind(
+        safeFolderId,
+        safePlatform,
+        safeAccountId,
+        safeAccessToken,
+        safeRefreshToken,
+        safeExpiresAt,
+        safeScope
+      ).run();
+    };
+    const requireEnv = (envVal, name) => {
       const v = envVal && String(envVal).trim() ? String(envVal).trim() : null;
       if (!v) throw new Error(`Missing ${name} env var`);
       return v;
-    }, "requireEnv");
+    };
     const fbGraph = "https://graph.facebook.com/v18.0";
-    const fbSafe = /* @__PURE__ */ __name22222(async (res) => {
+    const fbSafe = async (res) => {
       const data = await safeJson(res);
       if (!res.ok) {
         throw new Error(`Facebook API ${res.status}: ${JSON.stringify(data)}`);
@@ -231,12 +143,12 @@ var worker_default = {
         throw new Error(`Facebook API error: ${JSON.stringify(data.error)}`);
       }
       return data;
-    }, "fbSafe");
-    const fetchFbJson = /* @__PURE__ */ __name22222(async (fbUrl, init) => {
+    };
+    const fetchFbJson = async (fbUrl, init) => {
       const res = await fetch(fbUrl, init);
       return fbSafe(res);
-    }, "fetchFbJson");
-    const appsecretProof = /* @__PURE__ */ __name22222(async (accessToken) => {
+    };
+    const appsecretProof = async (accessToken) => {
       const appSecret = env.FB_CLIENT_SECRET ? String(env.FB_CLIENT_SECRET).trim() : null;
       if (!appSecret) {
         console.warn("FB_CLIENT_SECRET not configured; appsecret_proof will be omitted from Facebook API calls");
@@ -253,67 +165,56 @@ var worker_default = {
       );
       const sig = await crypto.subtle.sign("HMAC", key, enc.encode(accessToken));
       return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
-    }, "appsecretProof");
-    const fetchPageTokens = /* @__PURE__ */ __name22222(async (userAccessToken) => {
-      const proof = await appsecretProof(userAccessToken);
-      const fbUrl = `${fbGraph}/me/accounts?fields=id,name,access_token&access_token=${encodeURIComponent(
-        userAccessToken
-      )}${proof ? `&appsecret_proof=${encodeURIComponent(proof)}` : ""}`;
-      const out = await fetchFbJson(fbUrl);
-      return Array.isArray(out?.data) ? out.data : [];
-    }, "fetchPageTokens");
-    const publishFacebookReelFromUrl = /* @__PURE__ */ __name22222(
-      async ({ pageId, pageAccessToken, videoUrl, description }) => {
-        const proof = await appsecretProof(pageAccessToken);
-        const proofParam = proof ? `?appsecret_proof=${encodeURIComponent(proof)}` : "";
-        const startRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels${proofParam}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            access_token: pageAccessToken,
-            upload_phase: "start"
-          })
-        });
-        const videoId = startRes?.video_id;
-        const uploadUrl = startRes?.upload_url;
-        if (!videoId || !uploadUrl) {
-          throw new Error(`Bad reels start response: ${JSON.stringify(startRes)}`);
-        }
-        const vidRes = await fetch(videoUrl);
-        if (!vidRes.ok) {
-          throw new Error(`Failed to fetch video_url: ${vidRes.status}`);
-        }
-        const buf = await vidRes.arrayBuffer();
-        const upRes = await fetch(uploadUrl, {
-          method: "POST",
-          headers: {
-            Authorization: `OAuth ${pageAccessToken}`,
-            "Content-Type": "application/octet-stream"
-          },
-          body: buf
-        });
-        const upText = await upRes.text();
-        if (!upRes.ok) {
-          throw new Error(`Reels upload failed ${upRes.status}: ${upText}`);
-        }
-        const finishRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels${proofParam}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            access_token: pageAccessToken,
-            upload_phase: "finish",
-            video_id: String(videoId),
-            description: description || ""
-          })
-        });
-        return { video_id: videoId, finish: finishRes };
-      },
-      "publishFacebookReelFromUrl"
-    );
-    const cleanText = /* @__PURE__ */ __name22222((value) => {
+    };
+    const publishFacebookReelFromUrl = async ({ pageId, pageAccessToken, videoUrl, description }) => {
+      const proof = await appsecretProof(pageAccessToken);
+      const proofParam = proof ? `?appsecret_proof=${encodeURIComponent(proof)}` : "";
+      const startRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels${proofParam}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          access_token: pageAccessToken,
+          upload_phase: "start"
+        })
+      });
+      const videoId = startRes?.video_id;
+      const uploadUrl = startRes?.upload_url;
+      if (!videoId || !uploadUrl) {
+        throw new Error(`Bad reels start response: ${JSON.stringify(startRes)}`);
+      }
+      const vidRes = await fetch(videoUrl);
+      if (!vidRes.ok) {
+        throw new Error(`Failed to fetch video_url: ${vidRes.status}`);
+      }
+      const buf = await vidRes.arrayBuffer();
+      const upRes = await fetch(uploadUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `OAuth ${pageAccessToken}`,
+          "Content-Type": "application/octet-stream"
+        },
+        body: buf
+      });
+      const upText = await upRes.text();
+      if (!upRes.ok) {
+        throw new Error(`Reels upload failed ${upRes.status}: ${upText}`);
+      }
+      const finishRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels${proofParam}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          access_token: pageAccessToken,
+          upload_phase: "finish",
+          video_id: String(videoId),
+          description: description || ""
+        })
+      });
+      return { video_id: videoId, finish: finishRes };
+    };
+    const cleanText = (value) => {
       return String(value || "").replace(/\s+/g, " ").trim();
-    }, "cleanText");
-    const makeKeywords = /* @__PURE__ */ __name22222((prompt) => {
+    };
+    const makeKeywords = (prompt) => {
       const cleaned = cleanText(prompt).toLowerCase().replace(/[^\w\s]/g, " ");
       const words = cleaned.split(/\s+/).filter(Boolean).filter((w) => w.length > 2);
       const unique = [...new Set(words)];
@@ -328,9 +229,9 @@ var worker_default = {
         "trending now",
         "must watch"
       ];
-      return [.../* @__PURE__ */ new Set([...base, ...extras])].join(", ");
-    }, "makeKeywords");
-    const fallbackSeo = /* @__PURE__ */ __name22222((prompt) => {
+      return [...new Set([...base, ...extras])].join(", ");
+    };
+    const fallbackSeo = (prompt) => {
       const idea = cleanText(prompt) || "viral short video";
       const lower = idea.toLowerCase();
       let youtubeTitle = idea.length <= 60 ? idea : idea.slice(0, 57) + "...";
@@ -361,7 +262,8 @@ Follow for daily trending content! \u{1F44F}
           descriptionAndTags: facebookDescriptionAndTags
         }
       };
-    }, "fallbackSeo");
+    };
+    // --- 4. API ROUTING ---
     try {
       if (url.pathname === "/api/get-folders") {
         const userId = requireUser(url.searchParams.get("user_id"));
@@ -1330,7 +1232,4 @@ Generate trending, specific SEO \u2014 not generic content.`
   }
 };
 
-export {
-  worker_default as default
-};
-//# sourceMappingURL=worker.js.map
+
