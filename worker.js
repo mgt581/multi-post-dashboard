@@ -33,6 +33,46 @@ var worker_default = {
       try {
         const body = await request.json();
         const apiKey = env["OPEN-AI"];
+        if (!apiKey) {
+          // No OpenAI API key configured — fall back to Cloudflare AI
+          const topic = body.topic || "";
+          const folderName = body.folder_name || "";
+          const brandContext = folderName ? `Brand/Channel: ${folderName}. ` : "";
+          const seoSystemPrompt = `You are an expert social media SEO strategist with deep knowledge of YouTube, TikTok, and Facebook algorithms. Your goal is to generate high-quality, trending, platform-optimized SEO content that maximises discoverability and engagement.\n\nPlatform requirements:\n- YouTube: Titles must be 50-60 characters, keyword-rich, and compelling. Descriptions must be 150-300 characters with a strong hook and relevant keywords naturally embedded. Keywords must be 15-20 specific, trending, high-volume search terms separated by commas (mix broad + niche terms). Optimize for YouTube search and suggested videos.\n- TikTok: Caption must be under 150 characters with 3-5 highly relevant trending hashtags including #fyp and #foryoupage. Use conversational tone, emojis, and hooks that drive shares. Optimize for the TikTok For You Page algorithm.\n- Facebook: Title must be 40-60 characters. Description must be 100-200 characters followed by 5-8 relevant hashtags. Optimize for Facebook Reels discovery and shares.\n\nQuality rules:\n- Generate SPECIFIC, NICHE content \u2014 never generic filler text\n- Use currently trending keywords and hashtags for maximum reach\n- Match the exact content topic/mood \u2014 be precise, not vague\n- Each platform's content must be uniquely optimised, not copy-pasted\n- Titles must be clickable and curiosity-driving\n- Keywords must include a mix of high-volume broad terms and specific niche terms\n\nReturn ONLY valid JSON with no markdown, no extra text, no explanations:\n{\n  "youtube": {\n    "title": "Engaging title 50-60 chars",\n    "description": "Compelling description 150-300 chars with keywords embedded naturally",\n    "keywords": "15-20 trending comma-separated keywords, mix of broad and niche"\n  },\n  "tiktok": {\n    "allInOne": "Hook caption under 150 chars with emojis and 3-5 trending hashtags #fyp #foryoupage"\n  },\n  "facebook": {\n    "title": "Reels title 40-60 chars",\n    "descriptionAndTags": "Engaging description 100-200 chars\\n\\n#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5"\n  }\n}`;
+          const aiResponse = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+            messages: [
+              { role: "system", content: seoSystemPrompt },
+              { role: "user", content: `${brandContext}Generate platform-optimized SEO content for the following:\n${topic}\n\nGenerate trending, specific SEO \u2014 not generic content.` }
+            ]
+          });
+          let rawText = "";
+          if (typeof aiResponse === "string") rawText = aiResponse;
+          else if (typeof aiResponse?.response === "string") rawText = aiResponse.response;
+          else rawText = JSON.stringify(aiResponse);
+          rawText = rawText.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+          const firstBrace = rawText.indexOf("{");
+          const lastBrace = rawText.lastIndexOf("}");
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+            rawText = rawText.slice(firstBrace, lastBrace + 1).trim();
+          }
+          let parsed = null;
+          try { parsed = JSON.parse(rawText); } catch (_) { parsed = null; }
+          const cleanData = parsed ? {
+            youtube: {
+              title: String(parsed?.youtube?.title || ""),
+              description: String(parsed?.youtube?.description || ""),
+              keywords: String(parsed?.youtube?.keywords || "")
+            },
+            tiktok: { allInOne: String(parsed?.tiktok?.allInOne || "") },
+            facebook: {
+              title: String(parsed?.facebook?.title || ""),
+              descriptionAndTags: String(parsed?.facebook?.descriptionAndTags || "")
+            }
+          } : {};
+          return new Response(JSON.stringify({ success: true, data: cleanData }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
+        }
         const flagshipResponse = await fetch("https://api.openai.com/v1/responses", {
           method: "POST",
           headers: {
