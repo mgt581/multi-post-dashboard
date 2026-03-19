@@ -352,6 +352,10 @@
             Select image (JPG/PNG, &lt;5MB) — optional
           </div>
         </div>
+        <div>
+          <label for="seoImageUrl">🔗 Or paste image URL <span class="small" style="color: var(--muted);">(optional — AI analyzes the linked image)</span></label>
+          <input id="seoImageUrl" type="url" placeholder="https://example.com/image.jpg" style="width: 100%; margin-bottom: 8px;">
+        </div>
         
         <label for="videoPrompt">💭 Describe your content <span class="small" style="color: var(--muted);">(required if no image — add both for best results)</span></label>
         <textarea id="videoPrompt" rows="2" placeholder="Describe your video/post topic, niche, or idea (e.g. 'morning gym routine for beginners')"></textarea>
@@ -745,49 +749,29 @@
     const prompt = document.getElementById("videoPrompt").value.trim();
     const seoImageInput = document.getElementById("seoImage");
     const imageFile = seoImageInput.files?.[0];
+    const imageUrl = (document.getElementById("seoImageUrl")?.value || "").trim();
 
-    if (!imageFile && !prompt) {
-      alert("Please upload an image, enter a description, or both");
-      return;
-    }
-
-    if (imageFile && imageFile.size > 5 * 1024 * 1024) {
-      alert("Image too large (max 5MB)");
+    if (!imageFile && !imageUrl && !prompt) {
+      alert("Please upload an image, paste an image URL, enter a description, or both");
       return;
     }
 
     setLoading(true);
-    const statusMsg = imageFile && prompt
+    const hasImage = !!(imageFile || imageUrl);
+    const statusMsg = hasImage && prompt
       ? "AI analyzing image & description…"
-      : imageFile
+      : hasImage
         ? "AI analyzing image…"
         : "AI generating SEO from description…";
     setStatus(statusMsg, "working");
 
     try {
-      let imageBase64 = "";
-      let imageFilename = "";
-
-      if (imageFile) {
-        imageBase64 = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => {
-            const result = String(reader.result || "");
-            resolve(result.split(",")[1] || "");
-          };
-          reader.onerror = () => reject(new Error("Failed to read image"));
-          reader.readAsDataURL(imageFile);
-        });
-        imageFilename = imageFile.name;
-      }
-
-      const res = await fetch(`${apiBase}/generate-seo`, {
+      const res = await fetch(`${apiBase}/generate-premium-seo`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          image_base64: imageBase64,
-          image_filename: imageFilename,
-          prompt: prompt || "",
+          topic: prompt || "",
+          image_url: imageUrl || "",
           folder_id: activeFolderId,
           folder_name: activeFolderName,
           youtube_channel: activeYouTubeName,

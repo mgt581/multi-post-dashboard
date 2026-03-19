@@ -1211,11 +1211,20 @@ Generate trending, specific SEO \u2014 not generic content.`
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
         }
-        if (!body.topic || typeof body.topic !== "string" || !body.topic.trim()) {
-          return new Response(JSON.stringify({ success: false, error: "Missing or empty 'topic' field" }), {
+        const imageUrl = typeof body.image_url === "string" ? body.image_url.trim() : "";
+        const hasTopic = !!(body.topic && typeof body.topic === "string" && body.topic.trim());
+        if (!hasTopic && !imageUrl) {
+          return new Response(JSON.stringify({ success: false, error: "Provide a topic, an image URL, or both" }), {
             status: 400,
             headers: { ...corsHeaders, "Content-Type": "application/json" }
           });
+        }
+        const openAIInput = {};
+        if (hasTopic) {
+          openAIInput.user_message = body.topic;
+        }
+        if (imageUrl) {
+          openAIInput.image_url = imageUrl;
         }
         const flagshipResponse = await fetch("https://api.openai.com/v1/responses", {
           method: "POST",
@@ -1228,9 +1237,7 @@ Generate trending, specific SEO \u2014 not generic content.`
               id: "pmpt_69bb3de30e6c8190b0e48b46e4afd3ba043a4d7_",
               version: "3"
             },
-            input: {
-              user_message: body.topic
-            }
+            input: openAIInput
           })
         });
         const result = await flagshipResponse.json();
