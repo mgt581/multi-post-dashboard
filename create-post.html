@@ -793,11 +793,29 @@
         throw new Error("Bad JSON from server");
       }
 
-      if (!json.success) {
-        throw new Error(json.error || "AI Error");
+      if (json.error) {
+        const rawErr = json.error;
+        const errorMsg = typeof rawErr === "string"
+          ? rawErr
+          : (rawErr?.message || JSON.stringify(rawErr));
+        throw new Error(errorMsg);
       }
 
-      const raw = json?.data?.response ?? json?.data ?? json;
+      if (!json.success && !json.output && !json.data) {
+        throw new Error("AI Error");
+      }
+
+      let raw;
+      if (Array.isArray(json.output) && json.output.length > 0) {
+        const outputItem = json.output[0];
+        const contentArr = Array.isArray(outputItem?.content) ? outputItem.content : [];
+        const textContent =
+          contentArr.find(c => c.type === "output_text")?.text ??
+          (typeof outputItem?.content === "string" ? outputItem.content : "");
+        raw = parseJsonSafe(textContent) || textContent || {};
+      } else {
+        raw = json?.data?.response ?? json?.data ?? json;
+      }
       const parsed = parseJsonSafe(raw) || raw || {};
       const d = parsed?.data ?? parsed ?? {};
 
