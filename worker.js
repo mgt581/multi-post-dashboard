@@ -10,6 +10,8 @@ var __defProp222 = Object.defineProperty;
 var __name222 = /* @__PURE__ */ __name22((target, value) => __defProp222(target, "name", { value, configurable: true }), "__name");
 var __defProp2222 = Object.defineProperty;
 var __name2222 = /* @__PURE__ */ __name222((target, value) => __defProp2222(target, "name", { value, configurable: true }), "__name");
+var __defProp22222 = Object.defineProperty;
+var __name22222 = /* @__PURE__ */ __name2222((target, value) => __defProp22222(target, "name", { value, configurable: true }), "__name");
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -24,17 +26,13 @@ var worker_default = {
     const HARD_DEFAULT_SITE = "https://multipostapp.co.uk";
     const siteBaseUrl = env.BASE_URL && String(env.BASE_URL).trim() ? String(env.BASE_URL).trim() : HARD_DEFAULT_SITE;
     const frontendBaseUrl = env.FRONTEND_URL && String(env.FRONTEND_URL).trim() ? String(env.FRONTEND_URL).trim() : siteBaseUrl;
-    // 1. Handle Home Page Redirect (Only once)
     if (url.pathname === "/" || url.pathname === "") {
       return Response.redirect(frontendBaseUrl, 302);
     }
-
-    // 2. FLAGSHIP PREMIUM SEO ROUTE
     if (url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
       try {
         const body = await request.json();
-        const apiKey = env['OPEN-AI']; 
-        
+        const apiKey = env["OPEN-AI"];
         const flagshipResponse = await fetch("https://api.openai.com/v1/responses", {
           method: "POST",
           headers: {
@@ -52,29 +50,26 @@ var worker_default = {
             }
           })
         });
-
         const data = await flagshipResponse.json();
-        return new Response(JSON.stringify(data), { 
-          headers: { ...corsHeaders, "Content-Type": "application/json" } 
+        return new Response(JSON.stringify(data), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { 
-          status: 500, 
-          headers: corsHeaders 
+        return new Response(JSON.stringify({ error: err.message }), {
+          status: 500,
+          headers: corsHeaders
         });
       }
     }
-
-    // 3. Helper Functions & Definitions
-    const requireUser = /* @__PURE__ */ __name2222(
+    const requireUser = /* @__PURE__ */ __name22222(
       (val) => val && typeof val === "string" && val.trim() ? val.trim() : null,
       "requireUser"
     );
     const redirectUri = `${siteBaseUrl}/api/auth/callback/youtube`;
     const fbRedirectUri = `${siteBaseUrl}/api/auth/callback/facebook`;
     const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
-    const nowMs = /* @__PURE__ */ __name2222(() => Date.now(), "nowMs");
-    const safeJson = /* @__PURE__ */ __name2222(async (res) => {
+    const nowMs = /* @__PURE__ */ __name22222(() => Date.now(), "nowMs");
+    const safeJson = /* @__PURE__ */ __name22222(async (res) => {
       const text = await res.text();
       try {
         return JSON.parse(text);
@@ -82,14 +77,14 @@ var worker_default = {
         return { raw: text };
       }
     }, "safeJson");
-    const encodeState = /* @__PURE__ */ __name2222((obj) => {
+    const encodeState = /* @__PURE__ */ __name22222((obj) => {
       try {
         return btoa(JSON.stringify(obj));
       } catch {
         return String(obj?.folderId || "");
       }
     }, "encodeState");
-    const decodeState = /* @__PURE__ */ __name2222((stateStr) => {
+    const decodeState = /* @__PURE__ */ __name22222((stateStr) => {
       if (!stateStr) return { folderId: null, userId: null, platform: null };
       try {
         return JSON.parse(atob(stateStr));
@@ -103,7 +98,7 @@ var worker_default = {
         }
       }
     }, "decodeState");
-    const upsertToken = /* @__PURE__ */ __name2222(
+    const upsertToken = /* @__PURE__ */ __name22222(
       async ({ folderId, platform, accountId, accessToken, refreshToken, expiresAt, scope }) => {
         const safeFolderId = folderId == null ? null : String(folderId);
         const safePlatform = platform == null ? null : String(platform);
@@ -138,13 +133,13 @@ var worker_default = {
       },
       "upsertToken"
     );
-    const requireEnv = /* @__PURE__ */ __name2222((envVal, name) => {
+    const requireEnv = /* @__PURE__ */ __name22222((envVal, name) => {
       const v = envVal && String(envVal).trim() ? String(envVal).trim() : null;
       if (!v) throw new Error(`Missing ${name} env var`);
       return v;
     }, "requireEnv");
     const fbGraph = "https://graph.facebook.com/v18.0";
-    const fbSafe = /* @__PURE__ */ __name2222(async (res) => {
+    const fbSafe = /* @__PURE__ */ __name22222(async (res) => {
       const data = await safeJson(res);
       if (!res.ok) {
         throw new Error(`Facebook API ${res.status}: ${JSON.stringify(data)}`);
@@ -154,11 +149,11 @@ var worker_default = {
       }
       return data;
     }, "fbSafe");
-    const fetchFbJson = /* @__PURE__ */ __name2222(async (fbUrl, init) => {
+    const fetchFbJson = /* @__PURE__ */ __name22222(async (fbUrl, init) => {
       const res = await fetch(fbUrl, init);
       return fbSafe(res);
     }, "fetchFbJson");
-    const appsecretProof = /* @__PURE__ */ __name2222(async (accessToken) => {
+    const appsecretProof = /* @__PURE__ */ __name22222(async (accessToken) => {
       const appSecret = env.FB_CLIENT_SECRET ? String(env.FB_CLIENT_SECRET).trim() : null;
       if (!appSecret) {
         console.warn("FB_CLIENT_SECRET not configured; appsecret_proof will be omitted from Facebook API calls");
@@ -176,7 +171,7 @@ var worker_default = {
       const sig = await crypto.subtle.sign("HMAC", key, enc.encode(accessToken));
       return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
     }, "appsecretProof");
-    const fetchPageTokens = /* @__PURE__ */ __name2222(async (userAccessToken) => {
+    const fetchPageTokens = /* @__PURE__ */ __name22222(async (userAccessToken) => {
       const proof = await appsecretProof(userAccessToken);
       const fbUrl = `${fbGraph}/me/accounts?fields=id,name,access_token&access_token=${encodeURIComponent(
         userAccessToken
@@ -184,7 +179,7 @@ var worker_default = {
       const out = await fetchFbJson(fbUrl);
       return Array.isArray(out?.data) ? out.data : [];
     }, "fetchPageTokens");
-    const publishFacebookReelFromUrl = /* @__PURE__ */ __name2222(
+    const publishFacebookReelFromUrl = /* @__PURE__ */ __name22222(
       async ({ pageId, pageAccessToken, videoUrl, description }) => {
         const proof = await appsecretProof(pageAccessToken);
         const proofParam = proof ? `?appsecret_proof=${encodeURIComponent(proof)}` : "";
@@ -232,10 +227,10 @@ var worker_default = {
       },
       "publishFacebookReelFromUrl"
     );
-    const cleanText = /* @__PURE__ */ __name2222((value) => {
+    const cleanText = /* @__PURE__ */ __name22222((value) => {
       return String(value || "").replace(/\s+/g, " ").trim();
     }, "cleanText");
-    const makeKeywords = /* @__PURE__ */ __name2222((prompt) => {
+    const makeKeywords = /* @__PURE__ */ __name22222((prompt) => {
       const cleaned = cleanText(prompt).toLowerCase().replace(/[^\w\s]/g, " ");
       const words = cleaned.split(/\s+/).filter(Boolean).filter((w) => w.length > 2);
       const unique = [...new Set(words)];
@@ -252,7 +247,7 @@ var worker_default = {
       ];
       return [.../* @__PURE__ */ new Set([...base, ...extras])].join(", ");
     }, "makeKeywords");
-    const fallbackSeo = /* @__PURE__ */ __name2222((prompt) => {
+    const fallbackSeo = /* @__PURE__ */ __name22222((prompt) => {
       const idea = cleanText(prompt) || "viral short video";
       const lower = idea.toLowerCase();
       let youtubeTitle = idea.length <= 60 ? idea : idea.slice(0, 57) + "...";
@@ -457,13 +452,11 @@ Follow for daily trending content! \u{1F44F}
           `${frontendBaseUrl}/create-post.html?youtube_connected=1&account_name=${encodeURIComponent(channelName)}&folder_id=${encodeURIComponent(folderId)}`
         );
       }
-      
       if (url.pathname === "/api/auth/callback/tiktok") {
         const code = url.searchParams.get("code");
         const stateObj = decodeState(url.searchParams.get("state"));
         const folderId = stateObj.folderId;
         const userId = requireUser(stateObj.userId);
-
         if (!folderId || !userId) {
           return new Response("Missing state", { status: 400, headers: corsHeaders });
         }
@@ -471,8 +464,6 @@ Follow for daily trending content! \u{1F44F}
           const err = url.searchParams.get("error") || "missing_code";
           return new Response(`TikTok OAuth failed: ${err}`, { status: 400, headers: corsHeaders });
         }
-
-        // 1. Exchange Code for Tokens
         const tokenRes = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -484,24 +475,18 @@ Follow for daily trending content! \u{1F44F}
             redirect_uri: `${siteBaseUrl}/api/auth/callback/tiktok`
           })
         });
-
         const tokenJson = await safeJson(tokenRes);
         const tData = tokenJson.data || tokenJson;
-
         if (tokenJson.error || tData.error) {
           throw new Error(tokenJson.error_description || tData.error_description || "TikTok Exchange Failed");
         }
-
         const accessToken = tData.access_token || tokenJson.access_token;
         const refreshToken = tData.refresh_token || tokenJson.refresh_token;
         const expiresIn = tData.expires_in || tokenJson.expires_in || 0;
         const openId = tData.open_id || tData.openid || "";
         const scope = tData.scope || "video.upload,video.publish,user.info.basic";
-        
         let tiktokNickname = "Linked TikTok";
         let tiktokAvatar = null;
-
-        // 2. Fetch User Profile Name and Avatar
         try {
           const userInfoRes = await fetch(
             "https://open.tiktokapis.com/v2/user/info/?fields=display_name,avatar_url",
@@ -509,10 +494,8 @@ Follow for daily trending content! \u{1F44F}
               headers: { "Authorization": `Bearer ${accessToken}` }
             }
           );
-          
           const userInfo = await safeJson(userInfoRes);
           const user = userInfo?.data?.user;
-          
           if (user) {
             tiktokNickname = (user.display_name || "TikTok User").trim();
             tiktokAvatar = user.avatar_url ? String(user.avatar_url) : null;
@@ -520,8 +503,6 @@ Follow for daily trending content! \u{1F44F}
         } catch (e) {
           console.error("TikTok Profile Fetch Error:", e);
         }
-
-        // 3. Save to Database Main Table
         await env.DB.prepare(
           "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at, profile_picture) VALUES (?, ?, 'tiktok', ?, ?, ?, ?, ?)"
         ).bind(
@@ -533,8 +514,6 @@ Follow for daily trending content! \u{1F44F}
           nowMs() + Number(expiresIn) * 1e3,
           tiktokAvatar
         ).run();
-
-        // 4. Update Token Storage (upsert)
         await upsertToken({
           folderId: String(folderId),
           platform: "tiktok",
@@ -544,13 +523,10 @@ Follow for daily trending content! \u{1F44F}
           expiresAt: nowMs() + Number(expiresIn) * 1e3,
           scope: String(scope)
         });
-
-        // 5. Redirect to frontend with the real account name
         return Response.redirect(
           `${frontendBaseUrl}/create-post.html?tiktok_connected=1&account_name=${encodeURIComponent(tiktokNickname)}&folder_id=${encodeURIComponent(folderId)}`
         );
       }
-      
       if (url.pathname === "/api/auth/callback/facebook") {
         const code = url.searchParams.get("code");
         const stateObj = decodeState(url.searchParams.get("state"));
@@ -1191,7 +1167,6 @@ Generate trending, specific SEO \u2014 not generic content.`;
                 {
                   role: "user",
                   content: `${brandContext}Generate platform-optimized SEO content for the following:
-
 ${textPrompt}
 
 Generate trending, specific SEO \u2014 not generic content.`
@@ -1199,6 +1174,7 @@ Generate trending, specific SEO \u2014 not generic content.`
               ]
             });
           }
+          
           if (typeof aiResponse === "string") {
             rawText = aiResponse;
           } else if (typeof aiResponse?.response === "string") {
@@ -1208,6 +1184,7 @@ Generate trending, specific SEO \u2014 not generic content.`
           } else {
             rawText = JSON.stringify(aiResponse);
           }
+          
           rawText = rawText.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
           const firstBrace = rawText.indexOf("{");
           const lastBrace = rawText.lastIndexOf("}");
@@ -1218,6 +1195,7 @@ Generate trending, specific SEO \u2014 not generic content.`
         } catch (_) {
           parsed = null;
         }
+
         const cleanData = parsed ? {
           youtube: {
             title: String(parsed?.youtube?.title || ""),
@@ -1231,7 +1209,8 @@ Generate trending, specific SEO \u2014 not generic content.`
             title: String(parsed?.facebook?.title || ""),
             descriptionAndTags: String(parsed?.facebook?.descriptionAndTags || "")
           }
-        } : fallbackSeo(textPrompt);
+        } : (typeof fallbackSeo === 'function' ? fallbackSeo(textPrompt) : {});
+
         return new Response(JSON.stringify({
           success: true,
           data: cleanData,
@@ -1239,28 +1218,35 @@ Generate trending, specific SEO \u2014 not generic content.`
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
-      }
+      } // Closes the specific API route block
+
+      // --- Global Routing & Asset Fetching ---
       if (!url.pathname.startsWith("/api/")) {
         return Response.redirect(frontendBaseUrl, 302);
       }
+
       const response = await fetch(request);
+      
       if (response.headers.get("content-type")?.includes("text/html")) {
         const newResponse = new Response(response.body, response);
         newResponse.headers.set(
           "Content-Security-Policy",
-          "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://cdnjs.cloudflare.com https://sf-security.ibytedtos.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com; img-src 'self' data: https://www.gstatic.com https://p16-sign-va.tiktokcdn.com https://graph.facebook.com; connect-src 'self' https://multipost-seo-worker.alexbryant.workers.dev https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com https://open.tiktokapis.com https://www.tiktok.com https://graph.facebook.com https://www.facebook.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://libraweb-i18n.tiktok.com https://mcs-i18n.tiktok.com; frame-src 'self' https://accounts.google.com https://www.facebook.com https://www.tiktok.com; object-src 'none'; base-uri 'self';"
+          "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' [https://www.gstatic.com](https://www.gstatic.com) [https://cdnjs.cloudflare.com](https://cdnjs.cloudflare.com) [https://sf-security.ibytedtos.com](https://sf-security.ibytedtos.com); style-src 'self' 'unsafe-inline' [https://fonts.googleapis.com](https://fonts.googleapis.com) [https://cdnjs.cloudflare.com](https://cdnjs.cloudflare.com); font-src 'self' [https://fonts.gstatic.com](https://fonts.gstatic.com) [https://cdnjs.cloudflare.com](https://cdnjs.cloudflare.com); img-src 'self' data: [https://www.gstatic.com](https://www.gstatic.com) [https://p16-sign-va.tiktokcdn.com](https://p16-sign-va.tiktokcdn.com) [https://graph.facebook.com](https://graph.facebook.com); connect-src 'self' [https://api.openai.com](https://api.openai.com) [https://multipost-seo-worker.alexbryant.workers.dev](https://multipost-seo-worker.alexbryant.workers.dev) [https://www.googleapis.com](https://www.googleapis.com) [https://oauth2.googleapis.com](https://oauth2.googleapis.com) [https://accounts.google.com](https://accounts.google.com) [https://open.tiktokapis.com](https://open.tiktokapis.com) [https://www.tiktok.com](https://www.tiktok.com) [https://graph.facebook.com](https://graph.facebook.com) [https://www.facebook.com](https://www.facebook.com) [https://identitytoolkit.googleapis.com](https://identitytoolkit.googleapis.com) [https://securetoken.googleapis.com](https://securetoken.googleapis.com) [https://libraweb-i18n.tiktok.com](https://libraweb-i18n.tiktok.com) [https://mcs-i18n.tiktok.com](https://mcs-i18n.tiktok.com); frame-src 'self' [https://accounts.google.com](https://accounts.google.com) [https://www.facebook.com](https://www.facebook.com) [https://www.tiktok.com](https://www.tiktok.com); object-src 'none'; base-uri 'self';"
         );
         return newResponse;
       }
       return response;
+
     } catch (err) {
-      return new Response(JSON.stringify({ success: false, error: err.message }), {
+      // The master catch block that handles the whole fetch process
+      return new Response(JSON.stringify({ success: false, error: err.message || String(err) }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
   }
 };
+
 export {
   worker_default as default
 };
