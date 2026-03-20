@@ -1201,60 +1201,82 @@ Return ONLY valid JSON with no markdown, no extra text, no explanations:
     "descriptionAndTags": "Engaging description 100-200 chars\\n\\n#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5"
   }
 }`;
+        const parseSeoText = (rawText) => {
+          rawText = rawText.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+          const firstBrace = rawText.indexOf("{");
+          const lastBrace = rawText.lastIndexOf("}");
+          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) rawText = rawText.slice(firstBrace, lastBrace + 1).trim();
+          return JSON.parse(rawText);
+        };
         let parsed = null;
-        let rawText = "";
-        try {
-          let aiResponse = null;
-          if (hasImage) {
-            const mimeType = imageFilename.toLowerCase().split(".").pop() === "png" ? "image/png" : "image/jpeg";
-            const userContent = hasText ? `${brandContext}Analyze this image and the following context to generate platform-optimized SEO content.
+        const apiKey = env.OPENAI_API_KEY;
+        if (apiKey) {
+          try {
+            const oaiMessages = [{ role: "system", content: seoSystemPrompt }];
+            if (hasImage) {
+              const mimeType = imageFilename.toLowerCase().split(".").pop() === "png" ? "image/png" : "image/jpeg";
+              oaiMessages.push({ role: "user", content: [
+                { type: "image_url", image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+                { type: "text", text: `${brandContext}${hasText ? `Analyze this image and description to generate SEO: ${textPrompt}` : "Analyze this image carefully and generate platform-optimized SEO content."}` }
+              ]});
+            } else {
+              oaiMessages.push({ role: "user", content: `${brandContext}Generate platform-optimized SEO content for the following:\n${textPrompt}\n\nGenerate trending, specific SEO \u2014 not generic content.` });
+            }
+            const oaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+              method: "POST",
+              headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ model: "gpt-4o", messages: oaiMessages, response_format: { type: "json_object" } })
+            });
+            const oaiData = await oaiResponse.json();
+            if (oaiData.choices?.[0]?.message?.content) {
+              try { parsed = parseSeoText(oaiData.choices[0].message.content); } catch { /* fall through */ }
+            }
+          } catch (e) { console.error("OpenAI failed, falling back to Cloudflare AI...", e.message); }
+        }
+        if (!parsed) {
+          try {
+            let aiResponse = null;
+            if (hasImage) {
+              const mimeType = imageFilename.toLowerCase().split(".").pop() === "png" ? "image/png" : "image/jpeg";
+              const userContent = hasText ? `${brandContext}Analyze this image and the following context to generate platform-optimized SEO content.
 
 Context: ${textPrompt}
 
 Generate trending, specific SEO \u2014 not generic content.` : `${brandContext}Analyze this image carefully and generate platform-optimized SEO content based on what you see.
 
 Generate trending, specific SEO \u2014 not generic content.`;
-            aiResponse = await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
-              messages: [
-                { role: "system", content: seoSystemPrompt },
-                { role: "user", content: userContent }
-              ],
-              images: [{ data: imageBase64, mimeType }]
-            });
-          } else {
-            aiResponse = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
-              messages: [
-                { role: "system", content: seoSystemPrompt },
-                {
-                  role: "user",
-                  content: `${brandContext}Generate platform-optimized SEO content for the following:
-${textPrompt}
-
-Generate trending, specific SEO \u2014 not generic content.`
-                }
-              ]
-            });
+              aiResponse = await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
+                messages: [
+                  { role: "system", content: seoSystemPrompt },
+                  { role: "user", content: userContent }
+                ],
+                images: [{ data: imageBase64, mimeType }]
+              });
+            } else {
+              aiResponse = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+                messages: [
+                  { role: "system", content: seoSystemPrompt },
+                  {
+                    role: "user",
+                    content: `${brandContext}Generate platform-optimized SEO content for the following:\n${textPrompt}\n\nGenerate trending, specific SEO \u2014 not generic content.`
+                  }
+                ]
+              });
+            }
+            let rawText;
+            if (typeof aiResponse === "string") {
+              rawText = aiResponse;
+            } else if (typeof aiResponse?.response === "string") {
+              rawText = aiResponse.response;
+            } else if (typeof aiResponse?.result?.response === "string") {
+              rawText = aiResponse.result.response;
+            } else {
+              rawText = JSON.stringify(aiResponse);
+            }
+            try { parsed = parseSeoText(rawText); } catch { /* fall through */ }
+          } catch (_) {
+            parsed = null;
           }
-          
-          if (typeof aiResponse === "string") {
-            rawText = aiResponse;
-          } else if (typeof aiResponse?.response === "string") {
-            rawText = aiResponse.response;
-          } else if (typeof aiResponse?.result?.response === "string") {
-            rawText = aiResponse.result.response;
-          } else {
-            rawText = JSON.stringify(aiResponse);
-          }
-          
-          rawText = rawText.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
-          const firstBrace = rawText.indexOf("{");
-          const lastBrace = rawText.lastIndexOf("}");
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            rawText = rawText.slice(firstBrace, lastBrace + 1).trim();
-          }
-          parsed = JSON.parse(rawText);
-        } catch (_) {
-          parsed = null;
         }
 
         const cleanData = parsed ? {
