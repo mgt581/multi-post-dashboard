@@ -1,4 +1,3 @@
-cat > .gitignore <<'EOF'
 # macOS
 .DS_Store
 
@@ -13,6 +12,7 @@ yarn-error.log*
 **/.wrangler/
 node_modules/.cache/
 node_modules/.mf/
+dist/
 
 # IDE
 .idea/
@@ -20,4 +20,3 @@ node_modules/.mf/
 
 # Logs
 firebase-debug.log
-EOF
