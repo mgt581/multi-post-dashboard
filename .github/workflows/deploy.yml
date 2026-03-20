@@ -27,8 +27,8 @@ jobs:
           FB_CLIENT_SECRET: ${{ secrets.FB_CLIENT_SECRET }}
 
       - name: Upload optional OpenAI secret
-        if: secrets.OPENAI_API_KEY != ''
-        run: npx wrangler secret put OPENAI_API_KEY
+        if: ${{ secrets.OPENAI_API_KEY != '' }}
+        run: echo "$OPENAI_API_KEY" | npx wrangler secret put OPENAI_API_KEY
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
