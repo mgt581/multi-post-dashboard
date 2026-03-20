@@ -9,27 +9,43 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     name: Deploy Worker
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy to Cloudflare Workers
-        uses: cloudflare/wrangler-action@v3
+      - uses: actions/setup-node@v4
         with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          secrets: |
-            GOOGLE_CLIENT_SECRET
-            TIKTOK_CLIENT_SECRET
-            FB_CLIENT_SECRET
-        env:
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
-          FB_CLIENT_SECRET: ${{ secrets.FB_CLIENT_SECRET }}
+          node-version: '20'
+          cache: 'npm'
 
-      - name: Upload optional OpenAI secret
-        if: ${{ secrets.OPENAI_API_KEY != '' }}
-        run: echo "$OPENAI_API_KEY" | npx wrangler secret put OPENAI_API_KEY
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy to Cloudflare Workers
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
+
+      - name: Upload worker secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          FB_CLIENT_SECRET: ${{ secrets.FB_CLIENT_SECRET }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -n "$GOOGLE_CLIENT_SECRET" ]; then
+            echo "$GOOGLE_CLIENT_SECRET" | npx wrangler secret put GOOGLE_CLIENT_SECRET
+          fi
+          if [ -n "$TIKTOK_CLIENT_SECRET" ]; then
+            echo "$TIKTOK_CLIENT_SECRET" | npx wrangler secret put TIKTOK_CLIENT_SECRET
+          fi
+          if [ -n "$FB_CLIENT_SECRET" ]; then
+            echo "$FB_CLIENT_SECRET" | npx wrangler secret put FB_CLIENT_SECRET
+          fi
+          if [ -n "$OPENAI_API_KEY" ]; then
+            echo "$OPENAI_API_KEY" | npx wrangler secret put OPENAI_API_KEY
+          fi

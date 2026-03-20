@@ -1,4 +1,3 @@
-cat > .gitignore <<'EOF'
 # macOS
 .DS_Store
 
@@ -20,4 +19,3 @@ node_modules/.mf/
 
 # Logs
 firebase-debug.log
-EOF
