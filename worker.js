@@ -65,6 +65,7 @@ export default {
         let finalData = null;
         if (apiKey) {
           try {
+            /** @type {Array<{role: string, content: string | Array<{type: string, text?: string, image_url?: {url: string}}>}>} */
             const oaiMessages = [{ role: "system", content: seoSystemPrompt }];
             if (hasImage) {
               oaiMessages.push({ role: "user", content: [
@@ -1212,6 +1213,7 @@ Return ONLY valid JSON with no markdown, no extra text, no explanations:
         const apiKey = env.OPENAI_API_KEY;
         if (apiKey) {
           try {
+            /** @type {Array<{role: string, content: string | Array<{type: string, text?: string, image_url?: {url: string}}>}>} */
             const oaiMessages = [{ role: "system", content: seoSystemPrompt }];
             if (hasImage) {
               const mimeType = imageFilename.toLowerCase().split(".").pop() === "png" ? "image/png" : "image/jpeg";
