@@ -1299,26 +1299,22 @@ Generate trending, specific SEO \u2014 not generic content.`;
           data: cleanData,
           fallbackUsed: !parsed
         }), {
+          status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
       } // Closes the specific API route block
 
-      // --- Global Routing & Asset Fetching ---
+      // --- Global Routing ---
       if (!url.pathname.startsWith("/api/")) {
         return Response.redirect(frontendBaseUrl, 302);
       }
 
-      const response = await fetch(request);
-      
-      if (response.headers.get("content-type")?.includes("text/html")) {
-        const newResponse = new Response(response.body, response);
-        newResponse.headers.set(
-          "Content-Security-Policy",
-          "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' [https://www.gstatic.com](https://www.gstatic.com) [https://cdnjs.cloudflare.com](https://cdnjs.cloudflare.com) [https://sf-security.ibytedtos.com](https://sf-security.ibytedtos.com); style-src 'self' 'unsafe-inline' [https://fonts.googleapis.com](https://fonts.googleapis.com) [https://cdnjs.cloudflare.com](https://cdnjs.cloudflare.com); font-src 'self' [https://fonts.gstatic.com](https://fonts.gstatic.com) [https://cdnjs.cloudflare.com](https://cdnjs.cloudflare.com); img-src 'self' data: [https://www.gstatic.com](https://www.gstatic.com) [https://p16-sign-va.tiktokcdn.com](https://p16-sign-va.tiktokcdn.com) [https://graph.facebook.com](https://graph.facebook.com); connect-src 'self' [https://api.openai.com](https://api.openai.com) [https://multipost-seo-worker.alexbryant.workers.dev](https://multipost-seo-worker.alexbryant.workers.dev) [https://www.googleapis.com](https://www.googleapis.com) [https://oauth2.googleapis.com](https://oauth2.googleapis.com) [https://accounts.google.com](https://accounts.google.com) [https://open.tiktokapis.com](https://open.tiktokapis.com) [https://www.tiktok.com](https://www.tiktok.com) [https://graph.facebook.com](https://graph.facebook.com) [https://www.facebook.com](https://www.facebook.com) [https://identitytoolkit.googleapis.com](https://identitytoolkit.googleapis.com) [https://securetoken.googleapis.com](https://securetoken.googleapis.com) [https://libraweb-i18n.tiktok.com](https://libraweb-i18n.tiktok.com) [https://mcs-i18n.tiktok.com](https://mcs-i18n.tiktok.com); frame-src 'self' [https://accounts.google.com](https://accounts.google.com) [https://www.facebook.com](https://www.facebook.com) [https://www.tiktok.com](https://www.tiktok.com); object-src 'none'; base-uri 'self';"
-        );
-        return newResponse;
-      }
-      return response;
+      // No handler matched this API path — return 404 instead of forwarding to
+      // the origin, which would loop back through the Worker and cause a 502.
+      return new Response(JSON.stringify({ success: false, error: "Not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
 
     } catch (err) {
       // The master catch block that handles the whole fetch process
