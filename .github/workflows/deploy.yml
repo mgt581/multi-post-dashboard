@@ -5,6 +5,11 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+  checks: write
+  deployments: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -17,16 +22,32 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          secrets: |
-            GOOGLE_CLIENT_SECRET
-            TIKTOK_CLIENT_SECRET
-            FB_CLIENT_SECRET
+
+      - name: Upload GOOGLE_CLIENT_SECRET
+        if: ${{ secrets.GOOGLE_CLIENT_SECRET != '' }}
+        run: echo "$GOOGLE_CLIENT_SECRET" | npx wrangler secret put GOOGLE_CLIENT_SECRET
         env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+
+      - name: Upload TIKTOK_CLIENT_SECRET
+        if: ${{ secrets.TIKTOK_CLIENT_SECRET != '' }}
+        run: echo "$TIKTOK_CLIENT_SECRET" | npx wrangler secret put TIKTOK_CLIENT_SECRET
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+
+      - name: Upload FB_CLIENT_SECRET
+        if: ${{ secrets.FB_CLIENT_SECRET != '' }}
+        run: echo "$FB_CLIENT_SECRET" | npx wrangler secret put FB_CLIENT_SECRET
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           FB_CLIENT_SECRET: ${{ secrets.FB_CLIENT_SECRET }}
 
-      - name: Upload optional OpenAI secret
+      - name: Upload OPENAI_API_KEY
         if: ${{ secrets.OPENAI_API_KEY != '' }}
         run: echo "$OPENAI_API_KEY" | npx wrangler secret put OPENAI_API_KEY
         env:
