@@ -5,6 +5,9 @@ compatibility_date = "2024-01-01"
 workers_dev = true
 preview_urls = true
 
+# Routes: the Worker handles only /api/* on the production domain.
+# All other paths (e.g. /, /app.html) are served by Cloudflare Pages / static hosting.
+# Both www and apex variants are listed so OAuth callbacks work on either host.
 routes = [
   { pattern = "multipostapp.co.uk/api/*", zone_name = "multipostapp.co.uk" },
   { pattern = "www.multipostapp.co.uk/api/*", zone_name = "multipostapp.co.uk" }
