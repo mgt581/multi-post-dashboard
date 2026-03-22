@@ -1,10 +1,18 @@
+// Increment this value (or replace with a git SHA) whenever worker.js is deployed.
+// It is returned in the X-Worker-Version response header so you can confirm
+// which version is live:  curl -si https://multipostapp.co.uk/api/health | grep x-worker
+const WORKER_VERSION = "2026-03-21";
+
 export default {
   async fetch(request, env) {
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, folder_id, user_id"
+      "Access-Control-Allow-Headers": "Content-Type, folder_id, user_id",
+      "X-Worker-Version": WORKER_VERSION
     };
+    // Convenience header set for JSON API responses.
+    const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
     }
@@ -13,11 +21,11 @@ export default {
     const frontendBaseUrl = env.FRONTEND_URL || siteBaseUrl;
 
     if (url.pathname === "/api" || url.pathname === "/api/" || url.pathname === "/api/health") {
-  return new Response(JSON.stringify({ ok: true }), {
-    status: 200,
-    headers: { ...corsHeaders, "Content-Type": "application/json" }
-  });
-}
+      return new Response(JSON.stringify({ ok: true, service: "multipost-worker", version: WORKER_VERSION }), {
+        status: 200,
+        headers: jsonHeaders
+      });
+    }
 
     // --- 1. SEO GENERATION (MUST BE ABOVE REDIRECT TO RETURN 200) ---
     if (url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
@@ -133,10 +141,10 @@ export default {
         if (!cleanData) throw new Error("AI returned no content. Please try again.");
         return new Response(JSON.stringify({ success: true, data: cleanData }), {
           status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
+          headers: jsonHeaders
         });
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: corsHeaders });
+        return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: jsonHeaders });
       }
     }
 
@@ -352,40 +360,40 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/get-folders") {
         const userId = requireUser(url.searchParams.get("user_id"));
         if (!userId) {
-          return new Response("Missing user_id", { status: 400, headers: corsHeaders });
+          return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
         }
         const { results } = await env.DB.prepare(
           "SELECT * FROM folders WHERE user_id = ? ORDER BY created_at DESC"
         ).bind(userId).all();
-        return new Response(JSON.stringify(results), { headers: corsHeaders });
+        return new Response(JSON.stringify(results), { headers: jsonHeaders });
       }
       if (url.pathname === "/api/add-folder") {
         const { name, user_id } = await request.json();
         const userId = requireUser(user_id);
         if (!name || !userId) {
-          return new Response("Missing name or user_id", { status: 400, headers: corsHeaders });
+          return new Response(JSON.stringify({ success: false, error: "Missing name or user_id" }), { status: 400, headers: jsonHeaders });
         }
         await env.DB.prepare(
           "INSERT INTO folders (name, user_id) VALUES (?, ?)"
         ).bind(name, userId).run();
-        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+        return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
       }
       if (url.pathname === "/api/rename-folder") {
         const { id, name, user_id } = await request.json();
         const userId = requireUser(user_id);
         if (!id || !name || !userId) {
-          return new Response("Missing id, name or user_id", { status: 400, headers: corsHeaders });
+          return new Response(JSON.stringify({ success: false, error: "Missing id, name or user_id" }), { status: 400, headers: jsonHeaders });
         }
         await env.DB.prepare(
           "UPDATE folders SET name = ? WHERE id = ? AND user_id = ?"
         ).bind(name, id, userId).run();
-        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+        return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
       }
       if (url.pathname === "/api/delete-folder") {
         const { id, user_id, type } = await request.json();
         const userId = requireUser(user_id);
         if (!id || !userId) {
-          return new Response("Missing id or user_id", { status: 400, headers: corsHeaders });
+          return new Response(JSON.stringify({ success: false, error: "Missing id or user_id" }), { status: 400, headers: jsonHeaders });
         }
         if (type === "account_only") {
           const acct = await env.DB.prepare(
@@ -400,7 +408,7 @@ Follow for daily trending content! \u{1F44F}
               "DELETE FROM accounts WHERE id = ? AND user_id = ?"
             ).bind(id, userId).run();
           }
-          return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+          return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
         }
         await env.DB.prepare(
           "DELETE FROM accounts WHERE folder_id = ? AND user_id = ?"
@@ -412,18 +420,18 @@ Follow for daily trending content! \u{1F44F}
           DELETE FROM tokens
           WHERE folder_id IN (SELECT id FROM folders WHERE id = ? AND user_id = ?)
         `).bind(id, userId).run();
-        return new Response(JSON.stringify({ success: true }), { headers: corsHeaders });
+        return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
       }
       if (url.pathname === "/api/get-accounts") {
         const folder_id = url.searchParams.get("folder_id");
         const userId = requireUser(url.searchParams.get("user_id"));
         if (!folder_id || !userId) {
-          return new Response(JSON.stringify([]), { headers: corsHeaders });
+          return new Response(JSON.stringify([]), { headers: jsonHeaders });
         }
         const { results } = await env.DB.prepare(
           "SELECT * FROM accounts WHERE folder_id = ? AND user_id = ?"
         ).bind(folder_id, userId).all();
-        return new Response(JSON.stringify(results), { headers: corsHeaders });
+        return new Response(JSON.stringify(results), { headers: jsonHeaders });
       }
       if (url.pathname === "/api/auth/youtube") {
         const legacyState = url.searchParams.get("state");
@@ -432,10 +440,10 @@ Follow for daily trending content! \u{1F44F}
         const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId);
         const state = encodeState({ folderId, platform: "youtube", userId });
         if (!env.GOOGLE_CLIENT_ID) {
-          return new Response("Missing GOOGLE_CLIENT_ID env var", { status: 500, headers: corsHeaders });
+          return new Response(JSON.stringify({ success: false, error: "Missing GOOGLE_CLIENT_ID env var" }), { status: 500, headers: jsonHeaders });
         }
         if (!env.GOOGLE_CLIENT_SECRET) {
-          return new Response("Missing GOOGLE_CLIENT_SECRET env var", { status: 500, headers: corsHeaders });
+          return new Response(JSON.stringify({ success: false, error: "Missing GOOGLE_CLIENT_SECRET env var" }), { status: 500, headers: jsonHeaders });
         }
         const scope = "https://www.googleapis.com/auth/youtube.upload";
         const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(env.GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&include_granted_scopes=true&prompt=${encodeURIComponent("consent select_account")}&state=${encodeURIComponent(state)}`;
@@ -473,11 +481,11 @@ Follow for daily trending content! \u{1F44F}
         const folderId = stateObj.folderId;
         const userId = requireUser(stateObj.userId);
         if (!folderId || !userId) {
-          return new Response("Missing state", { status: 400, headers: corsHeaders });
+          return new Response(JSON.stringify({ success: false, error: "Missing state" }), { status: 400, headers: jsonHeaders });
         }
         if (!code) {
           const err = url.searchParams.get("error") || "missing_code";
-          return new Response(`YouTube OAuth failed: ${err}`, { status: 400, headers: corsHeaders });
+          return new Response(JSON.stringify({ success: false, error: `YouTube OAuth failed: ${err}` }), { status: 400, headers: jsonHeaders });
         }
         const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
           method: "POST",
@@ -527,11 +535,11 @@ Follow for daily trending content! \u{1F44F}
         const folderId = stateObj.folderId;
         const userId = requireUser(stateObj.userId);
         if (!folderId || !userId) {
-          return new Response("Missing state", { status: 400, headers: corsHeaders });
+          return new Response(JSON.stringify({ success: false, error: "Missing state" }), { status: 400, headers: jsonHeaders });
         }
         if (!code) {
           const err = url.searchParams.get("error") || "missing_code";
-          return new Response(`TikTok OAuth failed: ${err}`, { status: 400, headers: corsHeaders });
+          return new Response(JSON.stringify({ success: false, error: `TikTok OAuth failed: ${err}` }), { status: 400, headers: jsonHeaders });
         }
         const tokenRes = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
           method: "POST",
@@ -602,11 +610,11 @@ Follow for daily trending content! \u{1F44F}
         const folderId = stateObj.folderId;
         const userId = requireUser(stateObj.userId);
         if (!folderId || !userId) {
-          return new Response("Missing state", { status: 400, headers: corsHeaders });
+          return new Response(JSON.stringify({ success: false, error: "Missing state" }), { status: 400, headers: jsonHeaders });
         }
         if (!code) {
           const err = url.searchParams.get("error") || "missing_code";
-          return new Response(`Facebook OAuth failed: ${err}`, { status: 400, headers: corsHeaders });
+          return new Response(JSON.stringify({ success: false, error: `Facebook OAuth failed: ${err}` }), { status: 400, headers: jsonHeaders });
         }
         const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
         const fbClientSecret = requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
@@ -625,7 +633,7 @@ Follow for daily trending content! \u{1F44F}
         if (!accessToken) {
           return new Response(
             JSON.stringify({ success: false, error: "Facebook token missing", data: tokens }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { status: 400, headers: jsonHeaders }
           );
         }
         let fbUserId = "me";
@@ -674,7 +682,7 @@ Follow for daily trending content! \u{1F44F}
         if (!folder_id || !userId) {
           return new Response(
             JSON.stringify({ success: false, error: "Missing folder_id or user_id" }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { status: 400, headers: jsonHeaders }
           );
         }
         const fbAccount = await env.DB.prepare(
@@ -683,7 +691,7 @@ Follow for daily trending content! \u{1F44F}
         if (!fbAccount?.facebook_user_access_token) {
           return new Response(
             JSON.stringify({ success: false, error: "Facebook not connected for this folder. Please re-link your Facebook account." }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { status: 400, headers: jsonHeaders }
           );
         }
         try {
@@ -699,12 +707,12 @@ Follow for daily trending content! \u{1F44F}
           })) : [];
           return new Response(
             JSON.stringify({ success: true, pages }),
-            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { headers: jsonHeaders }
           );
         } catch (err) {
           return new Response(
             JSON.stringify({ success: false, error: err.message || "Failed to fetch pages" }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { status: 500, headers: jsonHeaders }
           );
         }
       }
@@ -719,7 +727,7 @@ Follow for daily trending content! \u{1F44F}
         if (!folder_id || !userId || !page_id || !page_name || !page_access_token) {
           return new Response(
             JSON.stringify({ success: false, error: "Missing required fields" }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { status: 400, headers: jsonHeaders }
           );
         }
         await env.DB.batch([
@@ -751,7 +759,7 @@ Follow for daily trending content! \u{1F44F}
         });
         return new Response(
           JSON.stringify({ success: true }),
-          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          { headers: jsonHeaders }
         );
       }
       if (url.pathname === "/api/youtube/upload" && request.method === "POST") {
@@ -760,7 +768,7 @@ Follow for daily trending content! \u{1F44F}
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
         const formData = await request.formData();
@@ -772,19 +780,19 @@ Follow for daily trending content! \u{1F44F}
         if (!title || title.length < 1 || title.length > 100) {
           return new Response(JSON.stringify({ success: false, error: "Title required (1-100 chars)" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
         if (!videoFile || !(videoFile instanceof File)) {
           return new Response(JSON.stringify({ success: false, error: "Valid video file required" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
         if (videoFile.size > MAX_VIDEO_SIZE_BYTES) {
           return new Response(JSON.stringify({ success: false, error: "Video too large (>500MB)" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
         if (!["private", "unlisted", "public"].includes(privacyStatus)) {
@@ -798,7 +806,7 @@ Follow for daily trending content! \u{1F44F}
         if (!token?.access_token) {
           return new Response(JSON.stringify({ success: false, error: "No YouTube token found. Link account first." }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
         try {
@@ -850,7 +858,7 @@ Follow for daily trending content! \u{1F44F}
             youtubeUrl: `https://youtube.com/watch?v=${videoId}`,
             data: uploadData
           }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         } catch (err) {
           console.error("YouTube upload error:", err);
@@ -860,7 +868,7 @@ Follow for daily trending content! \u{1F44F}
             details: err.stack
           }), {
             status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
       }
@@ -870,7 +878,7 @@ Follow for daily trending content! \u{1F44F}
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
         const formData = await request.formData();
@@ -880,19 +888,19 @@ Follow for daily trending content! \u{1F44F}
         if (!caption) {
           return new Response(JSON.stringify({ success: false, error: "Caption required" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
         if (!videoFile || !(videoFile instanceof File)) {
           return new Response(JSON.stringify({ success: false, error: "Valid video file required" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
         if (videoFile.size > MAX_VIDEO_SIZE_BYTES) {
           return new Response(JSON.stringify({ success: false, error: "Video too large (>500MB)" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
         const validPrivacyLevels = ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY"];
@@ -907,7 +915,7 @@ Follow for daily trending content! \u{1F44F}
         if (!token?.access_token) {
           return new Response(JSON.stringify({ success: false, error: "No TikTok token found. Link account first." }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
         try {
@@ -969,7 +977,7 @@ Follow for daily trending content! \u{1F44F}
             publishId,
             tiktokUrl: `https://www.tiktok.com/`
           }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         } catch (err) {
           console.error("TikTok upload error:", err);
@@ -978,7 +986,7 @@ Follow for daily trending content! \u{1F44F}
             error: err.message || "TikTok upload failed"
           }), {
             status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
       }
@@ -988,7 +996,7 @@ Follow for daily trending content! \u{1F44F}
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
         const formData = await request.formData();
@@ -998,19 +1006,19 @@ Follow for daily trending content! \u{1F44F}
         if (!title) {
           return new Response(JSON.stringify({ success: false, error: "Title required" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
         if (!videoFile || !(videoFile instanceof File)) {
           return new Response(JSON.stringify({ success: false, error: "Valid video file required" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
         if (videoFile.size > MAX_VIDEO_SIZE_BYTES) {
           return new Response(JSON.stringify({ success: false, error: "Video too large (>500MB)" }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
         const pageAccount = await env.DB.prepare(
@@ -1019,7 +1027,7 @@ Follow for daily trending content! \u{1F44F}
         if (!pageAccount?.facebook_page_id || !pageAccount?.facebook_page_access_token) {
           return new Response(JSON.stringify({ success: false, error: "No Facebook Page selected. Please select a page in your workspace settings." }), {
             status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
         const pageId = String(pageAccount.facebook_page_id);
@@ -1071,7 +1079,7 @@ Follow for daily trending content! \u{1F44F}
             facebookUrl: finishRes?.post_id ? `https://www.facebook.com/${finishRes.post_id}` : `https://www.facebook.com/video/${videoId}`,
             data: finishRes
           }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         } catch (err) {
           console.error("Facebook upload error:", err);
@@ -1080,7 +1088,7 @@ Follow for daily trending content! \u{1F44F}
             error: err.message || "Facebook upload failed"
           }), {
             status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
       }
@@ -1109,7 +1117,7 @@ Follow for daily trending content! \u{1F44F}
             })
           });
           const result = await safeJson(tiktokRes);
-          return new Response(JSON.stringify(result), { headers: corsHeaders });
+          return new Response(JSON.stringify(result), { headers: jsonHeaders });
         }
         if (platform === "facebook") {
           const desc = String(description || title || "").trim();
@@ -1127,19 +1135,19 @@ Follow for daily trending content! \u{1F44F}
           if (!pageId) {
             return new Response(JSON.stringify({ success: false, error: "Missing page_id for facebook" }), {
               status: 400,
-              headers: { ...corsHeaders, "Content-Type": "application/json" }
+              headers: jsonHeaders
             });
           }
           if (!pageAccessToken) {
             return new Response(JSON.stringify({ success: false, error: "Missing Facebook Page access token. Link Facebook first." }), {
               status: 400,
-              headers: { ...corsHeaders, "Content-Type": "application/json" }
+              headers: jsonHeaders
             });
           }
           if (!video_url) {
             return new Response(JSON.stringify({ success: false, error: "Missing video_url" }), {
               status: 400,
-              headers: { ...corsHeaders, "Content-Type": "application/json" }
+              headers: jsonHeaders
             });
           }
           const out = await publishFacebookReelFromUrl({
@@ -1149,12 +1157,12 @@ Follow for daily trending content! \u{1F44F}
             description: desc
           });
           return new Response(JSON.stringify({ success: true, data: out }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: jsonHeaders
           });
         }
         return new Response(JSON.stringify({ success: false, error: "Unsupported platform" }), {
           status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
+          headers: jsonHeaders
         });
       }
       if (url.pathname === "/api/generate-seo" && request.method === "POST") {
@@ -1174,7 +1182,7 @@ Follow for daily trending content! \u{1F44F}
             JSON.stringify({ success: false, error: "Provide an image, a text prompt, or both" }),
             {
               status: 400,
-              headers: { ...corsHeaders, "Content-Type": "application/json" }
+              headers: jsonHeaders
             }
           );
         }
@@ -1309,7 +1317,7 @@ Generate trending, specific SEO \u2014 not generic content.`;
           fallbackUsed: !parsed
         }), {
           status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
+          headers: jsonHeaders
         });
       } // Closes the specific API route block
 
@@ -1322,14 +1330,14 @@ Generate trending, specific SEO \u2014 not generic content.`;
       // the origin, which would loop back through the Worker and cause a 502.
       return new Response(JSON.stringify({ success: false, error: "Not found" }), {
         status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
+        headers: jsonHeaders
       });
 
     } catch (err) {
       // The master catch block that handles the whole fetch process
       return new Response(JSON.stringify({ success: false, error: err.message || String(err) }), {
         status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" }
+        headers: jsonHeaders
       });
     }
   }
