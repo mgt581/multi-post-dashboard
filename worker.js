@@ -160,6 +160,8 @@ export default {
     const redirectUri = `${siteBaseUrl}/api/auth/callback/youtube`;
     const fbRedirectUri = `${siteBaseUrl}/api/auth/callback/facebook`;
     const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
+    const TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1000;
+    const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
     const nowMs = () => Date.now();
     const safeJson = async (res) => {
       const text = await res.text();
@@ -811,46 +813,38 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
-        // Refresh the access token if it is expired or will expire within 5 minutes.
-        // expires_at is stored in milliseconds (Unix timestamp).
-        const FIVE_MIN_MS = 5 * 60 * 1000;
-        const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
+        // Refresh the access token if it is expired or expiring within the next 5 minutes.
         let accessToken = token.access_token;
-        if (token.refresh_token && token.expires_at && Number(token.expires_at) - nowMs() < FIVE_MIN_MS) {
-          if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
-            return new Response(JSON.stringify({ success: false, error: "Missing Google OAuth credentials for token refresh" }), {
-              status: 500,
-              headers: jsonHeaders
+        if (token.refresh_token && token.expires_at && Number(token.expires_at) - nowMs() < TOKEN_REFRESH_WINDOW_MS) {
+          try {
+            const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({
+                client_id: env.GOOGLE_CLIENT_ID,
+                client_secret: env.GOOGLE_CLIENT_SECRET,
+                refresh_token: token.refresh_token,
+                grant_type: "refresh_token"
+              })
             });
+            const refreshed = await safeJson(refreshRes);
+            if (refreshed?.access_token) {
+              accessToken = refreshed.access_token;
+              await upsertToken({
+                folderId: folder_id,
+                platform: "youtube",
+                accountId: token.account_id,
+                accessToken: refreshed.access_token,
+                refreshToken: refreshed.refresh_token || token.refresh_token,
+                expiresAt: nowMs() + Number(refreshed.expires_in || DEFAULT_TOKEN_EXPIRY_SECONDS) * 1e3,
+                scope: token.scope || "https://www.googleapis.com/auth/youtube.upload"
+              });
+            } else {
+              console.warn("YouTube token refresh: response missing access_token, falling back to stored token");
+            }
+          } catch (refreshErr) {
+            console.error("YouTube token refresh failed:", refreshErr);
           }
-          const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
-              grant_type: "refresh_token",
-              client_id: env.GOOGLE_CLIENT_ID,
-              client_secret: env.GOOGLE_CLIENT_SECRET,
-              refresh_token: token.refresh_token
-            })
-          });
-          const refreshData = await safeJson(refreshRes);
-          if (!refreshRes.ok || !refreshData.access_token) {
-            return new Response(JSON.stringify({ success: false, error: `YouTube token refresh failed: ${refreshData?.error_description || refreshData?.error || refreshRes.status}` }), {
-              status: 401,
-              headers: jsonHeaders
-            });
-          }
-          accessToken = refreshData.access_token;
-          const newExpiresAt = nowMs() + Number(refreshData.expires_in || DEFAULT_TOKEN_EXPIRY_SECONDS) * 1000;
-          await upsertToken({
-            folderId: String(folder_id),
-            platform: "youtube",
-            accountId: String(token.account_id),
-            accessToken: String(accessToken),
-            refreshToken: String(token.refresh_token),
-            expiresAt: newExpiresAt,
-            scope: token.scope || "https://www.googleapis.com/auth/youtube.upload"
-          });
         }
         try {
           const initRes = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {

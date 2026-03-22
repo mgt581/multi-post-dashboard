@@ -6,6 +6,6 @@
 
 ## Permanent Fix (Token Refresh)
 ```
-✅ 1. Add token refresh to worker.js before upload  
+☑ 1. Add token refresh to worker.js before upload  
 ☐ 2. Deploy & test
 ```
