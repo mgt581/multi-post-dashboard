@@ -287,7 +287,9 @@ export default {
         method: "POST",
         headers: {
           Authorization: `OAuth ${pageAccessToken}`,
-          "Content-Type": "application/octet-stream"
+          "Content-Type": "application/octet-stream",
+          offset: "0",
+          "Content-Length": String(buf.byteLength)
         },
         body: buf
       });
@@ -1102,6 +1104,7 @@ Follow for daily trending content! \u{1F44F}
             headers: {
               Authorization: `OAuth ${pageAccessToken}`,
               "Content-Type": "application/octet-stream",
+              offset: "0",
               "Content-Length": String(videoBytes.byteLength)
             },
             body: videoBytes
