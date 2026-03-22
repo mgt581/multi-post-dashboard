@@ -9,19 +9,26 @@ and how to recover from them.
 
 ### Symptom
 The **Cloudflare Workers and Pages / Workers Builds: multipost-seo-worker** GitHub check
-shows a red ✗ with a message similar to:
+shows a red ✗ with a message similar to any of the following:
+
+> _"The build token selected for this build has been deleted or rolled and cannot be used
+> for this build. Please update your build token in the Worker Builds settings and retry
+> the build."_
 
 > _"Build token has been deleted or rotated. Please reauthorize the GitHub integration."_
 
-or simply fails in 0 seconds with no log output.
+or the build simply fails in 0–2 seconds with no meaningful log output.
 
 This prevents Cloudflare from pulling new code from GitHub. The Cloudflare integration
 loses its access token whenever the GitHub App authorisation is revoked or rotated.
 
 ### Fix
-1. In the **Cloudflare dashboard**, go to **Workers & Pages → multipost-seo-worker → Settings → Builds & Deployments** (or **Git Integration**).
-2. Click **Disconnect** (or **Revoke**) next to the GitHub integration.
-3. Click **Connect to Git** again and re-authorise the GitHub app for your account/repo.
+1. In the **Cloudflare dashboard**, go to **Workers & Pages → multipost-seo-worker →
+   Settings → Builds** (may also appear as **Builds & Deployments** or **Git Integration**).
+2. Under **Build token** (or **GitHub Integration**), click **Update build token** (or
+   **Disconnect** / **Revoke**) next to the GitHub integration.
+3. Re-authorise the GitHub app for your account/repo by clicking **Connect to Git** /
+   **Authorize**.
 4. Trigger a new deploy by pushing a commit or clicking **Retry build**.
 
 > **Note:** While the Cloudflare GitHub integration is broken, the **GitHub Actions** workflow
