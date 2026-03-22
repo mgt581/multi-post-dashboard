@@ -1,7 +1,7 @@
 // Increment this value (or replace with a git SHA) whenever worker.js is deployed.
 // It is returned in the X-Worker-Version response header so you can confirm
 // which version is live:  curl -si https://multipostapp.co.uk/api/health | grep x-worker
-const WORKER_VERSION = "2026-03-21";
+const WORKER_VERSION = "2026-03-22";
 
 export default {
   async fetch(request, env) {
@@ -80,8 +80,7 @@ export default {
         let finalData = null;
         if (apiKey) {
           try {
-            /** @type {Array<{role: string, content: string | Array<{type: string, text?: string, image_url?: {url: string}}>}>} */
-            const oaiMessages = [{ role: "system", content: seoSystemPrompt }];
+            const oaiMessages = /** @type {{ role: string, content: string | Array<{type: string, text?: string, image_url?: {url: string}}>}[]} */ ([{ role: "system", content: seoSystemPrompt }]);
             if (hasImage) {
               oaiMessages.push({ role: "user", content: [
                 { type: "image_url", image_url: { url: `data:${imageMimeType};base64,${imageBase64}` } },
@@ -1231,8 +1230,7 @@ Return ONLY valid JSON with no markdown, no extra text, no explanations:
         const apiKey = env.OPENAI_API_KEY;
         if (apiKey) {
           try {
-            /** @type {Array<{role: string, content: string | Array<{type: string, text?: string, image_url?: {url: string}}>}>} */
-            const oaiMessages = [{ role: "system", content: seoSystemPrompt }];
+            const oaiMessages = /** @type {{ role: string, content: string | Array<{type: string, text?: string, image_url?: {url: string}}>}[]} */ ([{ role: "system", content: seoSystemPrompt }]);
             if (hasImage) {
               const mimeType = imageFilename.toLowerCase().split(".").pop() === "png" ? "image/png" : "image/jpeg";
               oaiMessages.push({ role: "user", content: [
