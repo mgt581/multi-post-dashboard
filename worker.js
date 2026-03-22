@@ -940,6 +940,12 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
+        if (videoFile.size === 0) {
+          return new Response(JSON.stringify({ success: false, error: "Video file is empty" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
         const validPrivacyLevels = ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY"];
         if (!validPrivacyLevels.includes(privacyStatus)) {
           privacyStatus = "SELF_ONLY";
@@ -958,8 +964,12 @@ Follow for daily trending content! \u{1F44F}
         try {
           const videoBytes = await videoFile.arrayBuffer();
           const videoSize = videoFile.size;
-          const chunkSize = Math.min(videoSize, 10 * 1024 * 1024);
-          const totalChunks = Math.ceil(videoSize / chunkSize);
+          // TikTok requires total_chunk_count = floor(video_size / chunk_size).
+          // The last chunk absorbs any remaining bytes (may be slightly > chunk_size).
+          // When total_chunk_count = 1, chunk_size must equal video_size (exception).
+          const CHUNK_SIZE = 10 * 1024 * 1024; // 10 MiB (within TikTok's 5–64 MiB range)
+          const totalChunks = Math.max(1, Math.floor(videoSize / CHUNK_SIZE));
+          const chunkSize = totalChunks === 1 ? videoSize : CHUNK_SIZE;
           const initRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
             method: "POST",
             headers: {
@@ -992,8 +1002,9 @@ Follow for daily trending content! \u{1F44F}
             throw new Error(`TikTok init missing publish_id or upload_url: ${JSON.stringify(initData)}`);
           }
           for (let i = 0; i < totalChunks; i++) {
-            const start = i * chunkSize;
-            const end = Math.min(start + chunkSize, videoSize);
+            const start = i * CHUNK_SIZE;
+            // Last chunk must include all remaining bytes (may exceed chunkSize).
+            const end = (i === totalChunks - 1) ? videoSize : start + chunkSize;
             const chunk = videoBytes.slice(start, end);
             const uploadRes = await fetch(uploadUrl, {
               method: "PUT",
