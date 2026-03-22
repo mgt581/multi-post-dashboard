@@ -811,11 +811,52 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
+        // Refresh the access token if it is expired or will expire within 5 minutes.
+        // expires_at is stored in milliseconds (Unix timestamp).
+        const FIVE_MIN_MS = 5 * 60 * 1000;
+        const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
+        let accessToken = token.access_token;
+        if (token.refresh_token && token.expires_at && Number(token.expires_at) - nowMs() < FIVE_MIN_MS) {
+          if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET) {
+            return new Response(JSON.stringify({ success: false, error: "Missing Google OAuth credentials for token refresh" }), {
+              status: 500,
+              headers: jsonHeaders
+            });
+          }
+          const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              grant_type: "refresh_token",
+              client_id: env.GOOGLE_CLIENT_ID,
+              client_secret: env.GOOGLE_CLIENT_SECRET,
+              refresh_token: token.refresh_token
+            })
+          });
+          const refreshData = await safeJson(refreshRes);
+          if (!refreshRes.ok || !refreshData.access_token) {
+            return new Response(JSON.stringify({ success: false, error: `YouTube token refresh failed: ${refreshData?.error_description || refreshData?.error || refreshRes.status}` }), {
+              status: 401,
+              headers: jsonHeaders
+            });
+          }
+          accessToken = refreshData.access_token;
+          const newExpiresAt = nowMs() + Number(refreshData.expires_in || DEFAULT_TOKEN_EXPIRY_SECONDS) * 1000;
+          await upsertToken({
+            folderId: String(folder_id),
+            platform: "youtube",
+            accountId: String(token.account_id),
+            accessToken: String(accessToken),
+            refreshToken: String(token.refresh_token),
+            expiresAt: newExpiresAt,
+            scope: token.scope || "https://www.googleapis.com/auth/youtube.upload"
+          });
+        }
         try {
           const initRes = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
             method: "POST",
             headers: {
-              "Authorization": `Bearer ${token.access_token}`,
+              "Authorization": `Bearer ${accessToken}`,
               "X-Upload-Content-Type": videoFile.type || "video/mp4"
             },
             body: JSON.stringify({
