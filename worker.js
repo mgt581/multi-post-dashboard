@@ -148,10 +148,13 @@ export default {
       }
     }
 
-    // --- 2. ROOT REDIRECT ---
-    if (url.pathname === "/" || url.pathname === "") {
-      return Response.redirect(frontendBaseUrl, 302);
-    }
+   // --- 2. ROOT RESPONSE (so workers.dev “Visit” returns 200) ---
+if (url.pathname === "/" || url.pathname === "") {
+  return new Response(JSON.stringify({ ok: true, service: "multipost-worker", version: WORKER_VERSION }), {
+    status: 200,
+    headers: jsonHeaders
+  });
+}
 
     // --- 3. UTILITY HELPERS ---
     const requireUser = (val) => val && typeof val === "string" && val.trim() ? val.trim() : null;
