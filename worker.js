@@ -1189,7 +1189,12 @@ Follow for daily trending content! \u{1F44F}
             }
           );
         }
-        const brandContext = folderName ? `Brand/Channel: ${folderName}. ` : "";
+        const brandParts = [];
+        if (folderName) brandParts.push(`Brand/Channel: ${folderName}`);
+        if (ytChannel) brandParts.push(`YouTube: ${ytChannel}`);
+        if (fbAccount) brandParts.push(`Facebook: ${fbAccount}`);
+        if (ttAccount) brandParts.push(`TikTok: ${ttAccount}`);
+        const brandContext = brandParts.length ? brandParts.join(". ") + ". " : "";
         const seoSystemPrompt = `You are an expert social media SEO strategist with deep knowledge of YouTube, TikTok, and Facebook algorithms. Your goal is to generate high-quality, trending, platform-optimized SEO content that maximises discoverability and engagement.
 
 Platform requirements:
