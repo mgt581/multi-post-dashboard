@@ -1,5 +1,17 @@
 # multi-post-dashboard
 
+## Logo
+
+The project logo is stored as **`logo.png`** in the repository root.
+
+- **File:** `logo.png`
+- **Format:** PNG (RGBA, non-interlaced)
+- **Dimensions:** 1257 × 848 px
+
+The logo is referenced in `index.html` (favicon & Open Graph image), `signin.html`, `terms.html`, and `privacy.html`.
+
+---
+
 ## Firebase Android Setup (google-services.json)
 
 The `google-services.json` file must live in the **app module** directory. It will not work if it is placed in the project root.
