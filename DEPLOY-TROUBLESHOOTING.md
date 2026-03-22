@@ -5,28 +5,55 @@ and how to recover from them.
 
 ---
 
-## 1. Cloudflare GitHub Builds — "Build token deleted/rolled" error
+## 1. Cloudflare GitHub Builds — "failed in 0s" / Build token deleted/rolled
 
 ### Symptom
-The Cloudflare dashboard shows a build failure similar to:
+The **Cloudflare Workers and Pages / Workers Builds: multipost-seo-worker** GitHub check
+shows a red ✗ with a message similar to:
 
 > _"Build token has been deleted or rotated. Please reauthorize the GitHub integration."_
 
-This prevents Cloudflare from pulling new code from GitHub, so an **older version of the
-Worker stays deployed** — which can cause the persistent 302 redirects you may be seeing
-from `/api/*` endpoints.
+or simply fails in 0 seconds with no log output.
+
+This prevents Cloudflare from pulling new code from GitHub. The Cloudflare integration
+loses its access token whenever the GitHub App authorisation is revoked or rotated.
 
 ### Fix
-1. In the **Cloudflare dashboard**, go to **Workers & Pages → your Worker → Settings → Builds & Deployments**.
+1. In the **Cloudflare dashboard**, go to **Workers & Pages → multipost-seo-worker → Settings → Builds & Deployments** (or **Git Integration**).
 2. Click **Disconnect** (or **Revoke**) next to the GitHub integration.
 3. Click **Connect to Git** again and re-authorise the GitHub app for your account/repo.
 4. Trigger a new deploy by pushing a commit or clicking **Retry build**.
 
+> **Note:** While the Cloudflare GitHub integration is broken, the **GitHub Actions** workflow
+> (`deploy.yml`) is the primary deployment mechanism and will continue to deploy the worker
+> automatically on every push to `main`, as long as `CLOUDFLARE_API_TOKEN` and
+> `CLOUDFLARE_ACCOUNT_ID` are set as repository secrets.
+
 ---
 
-## 2. Manual deploy (bypass GitHub Builds entirely)
+## 2. GitHub Actions deploy failing — missing Cloudflare secrets
 
-If the Cloudflare GitHub integration is broken, deploy directly from your local machine:
+### Symptom
+The `.github/workflows/deploy.yml` workflow run shows `failure` in GitHub Actions.
+
+### Fix
+Ensure the following secrets are set in the repository's **Settings → Secrets and variables → Actions**:
+
+| Secret name              | Where to get it |
+|--------------------------|-----------------|
+| `CLOUDFLARE_API_TOKEN`   | Cloudflare dashboard → My Profile → API Tokens |
+| `CLOUDFLARE_ACCOUNT_ID`  | Cloudflare dashboard → right-hand sidebar |
+| `GOOGLE_CLIENT_SECRET`   | Google Cloud Console → OAuth credentials |
+| `TIKTOK_CLIENT_SECRET`   | TikTok for Developers → your app |
+| `FB_CLIENT_SECRET`       | Meta for Developers → your app |
+| `OPENAI_API_KEY`         | OpenAI platform → API keys |
+
+---
+
+## 3. Manual deploy (bypass GitHub Builds entirely)
+
+If both the Cloudflare GitHub integration and GitHub Actions are broken, deploy directly
+from your local machine:
 
 ```bash
 # 1. Pull the latest code
@@ -39,14 +66,14 @@ npm install
 npx wrangler login
 
 # 4. Deploy to production
-npx wrangler deploy
+npm run deploy
 ```
 
 Wrangler will print the deployed worker URL and route assignments when it succeeds.
 
 ---
 
-## 3. Test the deployed worker
+## 4. Test the deployed worker
 
 After deploying, confirm the correct version is live:
 
@@ -73,11 +100,11 @@ curl -si https://multipostapp.co.uk/
 ```
 
 If `/api/health` returns **302**, the old worker version is still deployed.
-Run `npx wrangler deploy` to push the current code.
+Run `npm run deploy` to push the current code.
 
 ---
 
-## 4. View live worker logs
+## 5. View live worker logs
 
 ```bash
 npx wrangler tail
@@ -85,17 +112,17 @@ npx wrangler tail
 
 ---
 
-## 5. Test locally before deploying
+## 6. Test locally before deploying
 
 ```bash
-npx wrangler dev
+npm run dev
 # Worker is now available at http://localhost:8787
 curl -si http://localhost:8787/api/health
 ```
 
 ---
 
-## 6. Check the deployed version without curl
+## 7. Check the deployed version without curl
 
 The `X-Worker-Version` header is returned on **every** API response.  
 It matches the `WORKER_VERSION` constant at the top of `worker.js`.
