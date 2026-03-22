@@ -1,5 +1,20 @@
 # multi-post-dashboard
 
+## Logo
+
+The project logo is stored in the root directory of the repository:
+
+- **File name:** `logo.png`
+- **Location:** `/logo.png` (root of the repository)
+- **Dimensions:** 1257 × 848 px
+- **Format:** PNG with transparency (RGBA)
+- **File size:** ~1.7 MB
+
+The logo is used throughout the app as:
+- The browser tab favicon (`<link rel="icon" href="logo.png">`)
+- The Open Graph social preview image
+- The in-app logo shown on the sign-in screen, terms, and privacy pages
+
 ## Firebase Android Setup (google-services.json)
 
 The `google-services.json` file must live in the **app module** directory. It will not work if it is placed in the project root.
