@@ -148,9 +148,12 @@ export default {
       }
     }
 
-    // --- 2. ROOT REDIRECT ---
+    // --- 2. ROOT HEALTH ---
     if (url.pathname === "/" || url.pathname === "") {
-      return Response.redirect(frontendBaseUrl, 302);
+      return new Response(JSON.stringify({ ok: true, service: "multipost-worker", version: WORKER_VERSION }), {
+        status: 200,
+        headers: jsonHeaders
+      });
     }
 
     // --- 3. UTILITY HELPERS ---
