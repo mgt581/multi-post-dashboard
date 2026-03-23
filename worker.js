@@ -1,7 +1,7 @@
 // Increment this value (or replace with a git SHA) whenever worker.js is deployed.
 // It is returned in the X-Worker-Version response header so you can confirm
 // which version is live:  curl -si https://multipostapp.co.uk/api/health | grep x-worker
-const WORKER_VERSION = "2026-03-23";
+const WORKER_VERSION = "2026-03-23b";
 
 export default {
   async fetch(request, env) {
@@ -436,7 +436,7 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify([]), { headers: jsonHeaders });
         }
         const { results } = await env.DB.prepare(
-          "SELECT * FROM accounts WHERE folder_id = ? AND user_id = ?"
+          "SELECT * FROM accounts WHERE folder_id = ? AND user_id = ? ORDER BY id DESC"
         ).bind(folder_id, userId).all();
         return new Response(JSON.stringify(results), { headers: jsonHeaders });
       }
@@ -513,16 +513,21 @@ Follow for daily trending content! \u{1F44F}
         const userData = await safeJson(userRes);
         const channelName = userData.items?.[0]?.snippet?.title || "Linked YouTube";
         const channelId = userData.items?.[0]?.id || channelName;
-        await env.DB.prepare(
-          "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'youtube', ?, ?, ?, ?)"
-        ).bind(
-          String(folderId),
-          String(userId),
-          String(channelName),
-          String(tokens.access_token),
-          tokens.refresh_token ? String(tokens.refresh_token) : null,
-          nowMs() + Number(tokens.expires_in || 0) * 1e3
-        ).run();
+        await env.DB.batch([
+          env.DB.prepare(
+            "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'youtube'"
+          ).bind(String(folderId), String(userId)),
+          env.DB.prepare(
+            "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'youtube', ?, ?, ?, ?)"
+          ).bind(
+            String(folderId),
+            String(userId),
+            String(channelName),
+            String(tokens.access_token),
+            tokens.refresh_token ? String(tokens.refresh_token) : null,
+            nowMs() + Number(tokens.expires_in || 0) * 1e3
+          )
+        ]);
         await upsertToken({
           folderId: String(folderId),
           platform: "youtube",
@@ -587,17 +592,22 @@ Follow for daily trending content! \u{1F44F}
         } catch (e) {
           console.error("TikTok Profile Fetch Error:", e);
         }
-        await env.DB.prepare(
-          "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at, profile_picture) VALUES (?, ?, 'tiktok', ?, ?, ?, ?, ?)"
-        ).bind(
-          String(folderId),
-          String(userId),
-          String(tiktokNickname),
-          String(accessToken),
-          refreshToken ? String(refreshToken) : null,
-          nowMs() + Number(expiresIn) * 1e3,
-          tiktokAvatar
-        ).run();
+        await env.DB.batch([
+          env.DB.prepare(
+            "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'tiktok'"
+          ).bind(String(folderId), String(userId)),
+          env.DB.prepare(
+            "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at, profile_picture) VALUES (?, ?, 'tiktok', ?, ?, ?, ?, ?)"
+          ).bind(
+            String(folderId),
+            String(userId),
+            String(tiktokNickname),
+            String(accessToken),
+            refreshToken ? String(refreshToken) : null,
+            nowMs() + Number(expiresIn) * 1e3,
+            tiktokAvatar
+          )
+        ]);
         await upsertToken({
           folderId: String(folderId),
           platform: "tiktok",
