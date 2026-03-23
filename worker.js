@@ -1,7 +1,7 @@
 // Increment this value (or replace with a git SHA) whenever worker.js is deployed.
 // It is returned in the X-Worker-Version response header so you can confirm
 // which version is live:  curl -si https://multipostapp.co.uk/api/health | grep x-worker
-const WORKER_VERSION = "2026-03-22";
+const WORKER_VERSION = "2026-03-23b";
 
 export default {
   async fetch(request, env) {
@@ -289,7 +289,7 @@ export default {
           Authorization: `OAuth ${pageAccessToken}`,
           "Content-Type": "application/octet-stream",
           offset: "0",
-          "Content-Length": String(buf.byteLength)
+          file_size: String(buf.byteLength)
         },
         body: buf
       });
@@ -304,6 +304,7 @@ export default {
           access_token: pageAccessToken,
           upload_phase: "finish",
           video_id: String(videoId),
+          video_state: "PUBLISHED",
           description: description || ""
         })
       });
@@ -435,7 +436,7 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify([]), { headers: jsonHeaders });
         }
         const { results } = await env.DB.prepare(
-          "SELECT * FROM accounts WHERE folder_id = ? AND user_id = ?"
+          "SELECT * FROM accounts WHERE folder_id = ? AND user_id = ? ORDER BY id DESC"
         ).bind(folder_id, userId).all();
         return new Response(JSON.stringify(results), { headers: jsonHeaders });
       }
@@ -512,16 +513,21 @@ Follow for daily trending content! \u{1F44F}
         const userData = await safeJson(userRes);
         const channelName = userData.items?.[0]?.snippet?.title || "Linked YouTube";
         const channelId = userData.items?.[0]?.id || channelName;
-        await env.DB.prepare(
-          "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'youtube', ?, ?, ?, ?)"
-        ).bind(
-          String(folderId),
-          String(userId),
-          String(channelName),
-          String(tokens.access_token),
-          tokens.refresh_token ? String(tokens.refresh_token) : null,
-          nowMs() + Number(tokens.expires_in || 0) * 1e3
-        ).run();
+        await env.DB.batch([
+          env.DB.prepare(
+            "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'youtube'"
+          ).bind(String(folderId), String(userId)),
+          env.DB.prepare(
+            "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'youtube', ?, ?, ?, ?)"
+          ).bind(
+            String(folderId),
+            String(userId),
+            String(channelName),
+            String(tokens.access_token),
+            tokens.refresh_token ? String(tokens.refresh_token) : null,
+            nowMs() + Number(tokens.expires_in || 0) * 1e3
+          )
+        ]);
         await upsertToken({
           folderId: String(folderId),
           platform: "youtube",
@@ -580,23 +586,28 @@ Follow for daily trending content! \u{1F44F}
           const userInfo = await safeJson(userInfoRes);
           const user = userInfo?.data?.user;
           if (user) {
-            tiktokNickname = (user.display_name || "TikTok User").trim();
+            tiktokNickname = user.display_name?.trim() || "TikTok User";
             tiktokAvatar = user.avatar_url ? String(user.avatar_url) : null;
           }
         } catch (e) {
           console.error("TikTok Profile Fetch Error:", e);
         }
-        await env.DB.prepare(
-          "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at, profile_picture) VALUES (?, ?, 'tiktok', ?, ?, ?, ?, ?)"
-        ).bind(
-          String(folderId),
-          String(userId),
-          String(tiktokNickname),
-          String(accessToken),
-          refreshToken ? String(refreshToken) : null,
-          nowMs() + Number(expiresIn) * 1e3,
-          tiktokAvatar
-        ).run();
+        await env.DB.batch([
+          env.DB.prepare(
+            "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'tiktok'"
+          ).bind(String(folderId), String(userId)),
+          env.DB.prepare(
+            "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at, profile_picture) VALUES (?, ?, 'tiktok', ?, ?, ?, ?, ?)"
+          ).bind(
+            String(folderId),
+            String(userId),
+            String(tiktokNickname),
+            String(accessToken),
+            refreshToken ? String(refreshToken) : null,
+            nowMs() + Number(expiresIn) * 1e3,
+            tiktokAvatar
+          )
+        ]);
         await upsertToken({
           folderId: String(folderId),
           platform: "tiktok",
@@ -816,8 +827,10 @@ Follow for daily trending content! \u{1F44F}
           });
         }
         // Refresh the access token if it is expired or expiring within the next 5 minutes.
-        let accessToken = token.access_token;
-        if (token.refresh_token && token.expires_at && Number(token.expires_at) - nowMs() < TOKEN_REFRESH_WINDOW_MS) {
+        // Also refresh when expires_at is missing (legacy tokens stored without expiry info).
+        const refreshYouTubeToken = async (currentToken) => {
+          if (!currentToken.refresh_token) return null;
+          // Returns the new access_token string on success, or null if refresh fails.
           try {
             const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
               method: "POST",
@@ -825,49 +838,73 @@ Follow for daily trending content! \u{1F44F}
               body: new URLSearchParams({
                 client_id: env.GOOGLE_CLIENT_ID,
                 client_secret: env.GOOGLE_CLIENT_SECRET,
-                refresh_token: token.refresh_token,
+                refresh_token: currentToken.refresh_token,
                 grant_type: "refresh_token"
               })
             });
             const refreshed = await safeJson(refreshRes);
             if (refreshed?.access_token) {
-              accessToken = refreshed.access_token;
               await upsertToken({
                 folderId: folder_id,
                 platform: "youtube",
-                accountId: token.account_id,
+                accountId: currentToken.account_id,
                 accessToken: refreshed.access_token,
-                refreshToken: refreshed.refresh_token || token.refresh_token,
+                refreshToken: refreshed.refresh_token || currentToken.refresh_token,
                 expiresAt: nowMs() + Number(refreshed.expires_in || DEFAULT_TOKEN_EXPIRY_SECONDS) * 1e3,
-                scope: token.scope || "https://www.googleapis.com/auth/youtube.upload"
+                scope: currentToken.scope || "https://www.googleapis.com/auth/youtube.upload"
               });
-            } else {
-              console.warn("YouTube token refresh: response missing access_token, falling back to stored token");
+              return refreshed.access_token;
             }
+            console.warn("YouTube token refresh: response missing access_token, falling back to stored token");
+            return null;
           } catch (refreshErr) {
             console.error("YouTube token refresh failed:", refreshErr);
+            return null;
           }
+        };
+        let accessToken = token.access_token;
+        // Trigger proactive refresh when: no expiry info stored (legacy token) OR token is
+        // expired/expiring within the refresh window.
+        if (token.refresh_token && (!token.expires_at || Number(token.expires_at) - nowMs() < TOKEN_REFRESH_WINDOW_MS)) {
+          const refreshed = await refreshYouTubeToken(token);
+          if (refreshed) accessToken = refreshed;
         }
+        const buildInitBody = () => JSON.stringify({
+          snippet: {
+            title,
+            description,
+            tags: keywords ? keywords.split(/[\s,]+/).filter(Boolean) : [],
+            defaultLanguage: "en"
+          },
+          status: {
+            privacyStatus,
+            selfDeclaredMadeForKids: false
+          }
+        });
         try {
-          const initRes = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
+          let initRes = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
             method: "POST",
             headers: {
               "Authorization": `Bearer ${accessToken}`,
               "X-Upload-Content-Type": videoFile.type || "video/mp4"
             },
-            body: JSON.stringify({
-              snippet: {
-                title,
-                description,
-                tags: keywords ? keywords.split(/[\s,]+/).filter(Boolean) : [],
-                defaultLanguage: "en"
-              },
-              status: {
-                privacyStatus,
-                selfDeclaredMadeForKids: false
-              }
-            })
+            body: buildInitBody()
           });
+          // On 401, attempt one token refresh and retry the init request.
+          if (initRes.status === 401 && token.refresh_token) {
+            const retried = await refreshYouTubeToken(token);
+            if (retried) {
+              accessToken = retried;
+              initRes = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${accessToken}`,
+                  "X-Upload-Content-Type": videoFile.type || "video/mp4"
+                },
+                body: buildInitBody()
+              });
+            }
+          }
           if (!initRes.ok) {
             const errData = await safeJson(initRes);
             throw new Error(`YouTube init failed: ${initRes.status} ${JSON.stringify(errData)}`);
@@ -966,11 +1003,11 @@ Follow for daily trending content! \u{1F44F}
         try {
           const videoBytes = await videoFile.arrayBuffer();
           const videoSize = videoFile.size;
-          // TikTok requires total_chunk_count = floor(video_size / chunk_size).
-          // The last chunk absorbs any remaining bytes (may be slightly > chunk_size).
-          // When total_chunk_count = 1, chunk_size must equal video_size (exception).
+          // Use ceil so every video byte is covered: non-last chunks are exactly
+          // CHUNK_SIZE bytes; the last chunk holds the remaining bytes (≤ CHUNK_SIZE).
+          // When total_chunk_count = 1, chunk_size must equal video_size.
           const CHUNK_SIZE = 10 * 1024 * 1024; // 10 MiB (within TikTok's 5–64 MiB range)
-          const totalChunks = Math.max(1, Math.floor(videoSize / CHUNK_SIZE));
+          const totalChunks = Math.max(1, Math.ceil(videoSize / CHUNK_SIZE));
           const chunkSize = totalChunks === 1 ? videoSize : CHUNK_SIZE;
           const initRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
             method: "POST",
@@ -984,7 +1021,8 @@ Follow for daily trending content! \u{1F44F}
                 privacy_level: privacyStatus,
                 disable_duet: false,
                 disable_comment: false,
-                disable_stitch: false
+                disable_stitch: false,
+                video_cover_timestamp_ms: 0
               },
               source_info: {
                 source: "FILE_UPLOAD",
@@ -994,8 +1032,41 @@ Follow for daily trending content! \u{1F44F}
               }
             })
           });
-          const initData = await safeJson(initRes);
-          if (!initRes.ok || initData?.error?.code && initData.error.code !== "ok") {
+          let initData = await safeJson(initRes);
+          let privacyDowngraded = false;
+          if (initData?.error?.code === "unaudited_client_can_only_post_to_private_accounts") {
+            // Unaudited TikTok apps may only post to private accounts.
+            // Automatically retry with SELF_ONLY so the upload can still succeed.
+            privacyDowngraded = privacyStatus !== "SELF_ONLY";
+            privacyStatus = "SELF_ONLY";
+            const retryRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token.access_token}`,
+                "Content-Type": "application/json; charset=UTF-8"
+              },
+              body: JSON.stringify({
+                post_info: {
+                  title: caption,
+                  privacy_level: "SELF_ONLY",
+                  disable_duet: false,
+                  disable_comment: false,
+                  disable_stitch: false,
+                  video_cover_timestamp_ms: 0
+                },
+                source_info: {
+                  source: "FILE_UPLOAD",
+                  video_size: videoSize,
+                  chunk_size: chunkSize,
+                  total_chunk_count: totalChunks
+                }
+              })
+            });
+            initData = await safeJson(retryRes);
+            if (!retryRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
+              throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
+            }
+          } else if (!initRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
             throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
           }
           const publishId = initData?.data?.publish_id;
@@ -1005,27 +1076,28 @@ Follow for daily trending content! \u{1F44F}
           }
           for (let i = 0; i < totalChunks; i++) {
             const start = i * CHUNK_SIZE;
-            // Last chunk must include all remaining bytes (may exceed chunkSize).
+            // Last chunk covers all remaining bytes (≤ CHUNK_SIZE with ceil).
             const end = (i === totalChunks - 1) ? videoSize : start + chunkSize;
             const chunk = videoBytes.slice(start, end);
             const uploadRes = await fetch(uploadUrl, {
               method: "PUT",
               headers: {
                 "Content-Type": videoFile.type || "video/mp4",
-                "Content-Length": String(chunk.byteLength),
                 "Content-Range": `bytes ${start}-${end - 1}/${videoSize}`
               },
               body: chunk
             });
+            // Always consume the response body to free the connection.
+            const uploadResText = await uploadRes.text();
             if (!uploadRes.ok) {
-              const errText = await uploadRes.text();
-              throw new Error(`TikTok chunk upload failed: ${uploadRes.status} ${errText}`);
+              throw new Error(`TikTok chunk upload failed: ${uploadRes.status} ${uploadResText}`);
             }
           }
           return new Response(JSON.stringify({
             success: true,
             publishId,
-            tiktokUrl: `https://www.tiktok.com/`
+            tiktokUrl: `https://www.tiktok.com/`,
+            ...(privacyDowngraded ? { warning: "Your TikTok app is unaudited, so this post was automatically set to Private (SELF_ONLY). Submit your app for review at https://developers.tiktok.com/ to enable public posting." } : {})
           }), {
             headers: jsonHeaders
           });
@@ -1105,13 +1177,14 @@ Follow for daily trending content! \u{1F44F}
               Authorization: `OAuth ${pageAccessToken}`,
               "Content-Type": "application/octet-stream",
               offset: "0",
-              "Content-Length": String(videoBytes.byteLength)
+              file_size: String(videoBytes.byteLength)
             },
             body: videoBytes
           });
+          // Always consume the response body to free the connection before the finish call.
+          const upText = await upRes.text();
           if (!upRes.ok) {
-            const errText = await upRes.text();
-            throw new Error(`Facebook reels upload failed ${upRes.status}: ${errText}`);
+            throw new Error(`Facebook reels upload failed ${upRes.status}: ${upText}`);
           }
           const finishRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels${uploadProofParam}`, {
             method: "POST",
@@ -1120,6 +1193,7 @@ Follow for daily trending content! \u{1F44F}
               access_token: pageAccessToken,
               upload_phase: "finish",
               video_id: String(videoId),
+              video_state: "PUBLISHED",
               title,
               description: description || ""
             })
