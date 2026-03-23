@@ -916,6 +916,27 @@
     });
   }
 
+  // Upload a File directly to a pre-signed URL using XHR so we can track
+  // progress.  Returns a Promise that resolves with the XHR response text.
+  function xhrUpload(url, method, headers, body, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(method, url);
+      for (const [k, v] of Object.entries(headers || {})) {
+        xhr.setRequestHeader(k, v);
+      }
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable && onProgress) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      });
+      xhr.addEventListener("load", () => resolve(xhr));
+      xhr.addEventListener("error", () => reject(new Error("Network error during upload")));
+      xhr.addEventListener("abort", () => reject(new Error("Upload aborted")));
+      xhr.send(body);
+    });
+  }
+
   async function publishYouTube() {
     const btn = document.querySelector('button[onclick="publishYouTube()"]');
 
@@ -945,44 +966,68 @@
       return;
     }
 
-    const form = new FormData();
-    form.append("title", title);
-    form.append("description", description);
-    form.append("keywords", keywords);
-    form.append("privacyStatus", privacyStatus);
-    form.append("video", file);
-
     try {
       btn.disabled = true;
-      btn.textContent = "Uploading video...";
+      btn.textContent = "Starting upload...";
+      setStatus(`Starting upload to "${activeYouTubeName}"…`, "working");
 
-      setStatus(`Uploading to "${activeYouTubeName}"…`, "working");
-
-      const res = await fetch(`${apiBase}/youtube/upload`, {
+      // Step 1: Obtain a YouTube resumable-upload session URI from the worker.
+      // No video bytes are sent here, so this request is tiny and never hits
+      // Cloudflare's request-body size limit.
+      const initRes = await fetch(`${apiBase}/youtube/init-upload`, {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           folder_id: activeFolderId,
           user_id: userScope
         },
-        body: form
+        body: JSON.stringify({
+          title,
+          description,
+          keywords,
+          privacyStatus,
+          fileSize: file.size,
+          fileType: file.type || "video/mp4"
+        })
       });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Upload failed");
+      const initData = await initRes.json();
+      if (!initRes.ok || !initData.success) {
+        throw new Error(initData.error || "Failed to start upload");
       }
+
+      // Step 2: Stream the video file directly from the browser to Google's
+      // resumable-upload endpoint.  This completely bypasses the Cloudflare
+      // Worker so no 413 / 502 errors can occur regardless of file size.
+      btn.textContent = "Uploading video...";
+      const xhr = await xhrUpload(
+        initData.uploadUrl,
+        "PUT",
+        { "Content-Type": file.type || "video/mp4" },
+        file,
+        (pct) => {
+          btn.textContent = `Uploading… ${pct}%`;
+          setStatus(`Uploading to "${activeYouTubeName}"… ${pct}%`, "working");
+        }
+      );
+
+      if (xhr.status < 200 || xhr.status >= 300) {
+        throw new Error(`YouTube upload failed (HTTP ${xhr.status}): ${xhr.responseText}`);
+      }
+
+      let uploadData = null;
+      try { uploadData = JSON.parse(xhr.responseText); } catch { /* ignore parse errors */ }
+      const videoId = uploadData?.id;
+      const youtubeUrl = videoId ? `https://youtube.com/watch?v=${videoId}` : null;
 
       setStatus(`Published to "${activeYouTubeName}"`, "success");
       btn.textContent = "✅ Uploaded";
 
-      if (data.youtubeUrl) {
+      if (youtubeUrl) {
         const openNow = confirm(
           `Upload complete for "${activeYouTubeName}".\n\nOpen the uploaded video now?`
         );
-
         if (openNow) {
-          window.open(data.youtubeUrl, "_blank");
+          window.open(youtubeUrl, "_blank");
         }
       }
     } catch (err) {
@@ -1021,66 +1066,74 @@
       return;
     }
 
-    const form = new FormData();
-    form.append("caption", caption);
-    form.append("privacyStatus", privacyStatus);
-    form.append("video", file);
-
-    const controller = new AbortController();
-    const uploadTimeout = setTimeout(() => controller.abort(), 10 * 60 * 1000); // 10-minute timeout
-
     try {
       btn.disabled = true;
-      btn.textContent = "Uploading video...";
+      btn.textContent = "Starting upload...";
+      setStatus(`Starting upload to "${activeTikTokName}"…`, "working");
 
-      setStatus(`Uploading to "${activeTikTokName}"…`, "working");
-
-      const res = await fetch(`${apiBase}/tiktok/upload`, {
+      // Step 1: Worker creates the TikTok upload session and returns the upload
+      // URL + chunking parameters.  No video bytes are sent in this request.
+      const initRes = await fetch(`${apiBase}/tiktok/init-upload`, {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           folder_id: activeFolderId,
           user_id: userScope
         },
-        body: form,
-        signal: controller.signal
+        body: JSON.stringify({ caption, privacyStatus, videoSize: file.size })
       });
+      const initData = await initRes.json();
+      if (!initRes.ok || !initData.success) {
+        throw new Error(initData.error || "Failed to start TikTok upload");
+      }
 
-      clearTimeout(uploadTimeout);
+      // Step 2: Upload chunks through the worker proxy.
+      // The worker forwards each chunk to TikTok server-side, avoiding potential
+      // CORS issues with TikTok's CDN and keeping the upload token off the browser.
+      const { sessionId, chunkSize, totalChunks, videoSize } = initData;
+      for (let i = 0; i < totalChunks; i++) {
+        const offset = i * chunkSize;
+        const chunk = file.slice(offset, offset + chunkSize);
+        const pct = Math.round((i / totalChunks) * 100);
+        btn.textContent = `Uploading… ${pct}%`;
+        setStatus(`Uploading to "${activeTikTokName}"… ${pct}%`, "working");
 
-      const data = await res.json();
+        const chunkForm = new FormData();
+        chunkForm.append("sessionId", sessionId);
+        chunkForm.append("offset", String(offset));
+        chunkForm.append("chunk", chunk, "chunk.bin");
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "TikTok upload failed");
+        const xhr = await xhrUpload(
+          `${apiBase}/tiktok/upload-chunk`,
+          "POST",
+          { folder_id: activeFolderId, user_id: userScope },
+          chunkForm,
+          null
+        );
+        if (xhr.status < 200 || xhr.status >= 300) {
+          throw new Error(`TikTok chunk ${i + 1}/${totalChunks} failed (HTTP ${xhr.status}): ${xhr.responseText}`);
+        }
+      }
+
+      if (initData.warning) {
+        alert(`⚠️ Note: ${initData.warning}`);
       }
 
       setStatus(`Published to "${activeTikTokName}"`, "success");
       btn.textContent = "✅ Uploaded";
 
-      if (data.warning) {
-        alert(`⚠️ Note: ${data.warning}`);
-      }
-
-      const publishedUrl = data.tiktokUrl || data.url || data.postUrl || data.videoUrl;
-
-      if (publishedUrl) {
-        const openNow = confirm(
-          `Upload complete for "${activeTikTokName}".\n\nOpen the published post now?`
-        );
-
-        if (openNow) {
-          window.open(publishedUrl, "_blank");
-        }
+      const openNow = confirm(
+        `Upload complete for "${activeTikTokName}".\n\nOpen TikTok to view your post?`
+      );
+      if (openNow) {
+        window.open("https://www.tiktok.com/", "_blank");
       }
     } catch (err) {
-      clearTimeout(uploadTimeout);
       console.error(err);
       btn.disabled = false;
       btn.textContent = "🎵 Publish to TikTok";
-      const msg = err?.name === "AbortError"
-        ? "Upload timed out. Please try again with a smaller video or check your connection."
-        : (err?.message || "TikTok upload failed");
-      setStatus(msg, "error");
-      alert(`Upload failed:\n${msg}`);
+      setStatus(err?.message || "TikTok upload failed", "error");
+      alert(`Upload failed:\n${err?.message || err}`);
     }
   }
 
@@ -1116,42 +1169,82 @@
       return;
     }
 
-    const form = new FormData();
-    form.append("title", title);
-    form.append("description", description);
-    form.append("video", file);
-
     try {
       btn.disabled = true;
-      btn.textContent = "Uploading video...";
+      btn.textContent = "Starting upload...";
+      setStatus(`Starting upload to "${activeFacebookName}"…`, "working");
 
-      setStatus(`Uploading to "${activeFacebookName}"…`, "working");
-
-      const res = await fetch(`${apiBase}/facebook/upload`, {
+      // Step 1: Worker starts the Facebook upload session and stores credentials
+      // server-side.  Returns a sessionId the browser uses for subsequent calls.
+      const initRes = await fetch(`${apiBase}/facebook/init-upload`, {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           folder_id: activeFolderId,
           user_id: userScope
         },
-        body: form
+        body: JSON.stringify({ title, description, fileSize: file.size })
       });
+      const initData = await initRes.json();
+      if (!initRes.ok || !initData.success) {
+        throw new Error(initData.error || "Failed to start Facebook upload");
+      }
 
-      const data = await res.json();
+      // Step 2: Send the video to the worker in 50 MB chunks.  Each chunk is
+      // well under Cloudflare's request-body limit so no 413 errors occur.
+      // The worker appends the stored OAuth credentials before forwarding each
+      // chunk to Facebook, so the page access token is never exposed to the
+      // browser.
+      const FB_CHUNK_SIZE = 50 * 1024 * 1024; // 50 MiB
+      const totalChunks = Math.max(1, Math.ceil(file.size / FB_CHUNK_SIZE));
+      for (let i = 0; i < totalChunks; i++) {
+        const offset = i * FB_CHUNK_SIZE;
+        const chunk = file.slice(offset, offset + FB_CHUNK_SIZE);
+        const pct = Math.round((i / totalChunks) * 100);
+        btn.textContent = `Uploading… ${pct}%`;
+        setStatus(`Uploading to "${activeFacebookName}"… ${pct}%`, "working");
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Facebook upload failed");
+        const chunkForm = new FormData();
+        chunkForm.append("sessionId", initData.sessionId);
+        chunkForm.append("offset", String(offset));
+        chunkForm.append("chunk", chunk, "chunk.bin");
+
+        const chunkRes = await fetch(`${apiBase}/facebook/upload-chunk`, {
+          method: "POST",
+          headers: { folder_id: activeFolderId, user_id: userScope },
+          body: chunkForm
+        });
+        const chunkData = await chunkRes.json();
+        if (!chunkRes.ok || !chunkData.success) {
+          throw new Error(chunkData.error || `Chunk ${i + 1}/${totalChunks} failed`);
+        }
+      }
+
+      // Step 3: Ask the worker to finish (publish) the upload on Facebook.
+      btn.textContent = "Publishing...";
+      setStatus(`Publishing to "${activeFacebookName}"…`, "working");
+      const finishRes = await fetch(`${apiBase}/facebook/finish-upload`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          folder_id: activeFolderId,
+          user_id: userScope
+        },
+        body: JSON.stringify({ sessionId: initData.sessionId })
+      });
+      const data = await finishRes.json();
+      if (!finishRes.ok || !data.success) {
+        throw new Error(data.error || "Facebook publish failed");
       }
 
       setStatus(`Published to "${activeFacebookName}"`, "success");
       btn.textContent = "✅ Uploaded";
 
       const publishedUrl = data.facebookUrl || data.url || data.postUrl || data.videoUrl;
-
       if (publishedUrl) {
         const openNow = confirm(
           `Upload complete for "${activeFacebookName}".\n\nOpen the published post now?`
         );
-
         if (openNow) {
           window.open(publishedUrl, "_blank");
         }
