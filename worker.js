@@ -1,7 +1,7 @@
 // Increment this value (or replace with a git SHA) whenever worker.js is deployed.
 // It is returned in the X-Worker-Version response header so you can confirm
 // which version is live:  curl -si https://multipostapp.co.uk/api/health | grep x-worker
-const WORKER_VERSION = "2026-03-22";
+const WORKER_VERSION = "2026-03-23";
 
 export default {
   async fetch(request, env) {
@@ -289,7 +289,7 @@ export default {
           Authorization: `OAuth ${pageAccessToken}`,
           "Content-Type": "application/octet-stream",
           offset: "0",
-          "Content-Length": String(buf.byteLength)
+          file_size: String(buf.byteLength)
         },
         body: buf
       });
@@ -304,6 +304,7 @@ export default {
           access_token: pageAccessToken,
           upload_phase: "finish",
           video_id: String(videoId),
+          video_state: "PUBLISHED",
           description: description || ""
         })
       });
@@ -984,7 +985,8 @@ Follow for daily trending content! \u{1F44F}
                 privacy_level: privacyStatus,
                 disable_duet: false,
                 disable_comment: false,
-                disable_stitch: false
+                disable_stitch: false,
+                video_cover_timestamp_ms: 0
               },
               source_info: {
                 source: "FILE_UPLOAD",
@@ -1105,7 +1107,7 @@ Follow for daily trending content! \u{1F44F}
               Authorization: `OAuth ${pageAccessToken}`,
               "Content-Type": "application/octet-stream",
               offset: "0",
-              "Content-Length": String(videoBytes.byteLength)
+              file_size: String(videoBytes.byteLength)
             },
             body: videoBytes
           });
@@ -1120,6 +1122,7 @@ Follow for daily trending content! \u{1F44F}
               access_token: pageAccessToken,
               upload_phase: "finish",
               video_id: String(videoId),
+              video_state: "PUBLISHED",
               title,
               description: description || ""
             })
