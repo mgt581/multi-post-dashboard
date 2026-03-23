@@ -1,7 +1,7 @@
 // Increment this value (or replace with a git SHA) whenever worker.js is deployed.
 // It is returned in the X-Worker-Version response header so you can confirm
 // which version is live:  curl -si https://multipostapp.co.uk/api/health | grep x-worker
-const WORKER_VERSION = "2026-03-23";
+const WORKER_VERSION = "2026-03-24";
 
 export default {
   async fetch(request, env) {
@@ -513,16 +513,21 @@ Follow for daily trending content! \u{1F44F}
         const userData = await safeJson(userRes);
         const channelName = userData.items?.[0]?.snippet?.title || "Linked YouTube";
         const channelId = userData.items?.[0]?.id || channelName;
-        await env.DB.prepare(
-          "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'youtube', ?, ?, ?, ?)"
-        ).bind(
-          String(folderId),
-          String(userId),
-          String(channelName),
-          String(tokens.access_token),
-          tokens.refresh_token ? String(tokens.refresh_token) : null,
-          nowMs() + Number(tokens.expires_in || 0) * 1e3
-        ).run();
+        await env.DB.batch([
+          env.DB.prepare(
+            "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'youtube'"
+          ).bind(String(folderId), String(userId)),
+          env.DB.prepare(
+            "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'youtube', ?, ?, ?, ?)"
+          ).bind(
+            String(folderId),
+            String(userId),
+            String(channelName),
+            String(tokens.access_token),
+            tokens.refresh_token ? String(tokens.refresh_token) : null,
+            nowMs() + Number(tokens.expires_in || 0) * 1e3
+          )
+        ]);
         await upsertToken({
           folderId: String(folderId),
           platform: "youtube",
@@ -581,23 +586,28 @@ Follow for daily trending content! \u{1F44F}
           const userInfo = await safeJson(userInfoRes);
           const user = userInfo?.data?.user;
           if (user) {
-            tiktokNickname = (user.display_name || "TikTok User").trim();
+            tiktokNickname = user.display_name?.trim() || "TikTok User";
             tiktokAvatar = user.avatar_url ? String(user.avatar_url) : null;
           }
         } catch (e) {
           console.error("TikTok Profile Fetch Error:", e);
         }
-        await env.DB.prepare(
-          "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at, profile_picture) VALUES (?, ?, 'tiktok', ?, ?, ?, ?, ?)"
-        ).bind(
-          String(folderId),
-          String(userId),
-          String(tiktokNickname),
-          String(accessToken),
-          refreshToken ? String(refreshToken) : null,
-          nowMs() + Number(expiresIn) * 1e3,
-          tiktokAvatar
-        ).run();
+        await env.DB.batch([
+          env.DB.prepare(
+            "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'tiktok'"
+          ).bind(String(folderId), String(userId)),
+          env.DB.prepare(
+            "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at, profile_picture) VALUES (?, ?, 'tiktok', ?, ?, ?, ?, ?)"
+          ).bind(
+            String(folderId),
+            String(userId),
+            String(tiktokNickname),
+            String(accessToken),
+            refreshToken ? String(refreshToken) : null,
+            nowMs() + Number(expiresIn) * 1e3,
+            tiktokAvatar
+          )
+        ]);
         await upsertToken({
           folderId: String(folderId),
           platform: "tiktok",
@@ -967,11 +977,11 @@ Follow for daily trending content! \u{1F44F}
         try {
           const videoBytes = await videoFile.arrayBuffer();
           const videoSize = videoFile.size;
-          // TikTok requires total_chunk_count = floor(video_size / chunk_size).
-          // The last chunk absorbs any remaining bytes (may be slightly > chunk_size).
-          // When total_chunk_count = 1, chunk_size must equal video_size (exception).
+          // Use ceil so every video byte is covered: non-last chunks are exactly
+          // CHUNK_SIZE bytes; the last chunk holds the remaining bytes (≤ CHUNK_SIZE).
+          // When total_chunk_count = 1, chunk_size must equal video_size.
           const CHUNK_SIZE = 10 * 1024 * 1024; // 10 MiB (within TikTok's 5–64 MiB range)
-          const totalChunks = Math.max(1, Math.floor(videoSize / CHUNK_SIZE));
+          const totalChunks = Math.max(1, Math.ceil(videoSize / CHUNK_SIZE));
           const chunkSize = totalChunks === 1 ? videoSize : CHUNK_SIZE;
           const initRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
             method: "POST",
@@ -1007,21 +1017,21 @@ Follow for daily trending content! \u{1F44F}
           }
           for (let i = 0; i < totalChunks; i++) {
             const start = i * CHUNK_SIZE;
-            // Last chunk must include all remaining bytes (may exceed chunkSize).
+            // Last chunk covers all remaining bytes (≤ CHUNK_SIZE with ceil).
             const end = (i === totalChunks - 1) ? videoSize : start + chunkSize;
             const chunk = videoBytes.slice(start, end);
             const uploadRes = await fetch(uploadUrl, {
               method: "PUT",
               headers: {
                 "Content-Type": videoFile.type || "video/mp4",
-                "Content-Length": String(chunk.byteLength),
                 "Content-Range": `bytes ${start}-${end - 1}/${videoSize}`
               },
               body: chunk
             });
+            // Always consume the response body to free the connection.
+            const uploadResText = await uploadRes.text();
             if (!uploadRes.ok) {
-              const errText = await uploadRes.text();
-              throw new Error(`TikTok chunk upload failed: ${uploadRes.status} ${errText}`);
+              throw new Error(`TikTok chunk upload failed: ${uploadRes.status} ${uploadResText}`);
             }
           }
           return new Response(JSON.stringify({
@@ -1111,9 +1121,10 @@ Follow for daily trending content! \u{1F44F}
             },
             body: videoBytes
           });
+          // Always consume the response body to free the connection before the finish call.
+          const upText = await upRes.text();
           if (!upRes.ok) {
-            const errText = await upRes.text();
-            throw new Error(`Facebook reels upload failed ${upRes.status}: ${errText}`);
+            throw new Error(`Facebook reels upload failed ${upRes.status}: ${upText}`);
           }
           const finishRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels${uploadProofParam}`, {
             method: "POST",
