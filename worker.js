@@ -162,6 +162,7 @@ export default {
     const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
     const TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1000;
     const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
+    const SESSION_EXPIRY_SECONDS = 3600; // Upload sessions expire after 1 hour
     const nowMs = () => Date.now();
     const safeJson = async (res) => {
       const text = await res.text();
@@ -1020,7 +1021,7 @@ Follow for daily trending content! \u{1F44F}
           // each chunk server-side, avoiding potential CORS issues with
           // TikTok's CDN and keeping the upload_url auth token off the browser.
           const sessionId = crypto.randomUUID();
-          const expiresAt = Math.floor(Date.now() / 1000) + 3600; // 1 hour
+          const expiresAt = Math.floor(Date.now() / 1000) + SESSION_EXPIRY_SECONDS;
           await env.DB.prepare(
             "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, file_size, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
           ).bind(sessionId, "tiktok", uploadUrl, token.access_token, publishId, videoSize, expiresAt).run();
@@ -1166,7 +1167,7 @@ Follow for daily trending content! \u{1F44F}
           // Persist the session so /upload-chunk and /finish-upload can use the
           // credentials without exposing the page access token to the browser.
           const sessionId = crypto.randomUUID();
-          const expiresAt = Math.floor(Date.now() / 1000) + 3600; // 1 hour
+          const expiresAt = Math.floor(Date.now() / 1000) + SESSION_EXPIRY_SECONDS;
           await env.DB.prepare(
             "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, page_id, title, description, file_size, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
           ).bind(sessionId, "facebook", uploadUrl, pageAccessToken, videoId, pageId, title, description, fileSize, expiresAt).run();

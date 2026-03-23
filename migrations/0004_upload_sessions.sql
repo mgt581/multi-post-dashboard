@@ -1,7 +1,9 @@
--- Upload sessions table for Facebook chunked-upload proxy.
+-- Upload sessions table for multi-platform chunked-upload proxy.
 -- Each row stores the platform upload URL and access credentials for a
 -- multi-chunk upload that flows through the Worker so that the browser
--- never needs to hold the page access token.
+-- never needs to hold platform access tokens.
+-- Used by TikTok (to avoid CORS issues) and Facebook (to avoid exposing
+-- the page access token to the browser).
 CREATE TABLE IF NOT EXISTS upload_sessions (
   id          TEXT    PRIMARY KEY,
   platform    TEXT    NOT NULL,
