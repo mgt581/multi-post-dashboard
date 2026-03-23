@@ -1056,6 +1056,10 @@
       setStatus(`Published to "${activeTikTokName}"`, "success");
       btn.textContent = "✅ Uploaded";
 
+      if (data.warning) {
+        alert(`⚠️ Note: ${data.warning}`);
+      }
+
       const publishedUrl = data.tiktokUrl || data.url || data.postUrl || data.videoUrl;
 
       if (publishedUrl) {

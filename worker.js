@@ -827,8 +827,10 @@ Follow for daily trending content! \u{1F44F}
           });
         }
         // Refresh the access token if it is expired or expiring within the next 5 minutes.
-        let accessToken = token.access_token;
-        if (token.refresh_token && token.expires_at && Number(token.expires_at) - nowMs() < TOKEN_REFRESH_WINDOW_MS) {
+        // Also refresh when expires_at is missing (legacy tokens stored without expiry info).
+        const refreshYouTubeToken = async (currentToken) => {
+          if (!currentToken.refresh_token) return null;
+          // Returns the new access_token string on success, or null if refresh fails.
           try {
             const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
               method: "POST",
@@ -836,49 +838,73 @@ Follow for daily trending content! \u{1F44F}
               body: new URLSearchParams({
                 client_id: env.GOOGLE_CLIENT_ID,
                 client_secret: env.GOOGLE_CLIENT_SECRET,
-                refresh_token: token.refresh_token,
+                refresh_token: currentToken.refresh_token,
                 grant_type: "refresh_token"
               })
             });
             const refreshed = await safeJson(refreshRes);
             if (refreshed?.access_token) {
-              accessToken = refreshed.access_token;
               await upsertToken({
                 folderId: folder_id,
                 platform: "youtube",
-                accountId: token.account_id,
+                accountId: currentToken.account_id,
                 accessToken: refreshed.access_token,
-                refreshToken: refreshed.refresh_token || token.refresh_token,
+                refreshToken: refreshed.refresh_token || currentToken.refresh_token,
                 expiresAt: nowMs() + Number(refreshed.expires_in || DEFAULT_TOKEN_EXPIRY_SECONDS) * 1e3,
-                scope: token.scope || "https://www.googleapis.com/auth/youtube.upload"
+                scope: currentToken.scope || "https://www.googleapis.com/auth/youtube.upload"
               });
-            } else {
-              console.warn("YouTube token refresh: response missing access_token, falling back to stored token");
+              return refreshed.access_token;
             }
+            console.warn("YouTube token refresh: response missing access_token, falling back to stored token");
+            return null;
           } catch (refreshErr) {
             console.error("YouTube token refresh failed:", refreshErr);
+            return null;
           }
+        };
+        let accessToken = token.access_token;
+        // Trigger proactive refresh when: no expiry info stored (legacy token) OR token is
+        // expired/expiring within the refresh window.
+        if (token.refresh_token && (!token.expires_at || Number(token.expires_at) - nowMs() < TOKEN_REFRESH_WINDOW_MS)) {
+          const refreshed = await refreshYouTubeToken(token);
+          if (refreshed) accessToken = refreshed;
         }
+        const buildInitBody = () => JSON.stringify({
+          snippet: {
+            title,
+            description,
+            tags: keywords ? keywords.split(/[\s,]+/).filter(Boolean) : [],
+            defaultLanguage: "en"
+          },
+          status: {
+            privacyStatus,
+            selfDeclaredMadeForKids: false
+          }
+        });
         try {
-          const initRes = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
+          let initRes = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
             method: "POST",
             headers: {
               "Authorization": `Bearer ${accessToken}`,
               "X-Upload-Content-Type": videoFile.type || "video/mp4"
             },
-            body: JSON.stringify({
-              snippet: {
-                title,
-                description,
-                tags: keywords ? keywords.split(/[\s,]+/).filter(Boolean) : [],
-                defaultLanguage: "en"
-              },
-              status: {
-                privacyStatus,
-                selfDeclaredMadeForKids: false
-              }
-            })
+            body: buildInitBody()
           });
+          // On 401, attempt one token refresh and retry the init request.
+          if (initRes.status === 401 && token.refresh_token) {
+            const retried = await refreshYouTubeToken(token);
+            if (retried) {
+              accessToken = retried;
+              initRes = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${accessToken}`,
+                  "X-Upload-Content-Type": videoFile.type || "video/mp4"
+                },
+                body: buildInitBody()
+              });
+            }
+          }
           if (!initRes.ok) {
             const errData = await safeJson(initRes);
             throw new Error(`YouTube init failed: ${initRes.status} ${JSON.stringify(errData)}`);
@@ -1006,8 +1032,41 @@ Follow for daily trending content! \u{1F44F}
               }
             })
           });
-          const initData = await safeJson(initRes);
-          if (!initRes.ok || initData?.error?.code && initData.error.code !== "ok") {
+          let initData = await safeJson(initRes);
+          let privacyDowngraded = false;
+          if (initData?.error?.code === "unaudited_client_can_only_post_to_private_accounts") {
+            // Unaudited TikTok apps may only post to private accounts.
+            // Automatically retry with SELF_ONLY so the upload can still succeed.
+            privacyDowngraded = privacyStatus !== "SELF_ONLY";
+            privacyStatus = "SELF_ONLY";
+            const retryRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token.access_token}`,
+                "Content-Type": "application/json; charset=UTF-8"
+              },
+              body: JSON.stringify({
+                post_info: {
+                  title: caption,
+                  privacy_level: "SELF_ONLY",
+                  disable_duet: false,
+                  disable_comment: false,
+                  disable_stitch: false,
+                  video_cover_timestamp_ms: 0
+                },
+                source_info: {
+                  source: "FILE_UPLOAD",
+                  video_size: videoSize,
+                  chunk_size: chunkSize,
+                  total_chunk_count: totalChunks
+                }
+              })
+            });
+            initData = await safeJson(retryRes);
+            if (!retryRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
+              throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
+            }
+          } else if (!initRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
             throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
           }
           const publishId = initData?.data?.publish_id;
@@ -1037,7 +1096,8 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify({
             success: true,
             publishId,
-            tiktokUrl: `https://www.tiktok.com/`
+            tiktokUrl: `https://www.tiktok.com/`,
+            ...(privacyDowngraded ? { warning: "Your TikTok app is unaudited, so this post was automatically set to Private (SELF_ONLY). Submit your app for review at https://developers.tiktok.com/ to enable public posting." } : {})
           }), {
             headers: jsonHeaders
           });
