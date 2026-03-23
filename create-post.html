@@ -1026,6 +1026,9 @@
     form.append("privacyStatus", privacyStatus);
     form.append("video", file);
 
+    const controller = new AbortController();
+    const uploadTimeout = setTimeout(() => controller.abort(), 10 * 60 * 1000); // 10-minute timeout
+
     try {
       btn.disabled = true;
       btn.textContent = "Uploading video...";
@@ -1038,8 +1041,11 @@
           folder_id: activeFolderId,
           user_id: userScope
         },
-        body: form
+        body: form,
+        signal: controller.signal
       });
+
+      clearTimeout(uploadTimeout);
 
       const data = await res.json();
 
@@ -1062,11 +1068,15 @@
         }
       }
     } catch (err) {
+      clearTimeout(uploadTimeout);
       console.error(err);
       btn.disabled = false;
       btn.textContent = "🎵 Publish to TikTok";
-      setStatus(err?.message || "TikTok upload failed", "error");
-      alert(`Upload failed:\n${err?.message || err}`);
+      const msg = err?.name === "AbortError"
+        ? "Upload timed out. Please try again with a smaller video or check your connection."
+        : (err?.message || "TikTok upload failed");
+      setStatus(msg, "error");
+      alert(`Upload failed:\n${msg}`);
     }
   }
 
@@ -1211,20 +1221,20 @@
 
     if (youtubeConnected) {
       await loadFolderContext();
-      const accountName = getUrlParam("account_name");
-      setStatus(accountName ? `YouTube connected: ${accountName}` : "YouTube account connected to this folder", "success");
+      const accountName = getUrlParam("account_name") || activeYouTubeName;
+      setStatus(isLinked(accountName) ? `YouTube connected: ${accountName}` : "YouTube account connected to this folder", "success");
     }
 
     if (facebookConnected) {
       await loadFolderContext();
-      const accountName = getUrlParam("account_name");
-      setStatus(accountName ? `Facebook connected: ${accountName}` : "Facebook account connected to this folder", "success");
+      const accountName = getUrlParam("account_name") || activeFacebookName;
+      setStatus(isLinked(accountName) ? `Facebook connected: ${accountName}` : "Facebook account connected to this folder", "success");
     }
 
     if (tiktokConnected) {
       await loadFolderContext();
-      const accountName = getUrlParam("account_name");
-      setStatus(accountName ? `TikTok connected: ${accountName}` : "TikTok account connected to this folder", "success");
+      const accountName = getUrlParam("account_name") || activeTikTokName;
+      setStatus(isLinked(accountName) ? `TikTok connected: ${accountName}` : "TikTok account connected to this folder", "success");
     }
 
     if (youtubeError) {

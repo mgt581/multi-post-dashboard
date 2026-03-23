@@ -1,7 +1,7 @@
 // Increment this value (or replace with a git SHA) whenever worker.js is deployed.
 // It is returned in the X-Worker-Version response header so you can confirm
 // which version is live:  curl -si https://multipostapp.co.uk/api/health | grep x-worker
-const WORKER_VERSION = "2026-03-24";
+const WORKER_VERSION = "2026-03-23b";
 
 export default {
   async fetch(request, env) {
@@ -436,7 +436,7 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify([]), { headers: jsonHeaders });
         }
         const { results } = await env.DB.prepare(
-          "SELECT * FROM accounts WHERE folder_id = ? AND user_id = ?"
+          "SELECT * FROM accounts WHERE folder_id = ? AND user_id = ? ORDER BY id DESC"
         ).bind(folder_id, userId).all();
         return new Response(JSON.stringify(results), { headers: jsonHeaders });
       }
