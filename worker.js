@@ -1006,8 +1006,41 @@ Follow for daily trending content! \u{1F44F}
               }
             })
           });
-          const initData = await safeJson(initRes);
-          if (!initRes.ok || initData?.error?.code && initData.error.code !== "ok") {
+          let initData = await safeJson(initRes);
+          let privacyDowngraded = false;
+          if (initData?.error?.code === "unaudited_client_can_only_post_to_private_accounts") {
+            // Unaudited TikTok apps may only post to private accounts.
+            // Automatically retry with SELF_ONLY so the upload can still succeed.
+            privacyDowngraded = privacyStatus !== "SELF_ONLY";
+            privacyStatus = "SELF_ONLY";
+            const retryRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token.access_token}`,
+                "Content-Type": "application/json; charset=UTF-8"
+              },
+              body: JSON.stringify({
+                post_info: {
+                  title: caption,
+                  privacy_level: "SELF_ONLY",
+                  disable_duet: false,
+                  disable_comment: false,
+                  disable_stitch: false,
+                  video_cover_timestamp_ms: 0
+                },
+                source_info: {
+                  source: "FILE_UPLOAD",
+                  video_size: videoSize,
+                  chunk_size: chunkSize,
+                  total_chunk_count: totalChunks
+                }
+              })
+            });
+            initData = await safeJson(retryRes);
+            if (!retryRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
+              throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
+            }
+          } else if (!initRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
             throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
           }
           const publishId = initData?.data?.publish_id;
@@ -1037,7 +1070,8 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify({
             success: true,
             publishId,
-            tiktokUrl: `https://www.tiktok.com/`
+            tiktokUrl: `https://www.tiktok.com/`,
+            ...(privacyDowngraded ? { warning: "Your TikTok app is unaudited, so this post was automatically set to Private (SELF_ONLY). Submit your app for review at https://developers.tiktok.com/ to enable public posting." } : {})
           }), {
             headers: jsonHeaders
           });
