@@ -1,5 +1,32 @@
 # multi-post-dashboard
 
+## Google Cloud & Firebase Project Reference
+
+The app uses **two separate Google Cloud projects**:
+
+| Service | GCP Project Name | GCP Project Number / Firebase Project ID | Purpose |
+|---------|-----------------|------------------------------------------|---------|
+| Firebase Authentication + Hosting | `multi-post-daefc` | `1099160429576` | User auth, web hosting |
+| YouTube / Google OAuth API | `multipost-youtube-api` | `72559136598` | YouTube Data API v3, OAuth 2.0 credentials |
+
+### Firebase (Authentication & Hosting)
+
+- **Firebase project ID**: `multi-post-daefc`
+- Configured in `.firebaserc` as the default project.
+- All HTML files use `projectId: "multi-post-daefc"` in their `firebaseConfig`.
+- Deploy to Firebase Hosting with: `firebase deploy`
+
+### Google Cloud — YouTube API
+
+- **GCP project**: `multipost-youtube-api` (project number `72559136598`)
+- Hosts the **YouTube Data API v3** and the **OAuth 2.0 client** used for YouTube account linking.
+- The active OAuth client ID is:  
+  `72559136598-p0tbkiiit42vuronhcigtdru23vcktvj.apps.googleusercontent.com`
+- The corresponding client secret is stored as the `GOOGLE_CLIENT_SECRET` Cloudflare Worker secret (and GitHub Actions secret).
+- **Do not use the `multi-post-daefc` Firebase project** for YouTube API credentials — keep them on the dedicated `multipost-youtube-api` GCP project.
+
+---
+
 ## Firebase Android Setup (google-services.json)
 
 The `google-services.json` file must live in the **app module** directory. It will not work if it is placed in the project root.

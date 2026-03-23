@@ -54,10 +54,15 @@ wrangler secret put FB_CLIENT_SECRET
 
 **YouTube (Google OAuth):**
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project
-3. Enable YouTube Data API v3
-4. Create OAuth 2.0 credentials
-5. Add authorized redirect URI: `https://your-worker.workers.dev/api/auth/callback/youtube`
+2. Select the **`multipost-youtube-api`** project (project number `72559136598`).
+   - **Do not** use the `multi-post-daefc` Firebase project for these credentials.
+3. Enable **YouTube Data API v3** (APIs & Services → Library).
+4. Open **APIs & Services → Credentials** and select (or create) the OAuth 2.0 Client ID.  
+   The current client ID is:  
+   `72559136598-p0tbkiiit42vuronhcigtdru23vcktvj.apps.googleusercontent.com`
+5. Ensure the following authorized redirect URIs are added to the OAuth client:  
+   - **Production**: `https://multipostapp.co.uk/api/auth/callback/youtube`  
+   - **Local dev**: `http://localhost:8787/api/auth/callback/youtube`
 
 **TikTok:**
 1. Go to [TikTok for Developers](https://developers.tiktok.com/)
