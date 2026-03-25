@@ -1015,7 +1015,7 @@ Follow for daily trending content! \u{1F44F}
         }
         try {
           const CHUNK_SIZE = 10 * 1024 * 1024;
-          const totalChunks = Math.max(1, Math.ceil(videoSize / CHUNK_SIZE));
+          const totalChunks = Math.max(1, Math.floor(videoSize / CHUNK_SIZE));
           const chunkSize = totalChunks === 1 ? videoSize : CHUNK_SIZE;
           const buildInitBody = /* @__PURE__ */ __name((privacy) => JSON.stringify({
             post_info: {
@@ -1565,7 +1565,7 @@ Follow for daily trending content! \u{1F44F}
           const videoBytes = await videoFile.arrayBuffer();
           const videoSize = videoFile.size;
           const CHUNK_SIZE = 10 * 1024 * 1024;
-          const totalChunks = Math.max(1, Math.ceil(videoSize / CHUNK_SIZE));
+          const totalChunks = Math.max(1, Math.floor(videoSize / CHUNK_SIZE));
           const chunkSize = totalChunks === 1 ? videoSize : CHUNK_SIZE;
           const initRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
             method: "POST",
