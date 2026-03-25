@@ -1016,7 +1016,7 @@ Follow for daily trending content! \u{1F44F}
         try {
           const CHUNK_SIZE = 10 * 1024 * 1024;
           const chunkSize = videoSize <= CHUNK_SIZE ? videoSize : CHUNK_SIZE;
-          const totalChunks = chunkSize === videoSize ? 1 : Math.floor(videoSize / chunkSize) + (videoSize % chunkSize ? 1 : 0);
+          const totalChunks = Math.max(1, Math.floor(videoSize / chunkSize));
           const buildInitBody = /* @__PURE__ */ __name((privacy) => JSON.stringify({
             post_info: {
               title: caption,

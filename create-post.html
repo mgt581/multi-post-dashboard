@@ -1051,7 +1051,7 @@
       // Step 2: upload chunks
       for (let i = 0; i < totalChunks; i++) {
         const offset = i * chunkSize;
-        const chunkBlob = file.slice(offset, Math.min(offset + chunkSize, file.size));
+        const chunkBlob = i === totalChunks - 1 ? file.slice(offset) : file.slice(offset, offset + chunkSize);
 
         btn.textContent = `Uploading… (${i + 1}/${totalChunks})`;
 
