@@ -1,9 +1,9 @@
-// Increment this value (or replace with a git SHA) whenever worker.js is deployed.
-// It is returned in the X-Worker-Version response header so you can confirm
-// which version is live:  curl -si https://multipostapp.co.uk/api/health | grep x-worker
-const WORKER_VERSION = "2026-03-23b";
+var __defProp = Object.defineProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
-export default {
+// worker.js
+var WORKER_VERSION = "2026-03-23c";
+var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
@@ -11,7 +11,6 @@ export default {
       "Access-Control-Allow-Headers": "Content-Type, folder_id, user_id",
       "X-Worker-Version": WORKER_VERSION
     };
-    // Convenience header set for JSON API responses.
     const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: corsHeaders });
@@ -19,15 +18,12 @@ export default {
     const url = new URL(request.url);
     const siteBaseUrl = env.BASE_URL || "https://multipostapp.co.uk";
     const frontendBaseUrl = env.FRONTEND_URL || siteBaseUrl;
-
     if (url.pathname === "/api" || url.pathname === "/api/" || url.pathname === "/api/health") {
       return new Response(JSON.stringify({ ok: true, service: "multipost-worker", version: WORKER_VERSION }), {
         status: 200,
         headers: jsonHeaders
       });
     }
-
-    // --- 1. SEO GENERATION (MUST BE ABOVE REDIRECT TO RETURN 200) ---
     if (url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
       try {
         const body = await request.json();
@@ -45,13 +41,45 @@ export default {
         if (ttAccount) brandParts.push(`TikTok: ${ttAccount}`);
         const brandContext = brandParts.length ? brandParts.join(". ") + ". " : "";
         const effectiveTopic = topic || "viral video";
-        const seoSystemPrompt = `You are an expert social media SEO strategist with deep knowledge of YouTube, TikTok, and Facebook algorithms. Your goal is to generate high-quality, trending, platform-optimized SEO content that maximises discoverability and engagement.\n\nPlatform requirements:\n- YouTube: Titles must be 50-60 characters, keyword-rich, and compelling. Descriptions must be 150-300 characters with a strong hook and relevant keywords naturally embedded. Keywords must be 15-20 specific, trending, high-volume search terms separated by commas (mix broad + niche terms). Optimize for YouTube search and suggested videos.\n- TikTok: Caption must be under 150 characters with 3-5 highly relevant trending hashtags including #fyp and #foryoupage. Use conversational tone, emojis, and hooks that drive shares. Optimize for the TikTok For You Page algorithm.\n- Facebook: Title must be 40-60 characters. Description must be 100-200 characters followed by 5-8 relevant hashtags. Optimize for Facebook Reels discovery and shares.\n\nQuality rules:\n- Generate SPECIFIC, NICHE content \u2014 never generic filler text\n- Use currently trending keywords and hashtags for maximum reach\n- Match the exact content topic/mood \u2014 be precise, not vague\n- Each platform\u2019s content must be uniquely optimised, not copy-pasted\n- Titles must be clickable and curiosity-driving\n- Keywords must include a mix of high-volume broad terms and specific niche terms\n\nReturn ONLY valid JSON with no markdown, no extra text, no explanations:\n{\n  "youtube": {\n    "title": "Engaging title 50-60 chars",\n    "description": "Compelling description 150-300 chars with keywords embedded naturally",\n    "keywords": "15-20 trending comma-separated keywords, mix of broad and niche"\n  },\n  "tiktok": {\n    "allInOne": "Hook caption under 150 chars with emojis and 3-5 trending hashtags #fyp #foryoupage"\n  },\n  "facebook": {\n    "title": "Reels title 40-60 chars",\n    "descriptionAndTags": "Engaging description 100-200 chars\\n\\n#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5"\n  }\n}`;
+        const seoSystemPrompt = `You are an expert social media SEO strategist with deep knowledge of YouTube, TikTok, and Facebook algorithms. Your goal is to generate high-quality, trending, platform-optimized SEO content that maximises discoverability and engagement.
+
+Platform requirements:
+- YouTube: Titles must be 50-60 characters, keyword-rich, and compelling. Descriptions must be 150-300 characters with a strong hook and relevant keywords naturally embedded. Keywords must be 15-20 specific, trending, high-volume search terms separated by commas (mix broad + niche terms). Optimize for YouTube search and suggested videos.
+- TikTok: Caption must be under 150 characters with 3-5 highly relevant trending hashtags including #fyp and #foryoupage. Use conversational tone, emojis, and hooks that drive shares. Optimize for the TikTok For You Page algorithm.
+- Facebook: Title must be 40-60 characters. Description must be 100-200 characters followed by 5-8 relevant hashtags. Optimize for Facebook Reels discovery and shares.
+
+Quality rules:
+- Generate SPECIFIC, NICHE content \u2014 never generic filler text
+- Use currently trending keywords and hashtags for maximum reach
+- Match the exact content topic/mood \u2014 be precise, not vague
+- Each platform\u2019s content must be uniquely optimised, not copy-pasted
+- Titles must be clickable and curiosity-driving
+- Keywords must include a mix of high-volume broad terms and specific niche terms
+
+Return ONLY valid JSON with no markdown, no extra text, no explanations:
+{
+  "youtube": {
+    "title": "Engaging title 50-60 chars",
+    "description": "Compelling description 150-300 chars with keywords embedded naturally",
+    "keywords": "15-20 trending comma-separated keywords, mix of broad and niche"
+  },
+  "tiktok": {
+    "allInOne": "Hook caption under 150 chars with emojis and 3-5 trending hashtags #fyp #foryoupage"
+  },
+  "facebook": {
+    "title": "Reels title 40-60 chars",
+    "descriptionAndTags": "Engaging description 100-200 chars\\n\\n#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5"
+  }
+}`;
         let imageBase64 = "";
         let imageMimeType = "image/jpeg";
         if (imageUrl) {
           if (imageUrl.startsWith("data:")) {
             const match = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
-            if (match) { imageMimeType = match[1]; imageBase64 = match[2]; }
+            if (match) {
+              imageMimeType = match[1];
+              imageBase64 = match[2];
+            }
           } else {
             try {
               const imgRes = await fetch(imageUrl);
@@ -65,29 +93,37 @@ export default {
                 }
                 imageBase64 = btoa(chunks.join(""));
               }
-            } catch (imgErr) { console.error("Image fetch failed:", imgErr.message); }
+            } catch (imgErr) {
+              console.error("Image fetch failed:", imgErr.message);
+            }
           }
         }
         const hasImage = !!imageBase64;
         const hasText = !!topic.trim();
-        const parseSeoText = (rawText) => {
+        const parseSeoText = /* @__PURE__ */ __name((rawText) => {
           rawText = rawText.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
           const firstBrace = rawText.indexOf("{");
           const lastBrace = rawText.lastIndexOf("}");
           if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) rawText = rawText.slice(firstBrace, lastBrace + 1).trim();
           return JSON.parse(rawText);
-        };
+        }, "parseSeoText");
         let finalData = null;
         if (apiKey) {
           try {
-            const oaiMessages = /** @type {{ role: string, content: string | Array<{type: string, text?: string, image_url?: {url: string}}>}[]} */ ([{ role: "system", content: seoSystemPrompt }]);
+            const oaiMessages = (
+              /** @type {{ role: string, content: string | Array<{type: string, text?: string, image_url?: {url: string}}>}[]} */
+              [{ role: "system", content: seoSystemPrompt }]
+            );
             if (hasImage) {
               oaiMessages.push({ role: "user", content: [
                 { type: "image_url", image_url: { url: `data:${imageMimeType};base64,${imageBase64}` } },
                 { type: "text", text: `${brandContext}${hasText ? `Analyze this image and description to generate SEO: ${topic}` : "Analyze this image carefully and generate platform-optimized SEO content."}` }
-              ]});
+              ] });
             } else {
-              oaiMessages.push({ role: "user", content: `${brandContext}Generate platform-optimized SEO content for the following:\n${effectiveTopic}\n\nGenerate trending, specific SEO \u2014 not generic content.` });
+              oaiMessages.push({ role: "user", content: `${brandContext}Generate platform-optimized SEO content for the following:
+${effectiveTopic}
+
+Generate trending, specific SEO \u2014 not generic content.` });
             }
             const flagshipResponse = await fetch("https://api.openai.com/v1/chat/completions", {
               method: "POST",
@@ -96,16 +132,25 @@ export default {
             });
             const oaiData = await flagshipResponse.json();
             if (oaiData.choices?.[0]?.message?.content) {
-              try { finalData = parseSeoText(oaiData.choices[0].message.content); } catch { /* fall through */ }
+              try {
+                finalData = parseSeoText(oaiData.choices[0].message.content);
+              } catch {
+              }
             }
-          } catch (e) { console.error("OpenAI failed, falling back...", e.message); }
+          } catch (e) {
+            console.error("OpenAI failed, falling back...", e.message);
+          }
         }
         if (!finalData) {
           let aiResponse;
           if (hasImage) {
-            const userContent = hasText
-              ? `${brandContext}Analyze this image and the following context to generate platform-optimized SEO content.\n\nContext: ${topic}\n\nGenerate trending, specific SEO \u2014 not generic content.`
-              : `${brandContext}Analyze this image carefully and generate platform-optimized SEO content based on what you see.\n\nGenerate trending, specific SEO \u2014 not generic content.`;
+            const userContent = hasText ? `${brandContext}Analyze this image and the following context to generate platform-optimized SEO content.
+
+Context: ${topic}
+
+Generate trending, specific SEO \u2014 not generic content.` : `${brandContext}Analyze this image carefully and generate platform-optimized SEO content based on what you see.
+
+Generate trending, specific SEO \u2014 not generic content.`;
             aiResponse = await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
               messages: [{ role: "system", content: seoSystemPrompt }, { role: "user", content: userContent }],
               images: [{ data: imageBase64, mimeType: imageMimeType }]
@@ -114,16 +159,27 @@ export default {
             aiResponse = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
               messages: [
                 { role: "system", content: seoSystemPrompt },
-                { role: "user", content: `${brandContext}Generate platform-optimized SEO content for the following:\n${effectiveTopic}\n\nGenerate trending, specific SEO \u2014 not generic content.` }
+                { role: "user", content: `${brandContext}Generate platform-optimized SEO content for the following:
+${effectiveTopic}
+
+Generate trending, specific SEO \u2014 not generic content.` }
               ]
             });
           }
           let rawText;
-          if (typeof aiResponse === "string") { rawText = aiResponse; }
-          else if (typeof aiResponse?.response === "string") { rawText = aiResponse.response; }
-          else if (typeof aiResponse?.result?.response === "string") { rawText = aiResponse.result.response; }
-          else { rawText = JSON.stringify(aiResponse); }
-          try { finalData = parseSeoText(rawText); } catch { /* fall through */ }
+          if (typeof aiResponse === "string") {
+            rawText = aiResponse;
+          } else if (typeof aiResponse?.response === "string") {
+            rawText = aiResponse.response;
+          } else if (typeof aiResponse?.result?.response === "string") {
+            rawText = aiResponse.result.response;
+          } else {
+            rawText = JSON.stringify(aiResponse);
+          }
+          try {
+            finalData = parseSeoText(rawText);
+          } catch {
+          }
         }
         const cleanData = finalData ? {
           youtube: {
@@ -146,39 +202,36 @@ export default {
         return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: jsonHeaders });
       }
     }
-
-    // --- 2. ROOT HEALTH ---
     if (url.pathname === "/" || url.pathname === "") {
       return new Response(JSON.stringify({ ok: true, service: "multipost-worker", version: WORKER_VERSION }), {
         status: 200,
         headers: jsonHeaders
       });
     }
-
-    // --- 3. UTILITY HELPERS ---
-    const requireUser = (val) => val && typeof val === "string" && val.trim() ? val.trim() : null;
+    const requireUser = /* @__PURE__ */ __name((val) => val && typeof val === "string" && val.trim() ? val.trim() : null, "requireUser");
     const redirectUri = `${siteBaseUrl}/api/auth/callback/youtube`;
     const fbRedirectUri = `${siteBaseUrl}/api/auth/callback/facebook`;
     const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
-    const TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1000;
+    const TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1e3;
     const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
-    const nowMs = () => Date.now();
-    const safeJson = async (res) => {
+    const SESSION_EXPIRY_SECONDS = 3600;
+    const nowMs = /* @__PURE__ */ __name(() => Date.now(), "nowMs");
+    const safeJson = /* @__PURE__ */ __name(async (res) => {
       const text = await res.text();
       try {
         return JSON.parse(text);
       } catch {
         return { raw: text };
       }
-    };
-    const encodeState = (obj) => {
+    }, "safeJson");
+    const encodeState = /* @__PURE__ */ __name((obj) => {
       try {
         return btoa(JSON.stringify(obj));
       } catch {
         return String(obj?.folderId || "");
       }
-    };
-    const decodeState = (stateStr) => {
+    }, "encodeState");
+    const decodeState = /* @__PURE__ */ __name((stateStr) => {
       if (!stateStr) return { folderId: null, userId: null, platform: null };
       try {
         return JSON.parse(atob(stateStr));
@@ -191,8 +244,8 @@ export default {
           return { folderId: stateStr, userId: null, platform: null };
         }
       }
-    };
-    const upsertToken = async ({ folderId, platform, accountId, accessToken, refreshToken, expiresAt, scope }) => {
+    }, "decodeState");
+    const upsertToken = /* @__PURE__ */ __name(async ({ folderId, platform, accountId, accessToken, refreshToken, expiresAt, scope }) => {
       const safeFolderId = folderId == null ? null : String(folderId);
       const safePlatform = platform == null ? null : String(platform);
       const safeAccountId = accountId == null ? null : String(accountId);
@@ -223,14 +276,14 @@ export default {
         safeExpiresAt,
         safeScope
       ).run();
-    };
-    const requireEnv = (envVal, name) => {
+    }, "upsertToken");
+    const requireEnv = /* @__PURE__ */ __name((envVal, name) => {
       const v = envVal && String(envVal).trim() ? String(envVal).trim() : null;
       if (!v) throw new Error(`Missing ${name} env var`);
       return v;
-    };
+    }, "requireEnv");
     const fbGraph = "https://graph.facebook.com/v18.0";
-    const fbSafe = async (res) => {
+    const fbSafe = /* @__PURE__ */ __name(async (res) => {
       const data = await safeJson(res);
       if (!res.ok) {
         throw new Error(`Facebook API ${res.status}: ${JSON.stringify(data)}`);
@@ -239,12 +292,12 @@ export default {
         throw new Error(`Facebook API error: ${JSON.stringify(data.error)}`);
       }
       return data;
-    };
-    const fetchFbJson = async (fbUrl, init) => {
+    }, "fbSafe");
+    const fetchFbJson = /* @__PURE__ */ __name(async (fbUrl, init) => {
       const res = await fetch(fbUrl, init);
       return fbSafe(res);
-    };
-    const appsecretProof = async (accessToken) => {
+    }, "fetchFbJson");
+    const appsecretProof = /* @__PURE__ */ __name(async (accessToken) => {
       const appSecret = env.FB_CLIENT_SECRET ? String(env.FB_CLIENT_SECRET).trim() : null;
       if (!appSecret) {
         console.warn("FB_CLIENT_SECRET not configured; appsecret_proof will be omitted from Facebook API calls");
@@ -261,8 +314,8 @@ export default {
       );
       const sig = await crypto.subtle.sign("HMAC", key, enc.encode(accessToken));
       return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
-    };
-    const publishFacebookReelFromUrl = async ({ pageId, pageAccessToken, videoUrl, description }) => {
+    }, "appsecretProof");
+    const publishFacebookReelFromUrl = /* @__PURE__ */ __name(async ({ pageId, pageAccessToken, videoUrl, description }) => {
       const proof = await appsecretProof(pageAccessToken);
       const proofParam = proof ? `?appsecret_proof=${encodeURIComponent(proof)}` : "";
       const startRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels${proofParam}`, {
@@ -309,11 +362,11 @@ export default {
         })
       });
       return { video_id: videoId, finish: finishRes };
-    };
-    const cleanText = (value) => {
+    }, "publishFacebookReelFromUrl");
+    const cleanText = /* @__PURE__ */ __name((value) => {
       return String(value || "").replace(/\s+/g, " ").trim();
-    };
-    const makeKeywords = (prompt) => {
+    }, "cleanText");
+    const makeKeywords = /* @__PURE__ */ __name((prompt) => {
       const cleaned = cleanText(prompt).toLowerCase().replace(/[^\w\s]/g, " ");
       const words = cleaned.split(/\s+/).filter(Boolean).filter((w) => w.length > 2);
       const unique = [...new Set(words)];
@@ -328,9 +381,9 @@ export default {
         "trending now",
         "must watch"
       ];
-      return [...new Set([...base, ...extras])].join(", ");
-    };
-    const fallbackSeo = (prompt) => {
+      return [.../* @__PURE__ */ new Set([...base, ...extras])].join(", ");
+    }, "makeKeywords");
+    const fallbackSeo = /* @__PURE__ */ __name((prompt) => {
       const idea = cleanText(prompt) || "viral short video";
       const lower = idea.toLowerCase();
       let youtubeTitle = idea.length <= 60 ? idea : idea.slice(0, 57) + "...";
@@ -361,8 +414,7 @@ Follow for daily trending content! \u{1F44F}
           descriptionAndTags: facebookDescriptionAndTags
         }
       };
-    };
-    // --- 4. API ROUTING ---
+    }, "fallbackSeo");
     try {
       if (url.pathname === "/api/get-folders") {
         const userId = requireUser(url.searchParams.get("user_id"));
@@ -779,6 +831,521 @@ Follow for daily trending content! \u{1F44F}
           { headers: jsonHeaders }
         );
       }
+      if (url.pathname === "/api/youtube/init-upload" && request.method === "POST") {
+        const folder_id = request.headers.get("folder_id") || "";
+        const user_id = request.headers.get("user_id") || "";
+        if (!folder_id || !user_id) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const body = await safeJson(request);
+        const title = String(body.title || "").trim();
+        const description = String(body.description || "").trim();
+        const keywords = String(body.keywords || "").trim();
+        let privacyStatus = String(body.privacyStatus || "private").toLowerCase();
+        const fileType = String(body.fileType || "video/mp4");
+        const fileSize = Number(body.fileSize) || 0;
+        if (!title || title.length < 1 || title.length > 100) {
+          return new Response(JSON.stringify({ success: false, error: "Title required (1-100 chars)" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        if (!fileSize) {
+          return new Response(JSON.stringify({ success: false, error: "fileSize required" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        if (fileSize > MAX_VIDEO_SIZE_BYTES) {
+          return new Response(JSON.stringify({ success: false, error: "Video too large (>500MB)" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        if (!["private", "unlisted", "public"].includes(privacyStatus)) {
+          privacyStatus = "private";
+        }
+        const token = await env.DB.prepare(`
+          SELECT * FROM tokens
+          WHERE folder_id = ? AND platform = 'youtube'
+          ORDER BY updated_at DESC LIMIT 1
+        `).bind(folder_id).first();
+        if (!token?.access_token) {
+          return new Response(JSON.stringify({ success: false, error: "No YouTube token found. Link account first." }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const refreshYTToken = /* @__PURE__ */ __name(async (currentToken) => {
+          if (!currentToken.refresh_token) return null;
+          try {
+            const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({
+                client_id: env.GOOGLE_CLIENT_ID,
+                client_secret: env.GOOGLE_CLIENT_SECRET,
+                refresh_token: currentToken.refresh_token,
+                grant_type: "refresh_token"
+              })
+            });
+            const refreshed = await safeJson(refreshRes);
+            if (refreshed?.access_token) {
+              await upsertToken({
+                folderId: folder_id,
+                platform: "youtube",
+                accountId: currentToken.account_id,
+                accessToken: refreshed.access_token,
+                refreshToken: refreshed.refresh_token || currentToken.refresh_token,
+                expiresAt: nowMs() + Number(refreshed.expires_in || DEFAULT_TOKEN_EXPIRY_SECONDS) * 1e3,
+                scope: currentToken.scope || "https://www.googleapis.com/auth/youtube.upload"
+              });
+              return refreshed.access_token;
+            }
+            return null;
+          } catch (e) {
+            console.error("YouTube token refresh failed:", e);
+            return null;
+          }
+        }, "refreshYTToken");
+        let accessToken = token.access_token;
+        if (token.refresh_token && (!token.expires_at || Number(token.expires_at) - nowMs() < TOKEN_REFRESH_WINDOW_MS)) {
+          const refreshed = await refreshYTToken(token);
+          if (refreshed) accessToken = refreshed;
+        }
+        try {
+          const initBody = JSON.stringify({
+            snippet: {
+              title,
+              description,
+              tags: keywords ? keywords.split(/[\s,]+/).filter(Boolean) : [],
+              defaultLanguage: "en"
+            },
+            status: { privacyStatus, selfDeclaredMadeForKids: false }
+          });
+          let initRes = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${accessToken}`,
+              "X-Upload-Content-Type": fileType,
+              "X-Upload-Content-Length": String(fileSize)
+            },
+            body: initBody
+          });
+          if (initRes.status === 401 && token.refresh_token) {
+            const retried = await refreshYTToken(token);
+            if (retried) {
+              accessToken = retried;
+              initRes = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
+                method: "POST",
+                headers: {
+                  "Authorization": `Bearer ${accessToken}`,
+                  "X-Upload-Content-Type": fileType,
+                  "X-Upload-Content-Length": String(fileSize)
+                },
+                body: initBody
+              });
+            }
+          }
+          if (!initRes.ok) {
+            const errData = await safeJson(initRes);
+            throw new Error(`YouTube init failed: ${initRes.status} ${JSON.stringify(errData)}`);
+          }
+          const uploadUrl = initRes.headers.get("Location");
+          if (!uploadUrl) {
+            throw new Error("No upload location returned by YouTube");
+          }
+          return new Response(JSON.stringify({ success: true, uploadUrl }), { headers: jsonHeaders });
+        } catch (err) {
+          console.error("YouTube init-upload error:", err);
+          return new Response(JSON.stringify({ success: false, error: err.message || "Init failed" }), {
+            status: 500,
+            headers: jsonHeaders
+          });
+        }
+      }
+      if (url.pathname === "/api/tiktok/init-upload" && request.method === "POST") {
+        const folder_id = request.headers.get("folder_id") || "";
+        const user_id = request.headers.get("user_id") || "";
+        if (!folder_id || !user_id) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const body = await safeJson(request);
+        const caption = String(body.caption || "").trim();
+        let privacyStatus = String(body.privacyStatus || "SELF_ONLY").toUpperCase();
+        const videoSize = Number(body.videoSize) || 0;
+        if (!caption) {
+          return new Response(JSON.stringify({ success: false, error: "Caption required" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        if (!videoSize || videoSize <= 0) {
+          return new Response(JSON.stringify({ success: false, error: "videoSize required" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        if (videoSize > MAX_VIDEO_SIZE_BYTES) {
+          return new Response(JSON.stringify({ success: false, error: "Video too large (>500MB)" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const validPrivacyLevels = ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY"];
+        if (!validPrivacyLevels.includes(privacyStatus)) {
+          privacyStatus = "SELF_ONLY";
+        }
+        const token = await env.DB.prepare(`
+          SELECT * FROM tokens
+          WHERE folder_id = ? AND platform = 'tiktok'
+          ORDER BY updated_at DESC LIMIT 1
+        `).bind(folder_id).first();
+        if (!token?.access_token) {
+          return new Response(JSON.stringify({ success: false, error: "No TikTok token found. Link account first." }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        try {
+          const CHUNK_SIZE = 10 * 1024 * 1024;
+          const totalChunks = Math.max(1, Math.ceil(videoSize / CHUNK_SIZE));
+          const chunkSize = totalChunks === 1 ? videoSize : CHUNK_SIZE;
+          const buildInitBody = /* @__PURE__ */ __name((privacy) => JSON.stringify({
+            post_info: {
+              title: caption,
+              privacy_level: privacy,
+              disable_duet: false,
+              disable_comment: false,
+              disable_stitch: false,
+              video_cover_timestamp_ms: 0
+            },
+            source_info: {
+              source: "FILE_UPLOAD",
+              video_size: videoSize,
+              chunk_size: chunkSize,
+              total_chunk_count: totalChunks
+            }
+          }), "buildInitBody");
+          let initRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token.access_token}`, "Content-Type": "application/json; charset=UTF-8" },
+            body: buildInitBody(privacyStatus)
+          });
+          let initData = await safeJson(initRes);
+          let privacyDowngraded = false;
+          if (initData?.error?.code === "unaudited_client_can_only_post_to_private_accounts") {
+            privacyDowngraded = privacyStatus !== "SELF_ONLY";
+            privacyStatus = "SELF_ONLY";
+            const retryRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token.access_token}`, "Content-Type": "application/json; charset=UTF-8" },
+              body: buildInitBody("SELF_ONLY")
+            });
+            initData = await safeJson(retryRes);
+            if (!retryRes.ok || initData?.error?.code && initData.error.code !== "ok") {
+              throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
+            }
+          } else if (!initRes.ok || initData?.error?.code && initData.error.code !== "ok") {
+            throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
+          }
+          const publishId = initData?.data?.publish_id;
+          const uploadUrl = initData?.data?.upload_url;
+          if (!publishId || !uploadUrl) {
+            throw new Error(`TikTok init missing publish_id or upload_url: ${JSON.stringify(initData)}`);
+          }
+          const sessionId = crypto.randomUUID();
+          const expiresAt = Math.floor(Date.now() / 1e3) + SESSION_EXPIRY_SECONDS;
+          await env.DB.prepare(
+            "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, file_size, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+          ).bind(sessionId, "tiktok", uploadUrl, token.access_token, publishId, videoSize, expiresAt).run();
+          return new Response(JSON.stringify({
+            success: true,
+            sessionId,
+            publishId,
+            chunkSize,
+            totalChunks,
+            videoSize,
+            ...privacyDowngraded ? { warning: "Your TikTok app is unaudited, so this post was automatically set to Private (SELF_ONLY). Submit your app for review at https://developers.tiktok.com/ to enable public posting." } : {}
+          }), { headers: jsonHeaders });
+        } catch (err) {
+          console.error("TikTok init-upload error:", err);
+          return new Response(JSON.stringify({ success: false, error: err.message || "Init failed" }), {
+            status: 500,
+            headers: jsonHeaders
+          });
+        }
+      }
+      if (url.pathname === "/api/tiktok/upload-chunk" && request.method === "POST") {
+        const folder_id = request.headers.get("folder_id") || "";
+        const user_id = request.headers.get("user_id") || "";
+        if (!folder_id || !user_id) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const formData = await request.formData();
+        const sessionId = String(formData.get("sessionId") || "").trim();
+        const offset = Number(formData.get("offset") || 0);
+        const chunkFile = formData.get("chunk");
+        if (!sessionId) {
+          return new Response(JSON.stringify({ success: false, error: "sessionId required" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        if (!chunkFile || !(chunkFile instanceof File)) {
+          return new Response(JSON.stringify({ success: false, error: "chunk required" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const session = await env.DB.prepare(
+          "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'tiktok' LIMIT 1"
+        ).bind(sessionId).first();
+        if (!session) {
+          return new Response(JSON.stringify({ success: false, error: "Upload session not found or expired" }), {
+            status: 404,
+            headers: jsonHeaders
+          });
+        }
+        if (Math.floor(Date.now() / 1e3) > session.expires_at) {
+          return new Response(JSON.stringify({ success: false, error: "Upload session expired" }), {
+            status: 410,
+            headers: jsonHeaders
+          });
+        }
+        try {
+          const chunkBytes = await chunkFile.arrayBuffer();
+          const chunkEnd = offset + chunkBytes.byteLength - 1;
+          const totalSize = session.file_size;
+          const uploadRes = await fetch(session.upload_url, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "video/mp4",
+              "Content-Range": `bytes ${offset}-${chunkEnd}/${totalSize}`
+            },
+            body: chunkBytes
+          });
+          const uploadResText = await uploadRes.text();
+          if (!uploadRes.ok) {
+            throw new Error(`TikTok chunk upload failed: ${uploadRes.status} ${uploadResText}`);
+          }
+          return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
+        } catch (err) {
+          console.error("TikTok upload-chunk error:", err);
+          return new Response(JSON.stringify({ success: false, error: err.message || "Chunk upload failed" }), {
+            status: 500,
+            headers: jsonHeaders
+          });
+        }
+      }
+      if (url.pathname === "/api/facebook/init-upload" && request.method === "POST") {
+        const folder_id = request.headers.get("folder_id") || "";
+        const user_id = request.headers.get("user_id") || "";
+        if (!folder_id || !user_id) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const body = await safeJson(request);
+        const title = String(body.title || "").trim();
+        const description = String(body.description || "").trim();
+        const fileSize = Number(body.fileSize) || 0;
+        if (!title) {
+          return new Response(JSON.stringify({ success: false, error: "Title required" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        if (!fileSize || fileSize <= 0) {
+          return new Response(JSON.stringify({ success: false, error: "fileSize required" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        if (fileSize > MAX_VIDEO_SIZE_BYTES) {
+          return new Response(JSON.stringify({ success: false, error: "Video too large (>500MB)" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const pageAccount = await env.DB.prepare(
+          "SELECT facebook_page_id, facebook_page_access_token FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook_page' LIMIT 1"
+        ).bind(folder_id, user_id).first();
+        if (!pageAccount?.facebook_page_id || !pageAccount?.facebook_page_access_token) {
+          return new Response(JSON.stringify({ success: false, error: "No Facebook Page selected. Please select a page in your workspace settings." }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const pageId = String(pageAccount.facebook_page_id);
+        const pageAccessToken = String(pageAccount.facebook_page_access_token);
+        try {
+          const uploadProof = await appsecretProof(pageAccessToken);
+          const uploadProofParam = uploadProof ? `?appsecret_proof=${encodeURIComponent(uploadProof)}` : "";
+          const startRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels${uploadProofParam}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ access_token: pageAccessToken, upload_phase: "start" })
+          });
+          const videoId = startRes?.video_id;
+          const uploadUrl = startRes?.upload_url;
+          if (!videoId || !uploadUrl) {
+            throw new Error(`Bad reels start response: ${JSON.stringify(startRes)}`);
+          }
+          const sessionId = crypto.randomUUID();
+          const expiresAt = Math.floor(Date.now() / 1e3) + SESSION_EXPIRY_SECONDS;
+          await env.DB.prepare(
+            "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, page_id, title, description, file_size, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          ).bind(sessionId, "facebook", uploadUrl, pageAccessToken, videoId, pageId, title, description, fileSize, expiresAt).run();
+          return new Response(JSON.stringify({ success: true, sessionId, videoId }), { headers: jsonHeaders });
+        } catch (err) {
+          console.error("Facebook init-upload error:", err);
+          return new Response(JSON.stringify({ success: false, error: err.message || "Init failed" }), {
+            status: 500,
+            headers: jsonHeaders
+          });
+        }
+      }
+      if (url.pathname === "/api/facebook/upload-chunk" && request.method === "POST") {
+        const folder_id = request.headers.get("folder_id") || "";
+        const user_id = request.headers.get("user_id") || "";
+        if (!folder_id || !user_id) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const formData = await request.formData();
+        const sessionId = String(formData.get("sessionId") || "").trim();
+        const offset = Number(formData.get("offset") || 0);
+        const chunkFile = formData.get("chunk");
+        if (!sessionId) {
+          return new Response(JSON.stringify({ success: false, error: "sessionId required" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        if (!chunkFile || !(chunkFile instanceof File)) {
+          return new Response(JSON.stringify({ success: false, error: "chunk required" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const session = await env.DB.prepare(
+          "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'facebook' LIMIT 1"
+        ).bind(sessionId).first();
+        if (!session) {
+          return new Response(JSON.stringify({ success: false, error: "Upload session not found or expired" }), {
+            status: 404,
+            headers: jsonHeaders
+          });
+        }
+        if (Math.floor(Date.now() / 1e3) > session.expires_at) {
+          return new Response(JSON.stringify({ success: false, error: "Upload session expired" }), {
+            status: 410,
+            headers: jsonHeaders
+          });
+        }
+        try {
+          const chunkBytes = await chunkFile.arrayBuffer();
+          const upRes = await fetch(session.upload_url, {
+            method: "POST",
+            headers: {
+              Authorization: `OAuth ${session.access_token}`,
+              "Content-Type": "application/octet-stream",
+              offset: String(offset),
+              file_size: String(session.file_size)
+            },
+            body: chunkBytes
+          });
+          const upText = await upRes.text();
+          if (!upRes.ok) {
+            throw new Error(`Facebook chunk upload failed ${upRes.status}: ${upText}`);
+          }
+          return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
+        } catch (err) {
+          console.error("Facebook upload-chunk error:", err);
+          return new Response(JSON.stringify({ success: false, error: err.message || "Chunk upload failed" }), {
+            status: 500,
+            headers: jsonHeaders
+          });
+        }
+      }
+      if (url.pathname === "/api/facebook/finish-upload" && request.method === "POST") {
+        const folder_id = request.headers.get("folder_id") || "";
+        const user_id = request.headers.get("user_id") || "";
+        if (!folder_id || !user_id) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const body = await safeJson(request);
+        const sessionId = String(body.sessionId || "").trim();
+        if (!sessionId) {
+          return new Response(JSON.stringify({ success: false, error: "sessionId required" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const session = await env.DB.prepare(
+          "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'facebook' LIMIT 1"
+        ).bind(sessionId).first();
+        if (!session) {
+          return new Response(JSON.stringify({ success: false, error: "Upload session not found or expired" }), {
+            status: 404,
+            headers: jsonHeaders
+          });
+        }
+        if (Math.floor(Date.now() / 1e3) > session.expires_at) {
+          return new Response(JSON.stringify({ success: false, error: "Upload session expired" }), {
+            status: 410,
+            headers: jsonHeaders
+          });
+        }
+        try {
+          const pageId = String(session.page_id);
+          const pageAccessToken = String(session.access_token);
+          const videoId = String(session.video_id);
+          const uploadProof = await appsecretProof(pageAccessToken);
+          const uploadProofParam = uploadProof ? `?appsecret_proof=${encodeURIComponent(uploadProof)}` : "";
+          const finishRes = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/video_reels${uploadProofParam}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              access_token: pageAccessToken,
+              upload_phase: "finish",
+              video_id: videoId,
+              video_state: "PUBLISHED",
+              title: session.title || "",
+              description: session.description || ""
+            })
+          });
+          await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(sessionId).run();
+          return new Response(JSON.stringify({
+            success: true,
+            videoId,
+            facebookUrl: finishRes?.post_id ? `https://www.facebook.com/${finishRes.post_id}` : `https://www.facebook.com/video/${videoId}`,
+            data: finishRes
+          }), { headers: jsonHeaders });
+        } catch (err) {
+          console.error("Facebook finish-upload error:", err);
+          return new Response(JSON.stringify({ success: false, error: err.message || "Finish failed" }), {
+            status: 500,
+            headers: jsonHeaders
+          });
+        }
+      }
       if (url.pathname === "/api/youtube/upload" && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
@@ -826,11 +1393,8 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
-        // Refresh the access token if it is expired or expiring within the next 5 minutes.
-        // Also refresh when expires_at is missing (legacy tokens stored without expiry info).
-        const refreshYouTubeToken = async (currentToken) => {
+        const refreshYouTubeToken = /* @__PURE__ */ __name(async (currentToken) => {
           if (!currentToken.refresh_token) return null;
-          // Returns the new access_token string on success, or null if refresh fails.
           try {
             const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
               method: "POST",
@@ -861,15 +1425,13 @@ Follow for daily trending content! \u{1F44F}
             console.error("YouTube token refresh failed:", refreshErr);
             return null;
           }
-        };
+        }, "refreshYouTubeToken");
         let accessToken = token.access_token;
-        // Trigger proactive refresh when: no expiry info stored (legacy token) OR token is
-        // expired/expiring within the refresh window.
         if (token.refresh_token && (!token.expires_at || Number(token.expires_at) - nowMs() < TOKEN_REFRESH_WINDOW_MS)) {
           const refreshed = await refreshYouTubeToken(token);
           if (refreshed) accessToken = refreshed;
         }
-        const buildInitBody = () => JSON.stringify({
+        const buildInitBody = /* @__PURE__ */ __name(() => JSON.stringify({
           snippet: {
             title,
             description,
@@ -880,7 +1442,7 @@ Follow for daily trending content! \u{1F44F}
             privacyStatus,
             selfDeclaredMadeForKids: false
           }
-        });
+        }), "buildInitBody");
         try {
           let initRes = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
             method: "POST",
@@ -890,7 +1452,6 @@ Follow for daily trending content! \u{1F44F}
             },
             body: buildInitBody()
           });
-          // On 401, attempt one token refresh and retry the init request.
           if (initRes.status === 401 && token.refresh_token) {
             const retried = await refreshYouTubeToken(token);
             if (retried) {
@@ -948,7 +1509,7 @@ Follow for daily trending content! \u{1F44F}
           });
         }
       }
-      if (url.pathname === "/api/tiktok/upload" && request.method === "POST") {
+      itiktok && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
         if (!folder_id || !user_id) {
@@ -1003,10 +1564,7 @@ Follow for daily trending content! \u{1F44F}
         try {
           const videoBytes = await videoFile.arrayBuffer();
           const videoSize = videoFile.size;
-          // Use ceil so every video byte is covered: non-last chunks are exactly
-          // CHUNK_SIZE bytes; the last chunk holds the remaining bytes (≤ CHUNK_SIZE).
-          // When total_chunk_count = 1, chunk_size must equal video_size.
-          const CHUNK_SIZE = 10 * 1024 * 1024; // 10 MiB (within TikTok's 5–64 MiB range)
+          const CHUNK_SIZE = 10 * 1024 * 1024;
           const totalChunks = Math.max(1, Math.ceil(videoSize / CHUNK_SIZE));
           const chunkSize = totalChunks === 1 ? videoSize : CHUNK_SIZE;
           const initRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
@@ -1035,8 +1593,6 @@ Follow for daily trending content! \u{1F44F}
           let initData = await safeJson(initRes);
           let privacyDowngraded = false;
           if (initData?.error?.code === "unaudited_client_can_only_post_to_private_accounts") {
-            // Unaudited TikTok apps may only post to private accounts.
-            // Automatically retry with SELF_ONLY so the upload can still succeed.
             privacyDowngraded = privacyStatus !== "SELF_ONLY";
             privacyStatus = "SELF_ONLY";
             const retryRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
@@ -1063,10 +1619,10 @@ Follow for daily trending content! \u{1F44F}
               })
             });
             initData = await safeJson(retryRes);
-            if (!retryRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
+            if (!retryRes.ok || initData?.error?.code && initData.error.code !== "ok") {
               throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
             }
-          } else if (!initRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
+          } else if (!initRes.ok || initData?.error?.code && initData.error.code !== "ok") {
             throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
           }
           const publishId = initData?.data?.publish_id;
@@ -1076,8 +1632,7 @@ Follow for daily trending content! \u{1F44F}
           }
           for (let i = 0; i < totalChunks; i++) {
             const start = i * CHUNK_SIZE;
-            // Last chunk covers all remaining bytes (≤ CHUNK_SIZE with ceil).
-            const end = (i === totalChunks - 1) ? videoSize : start + chunkSize;
+            const end = i === totalChunks - 1 ? videoSize : start + chunkSize;
             const chunk = videoBytes.slice(start, end);
             const uploadRes = await fetch(uploadUrl, {
               method: "PUT",
@@ -1087,7 +1642,6 @@ Follow for daily trending content! \u{1F44F}
               },
               body: chunk
             });
-            // Always consume the response body to free the connection.
             const uploadResText = await uploadRes.text();
             if (!uploadRes.ok) {
               throw new Error(`TikTok chunk upload failed: ${uploadRes.status} ${uploadResText}`);
@@ -1097,7 +1651,7 @@ Follow for daily trending content! \u{1F44F}
             success: true,
             publishId,
             tiktokUrl: `https://www.tiktok.com/`,
-            ...(privacyDowngraded ? { warning: "Your TikTok app is unaudited, so this post was automatically set to Private (SELF_ONLY). Submit your app for review at https://developers.tiktok.com/ to enable public posting." } : {})
+            ...privacyDowngraded ? { warning: "Your TikTok app is unaudited, so this post was automatically set to Private (SELF_ONLY). Submit your app for review at https://developers.tiktok.com/ to enable public posting." } : {}
           }), {
             headers: jsonHeaders
           });
@@ -1181,7 +1735,6 @@ Follow for daily trending content! \u{1F44F}
             },
             body: videoBytes
           });
-          // Always consume the response body to free the connection before the finish call.
           const upText = await upRes.text();
           if (!upRes.ok) {
             throw new Error(`Facebook reels upload failed ${upRes.status}: ${upText}`);
@@ -1347,26 +1900,32 @@ Return ONLY valid JSON with no markdown, no extra text, no explanations:
     "descriptionAndTags": "Engaging description 100-200 chars\\n\\n#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5"
   }
 }`;
-        const parseSeoText = (rawText) => {
+        const parseSeoText = /* @__PURE__ */ __name((rawText) => {
           rawText = rawText.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
           const firstBrace = rawText.indexOf("{");
           const lastBrace = rawText.lastIndexOf("}");
           if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) rawText = rawText.slice(firstBrace, lastBrace + 1).trim();
           return JSON.parse(rawText);
-        };
+        }, "parseSeoText");
         let parsed = null;
         const apiKey = env.OPENAI_API_KEY;
         if (apiKey) {
           try {
-            const oaiMessages = /** @type {{ role: string, content: string | Array<{type: string, text?: string, image_url?: {url: string}}>}[]} */ ([{ role: "system", content: seoSystemPrompt }]);
+            const oaiMessages = (
+              /** @type {{ role: string, content: string | Array<{type: string, text?: string, image_url?: {url: string}}>}[]} */
+              [{ role: "system", content: seoSystemPrompt }]
+            );
             if (hasImage) {
               const mimeType = imageFilename.toLowerCase().split(".").pop() === "png" ? "image/png" : "image/jpeg";
               oaiMessages.push({ role: "user", content: [
                 { type: "image_url", image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
                 { type: "text", text: `${brandContext}${hasText ? `Analyze this image and description to generate SEO: ${textPrompt}` : "Analyze this image carefully and generate platform-optimized SEO content."}` }
-              ]});
+              ] });
             } else {
-              oaiMessages.push({ role: "user", content: `${brandContext}Generate platform-optimized SEO content for the following:\n${textPrompt}\n\nGenerate trending, specific SEO \u2014 not generic content.` });
+              oaiMessages.push({ role: "user", content: `${brandContext}Generate platform-optimized SEO content for the following:
+${textPrompt}
+
+Generate trending, specific SEO \u2014 not generic content.` });
             }
             const oaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
               method: "POST",
@@ -1375,9 +1934,14 @@ Return ONLY valid JSON with no markdown, no extra text, no explanations:
             });
             const oaiData = await oaiResponse.json();
             if (oaiData.choices?.[0]?.message?.content) {
-              try { parsed = parseSeoText(oaiData.choices[0].message.content); } catch { /* fall through */ }
+              try {
+                parsed = parseSeoText(oaiData.choices[0].message.content);
+              } catch {
+              }
             }
-          } catch (e) { console.error("OpenAI failed, falling back to Cloudflare AI...", e.message); }
+          } catch (e) {
+            console.error("OpenAI failed, falling back to Cloudflare AI...", e.message);
+          }
         }
         if (!parsed) {
           try {
@@ -1404,7 +1968,10 @@ Generate trending, specific SEO \u2014 not generic content.`;
                   { role: "system", content: seoSystemPrompt },
                   {
                     role: "user",
-                    content: `${brandContext}Generate platform-optimized SEO content for the following:\n${textPrompt}\n\nGenerate trending, specific SEO \u2014 not generic content.`
+                    content: `${brandContext}Generate platform-optimized SEO content for the following:
+${textPrompt}
+
+Generate trending, specific SEO \u2014 not generic content.`
                   }
                 ]
               });
@@ -1419,12 +1986,14 @@ Generate trending, specific SEO \u2014 not generic content.`;
             } else {
               rawText = JSON.stringify(aiResponse);
             }
-            try { parsed = parseSeoText(rawText); } catch { /* fall through */ }
+            try {
+              parsed = parseSeoText(rawText);
+            } catch {
+            }
           } catch (_) {
             parsed = null;
           }
         }
-
         const cleanData = parsed ? {
           youtube: {
             title: String(parsed?.youtube?.title || ""),
@@ -1438,8 +2007,7 @@ Generate trending, specific SEO \u2014 not generic content.`;
             title: String(parsed?.facebook?.title || ""),
             descriptionAndTags: String(parsed?.facebook?.descriptionAndTags || "")
           }
-        } : (typeof fallbackSeo === 'function' ? fallbackSeo(textPrompt) : {});
-
+        } : typeof fallbackSeo === "function" ? fallbackSeo(textPrompt) : {};
         return new Response(JSON.stringify({
           success: true,
           data: cleanData,
@@ -1448,22 +2016,15 @@ Generate trending, specific SEO \u2014 not generic content.`;
           status: 200,
           headers: jsonHeaders
         });
-      } // Closes the specific API route block
-
-      // --- Global Routing ---
+      }
       if (!url.pathname.startsWith("/api/")) {
         return Response.redirect(frontendBaseUrl, 302);
       }
-
-      // No handler matched this API path — return 404 instead of forwarding to
-      // the origin, which would loop back through the Worker and cause a 502.
       return new Response(JSON.stringify({ success: false, error: "Not found" }), {
         status: 404,
         headers: jsonHeaders
       });
-
     } catch (err) {
-      // The master catch block that handles the whole fetch process
       return new Response(JSON.stringify({ success: false, error: err.message || String(err) }), {
         status: 500,
         headers: jsonHeaders
@@ -1471,3 +2032,7 @@ Generate trending, specific SEO \u2014 not generic content.`;
     }
   }
 };
+export {
+  worker_default as default
+};
+//# sourceMappingURL=worker.js.map
