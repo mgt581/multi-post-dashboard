@@ -1015,8 +1015,8 @@ Follow for daily trending content! \u{1F44F}
         }
         try {
           const CHUNK_SIZE = 10 * 1024 * 1024;
-          const totalChunks = Math.max(1, Math.floor(videoSize / CHUNK_SIZE));
-          const chunkSize = totalChunks === 1 ? videoSize : CHUNK_SIZE;
+          const chunkSize = videoSize <= CHUNK_SIZE ? videoSize : CHUNK_SIZE;
+          const totalChunks = chunkSize === videoSize ? 1 : Math.floor(videoSize / chunkSize);
           const buildInitBody = /* @__PURE__ */ __name((privacy) => JSON.stringify({
             post_info: {
               title: caption,
@@ -1033,6 +1033,7 @@ Follow for daily trending content! \u{1F44F}
               total_chunk_count: totalChunks
             }
           }), "buildInitBody");
+          console.log("tiktok_chunks", { videoSize, chunkSize, totalChunks, remainder: videoSize % chunkSize });
           let initRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
             method: "POST",
             headers: { Authorization: `Bearer ${token.access_token}`, "Content-Type": "application/json; charset=UTF-8" },
@@ -1565,8 +1566,9 @@ Follow for daily trending content! \u{1F44F}
           const videoBytes = await videoFile.arrayBuffer();
           const videoSize = videoFile.size;
           const CHUNK_SIZE = 10 * 1024 * 1024;
-          const totalChunks = Math.max(1, Math.floor(videoSize / CHUNK_SIZE));
-          const chunkSize = totalChunks === 1 ? videoSize : CHUNK_SIZE;
+          const chunkSize = videoSize <= CHUNK_SIZE ? videoSize : CHUNK_SIZE;
+          const totalChunks = chunkSize === videoSize ? 1 : Math.floor(videoSize / chunkSize);
+          console.log("tiktok_chunks", { videoSize, chunkSize, totalChunks, remainder: videoSize % chunkSize });
           const initRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
             method: "POST",
             headers: {
@@ -1631,7 +1633,7 @@ Follow for daily trending content! \u{1F44F}
             throw new Error(`TikTok init missing publish_id or upload_url: ${JSON.stringify(initData)}`);
           }
           for (let i = 0; i < totalChunks; i++) {
-            const start = i * CHUNK_SIZE;
+            const start = i * chunkSize;
             const end = i === totalChunks - 1 ? videoSize : start + chunkSize;
             const chunk = videoBytes.slice(start, end);
             const uploadRes = await fetch(uploadUrl, {
