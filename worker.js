@@ -1148,6 +1148,131 @@ Follow for daily trending content! \u{1F44F}
           });
         }
       }
+      if (url.pathname === "/api/tiktok/upload" && request.method === "POST") {
+        const folder_id = request.headers.get("folder_id") || "";
+        const user_id = request.headers.get("user_id") || "";
+        if (!folder_id || !user_id) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        try {
+          const formData = await request.formData();
+          const caption = String(formData.get("caption") || "").trim();
+          let privacyStatus = String(formData.get("privacyStatus") || "SELF_ONLY").toUpperCase();
+          const videoFile = formData.get("video");
+          if (!caption) {
+            return new Response(JSON.stringify({ success: false, error: "Caption required" }), {
+              status: 400,
+              headers: jsonHeaders
+            });
+          }
+          if (!videoFile || !(videoFile instanceof File)) {
+            return new Response(JSON.stringify({ success: false, error: "Video file required" }), {
+              status: 400,
+              headers: jsonHeaders
+            });
+          }
+          const videoSize = videoFile.size;
+          if (videoSize > MAX_VIDEO_SIZE_BYTES) {
+            return new Response(JSON.stringify({ success: false, error: "Video too large (>500MB)" }), {
+              status: 400,
+              headers: jsonHeaders
+            });
+          }
+          const validPrivacyLevels = ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY"];
+          if (!validPrivacyLevels.includes(privacyStatus)) {
+            privacyStatus = "SELF_ONLY";
+          }
+          const token = await env.DB.prepare(`
+            SELECT * FROM tokens
+            WHERE folder_id = ? AND platform = 'tiktok'
+            ORDER BY updated_at DESC LIMIT 1
+          `).bind(folder_id).first();
+          if (!token?.access_token) {
+            return new Response(JSON.stringify({ success: false, error: "No TikTok token found. Link account first." }), {
+              status: 400,
+              headers: jsonHeaders
+            });
+          }
+          const CHUNK_SIZE = 10 * 1024 * 1024;
+          const chunkSize = videoSize <= CHUNK_SIZE ? videoSize : CHUNK_SIZE;
+          const totalChunks = Math.ceil(videoSize / chunkSize);
+          const buildTikTokInitBody = /* @__PURE__ */ __name((privacy) => JSON.stringify({
+            post_info: {
+              title: caption,
+              privacy_level: privacy,
+              disable_duet: false,
+              disable_comment: false,
+              disable_stitch: false,
+              video_cover_timestamp_ms: 0
+            },
+            source_info: {
+              source: "FILE_UPLOAD",
+              video_size: videoSize,
+              chunk_size: chunkSize,
+              total_chunk_count: totalChunks
+            }
+          }), "buildTikTokInitBody");
+          console.log("tiktok_upload", { videoSize, chunkSize, totalChunks });
+          let initRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token.access_token}`, "Content-Type": "application/json; charset=UTF-8" },
+            body: buildTikTokInitBody(privacyStatus)
+          });
+          let initData = await safeJson(initRes);
+          let privacyDowngraded = false;
+          if (initData?.error?.code === "unaudited_client_can_only_post_to_private_accounts") {
+            privacyDowngraded = privacyStatus !== "SELF_ONLY";
+            privacyStatus = "SELF_ONLY";
+            const retryRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
+              method: "POST",
+              headers: { Authorization: `Bearer ${token.access_token}`, "Content-Type": "application/json; charset=UTF-8" },
+              body: buildTikTokInitBody("SELF_ONLY")
+            });
+            initData = await safeJson(retryRes);
+            if (!retryRes.ok || initData?.error?.code && initData.error.code !== "ok") {
+              throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
+            }
+          } else if (!initRes.ok || initData?.error?.code && initData.error.code !== "ok") {
+            throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
+          }
+          const uploadUrl = initData?.data?.upload_url;
+          if (!uploadUrl) {
+            throw new Error(`TikTok init missing upload_url: ${JSON.stringify(initData)}`);
+          }
+          const videoBytes = await videoFile.arrayBuffer();
+          for (let i = 0; i < totalChunks; i++) {
+            const offset = i * chunkSize;
+            const chunk = videoBytes.slice(offset, offset + chunkSize);
+            const chunkEnd = offset + chunk.byteLength - 1;
+            const uploadRes = await fetch(uploadUrl, {
+              method: "PUT",
+              headers: {
+                "Content-Type": "video/mp4",
+                "Content-Range": `bytes ${offset}-${chunkEnd}/${videoSize}`
+              },
+              body: chunk
+            });
+            if (!uploadRes.ok) {
+              const uploadResText = await uploadRes.text();
+              throw new Error(`TikTok chunk upload failed: ${uploadRes.status} ${uploadResText}`);
+            }
+          }
+          const responseBody = { success: true };
+          if (privacyDowngraded) {
+            responseBody.warning = "Your TikTok app is unaudited, so this post was automatically set to Private (SELF_ONLY). Submit your app for review at https://developers.tiktok.com/ to enable public posting.";
+          }
+          return new Response(JSON.stringify(responseBody), { headers: jsonHeaders });
+        } catch (err) {
+          console.error("TikTok upload error:", err);
+          return new Response(JSON.stringify({ success: false, error: err.message || "Upload failed" }), {
+            status: 500,
+            headers: jsonHeaders
+          });
+        }
+      }
       if (url.pathname === "/api/facebook/init-upload" && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
