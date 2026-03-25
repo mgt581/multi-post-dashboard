@@ -1021,64 +1021,71 @@
       return;
     }
 
-    const form = new FormData();
-    form.append("caption", caption);
-    form.append("privacyStatus", privacyStatus);
-    form.append("video", file);
-
-    const controller = new AbortController();
-    const uploadTimeout = setTimeout(() => controller.abort(), 10 * 60 * 1000); // 10-minute timeout
-
     try {
       btn.disabled = true;
       btn.textContent = "Uploading video...";
-
       setStatus(`Uploading to "${activeTikTokName}"…`, "working");
 
-      const res = await fetch(`${apiBase}/tiktok/upload`, {
+      // Step 1: initialise upload session
+      const initRes = await fetch(`${apiBase}/tiktok/init-upload`, {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           folder_id: activeFolderId,
           user_id: userScope
         },
-        body: form,
-        signal: controller.signal
+        body: JSON.stringify({
+          caption,
+          privacyStatus: String(privacyStatus || "SELF_ONLY").toUpperCase(),
+          videoSize: file.size
+        })
       });
 
-      clearTimeout(uploadTimeout);
+      const initData = await initRes.json();
+      if (!initRes.ok || !initData.success) {
+        throw new Error(initData.error || "TikTok init-upload failed");
+      }
 
-      const data = await res.json();
+      const { sessionId, chunkSize, totalChunks, warning } = initData;
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "TikTok upload failed");
+      // Step 2: upload chunks
+      for (let i = 0; i < totalChunks; i++) {
+        const offset = i * chunkSize;
+        const chunkBlob = file.slice(offset, Math.min(offset + chunkSize, file.size));
+
+        btn.textContent = `Uploading… (${i + 1}/${totalChunks})`;
+
+        const fd = new FormData();
+        fd.append("sessionId", sessionId);
+        fd.append("offset", String(offset));
+        fd.append("chunk", chunkBlob, file.name);
+
+        const upRes = await fetch(`${apiBase}/tiktok/upload-chunk`, {
+          method: "POST",
+          headers: {
+            folder_id: activeFolderId,
+            user_id: userScope
+          },
+          body: fd
+        });
+
+        const upData = await upRes.json().catch(() => ({}));
+        if (!upRes.ok || !upData.success) {
+          throw new Error(upData.error || `TikTok upload-chunk failed at chunk ${i + 1}/${totalChunks}`);
+        }
       }
 
       setStatus(`Published to "${activeTikTokName}"`, "success");
       btn.textContent = "✅ Uploaded";
 
-      if (data.warning) {
-        alert(`⚠️ Note: ${data.warning}`);
-      }
-
-      const publishedUrl = data.tiktokUrl || data.url || data.postUrl || data.videoUrl;
-
-      if (publishedUrl) {
-        const openNow = confirm(
-          `Upload complete for "${activeTikTokName}".\n\nOpen the published post now?`
-        );
-
-        if (openNow) {
-          window.open(publishedUrl, "_blank");
-        }
+      if (warning) {
+        alert(`⚠️ Note: ${warning}`);
       }
     } catch (err) {
-      clearTimeout(uploadTimeout);
       console.error(err);
       btn.disabled = false;
       btn.textContent = "🎵 Publish to TikTok";
-      const msg = err?.name === "AbortError"
-        ? "Upload timed out. Please try again with a smaller video or check your connection."
-        : (err?.message || "TikTok upload failed");
+      const msg = err?.message || "TikTok upload failed";
       setStatus(msg, "error");
       alert(`Upload failed:\n${msg}`);
     }
