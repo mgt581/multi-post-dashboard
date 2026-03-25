@@ -1050,10 +1050,10 @@ Follow for daily trending content! \u{1F44F}
               body: buildInitBody("SELF_ONLY")
             });
             initData = await safeJson(retryRes);
-            if (!retryRes.ok || initData?.error?.code && initData.error.code !== "ok") {
+            if (!retryRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
               throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
             }
-          } else if (!initRes.ok || initData?.error?.code && initData.error.code !== "ok") {
+          } else if (!initRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
             throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
           }
           const publishId = initData?.data?.publish_id;
@@ -1073,7 +1073,7 @@ Follow for daily trending content! \u{1F44F}
             chunkSize,
             totalChunks,
             videoSize,
-            ...privacyDowngraded ? { warning: "Your TikTok app is unaudited, so this post was automatically set to Private (SELF_ONLY). Submit your app for review at https://developers.tiktok.com/ to enable public posting." } : {}
+            ...(privacyDowngraded ? { warning: "Your TikTok app is unaudited, so this post was automatically set to Private (SELF_ONLY). Submit your app for review at https://developers.tiktok.com/ to enable public posting." } : {})
           }), { headers: jsonHeaders });
         } catch (err) {
           console.error("TikTok init-upload error:", err);
@@ -1639,6 +1639,9 @@ Follow for daily trending content! \u{1F44F}
             })
           });
           const result = await safeJson(tiktokRes);
+          if (!tiktokRes.ok || (result?.error?.code && result.error.code !== "ok")) {
+            return new Response(JSON.stringify({ success: false, error: `TikTok init failed: ${JSON.stringify(result?.error || result)}` }), { headers: jsonHeaders });
+          }
           return new Response(JSON.stringify(result), { headers: jsonHeaders });
         }
         if (platform === "facebook") {
