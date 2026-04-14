@@ -504,7 +504,7 @@ Follow for daily trending content! \u{1F44F}
         if (!env.GOOGLE_CLIENT_SECRET) {
           return new Response(JSON.stringify({ success: false, error: "Missing GOOGLE_CLIENT_SECRET env var" }), { status: 500, headers: jsonHeaders });
         }
-        const scope = "https://www.googleapis.com/auth/youtube.upload";
+        const scope = "https://www.googleapis.com/auth/youtube.upload openid";
         const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(env.GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&include_granted_scopes=true&prompt=${encodeURIComponent("consent select_account")}&state=${encodeURIComponent(state)}`;
         return Response.redirect(googleAuthUrl);
       }
@@ -565,19 +565,31 @@ Follow for daily trending content! \u{1F44F}
         const userData = await safeJson(userRes);
         const channelName = userData.items?.[0]?.snippet?.title || "Linked YouTube";
         const channelId = userData.items?.[0]?.id || channelName;
+        // Fetch Google Account ID (sub) to support Cross-Account Protection (RISC)
+        let googleSub = null;
+        try {
+          const userinfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+            headers: { Authorization: `Bearer ${tokens.access_token}` }
+          });
+          if (userinfoRes.ok) {
+            const userinfo = await userinfoRes.json();
+            googleSub = userinfo.sub || null;
+          }
+        } catch (_) {}
         await env.DB.batch([
           env.DB.prepare(
             "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'youtube'"
           ).bind(String(folderId), String(userId)),
           env.DB.prepare(
-            "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at) VALUES (?, ?, 'youtube', ?, ?, ?, ?)"
+            "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at, google_sub) VALUES (?, ?, 'youtube', ?, ?, ?, ?, ?)"
           ).bind(
             String(folderId),
             String(userId),
             String(channelName),
             String(tokens.access_token),
             tokens.refresh_token ? String(tokens.refresh_token) : null,
-            nowMs() + Number(tokens.expires_in || 0) * 1e3
+            nowMs() + Number(tokens.expires_in || 0) * 1e3,
+            googleSub
           )
         ]);
         await upsertToken({
@@ -1866,6 +1878,174 @@ Generate trending, specific SEO \u2014 not generic content.`
       }
       if (!url.pathname.startsWith("/api/")) {
         return Response.redirect(frontendBaseUrl, 302);
+      }
+      // --- Cross-Account Protection: RISC security event receiver ---
+      // Helper: decode a base64url-encoded string to a plain string
+      const base64UrlDecode = /* @__PURE__ */ __name((b64url) => {
+        const base64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
+        const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, "=");
+        return atob(padded);
+      }, "base64UrlDecode");
+      // Helper: decode a base64url string to an ArrayBuffer (for signature verification)
+      const base64UrlToBuffer = /* @__PURE__ */ __name((b64url) => {
+        const binary = base64UrlDecode(b64url);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes.buffer;
+      }, "base64UrlToBuffer");
+      // Helper: validate a RISC security event JWT from Google
+      const validateRiscToken = /* @__PURE__ */ __name(async (token) => {
+        const parts = token.split(".");
+        if (parts.length !== 3) throw new Error("Invalid JWT format");
+        const [headerB64, payloadB64, sigB64] = parts;
+        const header = JSON.parse(base64UrlDecode(headerB64));
+        const kid = header.kid;
+        if (!kid) throw new Error("Missing kid in JWT header");
+        // Fetch Google RISC discovery document
+        const riscConfigRes = await fetch("https://accounts.google.com/.well-known/risc-configuration");
+        if (!riscConfigRes.ok) throw new Error("Failed to fetch RISC configuration");
+        const riscConfig = await riscConfigRes.json();
+        // Fetch Google public signing keys
+        const jwksRes = await fetch(riscConfig.jwks_uri);
+        if (!jwksRes.ok) throw new Error("Failed to fetch JWKS");
+        const jwks = await jwksRes.json();
+        const jwk = jwks.keys.find((k) => k.kid === kid);
+        if (!jwk) throw new Error("Public key not found for kid: " + kid);
+        // Import and verify the signature
+        const publicKey = await crypto.subtle.importKey(
+          "jwk",
+          jwk,
+          { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+          false,
+          ["verify"]
+        );
+        const encoder = new TextEncoder();
+        const valid = await crypto.subtle.verify(
+          "RSASSA-PKCS1-v1_5",
+          publicKey,
+          base64UrlToBuffer(sigB64),
+          encoder.encode(`${headerB64}.${payloadB64}`)
+        );
+        if (!valid) throw new Error("Invalid JWT signature");
+        // Decode and validate payload claims
+        const payload = JSON.parse(base64UrlDecode(payloadB64));
+        if (payload.iss !== riscConfig.issuer) {
+          throw new Error("Invalid issuer: " + payload.iss);
+        }
+        const allowedAudiences = (env.GOOGLE_CLIENT_ID || "")
+          .split(",").map((s) => s.trim()).filter(Boolean);
+        const tokenAudiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
+        if (!tokenAudiences.some((a) => allowedAudiences.includes(a))) {
+          throw new Error("Invalid audience: " + tokenAudiences.join(", "));
+        }
+        return payload;
+      }, "validateRiscToken");
+      // Helper: revoke all YouTube tokens linked to a Google Account ID
+      const revokeGoogleAccountTokens = /* @__PURE__ */ __name(async (googleSub) => {
+        const { results } = await env.DB.prepare(
+          "SELECT id, folder_id FROM accounts WHERE google_sub = ? AND platform = 'youtube'"
+        ).bind(googleSub).all();
+        if (!results || results.length === 0) return;
+        const stmts = [];
+        for (const acct of results) {
+          stmts.push(
+            env.DB.prepare("DELETE FROM tokens WHERE folder_id = ? AND platform = 'youtube'")
+              .bind(String(acct.folder_id))
+          );
+          stmts.push(
+            env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(acct.id)
+          );
+        }
+        await env.DB.batch(stmts);
+      }, "revokeGoogleAccountTokens");
+      // Helper: dispatch a RISC event to the appropriate action
+      const handleRiscEvent = /* @__PURE__ */ __name(async (eventType, eventData, googleSub) => {
+        const SESSIONS_REVOKED = "https://schemas.openid.net/secevent/risc/event-type/sessions-revoked";
+        const TOKENS_REVOKED = "https://schemas.openid.net/secevent/oauth/event-type/tokens-revoked";
+        const TOKEN_REVOKED = "https://schemas.openid.net/secevent/oauth/event-type/token-revoked";
+        const ACCOUNT_DISABLED = "https://schemas.openid.net/secevent/risc/event-type/account-disabled";
+        const ACCOUNT_ENABLED = "https://schemas.openid.net/secevent/risc/event-type/account-enabled";
+        const CREDENTIAL_CHANGE = "https://schemas.openid.net/secevent/risc/event-type/account-credential-change-required";
+        const VERIFICATION = "https://schemas.openid.net/secevent/risc/event-type/verification";
+        if (eventType === SESSIONS_REVOKED || eventType === ACCOUNT_DISABLED || eventType === TOKENS_REVOKED) {
+          // Required: end user's open sessions by revoking stored Google/YouTube tokens
+          await revokeGoogleAccountTokens(googleSub);
+        } else if (eventType === TOKEN_REVOKED) {
+          // Required: if we hold the identified refresh token, delete it
+          const subject = eventData.subject || {};
+          const tokenType = subject.token_type;
+          const alg = subject.token_identifier_alg;
+          const tokenValue = subject.token;
+          if (tokenType === "refresh_token" && alg === "prefix" && tokenValue) {
+            // Delete the specific token by its prefix (first 16 characters) from both tables
+            const prefix = tokenValue + "%";
+            await env.DB.batch([
+              env.DB.prepare(
+                "DELETE FROM tokens WHERE platform = 'youtube' AND refresh_token LIKE ?"
+              ).bind(prefix),
+              env.DB.prepare(
+                "DELETE FROM accounts WHERE platform = 'youtube' AND refresh_token LIKE ?"
+              ).bind(prefix)
+            ]);
+          } else {
+            // Cannot match token precisely; fall back to revoking all tokens for this user
+            await revokeGoogleAccountTokens(googleSub);
+          }
+        } else if (eventType === ACCOUNT_ENABLED) {
+          // Suggested: user may re-authorize; no action required on our side
+        } else if (eventType === CREDENTIAL_CHANGE) {
+          // Suggested: event is logged; no further automated action required
+        } else if (eventType === VERIFICATION) {
+          // Test token; event is logged
+          console.log("RISC verification token received, state:", eventData.state);
+        }
+      }, "handleRiscEvent");
+      if (url.pathname === "/api/security-events/google" && request.method === "POST") {
+        try {
+          const body = await request.text();
+          let payload;
+          try {
+            payload = await validateRiscToken(body);
+          } catch (validationErr) {
+            console.error("RISC token validation failed:", validationErr.message);
+            return new Response(JSON.stringify({ error: validationErr.message }), {
+              status: 400,
+              headers: jsonHeaders
+            });
+          }
+          const jti = payload.jti ? String(payload.jti) : null;
+          // De-duplicate: ignore events we have already processed
+          if (jti) {
+            const existing = await env.DB.prepare(
+              "SELECT id FROM risc_events WHERE jti = ?"
+            ).bind(jti).first();
+            if (existing) {
+              return new Response("", { status: 202 });
+            }
+          }
+          // Extract the first event type and its data
+          const events = payload.events || {};
+          const eventType = Object.keys(events)[0] || null;
+          const eventData = eventType ? (events[eventType] || {}) : {};
+          const subject = eventData.subject || {};
+          const googleSub = subject.sub ? String(subject.sub) : null;
+          // Log the event for audit and de-duplication
+          if (jti) {
+            await env.DB.prepare(
+              "INSERT OR IGNORE INTO risc_events (jti, event_type, google_sub) VALUES (?, ?, ?)"
+            ).bind(jti, eventType, googleSub).run();
+          }
+          if (googleSub && eventType) {
+            await handleRiscEvent(eventType, eventData, googleSub);
+          }
+          return new Response("", { status: 202 });
+        } catch (riscErr) {
+          console.error("RISC endpoint error:", riscErr.message);
+          return new Response(JSON.stringify({ error: "Internal error" }), {
+            status: 500,
+            headers: jsonHeaders
+          });
+        }
       }
       return new Response(JSON.stringify({ success: false, error: "Not found" }), {
         status: 404,
