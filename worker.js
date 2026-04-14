@@ -1977,7 +1977,7 @@ Generate trending, specific SEO \u2014 not generic content.`
           const alg = subject.token_identifier_alg;
           const tokenValue = subject.token;
           if (tokenType === "refresh_token" && alg === "prefix" && tokenValue) {
-            // Delete the specific token by its prefix (first 16 characters) from both tables
+            // Per RISC spec, `token` contains the first 16 characters of the refresh token
             const prefix = tokenValue + "%";
             await env.DB.batch([
               env.DB.prepare(
@@ -1997,7 +1997,7 @@ Generate trending, specific SEO \u2014 not generic content.`
           // Suggested: event is logged; no further automated action required
         } else if (eventType === VERIFICATION) {
           // Test token; event is logged
-          console.log("RISC verification token received, state:", eventData.state);
+          console.log("RISC verification token received");
         }
       }, "handleRiscEvent");
       if (url.pathname === "/api/security-events/google" && request.method === "POST") {
