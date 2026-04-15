@@ -504,7 +504,7 @@ Follow for daily trending content! \u{1F44F}
         if (!env.GOOGLE_CLIENT_SECRET) {
           return new Response(JSON.stringify({ success: false, error: "Missing GOOGLE_CLIENT_SECRET env var" }), { status: 500, headers: jsonHeaders });
         }
-        const scope = "https://www.googleapis.com/auth/youtube.upload openid";
+        const scope = "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly openid";
         const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(env.GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&include_granted_scopes=true&prompt=${encodeURIComponent("consent select_account")}&state=${encodeURIComponent(state)}`;
         return Response.redirect(googleAuthUrl);
       }
@@ -601,7 +601,7 @@ Follow for daily trending content! \u{1F44F}
           accessToken: String(tokens.access_token),
           refreshToken: tokens.refresh_token ? String(tokens.refresh_token) : null,
           expiresAt: nowMs() + Number(tokens.expires_in || 0) * 1e3,
-          scope: "https://www.googleapis.com/auth/youtube.upload"
+          scope: "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly"
         });
         return Response.redirect(
           `${frontendBaseUrl}/create-post.html?youtube_connected=1&account_name=${encodeURIComponent(channelName)}&folder_id=${encodeURIComponent(folderId)}`
@@ -915,7 +915,7 @@ Follow for daily trending content! \u{1F44F}
                 accessToken: refreshed.access_token,
                 refreshToken: refreshed.refresh_token || currentToken.refresh_token,
                 expiresAt: nowMs() + Number(refreshed.expires_in || DEFAULT_TOKEN_EXPIRY_SECONDS) * 1e3,
-                scope: currentToken.scope || "https://www.googleapis.com/auth/youtube.upload"
+                scope: currentToken.scope || "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly"
               });
               return refreshed.access_token;
             }
@@ -1430,7 +1430,7 @@ Follow for daily trending content! \u{1F44F}
                 accessToken: refreshed.access_token,
                 refreshToken: refreshed.refresh_token || currentToken.refresh_token,
                 expiresAt: nowMs() + Number(refreshed.expires_in || DEFAULT_TOKEN_EXPIRY_SECONDS) * 1e3,
-                scope: currentToken.scope || "https://www.googleapis.com/auth/youtube.upload"
+                scope: currentToken.scope || "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly"
               });
               return refreshed.access_token;
             }
