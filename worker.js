@@ -24,12 +24,6 @@ var worker_default = {
         headers: jsonHeaders
       });
     }
-    if (url.pathname === "/api/config" && request.method === "GET") {
-      return new Response(JSON.stringify({ youtubeClientId: env.GOOGLE_CLIENT_ID || "" }), {
-        status: 200,
-        headers: jsonHeaders
-      });
-    }
     if (url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
       try {
         const body = await request.json();

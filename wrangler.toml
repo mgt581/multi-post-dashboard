@@ -16,10 +16,9 @@ routes = [
 [vars]
 BASE_URL = "https://multipostapp.co.uk"
 FRONTEND_URL = "https://multipostapp.co.uk"
-# GOOGLE_CLIENT_ID, TIKTOK_CLIENT_KEY, FB_CLIENT_ID, GOOGLE_CLIENT_SECRET,
-# TIKTOK_CLIENT_SECRET, and FB_CLIENT_SECRET must be set via:
-#   wrangler secret put <NAME>
-# Do NOT add them here; this file is committed to version control.
+GOOGLE_CLIENT_ID = "1099160429576-38kfvgqfgahc80oc11v1abl79n1gdspm.apps.googleusercontent.com"
+TIKTOK_CLIENT_KEY = "awfqyscbk5kl6pu8"
+FB_CLIENT_ID = "1596560914709231"
 [[d1_databases]]
 binding = "DB"
 database_name = "accountsmultipostapp"
