@@ -561,6 +561,9 @@
   let activeYouTubeName = "Not linked";
   let activeFacebookName = "Not linked";
   let activeTikTokName = "Not linked";
+  let activeYouTubeAvatar = null;
+  let activeFacebookAvatar = null;
+  let activeTikTokAvatar = null;
 
   function scopedKey(name) {
     return `${name}:${userScope}`;
@@ -656,24 +659,31 @@
     el.style.color = isConnected ? "var(--success)" : "var(--muted)";
   }
 
+  function accountHTML(name, avatarUrl) {
+    const safeName = name || "Not linked";
+    if (!avatarUrl) return safeName;
+    const safeUrl = avatarUrl.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+    return `<img src="${safeUrl}" alt="" style="width:20px;height:20px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px;" onerror="this.style.display='none'">${safeName}`;
+  }
+
   function updateContextUI() {
     document.getElementById("workspaceName").textContent = activeFolderName || "Workspace";
     document.getElementById("workspaceId").textContent = activeFolderId
       ? `Folder ID: ${activeFolderId}`
       : "No folder selected";
 
-    document.getElementById("youtubeTarget").textContent = activeYouTubeName || "Not linked";
-    document.getElementById("ytTargetInline").textContent = activeYouTubeName || "Not linked";
+    document.getElementById("youtubeTarget").innerHTML = accountHTML(activeYouTubeName, activeYouTubeAvatar);
+    document.getElementById("ytTargetInline").innerHTML = accountHTML(activeYouTubeName, activeYouTubeAvatar);
 
     const facebookTarget = document.getElementById("facebookTarget");
     const fbTargetInline = document.getElementById("fbTargetInline");
-    if (facebookTarget) facebookTarget.textContent = activeFacebookName || "Not linked";
-    if (fbTargetInline) fbTargetInline.textContent = activeFacebookName || "Not linked";
+    if (facebookTarget) facebookTarget.innerHTML = accountHTML(activeFacebookName, activeFacebookAvatar);
+    if (fbTargetInline) fbTargetInline.innerHTML = accountHTML(activeFacebookName, activeFacebookAvatar);
 
     const tiktokTarget = document.getElementById("tiktokTarget");
     const ttTargetInline = document.getElementById("ttTargetInline");
-    if (tiktokTarget) tiktokTarget.textContent = activeTikTokName || "Not linked";
-    if (ttTargetInline) ttTargetInline.textContent = activeTikTokName || "Not linked";
+    if (tiktokTarget) tiktokTarget.innerHTML = accountHTML(activeTikTokName, activeTikTokAvatar);
+    if (ttTargetInline) ttTargetInline.innerHTML = accountHTML(activeTikTokName, activeTikTokAvatar);
 
     setConnectionText(
       "ytConnectionStatus",
@@ -710,6 +720,9 @@
       activeYouTubeName = "No folder selected";
       activeFacebookName = "No folder selected";
       activeTikTokName = "No folder selected";
+      activeYouTubeAvatar = null;
+      activeFacebookAvatar = null;
+      activeTikTokAvatar = null;
       updateContextUI();
       return;
     }
@@ -738,16 +751,24 @@
         fallback;
 
       activeYouTubeName  = pickAccountName(yt);
+      activeYouTubeAvatar = yt?.profile_picture || null;
       // Prefer the explicit page name stored by /api/facebook/select-page
       activeFacebookName = fbPage
         ? (fbPage.facebook_page_name || fbPage.nickname || "Facebook Page")
         : pickAccountName(fbUser);
+      activeFacebookAvatar = fbPage
+        ? (fbPage.profile_picture || fbPage.facebook_page_picture || null)
+        : (fbUser?.profile_picture || null);
       activeTikTokName   = pickAccountName(tt);
+      activeTikTokAvatar = tt?.profile_picture || null;
       updateContextUI();
     } catch {
       activeYouTubeName = "Error loading account";
       activeFacebookName = "Error loading account";
       activeTikTokName = "Error loading account";
+      activeYouTubeAvatar = null;
+      activeFacebookAvatar = null;
+      activeTikTokAvatar = null;
       updateContextUI();
     }
   }
