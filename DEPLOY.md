@@ -59,7 +59,7 @@ wrangler secret put FB_CLIENT_SECRET
 3. Enable **YouTube Data API v3** (APIs & Services → Library).
 4. Open **APIs & Services → Credentials** and select (or create) the OAuth 2.0 Client ID.  
    The current client ID is:  
-   `72559136598-p0tbkiiit42vuronhcigtdru23vcktvj.apps.googleusercontent.com`
+   `1099160429576-38kfvgqfgahc80oc11v1abl79n1gdspm.apps.googleusercontent.com`
 5. Ensure the following authorized redirect URIs are added to the OAuth client:  
    - **Production**: `https://multipostapp.co.uk/api/auth/callback/youtube`  
    - **Local dev**: `http://localhost:8787/api/auth/callback/youtube`
