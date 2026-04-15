@@ -565,6 +565,7 @@ Follow for daily trending content! \u{1F44F}
         const userData = await safeJson(userRes);
         const channelName = userData.items?.[0]?.snippet?.title || "Linked YouTube";
         const channelId = userData.items?.[0]?.id || channelName;
+        const channelThumbnail = userData.items?.[0]?.snippet?.thumbnails?.default?.url || null;
         // Fetch Google Account ID (sub) to support Cross-Account Protection (RISC)
         let googleSub = null;
         try {
@@ -581,7 +582,7 @@ Follow for daily trending content! \u{1F44F}
             "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'youtube'"
           ).bind(String(folderId), String(userId)),
           env.DB.prepare(
-            "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at, google_sub) VALUES (?, ?, 'youtube', ?, ?, ?, ?, ?)"
+            "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at, google_sub, profile_picture) VALUES (?, ?, 'youtube', ?, ?, ?, ?, ?, ?)"
           ).bind(
             String(folderId),
             String(userId),
@@ -589,7 +590,8 @@ Follow for daily trending content! \u{1F44F}
             String(tokens.access_token),
             tokens.refresh_token ? String(tokens.refresh_token) : null,
             nowMs() + Number(tokens.expires_in || 0) * 1e3,
-            googleSub
+            googleSub,
+            channelThumbnail
           )
         ]);
         await upsertToken({
