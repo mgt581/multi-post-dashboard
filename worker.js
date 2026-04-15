@@ -224,6 +224,19 @@ Generate trending, specific SEO \u2014 not generic content.` }
         return { raw: text };
       }
     }, "safeJson");
+    const throwYouTube403Error = /* @__PURE__ */ __name((errData) => {
+      const reason = errData?.error?.errors?.[0]?.reason || "";
+      if (reason === "youtubeSignupRequired") {
+        throw new Error("Your Google account does not have a YouTube channel. Please go to youtube.com, create a channel, then re-link your YouTube account.");
+      }
+      if (reason === "forbidden") {
+        throw new Error("Your YouTube channel is not permitted to upload videos. Please ensure your channel is active and verified, then re-link your YouTube account.");
+      }
+      if (reason === "quotaExceeded") {
+        throw new Error("YouTube API quota exceeded for today. Please try again tomorrow.");
+      }
+      throw new Error("YouTube upload was forbidden (403). Please re-link your YouTube account or check that your channel is active.");
+    }, "throwYouTube403Error");
     const encodeState = /* @__PURE__ */ __name((obj) => {
       try {
         return btoa(JSON.stringify(obj));
@@ -995,17 +1008,7 @@ Follow for daily trending content! \u{1F44F}
               throw new Error("Your YouTube authorization has expired or was revoked. Please re-link your YouTube account from your workspace settings (go to your folder, remove the YouTube account, then link it again).");
             }
             if (initRes.status === 403) {
-              const reason = errData?.error?.errors?.[0]?.reason || "";
-              if (reason === "youtubeSignupRequired") {
-                throw new Error("Your Google account does not have a YouTube channel. Please go to youtube.com, create a channel, then re-link your YouTube account.");
-              }
-              if (reason === "forbidden") {
-                throw new Error("Your YouTube channel is not permitted to upload videos. Please ensure your channel is active and verified, then re-link your YouTube account.");
-              }
-              if (reason === "quotaExceeded") {
-                throw new Error("YouTube API quota exceeded for today. Please try again tomorrow.");
-              }
-              throw new Error("YouTube upload was forbidden (403). Please re-link your YouTube account or check that your channel is active.");
+              throwYouTube403Error(errData);
             }
             throw new Error(`YouTube init failed: ${initRes.status} ${JSON.stringify(errData)}`);
           }
@@ -1549,17 +1552,7 @@ Follow for daily trending content! \u{1F44F}
               throw new Error("Your YouTube authorization has expired or was revoked. Please re-link your YouTube account from your workspace settings (go to your folder, remove the YouTube account, then link it again).");
             }
             if (initRes.status === 403) {
-              const reason = errData?.error?.errors?.[0]?.reason || "";
-              if (reason === "youtubeSignupRequired") {
-                throw new Error("Your Google account does not have a YouTube channel. Please go to youtube.com, create a channel, then re-link your YouTube account.");
-              }
-              if (reason === "forbidden") {
-                throw new Error("Your YouTube channel is not permitted to upload videos. Please ensure your channel is active and verified, then re-link your YouTube account.");
-              }
-              if (reason === "quotaExceeded") {
-                throw new Error("YouTube API quota exceeded for today. Please try again tomorrow.");
-              }
-              throw new Error("YouTube upload was forbidden (403). Please re-link your YouTube account or check that your channel is active.");
+              throwYouTube403Error(errData);
             }
             throw new Error(`YouTube init failed: ${initRes.status} ${JSON.stringify(errData)}`);
           }
