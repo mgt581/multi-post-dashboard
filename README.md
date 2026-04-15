@@ -20,9 +20,12 @@ The app uses **two separate Google Cloud projects**:
 
 - **GCP project**: `multipost-youtube-api` (project number `72559136598`)
 - Hosts the **YouTube Data API v3** and the **OAuth 2.0 client** used for YouTube account linking.
-- The active OAuth client ID is:  
-  `1099160429576-38kfvgqfgahc80oc11v1abl79n1gdspm.apps.googleusercontent.com`
-- The corresponding client secret is stored as the `GOOGLE_CLIENT_SECRET` Cloudflare Worker secret (and GitHub Actions secret).
+- The active OAuth client ID and secret are stored as Cloudflare Worker secrets
+  (`GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`). Set them via:
+  ```bash
+  wrangler secret put GOOGLE_CLIENT_ID
+  wrangler secret put GOOGLE_CLIENT_SECRET
+  ```
 - **Do not use the `multi-post-daefc` Firebase project** for YouTube API credentials — keep them on the dedicated `multipost-youtube-api` GCP project.
 
 ---
