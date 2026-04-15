@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Workspace | Multipost</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
+
+    :root {
+      --bg: linear-gradient(135deg, #0f172a, #0b2f52 60%, #0ea5e9);
+      --card: #0b1829;
+      --border: rgba(255, 255, 255, 0.08);
+      --muted: #94a3b8;
+      --text: #e2e8f0;
+      --accent: #7c3aed;
+      --accent-2: #0ea5e9;
+      --success: #22c55e;
+      --warn: #f59e0b;
+      --error: #f43f5e;
+      --shadow: 0 14px 40px rgba(15, 23, 42, 0.45);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      font-family: 'Manrope', sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      padding: 28px 16px 80px;
+    }
+
+    .page { max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+    header { display: flex; align-items: center; justify-content: space-between; }
+
+    .header-btn {
+      width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.04); color: var(--muted); font-size: 16px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; text-decoration: none;
+    }
+
+    h1 { margin: 0; font-size: 24px; text-align: center; }
+
+    .hero-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+    .hero-card h2 { margin: 0; font-weight: 800; font-size: 14px; text-transform: uppercase; color: var(--accent-2); letter-spacing: 1px; }
+    .hero-card p { margin: 4px 0 0; font-size: 22px; font-weight: 800; }
+    .hero-card .muted { font-size: 14px; color: var(--muted); margin-top: 2px; }
+
+    .platform-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+      margin-bottom: 12px;
+    }
+
+    .platform-icon {
+      width: 44px; height: 44px; border-radius: 12px; display: flex;
+      align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0;
+    }
+    .platform-icon img {
+      width: 44px; height: 44px; border-radius: 12px; object-fit: cover;
+    }
+
+    .platform-left {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      width: 76px;
+      flex: 0 0 76px;
+    }
+    .platform-handle {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--success);
+      max-width: 76px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      line-height: 1.1;
+      text-align: center;
+    }
+
+    .platform-info { flex: 1; min-width: 0; }
+    .platform-info strong { display: block; font-size: 17px; font-weight: 700; }
+    .platform-info span { display: block; font-size: 13px; font-weight: 700; margin-top: 2px; }
+
+    .platform-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+
+    .btn {
+      border: none; border-radius: 999px; padding: 8px 16px;
+      font-weight: 800; font-size: 13px; cursor: pointer; white-space: nowrap;
+    }
+    .btn-link  { background: var(--accent); color: white; }
+    .btn-pick  { background: rgba(245,158,11,0.15); color: var(--warn); border: 1px solid var(--warn); font-size: 12px; padding: 6px 12px; }
+    .btn-change { background: rgba(14,165,233,0.12); color: var(--accent-2); border: 1px solid var(--accent-2); font-size: 12px; padding: 6px 12px; }
+    .btn-remove { background: rgba(244, 63, 94, 0.1); color: var(--error); border: 1px solid var(--error); }
+
+    .btn-create-post {
+      width: 100%; border: none; border-radius: 16px; padding: 16px;
+      font-size: 16px; font-weight: 800; color: white;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: var(--shadow);
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      cursor: pointer; text-decoration: none;
+    }
+
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(11, 24, 41, 0.85); backdrop-filter: blur(12px); display: flex; justify-content: space-around; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); z-index: 100; }
+    .nav-item { text-decoration: none; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 10px; font-weight: 800; }
+    .nav-item.active { color: var(--accent-2); }
+    .nav-item i { font-size: 20px; }
+
+    /* ── Facebook page-picker modal ── */
+    #fbPageModal {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    #fbPageModal.open { display: flex; }
+    .modal-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 24px;
+      width: 100%;
+      max-width: 460px;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .modal-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 18px;
+    }
+    .modal-header h2 { margin: 0; font-size: 18px; font-weight: 800; }
+    .modal-close {
+      background: none; border: none; color: var(--muted);
+      font-size: 22px; cursor: pointer; line-height: 1; padding: 0;
+    }
+    .fb-page-item {
+      display: flex; align-items: center; gap: 14px;
+      padding: 12px; border-radius: 14px; cursor: pointer;
+      border: 1px solid transparent; transition: border-color 0.15s, background 0.15s;
+    }
+    .fb-page-item:hover {
+      background: rgba(24,119,242,0.1);
+      border-color: rgba(24,119,242,0.35);
+    }
+    .fb-page-item img {
+      width: 44px; height: 44px; border-radius: 10px; object-fit: cover; flex-shrink: 0;
+    }
+    .fb-page-item-info { flex: 1; min-width: 0; }
+    .fb-page-item-name { font-weight: 800; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fb-page-item-sub  { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  </style>
+</head>
+<body>
+
+  <!-- Facebook Page Picker Modal -->
+  <div id="fbPageModal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h2>Choose a Facebook Page</h2>
+        <button class="modal-close" onclick="closeFbModal()">&#x2715;</button>
+      </div>
+      <div id="fbPageList">
+        <p style="color:var(--muted);text-align:center;">Loading pages…</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="page">
+    <header>
+      <a href="app.html" class="header-btn"><i class="fa-solid fa-arrow-left"></i></a>
+      <h1 id="title">Workspace</h1>
+      <div style="width:44px;"></div>
+    </header>
+
+    <div class="hero-card">
+      <h2>Current Workspace</h2>
+      <p id="name">---</p>
+      <span id="count" class="muted">Initializing...</span>
+    </div>
+
+    <div id="accountList"></div>
+
+    <a id="createPostLink" href="create-post.html" class="btn-create-post">
+      <i class="fa-solid fa-wand-magic-sparkles"></i> Create New Post
+    </a>
+  </div>
+
+  <nav class="bottom-nav">
+    <a href="app.html" class="nav-item active"><i class="fa-solid fa-house"></i><span>HOME</span></a>
+    <a href="create-post.html" id="aiSeoNavLink" class="nav-item"><i class="fa-solid fa-wand-magic-sparkles"></i><span>AI SEO</span></a>
+    <a href="settings.html" class="nav-item"><i class="fa-solid fa-user"></i><span>PROFILE</span></a>
+  </nav>
+
+  <script>
+    const apiBase = window.location.origin.includes('localhost')
+      ? "https://multipost-seo-worker.alexbryant.workers.dev/api"
+      : "/api";
+
+    let userScope = null;
+
+    const scopedKey = name => `${name}:${userScope}`;
+    function getLS(name) {
+      if (userScope) { const v = localStorage.getItem(scopedKey(name)); if (v) return v; }
+      return localStorage.getItem(name);
+    }
+
+    const allPlatforms = {
+      youtube:  { name: "YouTube",  icon: "fa-brands fa-youtube",  color: "#ef4444", bg: "rgba(239,68,68,0.1)"    },
+      tiktok:   { name: "TikTok",   icon: "fa-brands fa-tiktok",   color: "#fff",    bg: "rgba(255,255,255,0.1)"  },
+      facebook: { name: "Facebook", icon: "fa-brands fa-facebook", color: "#1877f2", bg: "rgba(24,119,242,0.1)"   }
+    };
+
+    function getUrlParam(name) {
+      return new URLSearchParams(window.location.search).get(name);
+    }
+
+    function initUI() {
+      const folderName = getUrlParam("name") || getLS("activeFolderName") || "Workspace";
+      const folderId   = getUrlParam("id")   || getLS("activeFolderId");
+      if (folderId) localStorage.setItem("activeFolderId", folderId);
+      if (folderName) localStorage.setItem("activeFolderName", folderName);
+      document.getElementById("title").innerText = folderName;
+      document.getElementById("name").innerText  = folderName;
+      if (folderId) {
+        const postParams = `folder_id=${encodeURIComponent(folderId)}&folder_name=${encodeURIComponent(folderName)}`;
+        const link = document.getElementById("createPostLink");
+        if (link) link.href = `create-post.html?${postParams}`;
+        const aiSeoNav = document.getElementById("aiSeoNavLink");
+        if (aiSeoNav) aiSeoNav.href = `create-post.html?${postParams}`;
+      }
+    }
+
+    function escapeHTML(str) {
+      return String(str ?? "").replace(/[&<>"']/g, m =>
+        ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#039;" }[m])
+      );
+    }
+
+    /* ── Platform card builders ── */
+
+    function buildGenericCard(meta, key, linked) {
+      if (linked) {
+        const handle = linked.nickname || linked.username || linked.name || "Connected";
+        const pic    = linked.profile_picture || "";
+        const iconContent = pic
+          ? `<img src="${escapeHTML(pic)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><i class="${meta.icon}" style="display:none;"></i>`
+          : `<i class="${meta.icon}"></i>`;
+        return `
+          <div class="platform-card">
+            <div class="platform-left">
+              <div class="platform-icon" style="background:${meta.bg};color:${meta.color};">${iconContent}</div>
+              <div class="platform-handle">${escapeHTML(handle)}</div>
+            </div>
+            <div class="platform-info">
+              <strong>${escapeHTML(meta.name)}</strong>
+              <span style="color:var(--success);">Connected</span>
+            </div>
+            <div class="platform-actions">
+              <button class="btn btn-remove" onclick="removeAccount(${linked.id})">Remove</button>
+            </div>
+          </div>`;
+      }
+      return `
+        <div class="platform-card">
+          <div class="platform-left">
+            <div class="platform-icon" style="background:rgba(255,255,255,0.04);color:var(--muted);"><i class="${meta.icon}"></i></div>
+            <div class="platform-handle" style="color:var(--muted);">Not linked</div>
+          </div>
+          <div class="platform-info">
+            <strong>${escapeHTML(meta.name)}</strong>
+            <span style="color:var(--muted);">Not Linked</span>
+          </div>
+          <div class="platform-actions">
+            <button class="btn btn-link" onclick="addAccount('${key}')">Link</button>
+          </div>
+        </div>`;
+    }
+
+    function buildFacebookCard(meta, linkedAccounts) {
+      const fbUser = linkedAccounts.find(a => a.platform === "facebook");
+      const fbPage = linkedAccounts.find(a => a.platform === "facebook_page");
+
+      // Not connected at all
+      if (!fbUser && !fbPage) {
+        return `
+          <div class="platform-card">
+            <div class="platform-left">
+              <div class="platform-icon" style="background:rgba(255,255,255,0.04);color:var(--muted);"><i class="${meta.icon}"></i></div>
+              <div class="platform-handle" style="color:var(--muted);">Not linked</div>
+            </div>
+            <div class="platform-info">
+              <strong>${escapeHTML(meta.name)}</strong>
+              <span style="color:var(--muted);">Not Linked</span>
+            </div>
+            <div class="platform-actions">
+              <button class="btn btn-link" onclick="addAccount('facebook')">Link</button>
+            </div>
+          </div>`;
+      }
+
+      // Page already selected
+      if (fbPage) {
+        const pageName = fbPage.facebook_page_name || fbPage.nickname || "Facebook Page";
+        const pic      = fbPage.profile_picture || fbPage.facebook_page_picture || "";
+        const iconContent = pic
+          ? `<img src="${escapeHTML(pic)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><i class="${meta.icon}" style="display:none;"></i>`
+          : `<i class="${meta.icon}"></i>`;
+        return `
+          <div class="platform-card">
+            <div class="platform-left">
+              <div class="platform-icon" style="background:${meta.bg};color:${meta.color};">${iconContent}</div>
+              <div class="platform-handle">${escapeHTML(pageName)}</div>
+            </div>
+            <div class="platform-info">
+              <strong>${escapeHTML(meta.name)}</strong>
+              <span style="color:var(--success);">Connected</span>
+            </div>
+            <div class="platform-actions">
+              <button class="btn btn-change" onclick="openFbModal()">Change Page</button>
+              <button class="btn btn-remove" onclick="removeAccount(${fbPage.id})">Remove</button>
+            </div>
+          </div>`;
+      }
+
+      // User connected but no page chosen yet
+      const userName = fbUser.facebook_user_name || fbUser.nickname || "Facebook User";
+      const userPic  = fbUser.profile_picture || "";
+      const userIconContent = userPic
+        ? `<img src="${escapeHTML(userPic)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='block'"><i class="${meta.icon}" style="display:none;"></i>`
+        : `<i class="${meta.icon}"></i>`;
+      return `
+        <div class="platform-card">
+          <div class="platform-left">
+            <div class="platform-icon" style="background:${meta.bg};color:${meta.color};">${userIconContent}</div>
+            <div class="platform-handle">${escapeHTML(userName)}</div>
+          </div>
+          <div class="platform-info">
+            <strong>${escapeHTML(meta.name)}</strong>
+            <span style="color:var(--warn);">Pick a Page</span>
+          </div>
+          <div class="platform-actions">
+            <button class="btn btn-pick" onclick="openFbModal()">Pick Page</button>
+            <button class="btn btn-remove" onclick="removeAccount(${fbUser.id})">Remove</button>
+          </div>
+        </div>`;
+    }
+
+    /* ── Render ── */
+
+    async function render() {
+      const fId = getUrlParam("id") || getLS("activeFolderId");
+      if (!fId || !userScope) return;
+      const listEl = document.getElementById("accountList");
+      listEl.innerHTML = `<p style="text-align:center;color:var(--muted);">Fetching platforms…</p>`;
+      try {
+        const res = await fetch(`${apiBase}/get-accounts?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`);
+        if (!res.ok) throw new Error("Server error");
+        const accounts = await res.json();
+        document.getElementById("count").innerText = `${accounts.length} total accounts connected`;
+        listEl.innerHTML = Object.keys(allPlatforms).map(key => {
+          const meta = allPlatforms[key];
+          if (key === "facebook") return buildFacebookCard(meta, accounts);
+          return buildGenericCard(meta, key, accounts.find(a => a.platform === key));
+        }).join("");
+      } catch (_) {
+        listEl.innerHTML = `<p style="color:var(--error);text-align:center;">Failed to load accounts.</p>`;
+      }
+    }
+
+    /* ── Account actions ── */
+
+    function addAccount(platform) {
+      const fId = getUrlParam("id") || getLS("activeFolderId");
+      if (!fId || !userScope) return alert("Session expired.");
+      window.location.href = `${apiBase}/auth/${platform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
+    }
+
+    async function removeAccount(accountId) {
+      if (!confirm("Remove this account?")) return;
+      try {
+        await fetch(`${apiBase}/delete-folder`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: accountId, user_id: userScope, type: "account_only" })
+        });
+        render();
+      } catch (_) { alert("Error removing account"); }
+    }
+
+    /* ── Facebook page-picker modal ── */
+
+    let fbPagesCache = [];
+
+    async function openFbModal() {
+      const modal = document.getElementById("fbPageModal");
+      const listEl = document.getElementById("fbPageList");
+      modal.classList.add("open");
+      listEl.innerHTML = `<p style="color:var(--muted);text-align:center;">Loading pages…</p>`;
+      fbPagesCache = [];
+
+      const fId = getUrlParam("id") || getLS("activeFolderId");
+      if (!fId || !userScope) {
+        listEl.innerHTML = `<p style="color:var(--error);text-align:center;">Session expired.</p>`;
+        return;
+      }
+      try {
+        const res  = await fetch(`${apiBase}/facebook/pages?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`);
+        const data = await res.json();
+        if (!data.success || !Array.isArray(data.pages) || data.pages.length === 0) {
+          const msg = (!data.success && data.error) ? data.error : "No pages found on this account.";
+          listEl.innerHTML = `<p style="color:var(--muted);text-align:center;">${escapeHTML(msg)}</p>`;
+          return;
+        }
+        fbPagesCache = data.pages;
+        listEl.innerHTML = data.pages.map((p, i) => `
+          <div class="fb-page-item" onclick="selectFbPage(${i})">
+            <img src="${escapeHTML(p.picture)}" alt="" onerror="this.style.display='none'">
+            <div class="fb-page-item-info">
+              <div class="fb-page-item-name">${escapeHTML(p.name)}</div>
+              <div class="fb-page-item-sub">Facebook Page</div>
+            </div>
+            <i class="fa-solid fa-chevron-right" style="color:var(--muted);"></i>
+          </div>`).join("");
+      } catch (err) {
+        listEl.innerHTML = `<p style="color:var(--error);text-align:center;">Failed to load pages.</p>`;
+      }
+    }
+
+    function closeFbModal() {
+      document.getElementById("fbPageModal").classList.remove("open");
+    }
+
+    async function selectFbPage(idx) {
+      const page  = fbPagesCache[idx];
+      if (!page) return;
+      const fId   = getUrlParam("id") || getLS("activeFolderId");
+      const listEl = document.getElementById("fbPageList");
+      if (listEl) listEl.innerHTML = `<p style="color:var(--muted);text-align:center;">Saving…</p>`;
+      try {
+        const res  = await fetch(`${apiBase}/facebook/select-page`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            folder_id:          fId,
+            user_id:            userScope,
+            page_id:            page.id,
+            page_name:          page.name,
+            page_access_token:  page.access_token,
+            page_picture:       page.picture || ""
+          })
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "Failed to save page");
+        closeFbModal();
+        render();
+      } catch (err) {
+        if (listEl) listEl.innerHTML = `<p style="color:var(--error);text-align:center;">${escapeHTML(err.message)}</p>`;
+      }
+    }
+
+    window.addAccount    = addAccount;
+    window.removeAccount = removeAccount;
+    window.openFbModal   = openFbModal;
+    window.closeFbModal  = closeFbModal;
+    window.selectFbPage  = selectFbPage;
+  </script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
+      authDomain: "multi-post-daefc.firebaseapp.com",
+      projectId: "multi-post-daefc",
+      storageBucket: "multi-post-daefc.appspot.com",
+      messagingSenderId: "1099160429576",
+      appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd"
+    };
+
+    const app  = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) { window.location.href = "signin.html"; return; }
+      userScope = user.uid;
+      initUI();
+      await render();
+      // After Facebook OAuth the callback redirects here with ?facebook=pages
+      if (new URLSearchParams(window.location.search).get("facebook") === "pages") {
+        openFbModal();
+      }
+    });
+  </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>

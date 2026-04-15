@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Multipost | Create Post</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
+
+    :root {
+      --bg: linear-gradient(135deg, #0f172a, #0b2f52 60%, #0ea5e9);
+      --card: #0b1829;
+      --border: rgba(255, 255, 255, 0.08);
+      --muted: #94a3b8;
+      --text: #e2e8f0;
+      --accent: #7c3aed;
+      --accent-2: #0ea5e9;
+      --success: #22c55e;
+      --error: #f43f5e;
+      --warning: #f59e0b;
+      --shadow: 0 14px 40px rgba(15, 23, 42, 0.45);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      font-family: 'Manrope', -apple-system, system-ui, sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      padding: 28px 16px 48px;
+    }
+
+    .page {
+      max-width: 1080px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: rgba(255, 255, 255, 0.04);
+      font-weight: 700;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      background:
+        radial-gradient(circle at 20% 20%, rgba(124, 58, 237, 0.25), transparent 25%),
+        radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.25), transparent 28%),
+        var(--card);
+    }
+
+    .workspace-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+
+    .workspace-box {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+    }
+
+    .workspace-box .label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-weight: 800;
+      color: var(--accent-2);
+      margin-bottom: 8px;
+    }
+
+    .workspace-box .value {
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text);
+      line-height: 1.2;
+      word-break: break-word;
+    }
+
+    .workspace-box .subvalue {
+      margin-top: 6px;
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 700;
+      word-break: break-word;
+    }
+
+    h1 { margin: 0; font-size: 24px; letter-spacing: -0.4px; }
+    p { margin: 0; color: var(--muted); }
+
+    label {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #cbd5e1;
+    }
+
+    textarea, input, select {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      font-size: 15px;
+      resize: vertical;
+      min-height: 46px;
+      font-family: inherit;
+    }
+
+    textarea::placeholder, input::placeholder { color: var(--muted); }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-weight: 800;
+      cursor: pointer;
+      color: #0f172a;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 12px 28px rgba(14, 165, 233, 0.35);
+      transition: transform 0.08s ease, opacity 0.2s ease;
+      font-family: inherit;
+    }
+
+    .btn.secondary {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      box-shadow: none;
+      border: 1px solid var(--border);
+    }
+
+    .btn.warning {
+      background: rgba(245, 158, 11, 0.14);
+      color: #fde68a;
+      box-shadow: none;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+
+    .btn:active { transform: translateY(1px); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .status {
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .status.success { color: var(--success); }
+    .status.error { color: var(--error); }
+    .status.working { color: var(--accent-2); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 14px;
+    }
+
+    .section-title {
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .small {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .outputs textarea { min-height: 110px; }
+
+    .pill-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .pill {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 10px;
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 12px;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .home-btn {
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      box-shadow: none;
+      padding: 10px 14px;
+    }
+
+    .notice {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      background: rgba(245, 158, 11, 0.08);
+      color: #fde68a;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.5;
+    }
+
+    .platform-target {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .platform-target strong {
+      color: var(--success);
+    }
+
+    .upload-box {
+      margin-top: 12px;
+      padding: 14px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .upload-help {
+      margin-top: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 700;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 18px 12px 32px; }
+      .page { gap: 12px; }
+      .controls { flex-direction: column; align-items: stretch; }
+      .controls .btn { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="brand">
+        <div class="badge">Multipost Studio</div>
+        <div>
+          <p class="small">Cross-post optimizer</p>
+          <h1>Create & SEO</h1>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button class="btn secondary home-btn" type="button" onclick="goBackToWorkspace()">← Workspace</button>
+        <div class="badge">Worker live</div>
+      </div>
+    </header>
+
+    <section class="card hero">
+      <div class="workspace-bar">
+        <div class="workspace-box">
+          <div class="label">Active workspace</div>
+          <div id="workspaceName" class="value">Loading…</div>
+          <div id="workspaceId" class="subvalue">Preparing folder context…</div>
+        </div>
+
+        <div class="workspace-box">
+          <div class="label">Connected YouTube</div>
+          <div id="youtubeTarget" class="value">Checking…</div>
+          <div id="youtubeTargetSub" class="subvalue">This is the channel stored on this folder.</div>
+        </div>
+
+        <div class="workspace-box">
+          <div class="label">Connected Facebook</div>
+          <div id="facebookTarget" class="value">Checking…</div>
+          <div id="facebookTargetSub" class="subvalue">This is the Facebook account stored on this folder.</div>
+        </div>
+
+        <div class="workspace-box">
+          <div class="label">Connected TikTok</div>
+          <div id="tiktokTarget" class="value">Checking…</div>
+          <div id="tiktokTargetSub" class="subvalue">This is the TikTok account stored on this folder.</div>
+        </div>
+      </div>
+
+
+    </section>
+
+    <section class="card hero">
+      <div style="display: flex; gap: 12px; flex-direction: column;">
+        <div>
+          <label for="seoImage">📸 Upload image <span class="small" style="color: var(--muted);">(optional — AI analyzes image for richer SEO)</span></label>
+          <input id="seoImage" type="file" accept="image/*" style="width: 100%; margin-bottom: 8px;">
+          <div id="imagePreview" style="width: 100%; height: 200px; border: 2px dashed var(--border); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--muted); background: rgba(255,255,255,0.02); font-size: 14px;">
+            Select image (JPG/PNG, &lt;5MB) — optional
+          </div>
+        </div>
+        <div>
+          <label for="seoImageUrl">🔗 Or paste image URL <span class="small" style="color: var(--muted);">(optional — AI analyzes the linked image)</span></label>
+          <input id="seoImageUrl" type="url" placeholder="https://example.com/image.jpg" style="width: 100%; margin-bottom: 8px;">
+        </div>
+        
+        <label for="videoPrompt">💭 Describe your content <span class="small" style="color: var(--muted);">(required if no image — add both for best results)</span></label>
+        <textarea id="videoPrompt" rows="2" placeholder="Describe your video/post topic, niche, or idea (e.g. 'morning gym routine for beginners')"></textarea>
+      </div>
+
+      <div class="controls">
+        <button id="generateBtn" class="btn" onclick="generateSEO()">✨ Generate Trending SEO</button>
+        <span id="status" class="status">Upload an image, enter a description, or both</span>
+      </div>
+    </section>
+
+    <script>
+      const seoImageInput = document.getElementById('seoImage');
+      const imagePreview = document.getElementById('imagePreview');
+      window.seoImageDataUrl = null;
+      
+      seoImageInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) {
+          window.seoImageDataUrl = null;
+          return;
+        }
+        if (file.size < 5 * 1024 * 1024) { // 5MB limit
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            window.seoImageDataUrl = ev.target.result;
+            imagePreview.innerHTML = `<img src="${window.seoImageDataUrl}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px;">`;
+          };
+          reader.readAsDataURL(file);
+        } else {
+          window.seoImageDataUrl = null;
+          imagePreview.innerHTML = 'Image too large or invalid (JPG/PNG <5MB)';
+          imagePreview.style.color = 'var(--error)';
+        }
+      });
+    </script>
+
+    <section class="grid">
+      <div class="card outputs">
+        <div class="section-title">
+          <span>YouTube</span>
+          <span class="platform-target">Target: <strong id="ytTargetInline">Checking…</strong></span>
+        </div>
+
+        <div class="pill-row">
+          <span class="pill">Title</span>
+          <span class="pill">Description</span>
+          <span class="pill">Keywords</span>
+        </div>
+
+        <input id="ytTitle" placeholder="YouTube Title" />
+        <textarea id="ytDesc" placeholder="Full Description"></textarea>
+        <textarea id="ytKeywords" placeholder="20 Trending Keywords"></textarea>
+
+        <div class="upload-box">
+          <label for="ytVideoFile">Video file <span class="small" style="color: var(--warning);">(≤500MB)</span></label>
+          <input id="ytVideoFile" type="file" accept="video/*" style="margin-bottom: 12px;">
+          <div id="fileInfo" style="font-size: 12px; color: var(--muted); margin-bottom: 8px;"></div>
+
+          <div>
+            <label for="ytPrivacy">Privacy</label>
+            <select id="ytPrivacy">
+              <option value="private">🔒 Private</option>
+              <option value="unlisted">🔗 Unlisted</option>
+              <option value="public">🌐 Public</option>
+            </select>
+          </div>
+
+          <div class="upload-help" style="margin-top: 12px;">
+            <span id="ytConnectionStatus" style="font-weight: 700;">Checking connection...</span>
+            <div style="font-size: 12px; opacity: 0.8;">
+              Linked to workspace YouTube →
+            </div>
+          </div>
+        </div>
+
+        <script>
+          document.getElementById("ytVideoFile").addEventListener("change", function(e) {
+            const file = e.target.files[0];
+            const info = document.getElementById("fileInfo");
+            if (file) {
+              const sizeMB = (file.size / (1024*1024)).toFixed(1);
+              const color = file.size > 500*1024*1024 ? "var(--error)" : "var(--success)";
+              info.innerHTML = `<strong>${file.name}</strong> (${sizeMB}MB) <span style="color: ${color};">✓</span>`;
+            } else {
+              info.innerHTML = "";
+            }
+          });
+        </script>
+
+        <div class="controls">
+          <button class="btn" onclick="publishYouTube()">🚀 Publish to YouTube</button>
+        </div>
+      </div>
+
+           <div class="card outputs">
+        <div class="section-title">
+          <span>TikTok</span>
+          <span class="platform-target">Target: <strong id="ttTargetInline">Checking…</strong></span>
+        </div>
+
+        <div class="pill-row">
+          <span class="pill">Caption</span>
+          <span class="pill">Video</span>
+          <span class="pill">Privacy</span>
+        </div>
+
+        <textarea id="ttAllInOne" placeholder="AI-generated caption with hook and hashtags..."></textarea>
+
+        <div class="upload-box">
+          <label for="ttVideoFile">Video file <span class="small" style="color: var(--warning);">(≤500MB)</span></label>
+          <input id="ttVideoFile" type="file" accept="video/*" style="margin-bottom: 12px;" />
+          <div id="ttFileInfo" style="font-size: 12px; color: var(--muted); margin-bottom: 8px;"></div>
+
+          <div>
+            <label for="ttPrivacy">Privacy</label>
+            <select id="ttPrivacy">
+              <option value="SELF_ONLY">🔒 Private</option>
+              <option value="MUTUAL_FOLLOW_FRIENDS">👥 Friends</option>
+              <option value="PUBLIC_TO_EVERYONE">🌐 Public</option>
+            </select>
+          </div>
+
+          <div class="upload-help" style="margin-top: 12px;">
+            <span id="ttConnectionStatus" style="font-weight: 700;">Checking connection...</span>
+            <div style="font-size: 12px; opacity: 0.8;">
+              Linked to workspace TikTok →
+            </div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="btn" onclick="publishTikTok()">🎵 Publish to TikTok</button>
+          <button
+            class="btn secondary"
+            onclick="copyGeneric('ttAllInOne', 'TikTok', 'https://www.tiktok.com/upload')"
+          >
+            📱 Copy & Go to TikTok
+          </button>
+        </div>
+      </div>
+
+      <div class="card outputs">
+        <div class="section-title">
+          <span>Facebook Reels</span>
+          <span class="platform-target">Target: <strong id="fbTargetInline">Checking…</strong></span>
+        </div>
+
+        <div class="pill-row">
+          <span class="pill">Title</span>
+          <span class="pill">Description</span>
+          <span class="pill">Video</span>
+        </div>
+
+        <input id="fbTitle" placeholder="Reel Title" />
+        <textarea id="fbDetails" placeholder="Description, tags & keywords"></textarea>
+
+        <div class="upload-box">
+          <label for="fbVideoFile">Video file <span class="small" style="color: var(--warning);">(≤500MB)</span></label>
+          <input id="fbVideoFile" type="file" accept="video/*" style="margin-bottom: 12px;" />
+          <div id="fbFileInfo" style="font-size: 12px; color: var(--muted); margin-bottom: 8px;"></div>
+
+          <div class="upload-help" style="margin-top: 12px;">
+            <span id="fbConnectionStatus" style="font-weight: 700;">Checking connection...</span>
+            <div style="font-size: 12px; opacity: 0.8;">
+              Linked to workspace Facebook →
+            </div>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="btn" onclick="publishFacebook()">📘 Publish to Facebook</button>
+          <button class="btn secondary" onclick="copyFB()">📸 Copy & Go to Facebook</button>
+        </div>
+      </div>
+
+       <script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
+    authDomain: "multi-post-daefc.firebaseapp.com",
+    projectId: "multi-post-daefc",
+    storageBucket: "multi-post-daefc.appspot.com",
+    messagingSenderId: "1099160429576",
+    appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+
+  const apiBase = window.location.origin.includes("localhost")
+    ? "https://multipost-seo-worker.alexbryant.workers.dev/api"
+    : `${window.location.origin}/api`;
+
+  const statusEl = document.getElementById("status");
+  const generateBtn = document.getElementById("generateBtn");
+
+  let userScope = null;
+  let activeFolderId = null;
+  let activeFolderName = "Workspace";
+  let activeYouTubeName = "Not linked";
+  let activeFacebookName = "Not linked";
+  let activeTikTokName = "Not linked";
+
+  function scopedKey(name) {
+    return `${name}:${userScope}`;
+  }
+
+  function getUrlParam(name) {
+    return new URLSearchParams(window.location.search).get(name);
+  }
+
+  function getStoredValue(name) {
+    if (userScope) {
+      const scoped = localStorage.getItem(scopedKey(name));
+      if (scoped) return scoped;
+    }
+    return localStorage.getItem(name);
+  }
+
+  function setStoredValue(name, value) {
+    if (value === null || value === undefined) return;
+    localStorage.setItem(name, value);
+    if (userScope) {
+      localStorage.setItem(scopedKey(name), value);
+    }
+  }
+
+  function coerceToText(value) {
+    if (Array.isArray(value)) return value.join(", ");
+    if (value === null || value === undefined) return "";
+    return String(value);
+  }
+
+  function normalizeTikTok(tiktok, prompt, keywords) {
+    if (!tiktok) return prompt;
+    if (typeof tiktok === "string") return tiktok;
+
+    const direct =
+      tiktok.allInOne ||
+      tiktok.all_in_one ||
+      tiktok.caption ||
+      tiktok.text;
+
+    if (direct) return coerceToText(direct);
+
+    const parts = [];
+    const orderedKeys = ["headline", "hook", "description", "hashtags", "cta"];
+
+    orderedKeys.forEach((key) => {
+      if (tiktok[key]) {
+        parts.push(`${key.toUpperCase()}: ${coerceToText(tiktok[key])}`);
+      }
+    });
+
+    if (!parts.length) return prompt || coerceToText(keywords) || "";
+    return parts.join("\n\n");
+  }
+
+  function parseJsonSafe(value) {
+    if (!value) return null;
+    if (typeof value !== "string") return value;
+    const trimmed = value.trim();
+    const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    const body = fenced ? fenced[1].trim() : trimmed;
+    try {
+      return JSON.parse(body);
+    } catch {
+      return null;
+    }
+  }
+
+  function setStatus(message, tone = "info") {
+    statusEl.textContent = message;
+    statusEl.classList.remove("success", "error", "working");
+    if (tone === "success") statusEl.classList.add("success");
+    if (tone === "error") statusEl.classList.add("error");
+    if (tone === "working") statusEl.classList.add("working");
+  }
+
+  function setLoading(isLoading) {
+    generateBtn.disabled = isLoading;
+    generateBtn.textContent = isLoading
+      ? "Generating trending SEO…"
+      : "✨ Generate Trending SEO";
+  }
+
+  function isLinked(name) {
+    return !!name && !["Not linked", "No folder selected", "Error loading account"].includes(name);
+  }
+
+  function setConnectionText(elementId, text, isConnected) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.textContent = text;
+    el.style.color = isConnected ? "var(--success)" : "var(--muted)";
+  }
+
+  function updateContextUI() {
+    document.getElementById("workspaceName").textContent = activeFolderName || "Workspace";
+    document.getElementById("workspaceId").textContent = activeFolderId
+      ? `Folder ID: ${activeFolderId}`
+      : "No folder selected";
+
+    document.getElementById("youtubeTarget").textContent = activeYouTubeName || "Not linked";
+    document.getElementById("ytTargetInline").textContent = activeYouTubeName || "Not linked";
+
+    const facebookTarget = document.getElementById("facebookTarget");
+    const fbTargetInline = document.getElementById("fbTargetInline");
+    if (facebookTarget) facebookTarget.textContent = activeFacebookName || "Not linked";
+    if (fbTargetInline) fbTargetInline.textContent = activeFacebookName || "Not linked";
+
+    const tiktokTarget = document.getElementById("tiktokTarget");
+    const ttTargetInline = document.getElementById("ttTargetInline");
+    if (tiktokTarget) tiktokTarget.textContent = activeTikTokName || "Not linked";
+    if (ttTargetInline) ttTargetInline.textContent = activeTikTokName || "Not linked";
+
+    setConnectionText(
+      "ytConnectionStatus",
+      isLinked(activeYouTubeName) ? `Connected: ${activeYouTubeName}` : "No YouTube account linked",
+      isLinked(activeYouTubeName)
+    );
+
+    setConnectionText(
+      "fbConnectionStatus",
+      isLinked(activeFacebookName) ? `Connected: ${activeFacebookName}` : "No Facebook account linked",
+      isLinked(activeFacebookName)
+    );
+
+    setConnectionText(
+      "ttConnectionStatus",
+      isLinked(activeTikTokName) ? `Connected: ${activeTikTokName}` : "No TikTok account linked",
+      isLinked(activeTikTokName)
+    );
+  }
+
+  async function loadFolderContext() {
+    const urlFolderId = getUrlParam("folder_id") || getUrlParam("id");
+    const urlFolderName = getUrlParam("folder_name") || getUrlParam("name");
+
+    activeFolderId = urlFolderId || getStoredValue("activeFolderId");
+    activeFolderName = urlFolderName || getStoredValue("activeFolderName") || "Workspace";
+
+    if (activeFolderId) setStoredValue("activeFolderId", activeFolderId);
+    if (activeFolderName) setStoredValue("activeFolderName", activeFolderName);
+
+    updateContextUI();
+
+    if (!activeFolderId || !userScope) {
+      activeYouTubeName = "No folder selected";
+      activeFacebookName = "No folder selected";
+      activeTikTokName = "No folder selected";
+      updateContextUI();
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `${apiBase}/get-accounts?folder_id=${encodeURIComponent(activeFolderId)}&user_id=${encodeURIComponent(userScope)}`
+      );
+
+      if (!res.ok) {
+        throw new Error("Failed to load accounts");
+      }
+
+      const accounts = await res.json();
+      const yt     = accounts.find((acc) => acc.platform === "youtube");
+      const fbPage = accounts.find((acc) => acc.platform === "facebook_page");
+      const fbUser = accounts.find((acc) => acc.platform === "facebook");
+      const tt     = accounts.find((acc) => acc.platform === "tiktok");
+
+      const pickAccountName = (acc, fallback = "Not linked") =>
+        acc?.nickname ||
+        acc?.page_name ||
+        acc?.username ||
+        acc?.name ||
+        acc?.account_name ||
+        fallback;
+
+      activeYouTubeName  = pickAccountName(yt);
+      // Prefer the explicit page name stored by /api/facebook/select-page
+      activeFacebookName = fbPage
+        ? (fbPage.facebook_page_name || fbPage.nickname || "Facebook Page")
+        : pickAccountName(fbUser);
+      activeTikTokName   = pickAccountName(tt);
+      updateContextUI();
+    } catch {
+      activeYouTubeName = "Error loading account";
+      activeFacebookName = "Error loading account";
+      activeTikTokName = "Error loading account";
+      updateContextUI();
+    }
+  }
+
+  async function generateSEO() {
+    const prompt = document.getElementById("videoPrompt").value.trim();
+    const imageUrl = (document.getElementById("seoImageUrl")?.value || "").trim();
+    const resolvedImageUrl = imageUrl || window.seoImageDataUrl || "";
+
+    if (!resolvedImageUrl && !prompt) {
+      alert("Please upload an image, paste an image URL, enter a description, or both");
+      return;
+    }
+
+    setLoading(true);
+    const hasImage = !!resolvedImageUrl;
+    const statusMsg = hasImage && prompt
+      ? "AI analyzing image & description…"
+      : hasImage
+        ? "AI analyzing image…"
+        : "AI generating SEO from description…";
+    setStatus(statusMsg, "working");
+
+    try {
+      const res = await fetch(`${apiBase}/generate-premium-seo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: prompt || "",
+          image_url: resolvedImageUrl,
+          folder_id: activeFolderId,
+          folder_name: activeFolderName,
+          youtube_channel: activeYouTubeName,
+          facebook_account: activeFacebookName,
+          tiktok_account: activeTikTokName
+        })
+      });
+
+      const bodyText = await res.text();
+
+      if (!res.ok) {
+        throw new Error(`Server error: ${res.status}`);
+      }
+
+      let json;
+      try {
+        json = JSON.parse(bodyText);
+      } catch {
+        throw new Error("Bad JSON from server");
+      }
+
+      if (json.error) {
+        const rawErr = json.error;
+        const errorMsg = typeof rawErr === "string"
+          ? rawErr
+          : (rawErr?.message || JSON.stringify(rawErr));
+        throw new Error(errorMsg);
+      }
+
+      if (!json.success && !json.data) {
+        throw new Error("AI returned no content. Please try again.");
+      }
+
+      const raw = json?.data?.response ?? json?.data ?? {};
+      const parsed = parseJsonSafe(raw) || raw || {};
+      const d = parsed?.data ?? parsed ?? {};
+
+      const youtube = d.youtube || {};
+      const tiktok = d.tiktok || {};
+      const facebook = d.facebook || {};
+
+      const hasContent = youtube.title || youtube.description || tiktok.allInOne || facebook.title;
+      if (!hasContent) {
+        throw new Error("AI returned no content. Please try again.");
+      }
+
+      document.getElementById("ytTitle").value = coerceToText(youtube.title) || "";
+      document.getElementById("ytDesc").value = coerceToText(youtube.description) || "";
+      document.getElementById("ytKeywords").value = coerceToText(youtube.keywords || youtube.tags) || "";
+
+      document.getElementById("ttAllInOne").value = normalizeTikTok(
+        tiktok,
+        prompt,
+        youtube.keywords
+      );
+
+      document.getElementById("fbTitle").value = coerceToText(facebook.title) || "";
+      document.getElementById("fbDetails").value =
+        coerceToText(facebook.descriptionAndTags || facebook.description) || "";
+
+      setStatus(`✨ Trending SEO generated${activeFolderName ? ` for "${activeFolderName}"` : ""}`, "success");
+    } catch (err) {
+      console.error(err);
+      setStatus(err?.message || "SEO generation failed", "error");
+      alert(`SEO generation failed: ${err?.message || err}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function copyToClipboard(text, label) {
+    const safeText = String(text || "").trim();
+
+    if (!safeText) {
+      alert(`Nothing to copy for ${label}`);
+      return false;
+    }
+
+    try {
+      await navigator.clipboard.writeText(safeText);
+      setStatus(`${label} copied to clipboard`, "success");
+      return true;
+    } catch {
+      setStatus("Clipboard unavailable", "error");
+      alert("Copy failed. Please copy manually.");
+      return false;
+    }
+  }
+
+  function ensureFolderContext() {
+    if (!activeFolderId || !userScope) {
+      alert("Missing folder context.");
+      return false;
+    }
+    return true;
+  }
+
+  function ensureLinkedAccount(platformLabel, accountName) {
+    if (!isLinked(accountName)) {
+      const reconnect = confirm(`No ${platformLabel} account linked. Go to workspace?`);
+      if (reconnect && activeFolderId) {
+        window.location.href = `folder.html?id=${encodeURIComponent(activeFolderId)}`;
+      }
+      return false;
+    }
+    return true;
+  }
+
+  function bindVideoFileInfo(inputId, infoId) {
+    const input = document.getElementById(inputId);
+    const info = document.getElementById(infoId);
+
+    if (!(input instanceof HTMLInputElement) || !info) return;
+
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+
+      info.textContent = "";
+
+      if (!file) return;
+
+      const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      const ok = file.size <= 500 * 1024 * 1024;
+      const color = ok ? "var(--success)" : "var(--error)";
+
+      const strong = document.createElement("strong");
+      strong.textContent = file.name;
+      info.appendChild(strong);
+
+      info.appendChild(document.createTextNode(` (${sizeMB}MB) `));
+
+      const checkSpan = document.createElement("span");
+      checkSpan.style.color = color;
+      checkSpan.textContent = ok ? "✓" : "✕";
+      info.appendChild(checkSpan);
+    });
+  }
+
+  async function publishYouTube() {
+    const btn = document.querySelector('button[onclick="publishYouTube()"]');
+
+    if (!ensureFolderContext()) return;
+    if (!ensureLinkedAccount("YouTube", activeYouTubeName)) return;
+
+    const fileInput = document.getElementById("ytVideoFile");
+    const file = fileInput.files?.[0];
+
+    if (!file) {
+      alert("Please choose a video file first.");
+      return;
+    }
+
+    if (file.size > 500 * 1024 * 1024) {
+      alert("Video too large. Max size is 500MB.");
+      return;
+    }
+
+    const title = document.getElementById("ytTitle").value.trim();
+    const description = document.getElementById("ytDesc").value.trim();
+    const keywords = document.getElementById("ytKeywords").value.trim();
+    const privacyStatus = document.getElementById("ytPrivacy").value;
+
+    if (!title) {
+      alert("Please enter a YouTube title.");
+      return;
+    }
+
+    const form = new FormData();
+    form.append("title", title);
+    form.append("description", description);
+    form.append("keywords", keywords);
+    form.append("privacyStatus", privacyStatus);
+    form.append("video", file);
+
+    try {
+      btn.disabled = true;
+      btn.textContent = "Uploading video...";
+
+      setStatus(`Uploading to "${activeYouTubeName}"…`, "working");
+
+      const res = await fetch(`${apiBase}/youtube/upload`, {
+        method: "POST",
+        headers: {
+          folder_id: activeFolderId,
+          user_id: userScope
+        },
+        body: form
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Upload failed");
+      }
+
+      setStatus(`Published to "${activeYouTubeName}"`, "success");
+      btn.textContent = "✅ Uploaded";
+
+      if (data.youtubeUrl) {
+        const openNow = confirm(
+          `Upload complete for "${activeYouTubeName}".\n\nOpen the uploaded video now?`
+        );
+
+        if (openNow) {
+          window.open(data.youtubeUrl, "_blank");
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      btn.disabled = false;
+      btn.textContent = "🚀 Publish to YouTube";
+      setStatus(err?.message || "YouTube upload failed", "error");
+      alert(`Upload failed:\n${err?.message || err}`);
+    }
+  }
+
+  async function publishTikTok() {
+    const btn = document.querySelector('button[onclick="publishTikTok()"]');
+
+    if (!ensureFolderContext()) return;
+    if (!ensureLinkedAccount("TikTok", activeTikTokName)) return;
+
+    const fileInput = document.getElementById("ttVideoFile");
+    const file = fileInput.files?.[0];
+
+    if (!file) {
+      alert("Please choose a TikTok video file first.");
+      return;
+    }
+
+    if (file.size > 500 * 1024 * 1024) {
+      alert("Video too large. Max size is 500MB.");
+      return;
+    }
+
+    const caption = document.getElementById("ttAllInOne").value.trim();
+    const privacyStatus = document.getElementById("ttPrivacy").value;
+
+    if (!caption) {
+      alert("Please enter a TikTok caption.");
+      return;
+    }
+
+    try {
+      btn.disabled = true;
+      btn.textContent = "Uploading video...";
+      setStatus(`Uploading to "${activeTikTokName}"…`, "working");
+
+      // Step 1: initialise upload session
+      const initRes = await fetch(`${apiBase}/tiktok/init-upload`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          folder_id: activeFolderId,
+          user_id: userScope
+        },
+        body: JSON.stringify({
+          caption,
+          privacyStatus: String(privacyStatus || "SELF_ONLY").toUpperCase(),
+          videoSize: file.size
+        })
+      });
+
+      const initData = await initRes.json();
+      if (!initRes.ok || !initData.success) {
+        throw new Error(initData.error || "TikTok init-upload failed");
+      }
+
+      const { sessionId, chunkSize, totalChunks, warning } = initData;
+
+      // Step 2: upload chunks
+      for (let i = 0; i < totalChunks; i++) {
+        const offset = i * chunkSize;
+        const chunkBlob = i === totalChunks - 1 ? file.slice(offset) : file.slice(offset, offset + chunkSize);
+
+        btn.textContent = `Uploading… (${i + 1}/${totalChunks})`;
+
+        const fd = new FormData();
+        fd.append("sessionId", sessionId);
+        fd.append("offset", String(offset));
+        fd.append("chunk", chunkBlob, file.name);
+
+        const upRes = await fetch(`${apiBase}/tiktok/upload-chunk`, {
+          method: "POST",
+          headers: {
+            folder_id: activeFolderId,
+            user_id: userScope
+          },
+          body: fd
+        });
+
+        const upData = await upRes.json().catch(() => ({}));
+        if (!upRes.ok || !upData.success) {
+          throw new Error(upData.error || `TikTok upload-chunk failed at chunk ${i + 1}/${totalChunks}`);
+        }
+      }
+
+      setStatus(`Published to "${activeTikTokName}"`, "success");
+      btn.textContent = "✅ Uploaded";
+
+      if (warning) {
+        alert(`⚠️ Note: ${warning}`);
+      }
+    } catch (err) {
+      console.error(err);
+      btn.disabled = false;
+      btn.textContent = "🎵 Publish to TikTok";
+      const msg = err?.message || "TikTok upload failed";
+      setStatus(msg, "error");
+      alert(`Upload failed:\n${msg}`);
+    }
+  }
+
+  async function publishFacebook() {
+    const btn = document.querySelector('button[onclick="publishFacebook()"]');
+
+    if (!ensureFolderContext()) return;
+    if (!ensureLinkedAccount("Facebook", activeFacebookName)) return;
+
+    const fileInput = document.getElementById("fbVideoFile");
+    const file = fileInput.files?.[0];
+
+    if (!file) {
+      alert("Please choose a Facebook video file first.");
+      return;
+    }
+
+    if (file.size > 500 * 1024 * 1024) {
+      alert("Video too large. Max size is 500MB.");
+      return;
+    }
+
+    const title = document.getElementById("fbTitle").value.trim();
+    const description = document.getElementById("fbDetails").value.trim();
+
+    if (!title) {
+      alert("Please enter a Facebook title.");
+      return;
+    }
+
+    if (!description) {
+      alert("Please enter a Facebook description.");
+      return;
+    }
+
+    const form = new FormData();
+    form.append("title", title);
+    form.append("description", description);
+    form.append("video", file);
+
+    try {
+      btn.disabled = true;
+      btn.textContent = "Uploading video...";
+
+      setStatus(`Uploading to "${activeFacebookName}"…`, "working");
+
+      const res = await fetch(`${apiBase}/facebook/upload`, {
+        method: "POST",
+        headers: {
+          folder_id: activeFolderId,
+          user_id: userScope
+        },
+        body: form
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Facebook upload failed");
+      }
+
+      setStatus(`Published to "${activeFacebookName}"`, "success");
+      btn.textContent = "✅ Uploaded";
+
+      const publishedUrl = data.facebookUrl || data.url || data.postUrl || data.videoUrl;
+
+      if (publishedUrl) {
+        const openNow = confirm(
+          `Upload complete for "${activeFacebookName}".\n\nOpen the published post now?`
+        );
+
+        if (openNow) {
+          window.open(publishedUrl, "_blank");
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      btn.disabled = false;
+      btn.textContent = "📘 Publish to Facebook";
+      setStatus(err?.message || "Facebook upload failed", "error");
+      alert(`Upload failed:\n${err?.message || err}`);
+    }
+  }
+
+  async function copyAndOpen(text, label, url) {
+    const ok = await copyToClipboard(text, label);
+
+    if (ok && url) {
+      setTimeout(() => window.open(url, "_blank"), 500);
+    }
+  }
+
+  function copyGeneric(fieldId, label, url) {
+    const value = document.getElementById(fieldId).value;
+    copyAndOpen(value, label, url);
+  }
+
+  function copyFB() {
+    const title = document.getElementById("fbTitle").value;
+    const details = document.getElementById("fbDetails").value;
+    const block = `${title}\n\n${details}`.trim();
+    copyAndOpen(block, "Facebook", "https://www.facebook.com/reels/create");
+  }
+
+  function goBackToWorkspace() {
+    if (activeFolderId) {
+      window.location.href = `folder.html?id=${encodeURIComponent(activeFolderId)}`;
+      return;
+    }
+
+    window.location.href = "app.html";
+  }
+
+  bindVideoFileInfo("ytVideoFile", "fileInfo");
+  bindVideoFileInfo("ttVideoFile", "ttFileInfo");
+  bindVideoFileInfo("fbVideoFile", "fbFileInfo");
+
+  window.generateSEO = generateSEO;
+  window.publishYouTube = publishYouTube;
+  window.publishTikTok = publishTikTok;
+  window.publishFacebook = publishFacebook;
+  window.copyGeneric = copyGeneric;
+  window.copyFB = copyFB;
+  window.goBackToWorkspace = goBackToWorkspace;
+
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) {
+      window.location.href = "signin.html";
+      return;
+    }
+
+    userScope = user.uid;
+    await loadFolderContext();
+
+    const youtubeConnected = getUrlParam("youtube_connected");
+    const facebookConnected = getUrlParam("facebook_connected");
+    const tiktokConnected = getUrlParam("tiktok_connected");
+
+    const youtubeError = getUrlParam("youtube_error");
+    const facebookError = getUrlParam("facebook_error");
+    const tiktokError = getUrlParam("tiktok_error");
+
+    if (youtubeConnected) {
+      await loadFolderContext();
+      const accountName = getUrlParam("account_name") || activeYouTubeName;
+      setStatus(isLinked(accountName) ? `YouTube connected: ${accountName}` : "YouTube account connected to this folder", "success");
+    }
+
+    if (facebookConnected) {
+      await loadFolderContext();
+      const accountName = getUrlParam("account_name") || activeFacebookName;
+      setStatus(isLinked(accountName) ? `Facebook connected: ${accountName}` : "Facebook account connected to this folder", "success");
+    }
+
+    if (tiktokConnected) {
+      await loadFolderContext();
+      const accountName = getUrlParam("account_name") || activeTikTokName;
+      setStatus(isLinked(accountName) ? `TikTok connected: ${accountName}` : "TikTok account connected to this folder", "success");
+    }
+
+    if (youtubeError) {
+      setStatus(`YouTube connection failed: ${youtubeError}`, "error");
+    }
+
+    if (facebookError) {
+      setStatus(`Facebook connection failed: ${facebookError}`, "error");
+    }
+
+    if (tiktokError) {
+      setStatus(`TikTok connection failed: ${tiktokError}`, "error");
+    }
+  });
+</script>
+</body>
+</html>
+
+      
