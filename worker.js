@@ -422,7 +422,7 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
         }
         const { results } = await env.DB.prepare(
-          "SELECT * FROM folders WHERE user_id = ? ORDER BY created_at DESC"
+          "SELECT f.*, (SELECT nickname FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_channel, (SELECT profile_picture FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_picture FROM folders f WHERE f.user_id = ? ORDER BY f.created_at DESC"
         ).bind(userId).all();
         return new Response(JSON.stringify(results), { headers: jsonHeaders });
       }

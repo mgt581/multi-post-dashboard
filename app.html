@@ -91,6 +91,14 @@
       font-size: 20px;
       background: linear-gradient(135deg, var(--accent), var(--accent-2));
       color: white;
+      overflow: hidden;
+    }
+
+    .icon-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 12px;
     }
 
     .card-content { flex: 1; }
@@ -184,12 +192,19 @@
           return;
         }
 
-        container.innerHTML = folders.map(f => `
+        container.innerHTML = folders.map(f => {
+          const iconBox = f.youtube_picture
+            ? `<div class="icon-box" style="background:rgba(239,68,68,0.12);"><img src="${f.youtube_picture}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><i class="fa-brands fa-youtube" style="display:none;color:#ef4444;font-size:22px;"></i></div>`
+            : `<div class="icon-box"><i class="fa-solid fa-folder"></i></div>`;
+          const subText = f.youtube_channel
+            ? `<i class="fa-brands fa-youtube" style="color:#ef4444;margin-right:4px;"></i>${f.youtube_channel}`
+            : 'Manage assets &amp; accounts';
+          return `
           <div class="card folder-card" data-folder-id="${f.id}" data-folder-name="${f.name}">
-            <div class="icon-box"><i class="fa-solid fa-folder"></i></div>
+            ${iconBox}
             <div class="card-content">
               <span class="card-title">${f.name}</span>
-              <span class="card-sub">Manage assets & accounts</span>
+              <span class="card-sub">${subText}</span>
             </div>
             <div class="folder-actions">
               <button class="action-btn rename-btn" data-id="${f.id}" data-name="${f.name}">
@@ -200,8 +215,8 @@
               </button>
             </div>
             <i class="fa-solid fa-chevron-right chevron"></i>
-          </div>
-        `).join('');
+          </div>`;
+        }).join('');
 
         // Click listeners... (kept existing logic)
         container.querySelectorAll('.folder-card').forEach(card => {
