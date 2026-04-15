@@ -558,6 +558,12 @@ Follow for daily trending content! \u{1F44F}
           })
         });
         const tokens = await safeJson(tokenRes);
+        if (!tokens?.access_token || typeof tokens.access_token !== "string" || tokens.access_token === "undefined") {
+          const oauthErr = tokens?.error_description || tokens?.error || "Token exchange failed";
+          return Response.redirect(
+            `${frontendBaseUrl}/create-post.html?youtube_error=${encodeURIComponent(oauthErr)}&folder_id=${encodeURIComponent(folderId)}`
+          );
+        }
         const userRes = await fetch(
           "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true",
           { headers: { Authorization: `Bearer ${tokens.access_token}` } }
@@ -882,19 +888,36 @@ Follow for daily trending content! \u{1F44F}
         if (!["private", "unlisted", "public"].includes(privacyStatus)) {
           privacyStatus = "private";
         }
-        const token = await env.DB.prepare(`
+        let token = await env.DB.prepare(`
           SELECT * FROM tokens
           WHERE folder_id = ? AND platform = 'youtube'
           ORDER BY updated_at DESC LIMIT 1
         `).bind(folder_id).first();
-        if (!token?.access_token) {
+        // Fall back to accounts table if tokens table has no valid token
+        if (!token?.access_token || token.access_token === "undefined") {
+          const acct = await env.DB.prepare(
+            "SELECT id, access_token, refresh_token, expires_at FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'youtube' LIMIT 1"
+          ).bind(folder_id, user_id).first();
+          if (acct?.access_token && acct.access_token !== "undefined") {
+            token = { access_token: acct.access_token, refresh_token: acct.refresh_token || null, expires_at: acct.expires_at || null, account_id: String(acct.id), scope: null };
+          }
+        }
+        if (!token?.access_token || token.access_token === "undefined") {
           return new Response(JSON.stringify({ success: false, error: "No YouTube token found. Link account first." }), {
             status: 400,
             headers: jsonHeaders
           });
         }
-        const refreshYTToken = /* @__PURE__ */ __name(async (currentToken) => {
-          if (!currentToken.refresh_token) return null;
+        // If tokens table has no refresh_token, borrow it from the accounts table
+        let ytRefreshToken = token.refresh_token || null;
+        if (!ytRefreshToken) {
+          const acct = await env.DB.prepare(
+            "SELECT refresh_token FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'youtube' LIMIT 1"
+          ).bind(folder_id, user_id).first();
+          ytRefreshToken = acct?.refresh_token || null;
+        }
+        const refreshYTToken = /* @__PURE__ */ __name(async (refreshToken) => {
+          if (!refreshToken) return null;
           try {
             const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
               method: "POST",
@@ -902,7 +925,7 @@ Follow for daily trending content! \u{1F44F}
               body: new URLSearchParams({
                 client_id: env.GOOGLE_CLIENT_ID,
                 client_secret: env.GOOGLE_CLIENT_SECRET,
-                refresh_token: currentToken.refresh_token,
+                refresh_token: refreshToken,
                 grant_type: "refresh_token"
               })
             });
@@ -911,11 +934,11 @@ Follow for daily trending content! \u{1F44F}
               await upsertToken({
                 folderId: folder_id,
                 platform: "youtube",
-                accountId: currentToken.account_id,
+                accountId: token.account_id,
                 accessToken: refreshed.access_token,
-                refreshToken: refreshed.refresh_token || currentToken.refresh_token,
+                refreshToken: refreshed.refresh_token || refreshToken,
                 expiresAt: nowMs() + Number(refreshed.expires_in || DEFAULT_TOKEN_EXPIRY_SECONDS) * 1e3,
-                scope: currentToken.scope || "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly"
+                scope: token.scope || "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly"
               });
               return refreshed.access_token;
             }
@@ -926,8 +949,8 @@ Follow for daily trending content! \u{1F44F}
           }
         }, "refreshYTToken");
         let accessToken = token.access_token;
-        if (token.refresh_token && (!token.expires_at || Number(token.expires_at) - nowMs() < TOKEN_REFRESH_WINDOW_MS)) {
-          const refreshed = await refreshYTToken(token);
+        if (ytRefreshToken && (!token.expires_at || Number(token.expires_at) - nowMs() < TOKEN_REFRESH_WINDOW_MS)) {
+          const refreshed = await refreshYTToken(ytRefreshToken);
           if (refreshed) accessToken = refreshed;
         }
         try {
@@ -944,19 +967,21 @@ Follow for daily trending content! \u{1F44F}
             method: "POST",
             headers: {
               "Authorization": `Bearer ${accessToken}`,
+              "Content-Type": "application/json; charset=UTF-8",
               "X-Upload-Content-Type": fileType,
               "X-Upload-Content-Length": String(fileSize)
             },
             body: initBody
           });
-          if (initRes.status === 401 && token.refresh_token) {
-            const retried = await refreshYTToken(token);
+          if (initRes.status === 401 && ytRefreshToken) {
+            const retried = await refreshYTToken(ytRefreshToken);
             if (retried) {
               accessToken = retried;
               initRes = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
                 method: "POST",
                 headers: {
                   "Authorization": `Bearer ${accessToken}`,
+                  "Content-Type": "application/json; charset=UTF-8",
                   "X-Upload-Content-Type": fileType,
                   "X-Upload-Content-Length": String(fileSize)
                 },
@@ -966,6 +991,9 @@ Follow for daily trending content! \u{1F44F}
           }
           if (!initRes.ok) {
             const errData = await safeJson(initRes);
+            if (initRes.status === 401) {
+              throw new Error("Your YouTube authorization has expired or was revoked. Please re-link your YouTube account from your workspace settings (go to your folder, remove the YouTube account, then link it again).");
+            }
             throw new Error(`YouTube init failed: ${initRes.status} ${JSON.stringify(errData)}`);
           }
           const uploadUrl = initRes.headers.get("Location");
@@ -1397,19 +1425,36 @@ Follow for daily trending content! \u{1F44F}
         if (!["private", "unlisted", "public"].includes(privacyStatus)) {
           privacyStatus = "private";
         }
-        const token = await env.DB.prepare(`
+        let token = await env.DB.prepare(`
           SELECT * FROM tokens 
           WHERE folder_id = ? AND platform = 'youtube' 
           ORDER BY updated_at DESC LIMIT 1
         `).bind(folder_id).first();
-        if (!token?.access_token) {
+        // Fall back to accounts table if tokens table has no valid token
+        if (!token?.access_token || token.access_token === "undefined") {
+          const acct = await env.DB.prepare(
+            "SELECT id, access_token, refresh_token, expires_at FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'youtube' LIMIT 1"
+          ).bind(folder_id, user_id).first();
+          if (acct?.access_token && acct.access_token !== "undefined") {
+            token = { access_token: acct.access_token, refresh_token: acct.refresh_token || null, expires_at: acct.expires_at || null, account_id: String(acct.id), scope: null };
+          }
+        }
+        if (!token?.access_token || token.access_token === "undefined") {
           return new Response(JSON.stringify({ success: false, error: "No YouTube token found. Link account first." }), {
             status: 400,
             headers: jsonHeaders
           });
         }
-        const refreshYouTubeToken = /* @__PURE__ */ __name(async (currentToken) => {
-          if (!currentToken.refresh_token) return null;
+        // If tokens table has no refresh_token, borrow it from the accounts table
+        let ytRefreshToken = token.refresh_token || null;
+        if (!ytRefreshToken) {
+          const acct = await env.DB.prepare(
+            "SELECT refresh_token FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'youtube' LIMIT 1"
+          ).bind(folder_id, user_id).first();
+          ytRefreshToken = acct?.refresh_token || null;
+        }
+        const refreshYouTubeToken = /* @__PURE__ */ __name(async (refreshToken) => {
+          if (!refreshToken) return null;
           try {
             const refreshRes = await fetch("https://oauth2.googleapis.com/token", {
               method: "POST",
@@ -1417,7 +1462,7 @@ Follow for daily trending content! \u{1F44F}
               body: new URLSearchParams({
                 client_id: env.GOOGLE_CLIENT_ID,
                 client_secret: env.GOOGLE_CLIENT_SECRET,
-                refresh_token: currentToken.refresh_token,
+                refresh_token: refreshToken,
                 grant_type: "refresh_token"
               })
             });
@@ -1426,11 +1471,11 @@ Follow for daily trending content! \u{1F44F}
               await upsertToken({
                 folderId: folder_id,
                 platform: "youtube",
-                accountId: currentToken.account_id,
+                accountId: token.account_id,
                 accessToken: refreshed.access_token,
-                refreshToken: refreshed.refresh_token || currentToken.refresh_token,
+                refreshToken: refreshed.refresh_token || refreshToken,
                 expiresAt: nowMs() + Number(refreshed.expires_in || DEFAULT_TOKEN_EXPIRY_SECONDS) * 1e3,
-                scope: currentToken.scope || "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly"
+                scope: token.scope || "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly"
               });
               return refreshed.access_token;
             }
@@ -1442,8 +1487,8 @@ Follow for daily trending content! \u{1F44F}
           }
         }, "refreshYouTubeToken");
         let accessToken = token.access_token;
-        if (token.refresh_token && (!token.expires_at || Number(token.expires_at) - nowMs() < TOKEN_REFRESH_WINDOW_MS)) {
-          const refreshed = await refreshYouTubeToken(token);
+        if (ytRefreshToken && (!token.expires_at || Number(token.expires_at) - nowMs() < TOKEN_REFRESH_WINDOW_MS)) {
+          const refreshed = await refreshYouTubeToken(ytRefreshToken);
           if (refreshed) accessToken = refreshed;
         }
         const buildInitBody = /* @__PURE__ */ __name(() => JSON.stringify({
@@ -1463,19 +1508,23 @@ Follow for daily trending content! \u{1F44F}
             method: "POST",
             headers: {
               "Authorization": `Bearer ${accessToken}`,
-              "X-Upload-Content-Type": videoFile.type || "video/mp4"
+              "Content-Type": "application/json; charset=UTF-8",
+              "X-Upload-Content-Type": videoFile.type || "video/mp4",
+              "X-Upload-Content-Length": String(videoFile.size)
             },
             body: buildInitBody()
           });
-          if (initRes.status === 401 && token.refresh_token) {
-            const retried = await refreshYouTubeToken(token);
+          if (initRes.status === 401 && ytRefreshToken) {
+            const retried = await refreshYouTubeToken(ytRefreshToken);
             if (retried) {
               accessToken = retried;
               initRes = await fetch("https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status", {
                 method: "POST",
                 headers: {
                   "Authorization": `Bearer ${accessToken}`,
-                  "X-Upload-Content-Type": videoFile.type || "video/mp4"
+                  "Content-Type": "application/json; charset=UTF-8",
+                  "X-Upload-Content-Type": videoFile.type || "video/mp4",
+                  "X-Upload-Content-Length": String(videoFile.size)
                 },
                 body: buildInitBody()
               });
@@ -1483,6 +1532,9 @@ Follow for daily trending content! \u{1F44F}
           }
           if (!initRes.ok) {
             const errData = await safeJson(initRes);
+            if (initRes.status === 401) {
+              throw new Error("Your YouTube authorization has expired or was revoked. Please re-link your YouTube account from your workspace settings (go to your folder, remove the YouTube account, then link it again).");
+            }
             throw new Error(`YouTube init failed: ${initRes.status} ${JSON.stringify(errData)}`);
           }
           const location = initRes.headers.get("Location");
@@ -1619,9 +1671,15 @@ Follow for daily trending content! \u{1F44F}
           });
         } catch (err) {
           console.error("Facebook upload error:", err);
+          const errMsg = err.message || "Facebook upload failed";
+          // Facebook auth errors include OAuthException or error code 190 in the message
+          const isAuthErr = errMsg.includes("OAuthException") || errMsg.includes('"code":190') || errMsg.includes('"code": 190');
+          const friendlyMsg = isAuthErr
+            ? "Your Facebook authorization has expired. Please re-link your Facebook account from your workspace settings (go to your folder, remove the Facebook account, then link it again)."
+            : errMsg;
           return new Response(JSON.stringify({
             success: false,
-            error: err.message || "Facebook upload failed"
+            error: friendlyMsg
           }), {
             status: 500,
             headers: jsonHeaders
