@@ -994,6 +994,19 @@ Follow for daily trending content! \u{1F44F}
             if (initRes.status === 401) {
               throw new Error("Your YouTube authorization has expired or was revoked. Please re-link your YouTube account from your workspace settings (go to your folder, remove the YouTube account, then link it again).");
             }
+            if (initRes.status === 403) {
+              const reason = errData?.error?.errors?.[0]?.reason || "";
+              if (reason === "youtubeSignupRequired") {
+                throw new Error("Your Google account does not have a YouTube channel. Please go to youtube.com, create a channel, then re-link your YouTube account.");
+              }
+              if (reason === "forbidden") {
+                throw new Error("Your YouTube channel is not permitted to upload videos. Please ensure your channel is active and verified, then re-link your YouTube account.");
+              }
+              if (reason === "quotaExceeded") {
+                throw new Error("YouTube API quota exceeded for today. Please try again tomorrow.");
+              }
+              throw new Error("YouTube upload was forbidden (403). Please re-link your YouTube account or check that your channel is active.");
+            }
             throw new Error(`YouTube init failed: ${initRes.status} ${JSON.stringify(errData)}`);
           }
           const uploadUrl = initRes.headers.get("Location");
@@ -1534,6 +1547,19 @@ Follow for daily trending content! \u{1F44F}
             const errData = await safeJson(initRes);
             if (initRes.status === 401) {
               throw new Error("Your YouTube authorization has expired or was revoked. Please re-link your YouTube account from your workspace settings (go to your folder, remove the YouTube account, then link it again).");
+            }
+            if (initRes.status === 403) {
+              const reason = errData?.error?.errors?.[0]?.reason || "";
+              if (reason === "youtubeSignupRequired") {
+                throw new Error("Your Google account does not have a YouTube channel. Please go to youtube.com, create a channel, then re-link your YouTube account.");
+              }
+              if (reason === "forbidden") {
+                throw new Error("Your YouTube channel is not permitted to upload videos. Please ensure your channel is active and verified, then re-link your YouTube account.");
+              }
+              if (reason === "quotaExceeded") {
+                throw new Error("YouTube API quota exceeded for today. Please try again tomorrow.");
+              }
+              throw new Error("YouTube upload was forbidden (403). Please re-link your YouTube account or check that your channel is active.");
             }
             throw new Error(`YouTube init failed: ${initRes.status} ${JSON.stringify(errData)}`);
           }
