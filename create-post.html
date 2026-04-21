@@ -548,9 +548,11 @@
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
 
-  const apiBase = window.location.origin.includes("localhost")
-    ? "https://multipost-seo-worker.alexbryant.workers.dev/api"
-    : `${window.location.origin}/api`;
+  const host = window.location.hostname;
+  const isProdHost = host === "multipostapp.co.uk" || host === "www.multipostapp.co.uk";
+  const apiBase = isProdHost
+    ? "/api"
+    : "https://multipost-seo-worker.alexbryant.workers.dev/api";
 
   const statusEl = document.getElementById("status");
   const generateBtn = document.getElementById("generateBtn");
