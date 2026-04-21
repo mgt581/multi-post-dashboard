@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Multipost | Publish Images</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
+
+    :root {
+      --bg: linear-gradient(135deg, #0f172a, #0b2f52 60%, #0ea5e9);
+      --card: #0b1829;
+      --border: rgba(255, 255, 255, 0.08);
+      --muted: #94a3b8;
+      --text: #e2e8f0;
+      --accent: #7c3aed;
+      --accent-2: #0ea5e9;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --error: #f43f5e;
+      --shadow: 0 14px 40px rgba(15, 23, 42, 0.45);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      font-family: 'Manrope', -apple-system, system-ui, sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      padding: 28px 16px 48px;
+    }
+
+    .page {
+      max-width: 1080px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .hero {
+      background:
+        radial-gradient(circle at 20% 20%, rgba(124, 58, 237, 0.25), transparent 25%),
+        radial-gradient(circle at 80% 0%, rgba(14, 165, 233, 0.25), transparent 28%),
+        var(--card);
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    h1 { margin: 0; font-size: 24px; letter-spacing: -0.4px; }
+
+    .small {
+      font-size: 13px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .workspace-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .workspace-box {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+    }
+
+    .workspace-box .label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--accent-2);
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+
+    .workspace-box .value {
+      font-size: 16px;
+      font-weight: 800;
+      word-break: break-word;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 14px;
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-weight: 800;
+      cursor: pointer;
+      color: #0f172a;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 12px 28px rgba(14, 165, 233, 0.35);
+      transition: transform 0.08s ease, opacity 0.2s ease;
+      font-family: inherit;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .btn.secondary {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      box-shadow: none;
+      border: 1px solid var(--border);
+    }
+
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn:active { transform: translateY(1px); }
+
+    label {
+      display: block;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #cbd5e1;
+      margin-top: 10px;
+    }
+
+    textarea, input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+      font-size: 14px;
+      resize: vertical;
+      font-family: inherit;
+      min-height: 46px;
+    }
+
+    textarea { min-height: 90px; }
+
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      min-height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: var(--muted);
+      font-weight: 700;
+      padding: 14px;
+      transition: border-color 0.2s ease, background-color 0.2s ease;
+      margin-top: 8px;
+    }
+
+    .dropzone.active {
+      border-color: var(--accent-2);
+      background: rgba(14, 165, 233, 0.12);
+      color: #dbeafe;
+    }
+
+    .dropzone img {
+      max-width: 100%;
+      max-height: 340px;
+      border-radius: 10px;
+      object-fit: contain;
+    }
+
+    .status {
+      margin-top: 8px;
+      font-weight: 700;
+      color: var(--muted);
+      min-height: 20px;
+    }
+
+    .status.success { color: var(--success); }
+    .status.error { color: var(--error); }
+    .status.working { color: var(--warning); }
+
+    .section-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+    }
+
+    .hint {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="card hero">
+      <header>
+        <h1>Publish Images</h1>
+        <div class="controls" style="margin-top:0;">
+          <a id="backChoiceBtn" href="publish-choice.html" class="btn secondary">Back to Publish Choice</a>
+          <button type="button" class="btn secondary" onclick="goToVideoPage()">Publish Videos</button>
+        </div>
+      </header>
+
+      <div class="workspace-grid">
+        <div class="workspace-box">
+          <div class="label">Workspace</div>
+          <div id="workspaceName" class="value">Loading...</div>
+        </div>
+        <div class="workspace-box">
+          <div class="label">Facebook Target</div>
+          <div id="facebookTarget" class="value">Checking...</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title">Reusable Defaults</h2>
+      <p class="hint">Save once and we automatically append these to every generated image caption for this workspace and account.</p>
+
+      <div class="grid">
+        <div>
+          <label for="defaultLinks">Links</label>
+          <textarea id="defaultLinks" placeholder="https://multipostapp.co.uk&#10;https://booking-link.example"></textarea>
+        </div>
+        <div>
+          <label for="defaultPhones">Contact Numbers</label>
+          <textarea id="defaultPhones" placeholder="+44 1234 567890&#10;+44 9876 543210"></textarea>
+        </div>
+      </div>
+
+      <label for="defaultEmails">Email Addresses</label>
+      <textarea id="defaultEmails" placeholder="hello@agency.co.uk&#10;sales@agency.co.uk"></textarea>
+
+      <div class="controls">
+        <button id="saveDefaultsBtn" type="button" class="btn secondary" onclick="saveReusableDefaults()">Save Defaults</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title">Image + SEO Brief</h2>
+      <p class="hint">Upload an image and optionally add a short prompt for context. We generate a polished, social-ready heading and caption.</p>
+
+      <label for="imagePrompt">Image post brief</label>
+      <textarea id="imagePrompt" placeholder="Promote golf coaching packages for beginners in London. Keep tone premium and conversion-focused."></textarea>
+
+      <label for="postImage">Upload image</label>
+      <input id="postImage" type="file" accept="image/*">
+      <div id="dropzone" class="dropzone">Drop JPG/PNG here or use the file picker (max 20MB)</div>
+
+      <div class="controls">
+        <button id="generateBtn" type="button" class="btn" onclick="generateImageSEO()">Generate Image SEO</button>
+      </div>
+      <div id="status" class="status">Ready when you are.</div>
+    </section>
+
+    <section class="card">
+      <h2 class="section-title">Generated Facebook Post</h2>
+      <label for="fbImageTitle">Meta-style heading / title</label>
+      <input id="fbImageTitle" type="text" placeholder="Professional headline will appear here">
+
+      <label for="fbImageDescription">Caption / description</label>
+      <textarea id="fbImageDescription" placeholder="SEO caption and post content"></textarea>
+
+      <label for="fbImageHashtags">Trending hashtags</label>
+      <textarea id="fbImageHashtags" placeholder="#business #marketing #facebook"></textarea>
+
+      <label for="fbImageKeywords">SEO keywords</label>
+      <textarea id="fbImageKeywords" placeholder="keyword one, keyword two"></textarea>
+
+      <div class="controls">
+        <button id="uploadBtn" type="button" class="btn" onclick="uploadFacebookImagePost()">Upload Image to Facebook</button>
+        <button type="button" class="btn secondary" onclick="copyFacebookImageText()">Copy Caption</button>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
+      authDomain: "multi-post-daefc.firebaseapp.com",
+      projectId: "multi-post-daefc",
+      storageBucket: "multi-post-daefc.appspot.com",
+      messagingSenderId: "1099160429576",
+      appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd"
+    };
+
+    initializeApp(firebaseConfig);
+    const auth = getAuth();
+
+    const apiBase = window.location.origin.includes("localhost")
+      ? "https://multipost-seo-worker.alexbryant.workers.dev/api"
+      : `${window.location.origin}/api`;
+
+    let userScope = null;
+    let activeFolderId = null;
+    let activeFolderName = "Workspace";
+    let activeFacebookName = "Not linked";
+    let activeFacebookId = "";
+    let selectedImageFile = null;
+    let selectedImageDataUrl = "";
+
+    const statusEl = document.getElementById("status");
+    const dropzone = document.getElementById("dropzone");
+
+    function setStatus(message, tone = "info") {
+      statusEl.textContent = message;
+      statusEl.classList.remove("success", "error", "working");
+      if (tone === "success") statusEl.classList.add("success");
+      if (tone === "error") statusEl.classList.add("error");
+      if (tone === "working") statusEl.classList.add("working");
+    }
+
+    function setLoading(btnId, isLoading, loadingText, normalText) {
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      btn.disabled = isLoading;
+      btn.textContent = isLoading ? loadingText : normalText;
+    }
+
+    function getUrlParam(name) {
+      return new URLSearchParams(window.location.search).get(name);
+    }
+
+    function getContextQuery() {
+      const params = new URLSearchParams();
+      if (activeFolderId) params.set("folder_id", activeFolderId);
+      if (activeFolderName) params.set("folder_name", activeFolderName);
+      return params.toString();
+    }
+
+    function buildDefaultsKey() {
+      return `imagePostDefaults:${userScope || "anon"}:${activeFolderId || "global"}:${activeFacebookId || activeFacebookName || "facebook"}`;
+    }
+
+    function normalizeLines(text) {
+      return String(text || "")
+        .split(/\r?\n/)
+        .map((x) => x.trim())
+        .filter(Boolean);
+    }
+
+    function buildReusableDetailsBlock(defaults) {
+      const links = normalizeLines(defaults.links);
+      const phones = normalizeLines(defaults.phones);
+      const emails = normalizeLines(defaults.emails);
+      const lines = [];
+
+      if (links.length) {
+        lines.push("Useful links:");
+        links.forEach((v) => lines.push(`- ${v}`));
+      }
+
+      if (phones.length) {
+        if (lines.length) lines.push("");
+        lines.push("Contact numbers:");
+        phones.forEach((v) => lines.push(`- ${v}`));
+      }
+
+      if (emails.length) {
+        if (lines.length) lines.push("");
+        lines.push("Email:");
+        emails.forEach((v) => lines.push(`- ${v}`));
+      }
+
+      return lines.join("\n");
+    }
+
+    function getReusableDefaultsFromForm() {
+      return {
+        links: document.getElementById("defaultLinks").value.trim(),
+        phones: document.getElementById("defaultPhones").value.trim(),
+        emails: document.getElementById("defaultEmails").value.trim()
+      };
+    }
+
+    function applyDefaultsToForm(defaults) {
+      document.getElementById("defaultLinks").value = defaults?.links || "";
+      document.getElementById("defaultPhones").value = defaults?.phones || "";
+      document.getElementById("defaultEmails").value = defaults?.emails || "";
+    }
+
+    function loadReusableDefaults() {
+      const raw = localStorage.getItem(buildDefaultsKey());
+      if (!raw) {
+        applyDefaultsToForm({ links: "", phones: "", emails: "" });
+        return;
+      }
+      try {
+        applyDefaultsToForm(JSON.parse(raw));
+      } catch {
+        applyDefaultsToForm({ links: "", phones: "", emails: "" });
+      }
+    }
+
+    function saveReusableDefaults() {
+      const defaults = getReusableDefaultsFromForm();
+      localStorage.setItem(buildDefaultsKey(), JSON.stringify(defaults));
+      setStatus("Reusable defaults saved for this workspace/account.", "success");
+    }
+
+    function updateContextUI() {
+      document.getElementById("workspaceName").textContent = activeFolderName || "Workspace";
+      document.getElementById("facebookTarget").textContent = activeFacebookName || "Not linked";
+
+      const backChoiceBtn = document.getElementById("backChoiceBtn");
+      const query = getContextQuery();
+      backChoiceBtn.href = query ? `publish-choice.html?${query}` : "publish-choice.html";
+    }
+
+    function isLinked(name) {
+      return !!name && !["Not linked", "No folder selected", "Error loading account"].includes(name);
+    }
+
+    function ensureFolderContext() {
+      if (!activeFolderId || !userScope) {
+        alert("Missing folder context.");
+        return false;
+      }
+      return true;
+    }
+
+    function ensureLinkedFacebook() {
+      if (!isLinked(activeFacebookName)) {
+        const reconnect = confirm("No Facebook page linked. Go to workspace settings?");
+        if (reconnect && activeFolderId) {
+          window.location.href = `folder.html?id=${encodeURIComponent(activeFolderId)}`;
+        }
+        return false;
+      }
+      return true;
+    }
+
+    function renderImagePreview(dataUrl) {
+      if (!dataUrl) {
+        dropzone.textContent = "Drop JPG/PNG here or use the file picker (max 20MB)";
+        return;
+      }
+      dropzone.innerHTML = `<img src="${dataUrl}" alt="Selected image preview">`;
+    }
+
+    function handleImageFile(file) {
+      if (!file) return;
+      if (!String(file.type || "").toLowerCase().startsWith("image/")) {
+        alert("Please choose an image file.");
+        return;
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        alert("Image too large. Max size is 20MB.");
+        return;
+      }
+
+      selectedImageFile = file;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        selectedImageDataUrl = ev.target?.result || "";
+        renderImagePreview(selectedImageDataUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function loadFolderContext() {
+      const urlFolderId = getUrlParam("folder_id") || getUrlParam("id");
+      const urlFolderName = getUrlParam("folder_name") || getUrlParam("name");
+
+      activeFolderId = urlFolderId || localStorage.getItem(`activeFolderId:${userScope}`) || localStorage.getItem("activeFolderId");
+      activeFolderName = urlFolderName || localStorage.getItem(`activeFolderName:${userScope}`) || localStorage.getItem("activeFolderName") || "Workspace";
+
+      if (activeFolderId) {
+        localStorage.setItem("activeFolderId", activeFolderId);
+        localStorage.setItem(`activeFolderId:${userScope}`, activeFolderId);
+      }
+      if (activeFolderName) {
+        localStorage.setItem("activeFolderName", activeFolderName);
+        localStorage.setItem(`activeFolderName:${userScope}`, activeFolderName);
+      }
+
+      updateContextUI();
+
+      if (!activeFolderId || !userScope) {
+        activeFacebookName = "No folder selected";
+        updateContextUI();
+        return;
+      }
+
+      try {
+        const res = await fetch(`${apiBase}/get-accounts?folder_id=${encodeURIComponent(activeFolderId)}&user_id=${encodeURIComponent(userScope)}`);
+        if (!res.ok) throw new Error("Failed to load accounts");
+        const accounts = await res.json();
+
+        const fbPage = accounts.find((acc) => acc.platform === "facebook_page");
+        const fbUser = accounts.find((acc) => acc.platform === "facebook");
+
+        if (fbPage) {
+          activeFacebookName = fbPage.facebook_page_name || fbPage.nickname || "Facebook Page";
+          activeFacebookId = fbPage.facebook_page_id || String(fbPage.id || "");
+        } else {
+          activeFacebookName = fbUser?.nickname || fbUser?.name || "Not linked";
+          activeFacebookId = String(fbUser?.id || "");
+        }
+      } catch {
+        activeFacebookName = "Error loading account";
+        activeFacebookId = "";
+      }
+
+      updateContextUI();
+      loadReusableDefaults();
+    }
+
+    function parseJsonSafe(value) {
+      if (!value) return null;
+      if (typeof value !== "string") return value;
+      const trimmed = value.trim();
+      const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+      const body = fenced ? fenced[1].trim() : trimmed;
+      try {
+        return JSON.parse(body);
+      } catch {
+        return null;
+      }
+    }
+
+    function extractHashtags(text) {
+      const matches = String(text || "").match(/#[a-zA-Z0-9_]+/g) || [];
+      const unique = [];
+      matches.forEach((tag) => {
+        const normalized = tag.toLowerCase();
+        if (!unique.some((x) => x.toLowerCase() === normalized)) unique.push(tag);
+      });
+      return unique;
+    }
+
+    function buildHashtagsFromKeywords(keywords) {
+      return String(keywords || "")
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean)
+        .slice(0, 8)
+        .map((x) => `#${x.replace(/\s+/g, "")}`);
+    }
+
+    function combineDescriptionWithDefaults(baseDescription) {
+      const defaults = getReusableDefaultsFromForm();
+      const defaultBlock = buildReusableDetailsBlock(defaults);
+      const cleanBase = String(baseDescription || "").trim();
+      if (!defaultBlock) return cleanBase;
+      return [cleanBase, defaultBlock].filter(Boolean).join("\n\n");
+    }
+
+    async function generateImageSEO() {
+      const prompt = document.getElementById("imagePrompt").value.trim();
+
+      if (!selectedImageDataUrl && !prompt) {
+        alert("Please choose an image, add a brief, or both.");
+        return;
+      }
+
+      setLoading("generateBtn", true, "Generating SEO...", "Generate Image SEO");
+      setStatus("Generating professional SEO content for your image post...", "working");
+
+      try {
+        const topicParts = [
+          "Create polished social media SEO copy for a business-promotional Facebook image post.",
+          prompt ? `Campaign brief: ${prompt}` : "",
+          activeFolderName ? `Workspace: ${activeFolderName}` : "",
+          activeFacebookName ? `Account: ${activeFacebookName}` : ""
+        ].filter(Boolean);
+
+        const res = await fetch(`${apiBase}/generate-premium-seo`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topic: topicParts.join("\n"),
+            image_url: selectedImageDataUrl,
+            folder_id: activeFolderId,
+            folder_name: activeFolderName,
+            facebook_account: activeFacebookName
+          })
+        });
+
+        const bodyText = await res.text();
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
+
+        let json;
+        try {
+          json = JSON.parse(bodyText);
+        } catch {
+          throw new Error("Bad JSON from server");
+        }
+
+        if (json.error) {
+          throw new Error(typeof json.error === "string" ? json.error : "SEO generation failed");
+        }
+
+        const raw = json?.data?.response ?? json?.data ?? {};
+        const parsed = parseJsonSafe(raw) || raw || {};
+        const d = parsed?.data ?? parsed ?? {};
+
+        const youtube = d.youtube || {};
+        const tiktok = d.tiktok || {};
+        const facebook = d.facebook || {};
+
+        const generatedKeywords = String(youtube.keywords || youtube.tags || "").trim();
+        const generatedTitle = String(facebook.title || youtube.title || "").trim();
+        const baseDescription = String(facebook.descriptionAndTags || facebook.description || youtube.description || "").trim();
+        const combinedDescription = combineDescriptionWithDefaults(baseDescription);
+
+        const hashtagPool = [
+          ...extractHashtags(baseDescription),
+          ...extractHashtags(tiktok.allInOne || "")
+        ];
+
+        const hashtags = hashtagPool.length
+          ? hashtagPool.join(" ")
+          : buildHashtagsFromKeywords(generatedKeywords).join(" ");
+
+        document.getElementById("fbImageTitle").value = generatedTitle;
+        document.getElementById("fbImageDescription").value = combinedDescription;
+        document.getElementById("fbImageHashtags").value = hashtags;
+        document.getElementById("fbImageKeywords").value = generatedKeywords;
+
+        setStatus(`SEO generated for ${activeFolderName || "this workspace"}.`, "success");
+      } catch (err) {
+        console.error(err);
+        setStatus(err?.message || "SEO generation failed", "error");
+        alert(`SEO generation failed: ${err?.message || err}`);
+      } finally {
+        setLoading("generateBtn", false, "Generating SEO...", "Generate Image SEO");
+      }
+    }
+
+    async function uploadFacebookImagePost() {
+      if (!ensureFolderContext()) return;
+      if (!ensureLinkedFacebook()) return;
+      if (!selectedImageFile) {
+        alert("Please upload an image first.");
+        return;
+      }
+
+      const title = document.getElementById("fbImageTitle").value.trim();
+      const description = document.getElementById("fbImageDescription").value.trim();
+      const hashtags = document.getElementById("fbImageHashtags").value.trim();
+      const keywords = document.getElementById("fbImageKeywords").value.trim();
+
+      if (!title) {
+        alert("Please provide a post title.");
+        return;
+      }
+
+      const fullDescription = [
+        description,
+        hashtags,
+        keywords ? `Keywords: ${keywords}` : ""
+      ].filter(Boolean).join("\n\n");
+
+      const form = new FormData();
+      form.append("title", title);
+      form.append("description", fullDescription);
+      form.append("image", selectedImageFile);
+
+      setLoading("uploadBtn", true, "Uploading image...", "Upload Image to Facebook");
+      setStatus(`Uploading image post to "${activeFacebookName}"...`, "working");
+
+      try {
+        const res = await fetch(`${apiBase}/facebook/upload-image`, {
+          method: "POST",
+          headers: {
+            folder_id: activeFolderId,
+            user_id: userScope
+          },
+          body: form
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || "Facebook image upload failed");
+        }
+
+        saveReusableDefaults();
+        setStatus(`Image post published to "${activeFacebookName}".`, "success");
+
+        const publishedUrl = data.facebookUrl || data.url || "";
+        if (publishedUrl) {
+          const openNow = confirm("Image post uploaded successfully. Open the post now?");
+          if (openNow) window.open(publishedUrl, "_blank");
+        }
+      } catch (err) {
+        console.error(err);
+        setStatus(err?.message || "Facebook image upload failed", "error");
+        alert(`Upload failed: ${err?.message || err}`);
+      } finally {
+        setLoading("uploadBtn", false, "Uploading image...", "Upload Image to Facebook");
+      }
+    }
+
+    async function copyFacebookImageText() {
+      const title = document.getElementById("fbImageTitle").value.trim();
+      const description = document.getElementById("fbImageDescription").value.trim();
+      const hashtags = document.getElementById("fbImageHashtags").value.trim();
+      const block = [title, description, hashtags].filter(Boolean).join("\n\n");
+
+      if (!block) {
+        alert("Nothing to copy yet.");
+        return;
+      }
+
+      await navigator.clipboard.writeText(block);
+      setStatus("Image caption copied to clipboard.", "success");
+    }
+
+    function goToVideoPage() {
+      const query = getContextQuery();
+      window.location.href = query ? `createpost.html?${query}` : "createpost.html";
+    }
+
+    document.getElementById("postImage").addEventListener("change", (e) => {
+      handleImageFile(e.target.files?.[0]);
+    });
+
+    ["dragenter", "dragover"].forEach((evt) => {
+      dropzone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        dropzone.classList.add("active");
+      });
+    });
+
+    ["dragleave", "drop"].forEach((evt) => {
+      dropzone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        dropzone.classList.remove("active");
+      });
+    });
+
+    dropzone.addEventListener("drop", (e) => {
+      const file = e.dataTransfer?.files?.[0];
+      handleImageFile(file);
+      const input = document.getElementById("postImage");
+      if (file && input) {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        input.files = dt.files;
+      }
+    });
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        window.location.href = "signin.html";
+        return;
+      }
+
+      userScope = user.uid;
+      await loadFolderContext();
+      setStatus("Ready to generate and publish image content.");
+    });
+
+    window.generateImageSEO = generateImageSEO;
+    window.uploadFacebookImagePost = uploadFacebookImagePost;
+    window.copyFacebookImageText = copyFacebookImageText;
+    window.saveReusableDefaults = saveReusableDefaults;
+    window.goToVideoPage = goToVideoPage;
+  </script>
+</body>
+</html>

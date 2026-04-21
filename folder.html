@@ -202,14 +202,14 @@
 
     <div id="accountList"></div>
 
-    <a id="createPostLink" href="create-post.html" class="btn-create-post">
-      <i class="fa-solid fa-wand-magic-sparkles"></i> Create New Post
+    <a id="createPostLink" href="publish-choice.html" class="btn-create-post">
+      <i class="fa-solid fa-wand-magic-sparkles"></i> Create / Generate SEO
     </a>
   </div>
 
   <nav class="bottom-nav">
     <a href="app.html" class="nav-item active"><i class="fa-solid fa-house"></i><span>HOME</span></a>
-    <a href="create-post.html" id="aiSeoNavLink" class="nav-item"><i class="fa-solid fa-wand-magic-sparkles"></i><span>AI SEO</span></a>
+    <a href="publish-choice.html" id="aiSeoNavLink" class="nav-item"><i class="fa-solid fa-wand-magic-sparkles"></i><span>AI SEO</span></a>
     <a href="settings.html" class="nav-item"><i class="fa-solid fa-user"></i><span>PROFILE</span></a>
   </nav>
 
@@ -246,9 +246,9 @@
       if (folderId) {
         const postParams = `folder_id=${encodeURIComponent(folderId)}&folder_name=${encodeURIComponent(folderName)}`;
         const link = document.getElementById("createPostLink");
-        if (link) link.href = `create-post.html?${postParams}`;
+        if (link) link.href = `publish-choice.html?${postParams}`;
         const aiSeoNav = document.getElementById("aiSeoNavLink");
-        if (aiSeoNav) aiSeoNav.href = `create-post.html?${postParams}`;
+        if (aiSeoNav) aiSeoNav.href = `publish-choice.html?${postParams}`;
       }
     }
 
