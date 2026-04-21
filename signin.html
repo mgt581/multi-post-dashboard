@@ -264,6 +264,7 @@
             }
         }).catch((error) => {
             console.error("Google Auth Error:", error);
+            alert(error?.message || "Google sign-in failed");
         });
 
         window.switchMode = (mode) => {
@@ -286,11 +287,18 @@
             loader.style.display = "block";
 
             try {
+                let cred;
                 if (currentMode === "login") {
-                    await signInWithEmailAndPassword(auth, email, password);
+                    cred = await signInWithEmailAndPassword(auth, email, password);
                 } else {
-                    await createUserWithEmailAndPassword(auth, email, password);
+                    cred = await createUserWithEmailAndPassword(auth, email, password);
                 }
+                const signedInUser = cred?.user || auth.currentUser;
+                if (!signedInUser) {
+                    throw new Error("Sign-in succeeded but session was not initialized. Please refresh and try again.");
+                }
+                localStorage.setItem("currentUserKey", signedInUser.email || signedInUser.uid);
+                window.location.replace("app.html");
             } catch (err) {
                 alert(err.message);
                 btnText.style.display = "block";
