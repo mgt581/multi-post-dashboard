@@ -391,6 +391,40 @@ Get Started for Free
 
 </section>
 
+<section class="section" id="app-purpose">
+
+<h2>App Purpose</h2>
+
+<p>
+Multipost is a social media management web application for agencies and content teams.
+It helps users organize client workspaces, generate SEO-ready post content, and publish media
+to connected social platforms from one dashboard.
+</p>
+
+<div class="grid">
+
+<div class="card">
+<div class="icon"><i class="fa-solid fa-bullseye"></i></div>
+<h3>Primary Use Case</h3>
+<p>Manage multiple client social accounts in one place without repeated login switching.</p>
+</div>
+
+<div class="card">
+<div class="icon"><i class="fa-solid fa-pen-ruler"></i></div>
+<h3>Content Workflow</h3>
+<p>Generate platform-specific titles, descriptions, hashtags and keywords with AI assistance.</p>
+</div>
+
+<div class="card">
+<div class="icon"><i class="fa-solid fa-share-nodes"></i></div>
+<h3>Publishing Workflow</h3>
+<p>Upload and publish video and image posts to connected social accounts after user approval.</p>
+</div>
+
+</div>
+
+</section>
+
 <section class="section">
 
 <h2>How Multipost Works</h2>
@@ -521,35 +555,5 @@ Part of <a href="https://bryantgroupholdings.co.uk" target="_blank" rel="noopene
 </footer>
 
 </div>
-
-<script type="module">
-
-import { initializeApp }
-from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-
-import {
-getAuth,
-onAuthStateChanged
-}
-from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-const firebaseConfig={
-apiKey:"AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
-authDomain:"multi-post-daefc.firebaseapp.com",
-projectId:"multi-post-daefc",
-storageBucket:"multi-post-daefc.appspot.com",
-messagingSenderId:"1099160429576",
-appId:"1:1099160429576:web:6c31651e46d6ad1cd35dbd"
-};
-
-const app=initializeApp(firebaseConfig);
-const auth=getAuth(app);
-
-onAuthStateChanged(auth,user=>{
-if(user){
-window.location.href="app.html";
-}
-});
-</script>
 </body>
 </html>

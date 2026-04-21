@@ -555,7 +555,7 @@ Follow for daily trending content! \u{1F44F}
         )}&redirect_uri=${encodeURIComponent(
           fbRedirectUri
         )}&scope=${encodeURIComponent(
-          "public_profile,pages_show_list,pages_read_engagement,pages_manage_posts"
+          "pages_show_list,pages_manage_posts"
         )}&response_type=code&state=${encodeURIComponent(state)}`;
         return Response.redirect(fbAuthUrl);
       }
