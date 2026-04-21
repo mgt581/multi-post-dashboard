@@ -235,7 +235,8 @@ Generate trending, specific SEO \u2014 not generic content.` }
       if (reason === "quotaExceeded") {
         throw new Error("YouTube API quota exceeded for today. Please try again tomorrow.");
       }
-      throw new Error("YouTube upload was forbidden (403). Please re-link your YouTube account or check that your channel is active.");
+      const reasonDetail = reason ? ` (reason: ${reason})` : "";
+      throw new Error(`YouTube upload was forbidden (403${reasonDetail}). Please re-link your YouTube account or check that your channel is active.`);
     }, "throwYouTube403Error");
     const encodeState = /* @__PURE__ */ __name((obj) => {
       try {
