@@ -363,6 +363,30 @@ Generate trending, specific SEO \u2014 not generic content.` }
       });
       return { video_id: videoId, finish: finishRes };
     }, "publishFacebookReelFromUrl");
+    const publishFacebookPhotoFromUrl = /* @__PURE__ */ __name(async ({ pageId, pageAccessToken, imageUrl, caption }) => {
+      const proof = await appsecretProof(pageAccessToken);
+      const proofParam = proof ? `?appsecret_proof=${encodeURIComponent(proof)}` : "";
+      const out = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/photos${proofParam}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          access_token: pageAccessToken,
+          url: imageUrl,
+          caption: caption || "",
+          published: "true"
+        })
+      });
+      return out;
+    }, "publishFacebookPhotoFromUrl");
+    const looksLikeImageUrl = /* @__PURE__ */ __name((mediaUrl) => {
+      try {
+        const u = new URL(String(mediaUrl || ""));
+        const pathname = (u.pathname || "").toLowerCase();
+        return /\.(png|jpe?g|webp|gif|bmp|svg)$/.test(pathname);
+      } catch {
+        return false;
+      }
+    }, "looksLikeImageUrl");
     const cleanText = /* @__PURE__ */ __name((value) => {
       return String(value || "").replace(/\s+/g, " ").trim();
     }, "cleanText");
@@ -1687,7 +1711,7 @@ Follow for daily trending content! \u{1F44F}
         }
       }
       if (url.pathname === "/api/post-video" && request.method === "POST") {
-        const { account_id, video_url, title, platform, description, page_id, folder_id } = await request.json();
+        const { account_id, video_url, image_url, media_type, title, platform, description, page_id, folder_id } = await request.json();
         const account = account_id ? await env.DB.prepare("SELECT * FROM accounts WHERE id = ?").bind(account_id).first() : null;
         const bearer = account?.access_token;
         if (platform === "tiktok") {
@@ -1718,6 +1742,8 @@ Follow for daily trending content! \u{1F44F}
         }
         if (platform === "facebook") {
           const desc = String(description || title || "").trim();
+          const providedMediaUrl = String(image_url || video_url || "").trim();
+          const postAsImage = String(media_type || "").toLowerCase() === "image" || !!image_url || looksLikeImageUrl(providedMediaUrl);
           let pageId = page_id ? String(page_id) : null;
           let pageAccessToken = null;
           if (!pageAccessToken && account?.platform === "facebook_page" && account?.access_token) {
@@ -1741,19 +1767,30 @@ Follow for daily trending content! \u{1F44F}
               headers: jsonHeaders
             });
           }
-          if (!video_url) {
-            return new Response(JSON.stringify({ success: false, error: "Missing video_url" }), {
+          if (!providedMediaUrl) {
+            return new Response(JSON.stringify({ success: false, error: "Missing media URL (image_url or video_url)" }), {
               status: 400,
+              headers: jsonHeaders
+            });
+          }
+          if (postAsImage) {
+            const out = await publishFacebookPhotoFromUrl({
+              pageId,
+              pageAccessToken: String(pageAccessToken),
+              imageUrl: providedMediaUrl,
+              caption: desc
+            });
+            return new Response(JSON.stringify({ success: true, data: out, postType: "image" }), {
               headers: jsonHeaders
             });
           }
           const out = await publishFacebookReelFromUrl({
             pageId,
             pageAccessToken: String(pageAccessToken),
-            videoUrl: String(video_url),
+            videoUrl: providedMediaUrl,
             description: desc
           });
-          return new Response(JSON.stringify({ success: true, data: out }), {
+          return new Response(JSON.stringify({ success: true, data: out, postType: "video" }), {
             headers: jsonHeaders
           });
         }
