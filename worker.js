@@ -212,6 +212,7 @@ Generate trending, specific SEO \u2014 not generic content.` }
     const redirectUri = `${siteBaseUrl}/api/auth/callback/youtube`;
     const fbRedirectUri = `${siteBaseUrl}/api/auth/callback/facebook`;
     const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
+    const MAX_IMAGE_SIZE_BYTES = 25 * 1024 * 1024;
     const TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1e3;
     const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
     const SESSION_EXPIRY_SECONDS = 3600;
@@ -1408,6 +1409,87 @@ Follow for daily trending content! \u{1F44F}
         } catch (err) {
           console.error("Facebook finish-upload error:", err);
           return new Response(JSON.stringify({ success: false, error: err.message || "Finish failed" }), {
+            status: 500,
+            headers: jsonHeaders
+          });
+        }
+      }
+      if (url.pathname === "/api/facebook/upload-image" && request.method === "POST") {
+        const folder_id = request.headers.get("folder_id") || "";
+        const user_id = request.headers.get("user_id") || "";
+        if (!folder_id || !user_id) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const formData = await request.formData();
+        const title = String(formData.get("title") || "").trim();
+        const description = String(formData.get("description") || "").trim();
+        const imageFile = formData.get("image");
+        if (!imageFile || !(imageFile instanceof File)) {
+          return new Response(JSON.stringify({ success: false, error: "Valid image file required" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        if (!String(imageFile.type || "").toLowerCase().startsWith("image/")) {
+          return new Response(JSON.stringify({ success: false, error: "File must be an image" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        if (imageFile.size > MAX_IMAGE_SIZE_BYTES) {
+          return new Response(JSON.stringify({ success: false, error: "Image too large (>25MB)" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const pageAccount = await env.DB.prepare(
+          "SELECT facebook_page_id, facebook_page_access_token FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook_page' LIMIT 1"
+        ).bind(folder_id, user_id).first();
+        if (!pageAccount?.facebook_page_id || !pageAccount?.facebook_page_access_token) {
+          return new Response(JSON.stringify({ success: false, error: "No Facebook Page selected. Please select a page in your workspace settings." }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const pageId = String(pageAccount.facebook_page_id);
+        const pageAccessToken = String(pageAccount.facebook_page_access_token);
+        const caption = [title, description].filter(Boolean).join("\n\n");
+        try {
+          const uploadProof = await appsecretProof(pageAccessToken);
+          const uploadProofParam = uploadProof ? `?appsecret_proof=${encodeURIComponent(uploadProof)}` : "";
+          const fbForm = new FormData();
+          fbForm.append("access_token", pageAccessToken);
+          if (caption) fbForm.append("caption", caption);
+          fbForm.append("published", "true");
+          fbForm.append("source", imageFile, imageFile.name || "image.jpg");
+          const res = await fetch(`${fbGraph}/${encodeURIComponent(pageId)}/photos${uploadProofParam}`, {
+            method: "POST",
+            body: fbForm
+          });
+          const out = await safeJson(res);
+          if (!res.ok || out?.error) {
+            throw new Error(`Facebook image upload failed: ${JSON.stringify(out?.error || out)}`);
+          }
+          const postId = String(out?.post_id || "").trim();
+          const photoId = String(out?.id || "").trim();
+          return new Response(JSON.stringify({
+            success: true,
+            postId,
+            photoId,
+            facebookUrl: postId ? `https://www.facebook.com/${postId}` : photoId ? `https://www.facebook.com/photo/?fbid=${photoId}` : ""
+          }), { headers: jsonHeaders });
+        } catch (err) {
+          console.error("Facebook image upload error:", err);
+          const errMsg = err.message || "Facebook image upload failed";
+          const isAuthErr = errMsg.includes("OAuthException") || errMsg.includes('"code":190') || errMsg.includes('"code": 190');
+          const friendlyMsg = isAuthErr ? "Your Facebook authorization has expired. Please re-link your Facebook account from your workspace settings (go to your folder, remove the Facebook account, then link it again)." : errMsg;
+          return new Response(JSON.stringify({
+            success: false,
+            error: friendlyMsg
+          }), {
             status: 500,
             headers: jsonHeaders
           });
