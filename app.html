@@ -106,90 +106,6 @@
     .card-sub { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
 
     .chevron { color: var(--muted); font-size: 14px; }
-    .plans-wrap {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 16px;
-      box-shadow: var(--shadow);
-    }
-    .plans-head {
-      margin: 0 0 6px;
-      font-size: 14px;
-      font-weight: 800;
-      color: #f8fafc;
-    }
-    .plans-subhead {
-      margin: 0 0 12px;
-      font-size: 12px;
-      color: var(--muted);
-    }
-    .plans-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 10px;
-    }
-    .plan-link {
-      text-decoration: none;
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 12px;
-      background: rgba(255,255,255,0.04);
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-      position: relative;
-    }
-    .plan-link:hover { border-color: rgba(14, 165, 233, 0.65); }
-    .plan-link.yearly {
-      background: linear-gradient(140deg, rgba(14,165,233,0.14), rgba(124,58,237,0.1));
-      border-color: rgba(14, 165, 233, 0.4);
-    }
-    .plan-link.featured {
-      border-color: rgba(34, 197, 94, 0.65);
-      box-shadow: 0 12px 32px rgba(34, 197, 94, 0.2);
-      transform: translateY(-1px);
-    }
-    .plan-badge {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      font-size: 10px;
-      font-weight: 800;
-      letter-spacing: 0.4px;
-      color: #ecfeff;
-      background: rgba(14, 165, 233, 0.3);
-      border: 1px solid rgba(125, 211, 252, 0.5);
-      border-radius: 999px;
-      padding: 3px 8px;
-    }
-    .plan-title {
-      font-size: 14px;
-      font-weight: 800;
-      color: #f8fafc;
-    }
-    .plan-sub {
-      font-size: 12px;
-      color: var(--muted);
-      font-weight: 700;
-    }
-    .plan-sub.trial {
-      color: #86efac;
-      font-weight: 800;
-    }
-    .plan-cta {
-      margin-top: 2px;
-      font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #bae6fd;
-    }
-    @media (min-width: 560px) {
-      .plans-grid { grid-template-columns: 1fr 1fr; }
-    }
-
     /* Folder action buttons */
     .folder-actions {
       display: flex;
@@ -230,44 +146,6 @@
       </button>
     </header>
 
-    <div class="plans-wrap">
-      <p class="plans-head">Upgrade Your Plan</p>
-      <p class="plans-subhead">Yearly options include better value. Pro Yearly includes a 7 day free trial.</p>
-      <div class="plans-grid">
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="monthly">
-          <span class="plan-title">Pro Monthly £14.99</span>
-          <span class="plan-sub">Pay monthly</span>
-          <span class="plan-cta">Choose Pro Monthly</span>
-        </a>
-        <a class="plan-link yearly featured checkout-plan-link" href="#" data-plan="pro" data-interval="yearly">
-          <span class="plan-badge">Best Value</span>
-          <span class="plan-title">Pro Yearly £149</span>
-          <span class="plan-sub trial">Includes 7 Day Free Trial</span>
-          <span class="plan-cta">Start 7 Day Free Trial</span>
-        </a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="monthly">
-          <span class="plan-title">Pro Plus Monthly £49</span>
-          <span class="plan-sub">Pay monthly</span>
-          <span class="plan-cta">Choose Pro Plus Monthly</span>
-        </a>
-        <a class="plan-link yearly checkout-plan-link" href="#" data-plan="pro_plus" data-interval="yearly">
-          <span class="plan-title">Pro Plus Yearly £529.99</span>
-          <span class="plan-sub">Save with annual billing</span>
-          <span class="plan-cta">Choose Pro Plus Yearly</span>
-        </a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="monthly">
-          <span class="plan-title">Agency Monthly £249</span>
-          <span class="plan-sub">Pay monthly</span>
-          <span class="plan-cta">Choose Agency Monthly</span>
-        </a>
-        <a class="plan-link yearly checkout-plan-link" href="#" data-plan="agency" data-interval="yearly">
-          <span class="plan-title">Agency Yearly £2,499</span>
-          <span class="plan-sub">Save with annual billing</span>
-          <span class="plan-cta">Choose Agency Yearly</span>
-        </a>
-      </div>
-    </div>
-
     <div>
       <button class="btn" onclick="createNewFolder()">
         <i class="fa-solid fa-plus" style="margin-right:8px;"></i> Create New Brand
@@ -283,43 +161,6 @@
       </div>
     </div>
 
-    <div class="plans-wrap">
-      <p class="plans-head">Upgrade Your Plan</p>
-      <p class="plans-subhead">Yearly options include better value. Pro Yearly includes a 7 day free trial.</p>
-      <div class="plans-grid">
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="monthly">
-          <span class="plan-title">Pro Monthly £14.99</span>
-          <span class="plan-sub">Pay monthly</span>
-          <span class="plan-cta">Choose Pro Monthly</span>
-        </a>
-        <a class="plan-link yearly featured checkout-plan-link" href="#" data-plan="pro" data-interval="yearly">
-          <span class="plan-badge">Best Value</span>
-          <span class="plan-title">Pro Yearly £149</span>
-          <span class="plan-sub trial">Includes 7 Day Free Trial</span>
-          <span class="plan-cta">Start 7 Day Free Trial</span>
-        </a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="monthly">
-          <span class="plan-title">Pro Plus Monthly £49</span>
-          <span class="plan-sub">Pay monthly</span>
-          <span class="plan-cta">Choose Pro Plus Monthly</span>
-        </a>
-        <a class="plan-link yearly checkout-plan-link" href="#" data-plan="pro_plus" data-interval="yearly">
-          <span class="plan-title">Pro Plus Yearly £529.99</span>
-          <span class="plan-sub">Save with annual billing</span>
-          <span class="plan-cta">Choose Pro Plus Yearly</span>
-        </a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="monthly">
-          <span class="plan-title">Agency Monthly £249</span>
-          <span class="plan-sub">Pay monthly</span>
-          <span class="plan-cta">Choose Agency Monthly</span>
-        </a>
-        <a class="plan-link yearly checkout-plan-link" href="#" data-plan="agency" data-interval="yearly">
-          <span class="plan-title">Agency Yearly £2,499</span>
-          <span class="plan-sub">Save with annual billing</span>
-          <span class="plan-cta">Choose Agency Yearly</span>
-        </a>
-      </div>
-    </div>
   </div>
 
   <nav class="bottom-nav">
@@ -337,69 +178,7 @@
       : "https://multipost-seo-worker.alexbryant.workers.dev/api";
 
     let userScope = null;
-    window.billingUserEmail = "";
-
     const scopedKey = name => `${name}:${userScope}`;
-    function getClientPlatform() {
-      const qp = new URLSearchParams(window.location.search);
-      const q = (qp.get("app_platform") || "").trim().toLowerCase();
-      const ls = (localStorage.getItem("app_platform") || "").trim().toLowerCase();
-      const uaAndroid = /Android/i.test(navigator.userAgent || "");
-      const fromOverride = q || ls;
-      if (fromOverride === "android") return "android";
-      if (fromOverride === "web") return "web";
-      return uaAndroid ? "web" : "web";
-    }
-
-    async function startCheckoutForPlan(planKey, billingInterval, triggerEl) {
-      if (!userScope) {
-        window.location.href = "signin.html";
-        return;
-      }
-      const platform = getClientPlatform();
-      if (platform === "android") {
-        alert("Checkout is disabled for Android app mode.");
-        return;
-      }
-      const oldText = triggerEl.textContent;
-      triggerEl.textContent = "Opening...";
-      triggerEl.style.pointerEvents = "none";
-      try {
-        const res = await fetch(`${apiBase}/billing/create-checkout-session`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", client_platform: platform },
-          body: JSON.stringify({
-            user_id: userScope,
-            user_email: window.billingUserEmail || "",
-            plan_key: planKey,
-            billing_interval: billingInterval,
-            client_platform: platform,
-            success_url: "https://multipostapp.co.uk/app.html",
-            cancel_url: "https://multipostapp.co.uk/app.html?billing=cancelled"
-          })
-        });
-        const out = await res.json();
-        if (!res.ok || !out?.success || !out?.url) throw new Error(out?.error || "Failed to create checkout session");
-        window.location.href = out.url;
-      } catch (err) {
-        alert(err?.message || "Unable to start checkout");
-        triggerEl.textContent = oldText;
-        triggerEl.style.pointerEvents = "auto";
-      }
-    }
-
-    function wireCheckoutPlanLinks() {
-      document.querySelectorAll(".checkout-plan-link").forEach((link) => {
-        link.addEventListener("click", (e) => {
-          e.preventDefault();
-          const plan = String(link.dataset.plan || "").trim();
-          const interval = String(link.dataset.interval || "").trim();
-          if (!plan || !interval) return;
-          startCheckoutForPlan(plan, interval, link);
-        });
-      });
-    }
-    wireCheckoutPlanLinks();
 
     async function loadFolders() {
       if (!userScope) return;
@@ -534,7 +313,6 @@
         return;
       }
       userScope = user.uid;
-      window.billingUserEmail = user.email || "";
       document.getElementById("userGreeting").innerText = user.displayName ? user.displayName.split(' ')[0] : "Your Brands";
       loadFolders();
     });

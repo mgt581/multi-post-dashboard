@@ -161,122 +161,6 @@
       color: var(--muted);
       line-height: 1.45;
     }
-    .billing-plan-grid {
-      width: 100%;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-    .billing-field label {
-      display: block;
-      margin-bottom: 6px;
-      font-size: 11px;
-      color: var(--muted);
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-    }
-    .billing-field select {
-      width: 100%;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,0.06);
-      color: var(--text);
-      padding: 10px 12px;
-      font-size: 13px;
-      font-weight: 700;
-      font-family: inherit;
-    }
-    .billing-pricing {
-      width: 100%;
-      font-size: 12px;
-      color: var(--muted);
-      line-height: 1.45;
-    }
-    .plans-wrap {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 16px;
-      box-shadow: var(--shadow);
-    }
-    .plans-head {
-      margin: 0 0 6px;
-      font-size: 14px;
-      font-weight: 800;
-      color: #f8fafc;
-    }
-    .plans-subhead {
-      margin: 0 0 12px;
-      font-size: 12px;
-      color: var(--muted);
-    }
-    .plans-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 10px;
-    }
-    .plan-link {
-      text-decoration: none;
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 12px;
-      background: rgba(255,255,255,0.04);
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-      position: relative;
-    }
-    .plan-link:hover { border-color: rgba(14, 165, 233, 0.65); }
-    .plan-link.yearly {
-      background: linear-gradient(140deg, rgba(14,165,233,0.14), rgba(124,58,237,0.1));
-      border-color: rgba(14, 165, 233, 0.4);
-    }
-    .plan-link.featured {
-      border-color: rgba(34, 197, 94, 0.65);
-      box-shadow: 0 12px 32px rgba(34, 197, 94, 0.2);
-      transform: translateY(-1px);
-    }
-    .plan-badge {
-      position: absolute;
-      top: 8px;
-      right: 8px;
-      font-size: 10px;
-      font-weight: 800;
-      letter-spacing: 0.4px;
-      color: #ecfeff;
-      background: rgba(14, 165, 233, 0.3);
-      border: 1px solid rgba(125, 211, 252, 0.5);
-      border-radius: 999px;
-      padding: 3px 8px;
-    }
-    .plan-title {
-      font-size: 14px;
-      font-weight: 800;
-      color: #f8fafc;
-    }
-    .plan-sub {
-      font-size: 12px;
-      color: var(--muted);
-      font-weight: 700;
-    }
-    .plan-sub.trial {
-      color: #86efac;
-      font-weight: 800;
-    }
-    .plan-cta {
-      margin-top: 2px;
-      font-size: 11px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #bae6fd;
-    }
-    @media (min-width: 560px) {
-      .plans-grid { grid-template-columns: 1fr 1fr; }
-    }
-
     /* Bottom Nav */
     .bottom-nav {
       position: fixed;
@@ -314,44 +198,6 @@
       <div class="badge">Live</div>
     </header>
 
-    <div class="plans-wrap">
-      <p class="plans-head">Upgrade Your Plan</p>
-      <p class="plans-subhead">Yearly options include better value. Pro Yearly includes a 7 day free trial.</p>
-      <div class="plans-grid">
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="monthly">
-          <span class="plan-title">Pro Monthly £14.99</span>
-          <span class="plan-sub">Pay monthly</span>
-          <span class="plan-cta">Choose Pro Monthly</span>
-        </a>
-        <a class="plan-link yearly featured checkout-plan-link" href="#" data-plan="pro" data-interval="yearly">
-          <span class="plan-badge">Best Value</span>
-          <span class="plan-title">Pro Yearly £149</span>
-          <span class="plan-sub trial">Includes 7 Day Free Trial</span>
-          <span class="plan-cta">Start 7 Day Free Trial</span>
-        </a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="monthly">
-          <span class="plan-title">Pro Plus Monthly £49</span>
-          <span class="plan-sub">Pay monthly</span>
-          <span class="plan-cta">Choose Pro Plus Monthly</span>
-        </a>
-        <a class="plan-link yearly checkout-plan-link" href="#" data-plan="pro_plus" data-interval="yearly">
-          <span class="plan-title">Pro Plus Yearly £529.99</span>
-          <span class="plan-sub">Save with annual billing</span>
-          <span class="plan-cta">Choose Pro Plus Yearly</span>
-        </a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="monthly">
-          <span class="plan-title">Agency Monthly £249</span>
-          <span class="plan-sub">Pay monthly</span>
-          <span class="plan-cta">Choose Agency Monthly</span>
-        </a>
-        <a class="plan-link yearly checkout-plan-link" href="#" data-plan="agency" data-interval="yearly">
-          <span class="plan-title">Agency Yearly £2,499</span>
-          <span class="plan-sub">Save with annual billing</span>
-          <span class="plan-cta">Choose Agency Yearly</span>
-        </a>
-      </div>
-    </div>
-
     <div class="card profile-hero">
       <div class="avatar">
         <i class="fa-solid fa-user"></i>
@@ -373,28 +219,11 @@
         </div>
       </div>
       <div class="billing-actions">
-        <button id="startTrialBtn" class="mini-btn primary" type="button">Start 7 Day Free Trial</button>
+        <button id="openPricingBtn" class="mini-btn primary" type="button">View Pricing</button>
         <button id="manageBillingBtn" class="mini-btn" type="button">Manage Billing</button>
         <button id="refreshBillingBtn" class="mini-btn" type="button">Refresh</button>
       </div>
-      <div class="billing-plan-grid">
-        <div class="billing-field">
-          <label for="planSelect">Plan</label>
-          <select id="planSelect">
-            <option value="pro">Pro</option>
-            <option value="pro_plus">Pro Plus</option>
-            <option value="agency">Agency</option>
-          </select>
-        </div>
-        <div class="billing-field">
-          <label for="intervalSelect">Billing</label>
-          <select id="intervalSelect">
-            <option value="monthly">Monthly</option>
-            <option value="yearly">Yearly (7-day trial)</option>
-          </select>
-        </div>
-      </div>
-      <div id="pricingHint" class="billing-pricing">Pro £14.99/mo or £149/yr. Pro Plus £49/mo or £529.99/yr. Agency £249/mo or £2,499/yr.</div>
+      <div class="billing-note">Upgrade and checkout options are now in the dedicated pricing page.</div>
     </div>
 
     <div class="section-title">Security</div>
@@ -433,43 +262,6 @@
       </div>
     </a>
 
-    <div class="plans-wrap">
-      <p class="plans-head">Upgrade Your Plan</p>
-      <p class="plans-subhead">Yearly options include better value. Pro Yearly includes a 7 day free trial.</p>
-      <div class="plans-grid">
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="monthly">
-          <span class="plan-title">Pro Monthly £14.99</span>
-          <span class="plan-sub">Pay monthly</span>
-          <span class="plan-cta">Choose Pro Monthly</span>
-        </a>
-        <a class="plan-link yearly featured checkout-plan-link" href="#" data-plan="pro" data-interval="yearly">
-          <span class="plan-badge">Best Value</span>
-          <span class="plan-title">Pro Yearly £149</span>
-          <span class="plan-sub trial">Includes 7 Day Free Trial</span>
-          <span class="plan-cta">Start 7 Day Free Trial</span>
-        </a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="monthly">
-          <span class="plan-title">Pro Plus Monthly £49</span>
-          <span class="plan-sub">Pay monthly</span>
-          <span class="plan-cta">Choose Pro Plus Monthly</span>
-        </a>
-        <a class="plan-link yearly checkout-plan-link" href="#" data-plan="pro_plus" data-interval="yearly">
-          <span class="plan-title">Pro Plus Yearly £529.99</span>
-          <span class="plan-sub">Save with annual billing</span>
-          <span class="plan-cta">Choose Pro Plus Yearly</span>
-        </a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="monthly">
-          <span class="plan-title">Agency Monthly £249</span>
-          <span class="plan-sub">Pay monthly</span>
-          <span class="plan-cta">Choose Agency Monthly</span>
-        </a>
-        <a class="plan-link yearly checkout-plan-link" href="#" data-plan="agency" data-interval="yearly">
-          <span class="plan-title">Agency Yearly £2,499</span>
-          <span class="plan-sub">Save with annual billing</span>
-          <span class="plan-cta">Choose Agency Yearly</span>
-        </a>
-      </div>
-    </div>
   </div>
 
   <nav class="bottom-nav">
@@ -508,11 +300,6 @@
       ? "/api"
       : "https://multipost-seo-worker.alexbryant.workers.dev/api";
     let billingUser = null;
-    const PLAN_PRICING = {
-      pro: { monthly: "£14.99/mo", yearly: "£149/yr" },
-      pro_plus: { monthly: "£49/mo", yearly: "£529.99/yr" },
-      agency: { monthly: "£249/mo", yearly: "£2,499/yr" }
-    };
 
     function getClientPlatform() {
       const qp = new URLSearchParams(window.location.search);
@@ -535,26 +322,15 @@
       note.textContent = noteText;
     }
 
-    function updatePricingHint() {
-      const plan = document.getElementById("planSelect").value;
-      const interval = document.getElementById("intervalSelect").value;
-      const pricing = PLAN_PRICING[plan] || PLAN_PRICING.pro;
-      const trialNote = interval === "yearly" ? " Includes 7 day free trial." : " No trial on monthly.";
-      document.getElementById("pricingHint").textContent = `${pricing.monthly} or ${pricing.yearly}.${trialNote} Fair usage policy applies. Additional usage billed at £0.01 per request.`;
-    }
-
     async function loadBillingStatus(user) {
       billingUser = user;
-      const startBtn = document.getElementById("startTrialBtn");
       const manageBtn = document.getElementById("manageBillingBtn");
       const platform = getClientPlatform();
       if (platform === "android") {
         setBillingUi("Android app mode", "Billing is managed via app store purchase flow for Android builds.", "warn");
-        startBtn.disabled = true;
         manageBtn.disabled = true;
         return;
       }
-      startBtn.disabled = false;
       manageBtn.disabled = false;
       try {
         const res = await fetch(`${apiBase}/billing/status?user_id=${encodeURIComponent(user.uid)}&client_platform=${encodeURIComponent(platform)}`);
@@ -572,83 +348,11 @@
           const status = billing.status || "active";
           setBillingUi(`Access: ${status}`, "Your account currently has premium posting access.", "ok");
           }
-          if (billing?.plan?.key) {
-            document.getElementById("planSelect").value = billing.plan.key;
-          }
-          if (billing?.plan?.interval && ["monthly", "yearly"].includes(String(billing.plan.interval))) {
-            document.getElementById("intervalSelect").value = String(billing.plan.interval);
-          }
-          updatePricingHint();
           return;
         }
         setBillingUi("Subscription required", "Start your trial or subscribe to unlock posting and publishing routes.", "warn");
-        updatePricingHint();
       } catch (err) {
         setBillingUi("Billing unavailable", err?.message || "Could not load billing status.", "warn");
-        updatePricingHint();
-      }
-    }
-
-    async function startTrialOrCheckout() {
-      if (!billingUser) return;
-      const platform = getClientPlatform();
-      if (platform === "android") return;
-      const btn = document.getElementById("startTrialBtn");
-      const old = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = "Opening checkout...";
-      try {
-        const res = await fetch(`${apiBase}/billing/create-checkout-session`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", client_platform: platform },
-          body: JSON.stringify({
-            user_id: billingUser.uid,
-            user_email: billingUser.email || "",
-            plan_key: document.getElementById("planSelect").value,
-            billing_interval: document.getElementById("intervalSelect").value,
-            client_platform: platform,
-            success_url: "https://multipostapp.co.uk/app.html",
-            cancel_url: `${window.location.origin}/settings.html?billing=cancelled`
-          })
-        });
-        const out = await res.json();
-        if (!res.ok || !out?.success || !out?.url) throw new Error(out?.error || "Failed to create checkout session");
-        window.location.href = out.url;
-      } catch (err) {
-        alert(err?.message || "Unable to start checkout");
-        btn.disabled = false;
-        btn.textContent = old;
-      }
-    }
-
-    async function startCheckoutForPlan(planKey, billingInterval, triggerEl) {
-      if (!billingUser) return;
-      const platform = getClientPlatform();
-      if (platform === "android") return;
-      const oldText = triggerEl.textContent;
-      triggerEl.textContent = "Opening...";
-      triggerEl.style.pointerEvents = "none";
-      try {
-        const res = await fetch(`${apiBase}/billing/create-checkout-session`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", client_platform: platform },
-          body: JSON.stringify({
-            user_id: billingUser.uid,
-            user_email: billingUser.email || "",
-            plan_key: planKey,
-            billing_interval: billingInterval,
-            client_platform: platform,
-            success_url: "https://multipostapp.co.uk/app.html",
-            cancel_url: `${window.location.origin}/settings.html?billing=cancelled`
-          })
-        });
-        const out = await res.json();
-        if (!res.ok || !out?.success || !out?.url) throw new Error(out?.error || "Failed to create checkout session");
-        window.location.href = out.url;
-      } catch (err) {
-        alert(err?.message || "Unable to start checkout");
-        triggerEl.textContent = oldText;
-        triggerEl.style.pointerEvents = "auto";
       }
     }
 
@@ -679,23 +383,13 @@
       }
     }
 
-    document.getElementById("startTrialBtn").addEventListener("click", startTrialOrCheckout);
+    document.getElementById("openPricingBtn").addEventListener("click", () => {
+      window.location.href = "pricing.html";
+    });
     document.getElementById("manageBillingBtn").addEventListener("click", openBillingPortal);
     document.getElementById("refreshBillingBtn").addEventListener("click", () => {
       if (billingUser) loadBillingStatus(billingUser);
     });
-    document.getElementById("planSelect").addEventListener("change", updatePricingHint);
-    document.getElementById("intervalSelect").addEventListener("change", updatePricingHint);
-    document.querySelectorAll(".checkout-plan-link").forEach((link) => {
-      link.addEventListener("click", (e) => {
-        e.preventDefault();
-        const plan = String(link.dataset.plan || "").trim();
-        const interval = String(link.dataset.interval || "").trim();
-        if (!plan || !interval) return;
-        startCheckoutForPlan(plan, interval, link);
-      });
-    });
-    updatePricingHint();
 
     onAuthStateChanged(auth, (user) => {
       if (!user) {

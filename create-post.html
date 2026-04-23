@@ -728,13 +728,13 @@
     }
     const detail = message && String(message).trim()
       ? String(message).trim()
-      : "Start your 7 day free trial or upgrade in Profile > Billing.";
+      : "Start your 7 day free trial or upgrade in the Pricing page.";
     const safeDetail = escapeHtml(detail);
     paywallBanner.classList.add("show");
     paywallBanner.innerHTML = `
       <div class="paywall-title">Web publishing requires an active plan</div>
       <div class="paywall-copy">${safeDetail}</div>
-      <a class="paywall-link" href="settings.html">Open Profile > Billing</a>
+      <a class="paywall-link" href="pricing.html">Open Pricing</a>
     `;
   }
 
@@ -764,10 +764,10 @@
         return;
       }
       billingReady = true;
-      setPublishingEnabled(false, "Start your 7 day free trial or upgrade in Profile > Billing.");
+      setPublishingEnabled(false, "Start your 7 day free trial or upgrade in the Pricing page.");
     } catch (err) {
       billingReady = true;
-      setPublishingEnabled(false, err?.message || "We could not verify billing right now. Please retry in Profile > Billing.");
+      setPublishingEnabled(false, err?.message || "We could not verify billing right now. Please retry in the Pricing page.");
     }
   }
 
@@ -881,7 +881,7 @@
   async function generateSEO() {
     if (!billingReady) await loadBillingStatus();
     if (!hasBillingAccess) {
-      alert("Web publishing requires an active plan. Start your 7 day free trial in Profile > Billing.");
+      alert("Web publishing requires an active plan. Start your 7 day free trial in Pricing.");
       return;
     }
     const prompt = document.getElementById("videoPrompt").value.trim();
@@ -1051,7 +1051,7 @@
     const btn = document.querySelector('button[onclick="publishYouTube()"]');
     if (!billingReady) await loadBillingStatus();
     if (!hasBillingAccess) {
-      alert("Web publishing requires an active plan. Start your 7 day free trial in Profile > Billing.");
+      alert("Web publishing requires an active plan. Start your 7 day free trial in Pricing.");
       return;
     }
 
@@ -1135,7 +1135,7 @@
     const btn = document.querySelector('button[onclick="publishTikTok()"]');
     if (!billingReady) await loadBillingStatus();
     if (!hasBillingAccess) {
-      alert("Web publishing requires an active plan. Start your 7 day free trial in Profile > Billing.");
+      alert("Web publishing requires an active plan. Start your 7 day free trial in Pricing.");
       return;
     }
 
@@ -1239,7 +1239,7 @@
     const btn = document.querySelector('button[onclick="publishFacebook()"]');
     if (!billingReady) await loadBillingStatus();
     if (!hasBillingAccess) {
-      alert("Web publishing requires an active plan. Start your 7 day free trial in Profile > Billing.");
+      alert("Web publishing requires an active plan. Start your 7 day free trial in Pricing.");
       return;
     }
 
