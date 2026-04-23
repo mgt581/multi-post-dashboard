@@ -352,7 +352,7 @@
     const PLAN_PRICING = {
       pro: { monthly: "£29/mo", yearly: "£290/yr" },
       pro_plus: { monthly: "£79/mo", yearly: "£790/yr" },
-      agency: { monthly: "£199/mo", yearly: "£1,990/yr" }
+      agency: { monthly: "£249/mo", yearly: "£2,490/yr" }
     };
 
     function getClientPlatform() {
@@ -381,7 +381,7 @@
       const interval = document.getElementById("intervalSelect").value;
       const pricing = PLAN_PRICING[plan] || PLAN_PRICING.pro;
       const trialNote = interval === "yearly" ? " Includes 7-day trial." : " No trial on monthly.";
-      document.getElementById("pricingHint").textContent = `${pricing.monthly} or ${pricing.yearly}.${trialNote}`;
+      document.getElementById("pricingHint").textContent = `${pricing.monthly} or ${pricing.yearly}.${trialNote} Fair usage policy applies. Additional usage billed at £0.01 per request.`;
     }
 
     async function loadBillingStatus(user) {
