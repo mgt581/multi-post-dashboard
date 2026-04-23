@@ -448,11 +448,76 @@ Follow for daily trending content! \u{1F44F}
       return Math.floor(n);
     }, "toUnix");
     const nowUnix = /* @__PURE__ */ __name(() => Math.floor(Date.now() / 1e3), "nowUnix");
+    const normalizeBillingInterval = /* @__PURE__ */ __name((value) => {
+      const v = String(value || "").trim().toLowerCase();
+      if (v === "month" || v === "monthly") return "monthly";
+      if (v === "year" || v === "yearly" || v === "annual" || v === "annually") return "yearly";
+      return "";
+    }, "normalizeBillingInterval");
     const webBillingEnabled = String(env.WEB_BILLING_ENABLED || "false").toLowerCase() === "true";
     const stripeSecretKey = env.STRIPE_SECRET_KEY ? String(env.STRIPE_SECRET_KEY).trim() : "";
-    const stripePriceId = env.STRIPE_PRICE_ID_MONTHLY ? String(env.STRIPE_PRICE_ID_MONTHLY).trim() : "";
     const stripeWebhookSecret = env.STRIPE_WEBHOOK_SECRET ? String(env.STRIPE_WEBHOOK_SECRET).trim() : "";
     const stripeTrialDays = Number(env.STRIPE_TRIAL_DAYS || 7) > 0 ? Number(env.STRIPE_TRIAL_DAYS || 7) : 7;
+    const PLAN_LIMITS = {
+      pro: {
+        key: "pro",
+        label: "Pro",
+        account_caps: { youtube: 1, tiktok: 1, facebook_page: 1 },
+        daily_total_posts: 6,
+        daily_per_platform_posts: { youtube: 2, tiktok: 2, facebook: 2 }
+      },
+      pro_plus: {
+        key: "pro_plus",
+        label: "Pro Plus",
+        account_caps: { youtube: 3, tiktok: 3, facebook_page: 3 },
+        daily_total_posts: 27,
+        daily_per_platform_posts: { youtube: 9, tiktok: 9, facebook: 9 }
+      },
+      agency: {
+        key: "agency",
+        label: "Agency",
+        account_caps: { youtube: 100, tiktok: 100, facebook_page: 100 },
+        daily_total_posts: 300,
+        daily_per_platform_posts: { youtube: 300, tiktok: 300, facebook: 300 }
+      }
+    };
+    const getPriceCatalog = /* @__PURE__ */ __name(() => ({
+      pro: {
+        monthly: env.STRIPE_PRICE_PRO_MONTHLY ? String(env.STRIPE_PRICE_PRO_MONTHLY).trim() : "",
+        yearly: env.STRIPE_PRICE_PRO_YEARLY ? String(env.STRIPE_PRICE_PRO_YEARLY).trim() : ""
+      },
+      pro_plus: {
+        monthly: env.STRIPE_PRICE_PRO_PLUS_MONTHLY ? String(env.STRIPE_PRICE_PRO_PLUS_MONTHLY).trim() : "",
+        yearly: env.STRIPE_PRICE_PRO_PLUS_YEARLY ? String(env.STRIPE_PRICE_PRO_PLUS_YEARLY).trim() : ""
+      },
+      agency: {
+        monthly: env.STRIPE_PRICE_AGENCY_MONTHLY ? String(env.STRIPE_PRICE_AGENCY_MONTHLY).trim() : "",
+        yearly: env.STRIPE_PRICE_AGENCY_YEARLY ? String(env.STRIPE_PRICE_AGENCY_YEARLY).trim() : ""
+      }
+    }), "getPriceCatalog");
+    const lookupPlanByPriceId = /* @__PURE__ */ __name((priceId) => {
+      if (!priceId) return { planKey: null, interval: null };
+      const catalog = getPriceCatalog();
+      for (const [planKey, intervals] of Object.entries(catalog)) {
+        for (const [interval, configuredPriceId] of Object.entries(intervals)) {
+          if (configuredPriceId && configuredPriceId === String(priceId)) {
+            return { planKey, interval };
+          }
+        }
+      }
+      return { planKey: null, interval: null };
+    }, "lookupPlanByPriceId");
+    const getEffectivePlan = /* @__PURE__ */ __name((row) => {
+      const rawKey = String(row?.plan_key || "").trim();
+      if (rawKey && PLAN_LIMITS[rawKey]) {
+        return { planKey: rawKey, limits: PLAN_LIMITS[rawKey], interval: normalizeBillingInterval(row?.billing_interval) || null };
+      }
+      const mapped = lookupPlanByPriceId(row?.stripe_price_id || null);
+      if (mapped.planKey && PLAN_LIMITS[mapped.planKey]) {
+        return { planKey: mapped.planKey, limits: PLAN_LIMITS[mapped.planKey], interval: normalizeBillingInterval(mapped.interval) || null };
+      }
+      return { planKey: "pro", limits: PLAN_LIMITS.pro, interval: normalizeBillingInterval(row?.billing_interval) || "monthly" };
+    }, "getEffectivePlan");
     const stripeApi = /* @__PURE__ */ __name(async (path, method, payload) => {
       if (!stripeSecretKey) throw new Error("Stripe secret key is not configured");
       const headers = {
@@ -494,7 +559,7 @@ Follow for daily trending content! \u{1F44F}
           updated_at = strftime('%s','now')
       `).bind(String(userId), userEmail ? String(userEmail) : null).run();
     }, "ensureBillingRow");
-    const persistBillingFromSubscription = /* @__PURE__ */ __name(async ({ userId, stripeCustomerId, stripeSubscriptionId, status, currentPeriodEnd, trialEnd }) => {
+    const persistBillingFromSubscription = /* @__PURE__ */ __name(async ({ userId, stripeCustomerId, stripeSubscriptionId, stripePriceId, planKey, billingInterval, status, currentPeriodEnd, trialEnd }) => {
       if (!userId && !stripeCustomerId) return;
       if (!userId && stripeCustomerId) {
         const existingByCustomer = await env.DB.prepare("SELECT user_id FROM billing_subscriptions WHERE stripe_customer_id = ? LIMIT 1").bind(String(stripeCustomerId)).first();
@@ -505,11 +570,14 @@ Follow for daily trending content! \u{1F44F}
       const derivedTrialUsed = normalizedTrialEnd ? 1 : null;
       await env.DB.prepare(`
         INSERT INTO billing_subscriptions (
-          user_id, stripe_customer_id, stripe_subscription_id, subscription_status, current_period_end, trial_end, trial_used, updated_at, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%s','now'), strftime('%s','now'))
+          user_id, stripe_customer_id, stripe_subscription_id, stripe_price_id, plan_key, billing_interval, subscription_status, current_period_end, trial_end, trial_used, updated_at, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s','now'), strftime('%s','now'))
         ON CONFLICT(user_id) DO UPDATE SET
           stripe_customer_id = COALESCE(excluded.stripe_customer_id, billing_subscriptions.stripe_customer_id),
           stripe_subscription_id = COALESCE(excluded.stripe_subscription_id, billing_subscriptions.stripe_subscription_id),
+          stripe_price_id = COALESCE(excluded.stripe_price_id, billing_subscriptions.stripe_price_id),
+          plan_key = COALESCE(excluded.plan_key, billing_subscriptions.plan_key),
+          billing_interval = COALESCE(excluded.billing_interval, billing_subscriptions.billing_interval),
           subscription_status = COALESCE(excluded.subscription_status, billing_subscriptions.subscription_status),
           current_period_end = COALESCE(excluded.current_period_end, billing_subscriptions.current_period_end),
           trial_end = COALESCE(excluded.trial_end, billing_subscriptions.trial_end),
@@ -519,6 +587,9 @@ Follow for daily trending content! \u{1F44F}
         String(userId),
         stripeCustomerId ? String(stripeCustomerId) : null,
         stripeSubscriptionId ? String(stripeSubscriptionId) : null,
+        stripePriceId ? String(stripePriceId) : null,
+        planKey ? String(planKey) : null,
+        normalizeBillingInterval(billingInterval) || null,
         status ? String(status) : null,
         toUnix(currentPeriodEnd),
         normalizedTrialEnd,
@@ -552,9 +623,80 @@ Follow for daily trending content! \u{1F44F}
         enabled: true,
         access: !!(isStatusActive || hasActiveTime),
         reason: isStatusActive || hasActiveTime ? "ok" : "subscription_required",
-        status: status || "inactive"
+        status: status || "inactive",
+        plan: getEffectivePlan(row)
       };
     }, "evaluateBillingAccess");
+    const countDailyPosts = /* @__PURE__ */ __name(async (userId, platform) => {
+      const start = new Date();
+      start.setUTCHours(0, 0, 0, 0);
+      const dayStart = Math.floor(start.getTime() / 1e3);
+      const dayEnd = dayStart + 86400;
+      try {
+        const total = await env.DB.prepare(`
+          SELECT COUNT(*) AS count
+          FROM billing_usage_events
+          WHERE user_id = ? AND event_type = 'publish' AND created_at >= ? AND created_at < ?
+        `).bind(String(userId), dayStart, dayEnd).first();
+        const byPlatform = await env.DB.prepare(`
+          SELECT COUNT(*) AS count
+          FROM billing_usage_events
+          WHERE user_id = ? AND event_type = 'publish' AND platform = ? AND created_at >= ? AND created_at < ?
+        `).bind(String(userId), String(platform), dayStart, dayEnd).first();
+        return { total: Number(total?.count || 0), platform: Number(byPlatform?.count || 0), dayStart, dayEnd };
+      } catch (_) {
+        return { total: 0, platform: 0, dayStart, dayEnd };
+      }
+    }, "countDailyPosts");
+    const recordPublishUsage = /* @__PURE__ */ __name(async (userId, platform) => {
+      try {
+        await env.DB.prepare(`
+          INSERT INTO billing_usage_events (user_id, event_type, platform, created_at)
+          VALUES (?, 'publish', ?, strftime('%s','now'))
+        `).bind(String(userId), String(platform)).run();
+      } catch (_) {
+      }
+    }, "recordPublishUsage");
+    const ensurePlanQuota = /* @__PURE__ */ __name(async (userId, platform, evaluated) => {
+      if (!evaluated?.enabled || evaluated?.reason === "android_bypass") {
+        return { ok: true };
+      }
+      const limits = evaluated?.plan?.limits || PLAN_LIMITS.pro;
+      const usage = await countDailyPosts(userId, platform);
+      const platformLimit = Number(limits?.daily_per_platform_posts?.[platform] || 0);
+      if (platformLimit > 0 && usage.platform >= platformLimit) {
+        return { ok: false, statusCode: 429, body: { success: false, error: `Daily ${platform} posting limit reached for your plan` } };
+      }
+      const totalLimit = Number(limits?.daily_total_posts || 0);
+      if (totalLimit > 0 && usage.total >= totalLimit) {
+        return { ok: false, statusCode: 429, body: { success: false, error: "Daily posting limit reached for your plan" } };
+      }
+      return { ok: true };
+    }, "ensurePlanQuota");
+    const countLinkedAccountsByPlatform = /* @__PURE__ */ __name(async (userId, platform) => {
+      const row = await env.DB.prepare(`
+        SELECT COUNT(*) AS count
+        FROM accounts
+        WHERE user_id = ? AND platform = ?
+      `).bind(String(userId), String(platform)).first();
+      return Number(row?.count || 0);
+    }, "countLinkedAccountsByPlatform");
+    const ensureLinkingQuota = /* @__PURE__ */ __name(async ({ userId, platform, folderId, evaluated }) => {
+      if (!evaluated?.enabled || evaluated?.reason === "android_bypass") return { ok: true };
+      const limits = evaluated?.plan?.limits || PLAN_LIMITS.pro;
+      const cap = Number(limits?.account_caps?.[platform] || 0);
+      if (!cap) return { ok: true };
+      const existingInFolder = await env.DB.prepare(`
+        SELECT COUNT(*) AS count FROM accounts WHERE user_id = ? AND folder_id = ? AND platform = ?
+      `).bind(String(userId), String(folderId || ""), String(platform)).first();
+      if (Number(existingInFolder?.count || 0) > 0) return { ok: true };
+      const currentTotal = await countLinkedAccountsByPlatform(userId, platform);
+      if (currentTotal >= cap) {
+        const label = platform === "facebook_page" ? "Facebook pages" : platform === "youtube" ? "YouTube accounts" : "TikTok accounts";
+        return { ok: false, statusCode: 429, body: { success: false, error: `${label} limit reached for your plan` } };
+      }
+      return { ok: true };
+    }, "ensureLinkingQuota");
     const ensureBillingAccess = /* @__PURE__ */ __name(async (userId, platform) => {
       if (!userId) {
         return { ok: false, statusCode: 400, body: { success: false, error: "Missing user_id" } };
@@ -685,6 +827,36 @@ Follow for daily trending content! \u{1F44F}
         ).bind(folder_id, userId).all();
         return new Response(JSON.stringify(results), { headers: jsonHeaders });
       }
+      if (url.pathname === "/api/billing/plans" && request.method === "GET") {
+        const priceCatalog = getPriceCatalog();
+        return new Response(JSON.stringify({
+          success: true,
+          plans: {
+            pro: {
+              key: "pro",
+              label: "Pro",
+              prices: priceCatalog.pro,
+              limits: PLAN_LIMITS.pro
+            },
+            pro_plus: {
+              key: "pro_plus",
+              label: "Pro Plus",
+              prices: priceCatalog.pro_plus,
+              limits: PLAN_LIMITS.pro_plus
+            },
+            agency: {
+              key: "agency",
+              label: "Agency",
+              prices: priceCatalog.agency,
+              limits: PLAN_LIMITS.agency
+            }
+          },
+          trial: {
+            days: stripeTrialDays,
+            yearly_only: true
+          }
+        }), { headers: jsonHeaders });
+      }
       if (url.pathname === "/api/billing/status" && request.method === "GET") {
         const userId = requireUser(url.searchParams.get("user_id"));
         if (!userId) {
@@ -693,6 +865,11 @@ Follow for daily trending content! \u{1F44F}
         const platform = getClientPlatform(request, null, url.searchParams.get("client_platform"));
         const row = await getBillingRow(userId);
         const evaluated = evaluateBillingAccess(row, platform);
+        const effPlan = getEffectivePlan(row);
+        const usageYt = await countDailyPosts(userId, "youtube");
+        const usageTt = await countDailyPosts(userId, "tiktok");
+        const usageFb = await countDailyPosts(userId, "facebook");
+        const dailyTotal = usageYt.total;
         return new Response(JSON.stringify({
           success: true,
           billing: {
@@ -702,9 +879,21 @@ Follow for daily trending content! \u{1F44F}
             reason: evaluated.reason,
             platform,
             trial_days_default: stripeTrialDays,
+            plan: {
+              key: effPlan.planKey,
+              interval: effPlan.interval || String(row?.billing_interval || ""),
+              limits: effPlan.limits
+            },
+            usage_today: {
+              total: dailyTotal,
+              youtube: usageYt.platform,
+              tiktok: usageTt.platform,
+              facebook: usageFb.platform
+            },
             subscription: {
               stripe_customer_id: row?.stripe_customer_id || null,
               stripe_subscription_id: row?.stripe_subscription_id || null,
+              stripe_price_id: row?.stripe_price_id || null,
               current_period_end: toUnix(row?.current_period_end),
               trial_end: toUnix(row?.trial_end),
               trial_used: Number(row?.trial_used || 0) === 1
@@ -726,8 +915,18 @@ Follow for daily trending content! \u{1F44F}
         if (!webBillingEnabled) {
           return new Response(JSON.stringify({ success: false, error: "Web billing is disabled" }), { status: 400, headers: jsonHeaders });
         }
-        if (!stripePriceId) {
-          return new Response(JSON.stringify({ success: false, error: "Stripe price is not configured" }), { status: 500, headers: jsonHeaders });
+        const requestedPlan = String(body?.plan_key || "pro").trim().toLowerCase();
+        const requestedInterval = String(body?.billing_interval || "monthly").trim().toLowerCase();
+        if (!PLAN_LIMITS[requestedPlan]) {
+          return new Response(JSON.stringify({ success: false, error: "Invalid plan selection" }), { status: 400, headers: jsonHeaders });
+        }
+        if (!["monthly", "yearly"].includes(requestedInterval)) {
+          return new Response(JSON.stringify({ success: false, error: "Invalid billing interval" }), { status: 400, headers: jsonHeaders });
+        }
+        const priceCatalog = getPriceCatalog();
+        const chosenPriceId = priceCatalog?.[requestedPlan]?.[requestedInterval] || "";
+        if (!chosenPriceId) {
+          return new Response(JSON.stringify({ success: false, error: "Selected Stripe price is not configured" }), { status: 500, headers: jsonHeaders });
         }
         const successUrl = body?.success_url && String(body.success_url).trim() ? String(body.success_url).trim() : `${frontendBaseUrl}/settings.html?billing=success`;
         const cancelUrl = body?.cancel_url && String(body.cancel_url).trim() ? String(body.cancel_url).trim() : `${frontendBaseUrl}/settings.html?billing=cancelled`;
@@ -754,14 +953,19 @@ Follow for daily trending content! \u{1F44F}
           customer: stripeCustomerId,
           success_url: successUrl,
           cancel_url: cancelUrl,
-          "line_items[0][price]": stripePriceId,
+          "line_items[0][price]": chosenPriceId,
           "line_items[0][quantity]": "1",
           "metadata[user_id]": String(userId),
           "metadata[app]": "multipost",
+          "metadata[plan_key]": requestedPlan,
+          "metadata[billing_interval]": requestedInterval,
           client_reference_id: String(userId),
-          allow_promotion_codes: "true"
+          allow_promotion_codes: "true",
+          "subscription_data[metadata][user_id]": String(userId),
+          "subscription_data[metadata][plan_key]": requestedPlan,
+          "subscription_data[metadata][billing_interval]": requestedInterval
         };
-        if (trialEligible && stripeTrialDays > 0) {
+        if (requestedInterval === "yearly" && trialEligible && stripeTrialDays > 0) {
           payload["subscription_data[trial_period_days]"] = String(Math.floor(stripeTrialDays));
         }
         const session = await stripeApi("/v1/checkout/sessions", "POST", payload);
@@ -800,15 +1004,21 @@ Follow for daily trending content! \u{1F44F}
               userId,
               stripeCustomerId: obj?.customer || null,
               stripeSubscriptionId: obj?.subscription || null,
+              planKey: obj?.metadata?.plan_key || null,
+              billingInterval: obj?.metadata?.billing_interval || null,
               status: "active"
             });
           } else if (eventType === "customer.subscription.created" || eventType === "customer.subscription.updated" || eventType === "customer.subscription.deleted") {
             const sub = event?.data?.object || {};
             const userId = sub?.metadata?.user_id || null;
+            const firstItem = sub?.items?.data?.[0] || null;
             await persistBillingFromSubscription({
               userId,
               stripeCustomerId: sub?.customer || null,
               stripeSubscriptionId: sub?.id || null,
+              stripePriceId: firstItem?.price?.id || null,
+              planKey: sub?.metadata?.plan_key || null,
+              billingInterval: sub?.metadata?.billing_interval || firstItem?.price?.recurring?.interval || null,
               status: sub?.status || null,
               currentPeriodEnd: sub?.current_period_end || null,
               trialEnd: sub?.trial_end || null
@@ -831,6 +1041,16 @@ Follow for daily trending content! \u{1F44F}
         const stateObj = decodeState(legacyState);
         const folderId = url.searchParams.get("folder_id") || stateObj.folderId;
         const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId);
+        if (!folderId || !userId) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), { status: 400, headers: jsonHeaders });
+        }
+        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, null, url.searchParams.get("client_platform")));
+        if (billingSnapshot.ok) {
+          const linkGate = await ensureLinkingQuota({ userId, platform: "youtube", folderId, evaluated: billingSnapshot.evaluated });
+          if (!linkGate.ok) {
+            return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
+          }
+        }
         const state = encodeState({ folderId, platform: "youtube", userId });
         if (!env.GOOGLE_CLIENT_ID) {
           return new Response(JSON.stringify({ success: false, error: "Missing GOOGLE_CLIENT_ID env var" }), { status: 500, headers: jsonHeaders });
@@ -845,6 +1065,16 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/auth/tiktok") {
         const folderId = url.searchParams.get("folder_id");
         const userId = requireUser(url.searchParams.get("user_id"));
+        if (!folderId || !userId) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), { status: 400, headers: jsonHeaders });
+        }
+        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, null, url.searchParams.get("client_platform")));
+        if (billingSnapshot.ok) {
+          const linkGate = await ensureLinkingQuota({ userId, platform: "tiktok", folderId, evaluated: billingSnapshot.evaluated });
+          if (!linkGate.ok) {
+            return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
+          }
+        }
         const tiktokRedirectUri = `${siteBaseUrl}/api/auth/callback/tiktok`;
         const scopes = "video.upload,video.publish,user.info.basic";
         const state = encodeState({ folderId, platform: "tiktok", userId });
@@ -1153,6 +1383,13 @@ Follow for daily trending content! \u{1F44F}
             { status: 400, headers: jsonHeaders }
           );
         }
+        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, body?.client_platform, null));
+        if (billingSnapshot.ok) {
+          const linkGate = await ensureLinkingQuota({ userId, platform: "facebook_page", folderId: folder_id, evaluated: billingSnapshot.evaluated });
+          if (!linkGate.ok) {
+            return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
+          }
+        }
         await env.DB.batch([
           env.DB.prepare(
             "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook_page'"
@@ -1197,6 +1434,10 @@ Follow for daily trending content! \u{1F44F}
         const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request));
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
+        }
+        const quotaGate = await ensurePlanQuota(user_id, "youtube", billingGate.evaluated);
+        if (!quotaGate.ok) {
+          return new Response(JSON.stringify(quotaGate.body), { status: quotaGate.statusCode, headers: jsonHeaders });
         }
         const body = await safeJson(request);
         const title = String(body.title || "").trim();
@@ -1338,6 +1579,7 @@ Follow for daily trending content! \u{1F44F}
           if (!uploadUrl) {
             throw new Error("No upload location returned by YouTube");
           }
+          await recordPublishUsage(user_id, "youtube");
           return new Response(JSON.stringify({ success: true, uploadUrl }), { headers: jsonHeaders });
         } catch (err) {
           console.error("YouTube init-upload error:", err);
@@ -1359,6 +1601,10 @@ Follow for daily trending content! \u{1F44F}
         const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request));
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
+        }
+        const quotaGate = await ensurePlanQuota(user_id, "tiktok", billingGate.evaluated);
+        if (!quotaGate.ok) {
+          return new Response(JSON.stringify(quotaGate.body), { status: quotaGate.statusCode, headers: jsonHeaders });
         }
         const body = await safeJson(request);
         const caption = String(body.caption || "").trim();
@@ -1450,6 +1696,7 @@ Follow for daily trending content! \u{1F44F}
           await env.DB.prepare(
             "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, file_size, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
           ).bind(sessionId, "tiktok", uploadUrl, token.access_token, publishId, videoSize, expiresAt).run();
+          await recordPublishUsage(user_id, "tiktok");
           return new Response(JSON.stringify({
             success: true,
             sessionId,
@@ -1545,6 +1792,10 @@ Follow for daily trending content! \u{1F44F}
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
+        const quotaGate = await ensurePlanQuota(user_id, "facebook", billingGate.evaluated);
+        if (!quotaGate.ok) {
+          return new Response(JSON.stringify(quotaGate.body), { status: quotaGate.statusCode, headers: jsonHeaders });
+        }
         const body = await safeJson(request);
         const title = String(body.title || "").trim();
         const description = String(body.description || "").trim();
@@ -1596,6 +1847,7 @@ Follow for daily trending content! \u{1F44F}
           await env.DB.prepare(
             "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, page_id, title, description, file_size, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
           ).bind(sessionId, "facebook", uploadUrl, pageAccessToken, videoId, pageId, title, description, fileSize, expiresAt).run();
+          await recordPublishUsage(user_id, "facebook");
           return new Response(JSON.stringify({ success: true, sessionId, videoId }), { headers: jsonHeaders });
         } catch (err) {
           console.error("Facebook init-upload error:", err);
@@ -1748,6 +2000,10 @@ Follow for daily trending content! \u{1F44F}
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
+        const quotaGate = await ensurePlanQuota(user_id, "facebook", billingGate.evaluated);
+        if (!quotaGate.ok) {
+          return new Response(JSON.stringify(quotaGate.body), { status: quotaGate.statusCode, headers: jsonHeaders });
+        }
         const formData = await request.formData();
         const title = String(formData.get("title") || "").trim();
         const description = String(formData.get("description") || "").trim();
@@ -1800,6 +2056,7 @@ Follow for daily trending content! \u{1F44F}
           }
           const postId = String(out?.post_id || "").trim();
           const photoId = String(out?.id || "").trim();
+          await recordPublishUsage(user_id, "facebook");
           return new Response(JSON.stringify({
             success: true,
             postId,
@@ -1832,6 +2089,10 @@ Follow for daily trending content! \u{1F44F}
         const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request));
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
+        }
+        const quotaGate = await ensurePlanQuota(user_id, "youtube", billingGate.evaluated);
+        if (!quotaGate.ok) {
+          return new Response(JSON.stringify(quotaGate.body), { status: quotaGate.statusCode, headers: jsonHeaders });
         }
         const formData = await request.formData();
         const title = String(formData.get("title") || "").trim();
@@ -1991,6 +2252,7 @@ Follow for daily trending content! \u{1F44F}
           }
           const uploadData = await safeJson(uploadRes);
           const videoId = uploadData?.id;
+          await recordPublishUsage(user_id, "youtube");
           return new Response(JSON.stringify({
             success: true,
             videoId,
@@ -2023,6 +2285,10 @@ Follow for daily trending content! \u{1F44F}
         const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request));
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
+        }
+        const quotaGate = await ensurePlanQuota(user_id, "facebook", billingGate.evaluated);
+        if (!quotaGate.ok) {
+          return new Response(JSON.stringify(quotaGate.body), { status: quotaGate.statusCode, headers: jsonHeaders });
         }
         const formData = await request.formData();
         const title = String(formData.get("title") || "").trim();
@@ -2100,6 +2366,7 @@ Follow for daily trending content! \u{1F44F}
               description: description || ""
             })
           });
+          await recordPublishUsage(user_id, "facebook");
           return new Response(JSON.stringify({
             success: true,
             videoId,
@@ -2133,6 +2400,11 @@ Follow for daily trending content! \u{1F44F}
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
+        const quotaPlatform = platform === "tiktok" ? "tiktok" : platform === "facebook" ? "facebook" : "youtube";
+        const quotaGate = await ensurePlanQuota(billingUserId, quotaPlatform, billingGate.evaluated);
+        if (!quotaGate.ok) {
+          return new Response(JSON.stringify(quotaGate.body), { status: quotaGate.statusCode, headers: jsonHeaders });
+        }
         const bearer = account?.access_token;
         if (platform === "tiktok") {
           const tiktokRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
@@ -2158,6 +2430,7 @@ Follow for daily trending content! \u{1F44F}
           if (!tiktokRes.ok || (result?.error?.code && result.error.code !== "ok")) {
             return new Response(JSON.stringify({ success: false, error: `TikTok init failed: ${JSON.stringify(result?.error || result)}` }), { headers: jsonHeaders });
           }
+          await recordPublishUsage(billingUserId, "tiktok");
           return new Response(JSON.stringify(result), { headers: jsonHeaders });
         }
         if (platform === "facebook") {
@@ -2200,6 +2473,7 @@ Follow for daily trending content! \u{1F44F}
               imageUrl: providedMediaUrl,
               caption: desc
             });
+            await recordPublishUsage(billingUserId, "facebook");
             return new Response(JSON.stringify({ success: true, data: out, postType: "image" }), {
               headers: jsonHeaders
             });
@@ -2210,6 +2484,7 @@ Follow for daily trending content! \u{1F44F}
             videoUrl: providedMediaUrl,
             description: desc
           });
+          await recordPublishUsage(billingUserId, "facebook");
           return new Response(JSON.stringify({ success: true, data: out, postType: "video" }), {
             headers: jsonHeaders
           });

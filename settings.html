@@ -161,6 +161,38 @@
       color: var(--muted);
       line-height: 1.45;
     }
+    .billing-plan-grid {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .billing-field label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+    .billing-field select {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: inherit;
+    }
+    .billing-pricing {
+      width: 100%;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
 
     /* Bottom Nav */
     .bottom-nav {
@@ -224,6 +256,24 @@
         <button id="manageBillingBtn" class="mini-btn" type="button">Manage Billing</button>
         <button id="refreshBillingBtn" class="mini-btn" type="button">Refresh</button>
       </div>
+      <div class="billing-plan-grid">
+        <div class="billing-field">
+          <label for="planSelect">Plan</label>
+          <select id="planSelect">
+            <option value="pro">Pro</option>
+            <option value="pro_plus">Pro Plus</option>
+            <option value="agency">Agency</option>
+          </select>
+        </div>
+        <div class="billing-field">
+          <label for="intervalSelect">Billing</label>
+          <select id="intervalSelect">
+            <option value="monthly">Monthly</option>
+            <option value="yearly">Yearly (7-day trial)</option>
+          </select>
+        </div>
+      </div>
+      <div id="pricingHint" class="billing-pricing">Pro £29/mo or £290/yr. Pro Plus £79/mo or £790/yr. Agency £199/mo or £1,990/yr.</div>
     </div>
 
     <div class="section-title">Security</div>
@@ -299,6 +349,11 @@
       ? "/api"
       : "https://multipost-seo-worker.alexbryant.workers.dev/api";
     let billingUser = null;
+    const PLAN_PRICING = {
+      pro: { monthly: "£29/mo", yearly: "£290/yr" },
+      pro_plus: { monthly: "£79/mo", yearly: "£790/yr" },
+      agency: { monthly: "£199/mo", yearly: "£1,990/yr" }
+    };
 
     function getClientPlatform() {
       const qp = new URLSearchParams(window.location.search);
@@ -319,6 +374,14 @@
       if (tone === "ok") pill.classList.add("ok");
       if (tone === "warn") pill.classList.add("warn");
       note.textContent = noteText;
+    }
+
+    function updatePricingHint() {
+      const plan = document.getElementById("planSelect").value;
+      const interval = document.getElementById("intervalSelect").value;
+      const pricing = PLAN_PRICING[plan] || PLAN_PRICING.pro;
+      const trialNote = interval === "yearly" ? " Includes 7-day trial." : " No trial on monthly.";
+      document.getElementById("pricingHint").textContent = `${pricing.monthly} or ${pricing.yearly}.${trialNote}`;
     }
 
     async function loadBillingStatus(user) {
@@ -346,11 +409,20 @@
         if (billing.access) {
           const status = billing.status || "active";
           setBillingUi(`Access: ${status}`, "Your account currently has premium posting access.", "ok");
+          if (billing?.plan?.key) {
+            document.getElementById("planSelect").value = billing.plan.key;
+          }
+          if (billing?.plan?.interval && ["monthly", "yearly"].includes(String(billing.plan.interval))) {
+            document.getElementById("intervalSelect").value = String(billing.plan.interval);
+          }
+          updatePricingHint();
           return;
         }
         setBillingUi("Subscription required", "Start your trial or subscribe to unlock posting and publishing routes.", "warn");
+        updatePricingHint();
       } catch (err) {
         setBillingUi("Billing unavailable", err?.message || "Could not load billing status.", "warn");
+        updatePricingHint();
       }
     }
 
@@ -369,6 +441,8 @@
           body: JSON.stringify({
             user_id: billingUser.uid,
             user_email: billingUser.email || "",
+            plan_key: document.getElementById("planSelect").value,
+            billing_interval: document.getElementById("intervalSelect").value,
             client_platform: platform,
             success_url: `${window.location.origin}/settings.html?billing=success`,
             cancel_url: `${window.location.origin}/settings.html?billing=cancelled`
@@ -416,6 +490,9 @@
     document.getElementById("refreshBillingBtn").addEventListener("click", () => {
       if (billingUser) loadBillingStatus(billingUser);
     });
+    document.getElementById("planSelect").addEventListener("change", updatePricingHint);
+    document.getElementById("intervalSelect").addEventListener("change", updatePricingHint);
+    updatePricingHint();
 
     onAuthStateChanged(auth, (user) => {
       if (!user) {

@@ -41,10 +41,21 @@ CREATE TABLE IF NOT EXISTS billing_subscriptions (
   user_email TEXT,
   stripe_customer_id TEXT,
   stripe_subscription_id TEXT,
+  stripe_price_id TEXT,
+  plan_key TEXT,
+  billing_interval TEXT,
   subscription_status TEXT,
   current_period_end INTEGER,
   trial_end INTEGER,
   trial_used INTEGER DEFAULT 0,
   created_at INTEGER DEFAULT (strftime('%s','now')),
   updated_at INTEGER DEFAULT (strftime('%s','now'))
+);
+
+CREATE TABLE IF NOT EXISTS billing_usage_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  platform TEXT,
+  created_at INTEGER DEFAULT (strftime('%s','now'))
 );
