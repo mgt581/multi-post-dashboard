@@ -216,10 +216,27 @@
       font-size: 13px;
       line-height: 1.45;
     }
+
+    .paywall-banner {
+      display: none;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      background: rgba(245, 158, 11, 0.1);
+      color: #fde68a;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .paywall-banner.show {
+      display: block;
+    }
   </style>
 </head>
 <body>
   <main class="page">
+    <div id="paywallBanner" class="paywall-banner"></div>
     <section class="card hero">
       <header>
         <h1>Publish Images</h1>
@@ -334,6 +351,9 @@
 
     const statusEl = document.getElementById("status");
     const dropzone = document.getElementById("dropzone");
+    const paywallBanner = document.getElementById("paywallBanner");
+    let billingReady = false;
+    let hasBillingAccess = true;
 
     function setStatus(message, tone = "info") {
       statusEl.textContent = message;
@@ -348,6 +368,57 @@
       if (!btn) return;
       btn.disabled = isLoading;
       btn.textContent = isLoading ? loadingText : normalText;
+    }
+
+    function getClientPlatform() {
+      const qp = new URLSearchParams(window.location.search);
+      const q = (qp.get("app_platform") || "").trim().toLowerCase();
+      const ls = (localStorage.getItem("app_platform") || "").trim().toLowerCase();
+      const fromOverride = q || ls;
+      if (fromOverride === "android") return "android";
+      if (fromOverride === "web") return "web";
+      return "web";
+    }
+
+    function setPublishingEnabled(enabled, message = "") {
+      hasBillingAccess = enabled;
+      const gen = document.getElementById("generateBtn");
+      const up = document.getElementById("uploadBtn");
+      if (gen) gen.disabled = !enabled;
+      if (up) up.disabled = !enabled;
+      if (enabled) {
+        paywallBanner.classList.remove("show");
+        paywallBanner.textContent = "";
+        return;
+      }
+      paywallBanner.classList.add("show");
+      paywallBanner.textContent = message || "Subscription required. Open Profile > Billing to start trial or subscribe.";
+    }
+
+    async function loadBillingStatus() {
+      if (!userScope) return;
+      const platform = getClientPlatform();
+      if (platform === "android") {
+        billingReady = true;
+        setPublishingEnabled(true);
+        return;
+      }
+      try {
+        const res = await fetch(`${apiBase}/billing/status?user_id=${encodeURIComponent(userScope)}&client_platform=${encodeURIComponent(platform)}`);
+        const out = await res.json();
+        if (!res.ok || !out?.success) throw new Error(out?.error || "Failed to load billing status");
+        const billing = out.billing || {};
+        if (!billing.enabled || billing.access) {
+          billingReady = true;
+          setPublishingEnabled(true);
+          return;
+        }
+        billingReady = true;
+        setPublishingEnabled(false, "Subscription required for web publishing. Go to Profile > Billing to start trial or subscribe.");
+      } catch (err) {
+        billingReady = true;
+        setPublishingEnabled(false, err?.message || "Unable to verify billing. Please check Profile > Billing.");
+      }
     }
 
     function getUrlParam(name) {
@@ -580,6 +651,11 @@
     }
 
     async function generateImageSEO() {
+      if (!billingReady) await loadBillingStatus();
+      if (!hasBillingAccess) {
+        alert("Subscription required. Open Profile > Billing to start trial or subscribe.");
+        return;
+      }
       const prompt = document.getElementById("imagePrompt").value.trim();
 
       if (!selectedImageDataUrl && !prompt) {
@@ -600,7 +676,7 @@
 
         const res = await fetch(`${apiBase}/generate-premium-seo`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", client_platform: getClientPlatform() },
           body: JSON.stringify({
             topic: topicParts.join("\n"),
             image_url: selectedImageDataUrl,
@@ -662,6 +738,11 @@
     }
 
     async function uploadFacebookImagePost() {
+      if (!billingReady) await loadBillingStatus();
+      if (!hasBillingAccess) {
+        alert("Subscription required. Open Profile > Billing to start trial or subscribe.");
+        return;
+      }
       if (!ensureFolderContext()) return;
       if (!ensureLinkedFacebook()) return;
       if (!selectedImageFile) {
@@ -698,7 +779,8 @@
           method: "POST",
           headers: {
             folder_id: activeFolderId,
-            user_id: userScope
+            user_id: userScope,
+            client_platform: getClientPlatform()
           },
           body: form
         });
@@ -782,6 +864,7 @@
 
       userScope = user.uid;
       await loadFolderContext();
+      await loadBillingStatus();
       setStatus("Ready to generate and publish image content.");
     });
 

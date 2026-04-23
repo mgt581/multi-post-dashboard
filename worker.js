@@ -8,7 +8,7 @@ var worker_default = {
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, folder_id, user_id",
+      "Access-Control-Allow-Headers": "Content-Type, folder_id, user_id, client_platform",
       "X-Worker-Version": WORKER_VERSION
     };
     const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
@@ -440,6 +440,174 @@ Follow for daily trending content! \u{1F44F}
         }
       };
     }, "fallbackSeo");
+    const toUnix = /* @__PURE__ */ __name((value) => {
+      if (value === null || value === void 0 || value === "") return null;
+      const n = Number(value);
+      if (!Number.isFinite(n)) return null;
+      if (n > 1e12) return Math.floor(n / 1e3);
+      return Math.floor(n);
+    }, "toUnix");
+    const nowUnix = /* @__PURE__ */ __name(() => Math.floor(Date.now() / 1e3), "nowUnix");
+    const webBillingEnabled = String(env.WEB_BILLING_ENABLED || "false").toLowerCase() === "true";
+    const stripeSecretKey = env.STRIPE_SECRET_KEY ? String(env.STRIPE_SECRET_KEY).trim() : "";
+    const stripePriceId = env.STRIPE_PRICE_ID_MONTHLY ? String(env.STRIPE_PRICE_ID_MONTHLY).trim() : "";
+    const stripeWebhookSecret = env.STRIPE_WEBHOOK_SECRET ? String(env.STRIPE_WEBHOOK_SECRET).trim() : "";
+    const stripeTrialDays = Number(env.STRIPE_TRIAL_DAYS || 7) > 0 ? Number(env.STRIPE_TRIAL_DAYS || 7) : 7;
+    const stripeApi = /* @__PURE__ */ __name(async (path, method, payload) => {
+      if (!stripeSecretKey) throw new Error("Stripe secret key is not configured");
+      const headers = {
+        Authorization: `Bearer ${stripeSecretKey}`
+      };
+      let body;
+      if (payload) {
+        headers["Content-Type"] = "application/x-www-form-urlencoded";
+        body = new URLSearchParams(payload).toString();
+      }
+      const res = await fetch(`https://api.stripe.com${path}`, { method, headers, body });
+      const data = await safeJson(res);
+      if (!res.ok) {
+        const message = data?.error?.message || `Stripe API error ${res.status}`;
+        throw new Error(message);
+      }
+      return data;
+    }, "stripeApi");
+    const getClientPlatform = /* @__PURE__ */ __name((request2, payloadPlatform, searchPlatform) => {
+      const headerPlatform = request2.headers.get("client_platform");
+      const raw = payloadPlatform || searchPlatform || headerPlatform || "web";
+      const normalized = String(raw).trim().toLowerCase();
+      return normalized === "android" ? "android" : "web";
+    }, "getClientPlatform");
+    const getBillingRow = /* @__PURE__ */ __name(async (userId) => {
+      return env.DB.prepare(`
+        SELECT *
+        FROM billing_subscriptions
+        WHERE user_id = ?
+        LIMIT 1
+      `).bind(String(userId)).first();
+    }, "getBillingRow");
+    const ensureBillingRow = /* @__PURE__ */ __name(async (userId, userEmail) => {
+      await env.DB.prepare(`
+        INSERT INTO billing_subscriptions (user_id, user_email, created_at, updated_at)
+        VALUES (?, ?, strftime('%s','now'), strftime('%s','now'))
+        ON CONFLICT(user_id) DO UPDATE SET
+          user_email = COALESCE(excluded.user_email, billing_subscriptions.user_email),
+          updated_at = strftime('%s','now')
+      `).bind(String(userId), userEmail ? String(userEmail) : null).run();
+    }, "ensureBillingRow");
+    const persistBillingFromSubscription = /* @__PURE__ */ __name(async ({ userId, stripeCustomerId, stripeSubscriptionId, status, currentPeriodEnd, trialEnd }) => {
+      if (!userId && !stripeCustomerId) return;
+      if (!userId && stripeCustomerId) {
+        const existingByCustomer = await env.DB.prepare("SELECT user_id FROM billing_subscriptions WHERE stripe_customer_id = ? LIMIT 1").bind(String(stripeCustomerId)).first();
+        userId = existingByCustomer?.user_id || null;
+      }
+      if (!userId) return;
+      const normalizedTrialEnd = toUnix(trialEnd);
+      const derivedTrialUsed = normalizedTrialEnd ? 1 : null;
+      await env.DB.prepare(`
+        INSERT INTO billing_subscriptions (
+          user_id, stripe_customer_id, stripe_subscription_id, subscription_status, current_period_end, trial_end, trial_used, updated_at, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%s','now'), strftime('%s','now'))
+        ON CONFLICT(user_id) DO UPDATE SET
+          stripe_customer_id = COALESCE(excluded.stripe_customer_id, billing_subscriptions.stripe_customer_id),
+          stripe_subscription_id = COALESCE(excluded.stripe_subscription_id, billing_subscriptions.stripe_subscription_id),
+          subscription_status = COALESCE(excluded.subscription_status, billing_subscriptions.subscription_status),
+          current_period_end = COALESCE(excluded.current_period_end, billing_subscriptions.current_period_end),
+          trial_end = COALESCE(excluded.trial_end, billing_subscriptions.trial_end),
+          trial_used = COALESCE(excluded.trial_used, billing_subscriptions.trial_used),
+          updated_at = strftime('%s','now')
+      `).bind(
+        String(userId),
+        stripeCustomerId ? String(stripeCustomerId) : null,
+        stripeSubscriptionId ? String(stripeSubscriptionId) : null,
+        status ? String(status) : null,
+        toUnix(currentPeriodEnd),
+        normalizedTrialEnd,
+        derivedTrialUsed
+      ).run();
+    }, "persistBillingFromSubscription");
+    const evaluateBillingAccess = /* @__PURE__ */ __name((row, platform) => {
+      if (!webBillingEnabled) {
+        return {
+          enabled: false,
+          access: true,
+          reason: "billing_disabled",
+          status: "not_required"
+        };
+      }
+      if (platform === "android") {
+        return {
+          enabled: true,
+          access: true,
+          reason: "android_bypass",
+          status: "not_required_android"
+        };
+      }
+      const now = nowUnix();
+      const status = String(row?.subscription_status || "").toLowerCase();
+      const trialEnd = toUnix(row?.trial_end);
+      const currentPeriodEnd = toUnix(row?.current_period_end);
+      const isStatusActive = ["active", "trialing"].includes(status);
+      const hasActiveTime = (trialEnd && trialEnd > now) || (currentPeriodEnd && currentPeriodEnd > now);
+      return {
+        enabled: true,
+        access: !!(isStatusActive || hasActiveTime),
+        reason: isStatusActive || hasActiveTime ? "ok" : "subscription_required",
+        status: status || "inactive"
+      };
+    }, "evaluateBillingAccess");
+    const ensureBillingAccess = /* @__PURE__ */ __name(async (userId, platform) => {
+      if (!userId) {
+        return { ok: false, statusCode: 400, body: { success: false, error: "Missing user_id" } };
+      }
+      const row = await getBillingRow(userId);
+      const evaluated = evaluateBillingAccess(row, platform);
+      if (evaluated.access) {
+        return { ok: true, row, evaluated };
+      }
+      return {
+        ok: false,
+        statusCode: 402,
+        body: {
+          success: false,
+          error: "Active subscription required",
+          billing: {
+            enabled: evaluated.enabled,
+            access: false,
+            status: evaluated.status,
+            reason: evaluated.reason
+          }
+        }
+      };
+    }, "ensureBillingAccess");
+    const timingSafeEqual = /* @__PURE__ */ __name((a, b) => {
+      if (a.length !== b.length) return false;
+      let out = 0;
+      for (let i = 0; i < a.length; i++) out |= a.charCodeAt(i) ^ b.charCodeAt(i);
+      return out === 0;
+    }, "timingSafeEqual");
+    const verifyStripeSignature = /* @__PURE__ */ __name(async (rawBody, signatureHeader) => {
+      if (!stripeWebhookSecret) throw new Error("Stripe webhook secret is not configured");
+      if (!signatureHeader) throw new Error("Missing Stripe signature header");
+      const parts = String(signatureHeader).split(",").map((p) => p.trim());
+      const timestampPart = parts.find((p) => p.startsWith("t="));
+      const sigPart = parts.find((p) => p.startsWith("v1="));
+      if (!timestampPart || !sigPart) throw new Error("Invalid Stripe signature header");
+      const timestamp = timestampPart.slice(2);
+      const received = sigPart.slice(3);
+      const signedPayload = `${timestamp}.${rawBody}`;
+      const enc = new TextEncoder();
+      const key = await crypto.subtle.importKey(
+        "raw",
+        enc.encode(stripeWebhookSecret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+      );
+      const sig = await crypto.subtle.sign("HMAC", key, enc.encode(signedPayload));
+      const expected = Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
+      if (!timingSafeEqual(expected, received)) throw new Error("Stripe signature verification failed");
+      return true;
+    }, "verifyStripeSignature");
     try {
       if (url.pathname === "/api/get-folders") {
         const userId = requireUser(url.searchParams.get("user_id"));
@@ -516,6 +684,147 @@ Follow for daily trending content! \u{1F44F}
           "SELECT * FROM accounts WHERE folder_id = ? AND user_id = ? ORDER BY id DESC"
         ).bind(folder_id, userId).all();
         return new Response(JSON.stringify(results), { headers: jsonHeaders });
+      }
+      if (url.pathname === "/api/billing/status" && request.method === "GET") {
+        const userId = requireUser(url.searchParams.get("user_id"));
+        if (!userId) {
+          return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
+        }
+        const platform = getClientPlatform(request, null, url.searchParams.get("client_platform"));
+        const row = await getBillingRow(userId);
+        const evaluated = evaluateBillingAccess(row, platform);
+        return new Response(JSON.stringify({
+          success: true,
+          billing: {
+            enabled: evaluated.enabled,
+            access: evaluated.access,
+            status: evaluated.status,
+            reason: evaluated.reason,
+            platform,
+            trial_days_default: stripeTrialDays,
+            subscription: {
+              stripe_customer_id: row?.stripe_customer_id || null,
+              stripe_subscription_id: row?.stripe_subscription_id || null,
+              current_period_end: toUnix(row?.current_period_end),
+              trial_end: toUnix(row?.trial_end),
+              trial_used: Number(row?.trial_used || 0) === 1
+            }
+          }
+        }), { headers: jsonHeaders });
+      }
+      if (url.pathname === "/api/billing/create-checkout-session" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const userId = requireUser(body?.user_id);
+        const userEmail = body?.user_email ? String(body.user_email).trim() : null;
+        const platform = getClientPlatform(request, body?.client_platform, null);
+        if (!userId) {
+          return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
+        }
+        if (platform === "android") {
+          return new Response(JSON.stringify({ success: false, error: "Checkout disabled for Android app builds" }), { status: 400, headers: jsonHeaders });
+        }
+        if (!webBillingEnabled) {
+          return new Response(JSON.stringify({ success: false, error: "Web billing is disabled" }), { status: 400, headers: jsonHeaders });
+        }
+        if (!stripePriceId) {
+          return new Response(JSON.stringify({ success: false, error: "Stripe price is not configured" }), { status: 500, headers: jsonHeaders });
+        }
+        const successUrl = body?.success_url && String(body.success_url).trim() ? String(body.success_url).trim() : `${frontendBaseUrl}/settings.html?billing=success`;
+        const cancelUrl = body?.cancel_url && String(body.cancel_url).trim() ? String(body.cancel_url).trim() : `${frontendBaseUrl}/settings.html?billing=cancelled`;
+        await ensureBillingRow(userId, userEmail);
+        const existing = await getBillingRow(userId);
+        let stripeCustomerId = existing?.stripe_customer_id ? String(existing.stripe_customer_id) : null;
+        if (!stripeCustomerId) {
+          const customerPayload = {
+            "metadata[user_id]": String(userId),
+            "metadata[app]": "multipost"
+          };
+          if (userEmail) customerPayload.email = userEmail;
+          const customer = await stripeApi("/v1/customers", "POST", customerPayload);
+          stripeCustomerId = String(customer.id);
+          await env.DB.prepare(`
+            UPDATE billing_subscriptions
+            SET stripe_customer_id = ?, user_email = COALESCE(?, user_email), updated_at = strftime('%s','now')
+            WHERE user_id = ?
+          `).bind(stripeCustomerId, userEmail, String(userId)).run();
+        }
+        const trialEligible = Number(existing?.trial_used || 0) !== 1;
+        const payload = {
+          mode: "subscription",
+          customer: stripeCustomerId,
+          success_url: successUrl,
+          cancel_url: cancelUrl,
+          "line_items[0][price]": stripePriceId,
+          "line_items[0][quantity]": "1",
+          "metadata[user_id]": String(userId),
+          "metadata[app]": "multipost",
+          client_reference_id: String(userId),
+          allow_promotion_codes: "true"
+        };
+        if (trialEligible && stripeTrialDays > 0) {
+          payload["subscription_data[trial_period_days]"] = String(Math.floor(stripeTrialDays));
+        }
+        const session = await stripeApi("/v1/checkout/sessions", "POST", payload);
+        return new Response(JSON.stringify({ success: true, url: session.url || null, session_id: session.id || null }), { headers: jsonHeaders });
+      }
+      if (url.pathname === "/api/billing/create-portal-session" && request.method === "POST") {
+        const body = await request.json().catch(() => ({}));
+        const userId = requireUser(body?.user_id);
+        if (!userId) {
+          return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
+        }
+        if (!webBillingEnabled) {
+          return new Response(JSON.stringify({ success: false, error: "Web billing is disabled" }), { status: 400, headers: jsonHeaders });
+        }
+        const row = await getBillingRow(userId);
+        if (!row?.stripe_customer_id) {
+          return new Response(JSON.stringify({ success: false, error: "No Stripe customer found for this account" }), { status: 400, headers: jsonHeaders });
+        }
+        const returnUrl = body?.return_url && String(body.return_url).trim() ? String(body.return_url).trim() : `${frontendBaseUrl}/settings.html`;
+        const portal = await stripeApi("/v1/billing_portal/sessions", "POST", {
+          customer: String(row.stripe_customer_id),
+          return_url: returnUrl
+        });
+        return new Response(JSON.stringify({ success: true, url: portal.url || null }), { headers: jsonHeaders });
+      }
+      if (url.pathname === "/api/billing/webhook" && request.method === "POST") {
+        try {
+          const rawBody = await request.text();
+          await verifyStripeSignature(rawBody, request.headers.get("stripe-signature"));
+          const event = JSON.parse(rawBody || "{}");
+          const eventType = String(event?.type || "");
+          if (eventType === "checkout.session.completed") {
+            const obj = event?.data?.object || {};
+            const userId = obj?.client_reference_id || obj?.metadata?.user_id || null;
+            await persistBillingFromSubscription({
+              userId,
+              stripeCustomerId: obj?.customer || null,
+              stripeSubscriptionId: obj?.subscription || null,
+              status: "active"
+            });
+          } else if (eventType === "customer.subscription.created" || eventType === "customer.subscription.updated" || eventType === "customer.subscription.deleted") {
+            const sub = event?.data?.object || {};
+            const userId = sub?.metadata?.user_id || null;
+            await persistBillingFromSubscription({
+              userId,
+              stripeCustomerId: sub?.customer || null,
+              stripeSubscriptionId: sub?.id || null,
+              status: sub?.status || null,
+              currentPeriodEnd: sub?.current_period_end || null,
+              trialEnd: sub?.trial_end || null
+            });
+          } else if (eventType === "invoice.payment_failed") {
+            const invoice = event?.data?.object || {};
+            await persistBillingFromSubscription({
+              userId: null,
+              stripeCustomerId: invoice?.customer || null,
+              status: "past_due"
+            });
+          }
+          return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
+        } catch (err) {
+          return new Response(JSON.stringify({ success: false, error: err?.message || "Webhook handling failed" }), { status: 400, headers: jsonHeaders });
+        }
       }
       if (url.pathname === "/api/auth/youtube") {
         const legacyState = url.searchParams.get("state");
@@ -885,6 +1194,10 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request));
+        if (!billingGate.ok) {
+          return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
+        }
         const body = await safeJson(request);
         const title = String(body.title || "").trim();
         const description = String(body.description || "").trim();
@@ -1042,6 +1355,10 @@ Follow for daily trending content! \u{1F44F}
             status: 400,
             headers: jsonHeaders
           });
+        }
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request));
+        if (!billingGate.ok) {
+          return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
         const body = await safeJson(request);
         const caption = String(body.caption || "").trim();
@@ -1223,6 +1540,10 @@ Follow for daily trending content! \u{1F44F}
             status: 400,
             headers: jsonHeaders
           });
+        }
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request));
+        if (!billingGate.ok) {
+          return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
         const body = await safeJson(request);
         const title = String(body.title || "").trim();
@@ -1423,6 +1744,10 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request));
+        if (!billingGate.ok) {
+          return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
+        }
         const formData = await request.formData();
         const title = String(formData.get("title") || "").trim();
         const description = String(formData.get("description") || "").trim();
@@ -1503,6 +1828,10 @@ Follow for daily trending content! \u{1F44F}
             status: 400,
             headers: jsonHeaders
           });
+        }
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request));
+        if (!billingGate.ok) {
+          return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
         const formData = await request.formData();
         const title = String(formData.get("title") || "").trim();
@@ -1691,6 +2020,10 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request));
+        if (!billingGate.ok) {
+          return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
+        }
         const formData = await request.formData();
         const title = String(formData.get("title") || "").trim();
         const description = String(formData.get("description") || "").trim();
@@ -1793,8 +2126,13 @@ Follow for daily trending content! \u{1F44F}
         }
       }
       if (url.pathname === "/api/post-video" && request.method === "POST") {
-        const { account_id, video_url, image_url, media_type, title, platform, description, page_id, folder_id } = await request.json();
+        const { account_id, video_url, image_url, media_type, title, platform, description, page_id, folder_id, user_id, client_platform } = await request.json();
         const account = account_id ? await env.DB.prepare("SELECT * FROM accounts WHERE id = ?").bind(account_id).first() : null;
+        const billingUserId = requireUser(user_id) || requireUser(account?.user_id);
+        const billingGate = await ensureBillingAccess(billingUserId, getClientPlatform(request, client_platform));
+        if (!billingGate.ok) {
+          return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
+        }
         const bearer = account?.access_token;
         if (platform === "tiktok") {
           const tiktokRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
