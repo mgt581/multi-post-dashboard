@@ -454,7 +454,15 @@ Follow for daily trending content! \u{1F44F}
       if (v === "year" || v === "yearly" || v === "annual" || v === "annually") return "yearly";
       return "";
     }, "normalizeBillingInterval");
+    const parseCsvSet = /* @__PURE__ */ __name((raw) => {
+      return new Set(
+        String(raw || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean)
+      );
+    }, "parseCsvSet");
     const webBillingEnabled = String(env.WEB_BILLING_ENABLED || "false").toLowerCase() === "true";
+    const ownerUserIds = parseCsvSet(env.BILLING_OWNER_USER_IDS || "");
+    const ownerEmails = parseCsvSet(env.BILLING_OWNER_EMAILS || "");
+    const ownerAdminToken = env.OWNER_ADMIN_TOKEN ? String(env.OWNER_ADMIN_TOKEN).trim() : "";
     const stripeSecretKey = env.STRIPE_SECRET_KEY ? String(env.STRIPE_SECRET_KEY).trim() : "";
     const stripeWebhookSecret = env.STRIPE_WEBHOOK_SECRET ? String(env.STRIPE_WEBHOOK_SECRET).trim() : "";
     const stripeTrialDays = Number(env.STRIPE_TRIAL_DAYS || 7) > 0 ? Number(env.STRIPE_TRIAL_DAYS || 7) : 7;
@@ -597,6 +605,19 @@ Follow for daily trending content! \u{1F44F}
       ).run();
     }, "persistBillingFromSubscription");
     const evaluateBillingAccess = /* @__PURE__ */ __name((row, platform) => {
+      const userId = String(row?.user_id || "").trim();
+      const userEmail = String(row?.user_email || "").trim().toLowerCase();
+      const ownerByDbFlag = Number(row?.is_owner || 0) === 1;
+      const ownerByConfig = ownerUserIds.has(userId.toLowerCase()) || (userEmail && ownerEmails.has(userEmail));
+      if (ownerByDbFlag || ownerByConfig) {
+        return {
+          enabled: true,
+          access: true,
+          reason: "owner_bypass",
+          status: "owner",
+          owner: true
+        };
+      }
       if (!webBillingEnabled) {
         return {
           enabled: false,
@@ -624,6 +645,7 @@ Follow for daily trending content! \u{1F44F}
         access: !!(isStatusActive || hasActiveTime),
         reason: isStatusActive || hasActiveTime ? "ok" : "subscription_required",
         status: status || "inactive",
+        owner: false,
         plan: getEffectivePlan(row)
       };
     }, "evaluateBillingAccess");
@@ -658,7 +680,7 @@ Follow for daily trending content! \u{1F44F}
       }
     }, "recordPublishUsage");
     const ensurePlanQuota = /* @__PURE__ */ __name(async (userId, platform, evaluated) => {
-      if (!evaluated?.enabled || evaluated?.reason === "android_bypass") {
+      if (!evaluated?.enabled || evaluated?.reason === "android_bypass" || evaluated?.reason === "owner_bypass") {
         return { ok: true };
       }
       const limits = evaluated?.plan?.limits || PLAN_LIMITS.pro;
@@ -682,7 +704,7 @@ Follow for daily trending content! \u{1F44F}
       return Number(row?.count || 0);
     }, "countLinkedAccountsByPlatform");
     const ensureLinkingQuota = /* @__PURE__ */ __name(async ({ userId, platform, folderId, evaluated }) => {
-      if (!evaluated?.enabled || evaluated?.reason === "android_bypass") return { ok: true };
+      if (!evaluated?.enabled || evaluated?.reason === "android_bypass" || evaluated?.reason === "owner_bypass") return { ok: true };
       const limits = evaluated?.plan?.limits || PLAN_LIMITS.pro;
       const cap = Number(limits?.account_caps?.[platform] || 0);
       if (!cap) return { ok: true };
@@ -878,6 +900,7 @@ Follow for daily trending content! \u{1F44F}
             status: evaluated.status,
             reason: evaluated.reason,
             platform,
+            owner_mode: evaluated.reason === "owner_bypass",
             trial_days_default: stripeTrialDays,
             plan: {
               key: effPlan.planKey,
@@ -896,10 +919,31 @@ Follow for daily trending content! \u{1F44F}
               stripe_price_id: row?.stripe_price_id || null,
               current_period_end: toUnix(row?.current_period_end),
               trial_end: toUnix(row?.trial_end),
-              trial_used: Number(row?.trial_used || 0) === 1
+              trial_used: Number(row?.trial_used || 0) === 1,
+              is_owner: Number(row?.is_owner || 0) === 1
             }
           }
         }), { headers: jsonHeaders });
+      }
+      if (url.pathname === "/api/billing/owner-mode" && request.method === "POST") {
+        const auth = String(request.headers.get("x-owner-admin-token") || "").trim();
+        if (!ownerAdminToken || !auth || auth !== ownerAdminToken) {
+          return new Response(JSON.stringify({ success: false, error: "Unauthorized" }), { status: 401, headers: jsonHeaders });
+        }
+        const body = await request.json().catch(() => ({}));
+        const userId = requireUser(body?.user_id);
+        const userEmail = body?.user_email ? String(body.user_email).trim().toLowerCase() : null;
+        const isOwner = Number(body?.is_owner || 0) === 1 ? 1 : 0;
+        if (!userId) {
+          return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
+        }
+        await ensureBillingRow(userId, userEmail);
+        await env.DB.prepare(`
+          UPDATE billing_subscriptions
+          SET is_owner = ?, user_email = COALESCE(?, user_email), updated_at = strftime('%s','now')
+          WHERE user_id = ?
+        `).bind(isOwner, userEmail, String(userId)).run();
+        return new Response(JSON.stringify({ success: true, user_id: String(userId), is_owner: isOwner === 1 }), { headers: jsonHeaders });
       }
       if (url.pathname === "/api/billing/create-checkout-session" && request.method === "POST") {
         const body = await request.json().catch(() => ({}));

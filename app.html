@@ -110,36 +110,84 @@
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 16px;
-      padding: 14px;
+      padding: 16px;
       box-shadow: var(--shadow);
     }
     .plans-head {
-      margin: 0 0 10px;
-      font-size: 13px;
+      margin: 0 0 6px;
+      font-size: 14px;
       font-weight: 800;
+      color: #f8fafc;
+    }
+    .plans-subhead {
+      margin: 0 0 12px;
+      font-size: 12px;
       color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.7px;
     }
     .plans-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
+      grid-template-columns: 1fr;
+      gap: 10px;
     }
     .plan-link {
       text-decoration: none;
       color: var(--text);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 9px 10px;
-      font-size: 12px;
-      font-weight: 800;
+      border-radius: 14px;
+      padding: 12px;
       background: rgba(255,255,255,0.04);
-      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      position: relative;
     }
-    .plan-link:hover { border-color: rgba(14, 165, 233, 0.55); }
-    @media (max-width: 460px) {
-      .plans-grid { grid-template-columns: 1fr; }
+    .plan-link:hover { border-color: rgba(14, 165, 233, 0.65); }
+    .plan-link.yearly {
+      background: linear-gradient(140deg, rgba(14,165,233,0.14), rgba(124,58,237,0.1));
+      border-color: rgba(14, 165, 233, 0.4);
+    }
+    .plan-link.featured {
+      border-color: rgba(34, 197, 94, 0.65);
+      box-shadow: 0 12px 32px rgba(34, 197, 94, 0.2);
+      transform: translateY(-1px);
+    }
+    .plan-badge {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+      color: #ecfeff;
+      background: rgba(14, 165, 233, 0.3);
+      border: 1px solid rgba(125, 211, 252, 0.5);
+      border-radius: 999px;
+      padding: 3px 8px;
+    }
+    .plan-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: #f8fafc;
+    }
+    .plan-sub {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .plan-sub.trial {
+      color: #86efac;
+      font-weight: 800;
+    }
+    .plan-cta {
+      margin-top: 2px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #bae6fd;
+    }
+    @media (min-width: 560px) {
+      .plans-grid { grid-template-columns: 1fr 1fr; }
     }
 
     /* Folder action buttons */
@@ -183,14 +231,40 @@
     </header>
 
     <div class="plans-wrap">
-      <p class="plans-head">Upgrade Plan</p>
+      <p class="plans-head">Upgrade Your Plan</p>
+      <p class="plans-subhead">Yearly options include better value. Pro Yearly includes a 7 day free trial.</p>
       <div class="plans-grid">
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="monthly">Pro Monthly £14.99</a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="yearly">Pro Yearly £149</a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="monthly">Pro+ Monthly £49</a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="yearly">Pro+ Yearly £529.99</a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="monthly">Agency Monthly £249</a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="yearly">Agency Yearly £2,499</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="monthly">
+          <span class="plan-title">Pro Monthly £14.99</span>
+          <span class="plan-sub">Pay monthly</span>
+          <span class="plan-cta">Choose Pro Monthly</span>
+        </a>
+        <a class="plan-link yearly featured checkout-plan-link" href="#" data-plan="pro" data-interval="yearly">
+          <span class="plan-badge">Best Value</span>
+          <span class="plan-title">Pro Yearly £149</span>
+          <span class="plan-sub trial">Includes 7 Day Free Trial</span>
+          <span class="plan-cta">Start 7 Day Free Trial</span>
+        </a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="monthly">
+          <span class="plan-title">Pro Plus Monthly £49</span>
+          <span class="plan-sub">Pay monthly</span>
+          <span class="plan-cta">Choose Pro Plus Monthly</span>
+        </a>
+        <a class="plan-link yearly checkout-plan-link" href="#" data-plan="pro_plus" data-interval="yearly">
+          <span class="plan-title">Pro Plus Yearly £529.99</span>
+          <span class="plan-sub">Save with annual billing</span>
+          <span class="plan-cta">Choose Pro Plus Yearly</span>
+        </a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="monthly">
+          <span class="plan-title">Agency Monthly £249</span>
+          <span class="plan-sub">Pay monthly</span>
+          <span class="plan-cta">Choose Agency Monthly</span>
+        </a>
+        <a class="plan-link yearly checkout-plan-link" href="#" data-plan="agency" data-interval="yearly">
+          <span class="plan-title">Agency Yearly £2,499</span>
+          <span class="plan-sub">Save with annual billing</span>
+          <span class="plan-cta">Choose Agency Yearly</span>
+        </a>
       </div>
     </div>
 
@@ -210,14 +284,40 @@
     </div>
 
     <div class="plans-wrap">
-      <p class="plans-head">Upgrade Plan</p>
+      <p class="plans-head">Upgrade Your Plan</p>
+      <p class="plans-subhead">Yearly options include better value. Pro Yearly includes a 7 day free trial.</p>
       <div class="plans-grid">
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="monthly">Pro Monthly £14.99</a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="yearly">Pro Yearly £149</a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="monthly">Pro+ Monthly £49</a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="yearly">Pro+ Yearly £529.99</a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="monthly">Agency Monthly £249</a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="yearly">Agency Yearly £2,499</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="monthly">
+          <span class="plan-title">Pro Monthly £14.99</span>
+          <span class="plan-sub">Pay monthly</span>
+          <span class="plan-cta">Choose Pro Monthly</span>
+        </a>
+        <a class="plan-link yearly featured checkout-plan-link" href="#" data-plan="pro" data-interval="yearly">
+          <span class="plan-badge">Best Value</span>
+          <span class="plan-title">Pro Yearly £149</span>
+          <span class="plan-sub trial">Includes 7 Day Free Trial</span>
+          <span class="plan-cta">Start 7 Day Free Trial</span>
+        </a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="monthly">
+          <span class="plan-title">Pro Plus Monthly £49</span>
+          <span class="plan-sub">Pay monthly</span>
+          <span class="plan-cta">Choose Pro Plus Monthly</span>
+        </a>
+        <a class="plan-link yearly checkout-plan-link" href="#" data-plan="pro_plus" data-interval="yearly">
+          <span class="plan-title">Pro Plus Yearly £529.99</span>
+          <span class="plan-sub">Save with annual billing</span>
+          <span class="plan-cta">Choose Pro Plus Yearly</span>
+        </a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="monthly">
+          <span class="plan-title">Agency Monthly £249</span>
+          <span class="plan-sub">Pay monthly</span>
+          <span class="plan-cta">Choose Agency Monthly</span>
+        </a>
+        <a class="plan-link yearly checkout-plan-link" href="#" data-plan="agency" data-interval="yearly">
+          <span class="plan-title">Agency Yearly £2,499</span>
+          <span class="plan-sub">Save with annual billing</span>
+          <span class="plan-cta">Choose Agency Yearly</span>
+        </a>
       </div>
     </div>
   </div>

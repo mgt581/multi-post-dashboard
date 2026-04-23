@@ -219,14 +219,37 @@
 
     .paywall-banner {
       display: none;
-      border: 1px solid rgba(245, 158, 11, 0.35);
-      background: rgba(245, 158, 11, 0.1);
-      color: #fde68a;
+      border: 1px solid rgba(14, 165, 233, 0.35);
+      background:
+        radial-gradient(circle at 85% 10%, rgba(56,189,248,0.2), transparent 45%),
+        rgba(11, 24, 41, 0.92);
+      color: #e2e8f0;
       border-radius: 12px;
-      padding: 12px 14px;
+      padding: 14px;
       font-size: 13px;
       font-weight: 700;
       line-height: 1.45;
+    }
+    .paywall-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: #f8fafc;
+      margin-bottom: 4px;
+    }
+    .paywall-copy {
+      color: #cbd5e1;
+      font-size: 13px;
+      margin-bottom: 10px;
+    }
+    .paywall-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      text-decoration: none;
+      color: #7dd3fc;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
     }
 
     .paywall-banner.show {
@@ -370,6 +393,15 @@
       btn.textContent = isLoading ? loadingText : normalText;
     }
 
+    function escapeHtml(value) {
+      return String(value || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
     function getClientPlatform() {
       const qp = new URLSearchParams(window.location.search);
       const q = (qp.get("app_platform") || "").trim().toLowerCase();
@@ -388,11 +420,19 @@
       if (up) up.disabled = !enabled;
       if (enabled) {
         paywallBanner.classList.remove("show");
-        paywallBanner.textContent = "";
+        paywallBanner.innerHTML = "";
         return;
       }
+      const detail = message && String(message).trim()
+        ? String(message).trim()
+        : "Start your 7 day free trial or upgrade in Profile > Billing.";
+      const safeDetail = escapeHtml(detail);
       paywallBanner.classList.add("show");
-      paywallBanner.textContent = message || "Subscription required. Open Profile > Billing to start trial or subscribe.";
+      paywallBanner.innerHTML = `
+        <div class="paywall-title">Web publishing requires an active plan</div>
+        <div class="paywall-copy">${safeDetail}</div>
+        <a class="paywall-link" href="settings.html">Open Profile > Billing</a>
+      `;
     }
 
     async function loadBillingStatus() {
@@ -414,10 +454,10 @@
           return;
         }
         billingReady = true;
-        setPublishingEnabled(false, "Subscription required for web publishing. Go to Profile > Billing to start trial or subscribe.");
+        setPublishingEnabled(false, "Start your 7 day free trial or upgrade in Profile > Billing.");
       } catch (err) {
         billingReady = true;
-        setPublishingEnabled(false, err?.message || "Unable to verify billing. Please check Profile > Billing.");
+        setPublishingEnabled(false, err?.message || "We could not verify billing right now. Please retry in Profile > Billing.");
       }
     }
 
@@ -653,7 +693,7 @@
     async function generateImageSEO() {
       if (!billingReady) await loadBillingStatus();
       if (!hasBillingAccess) {
-        alert("Subscription required. Open Profile > Billing to start trial or subscribe.");
+        alert("Web publishing requires an active plan. Start your 7 day free trial in Profile > Billing.");
         return;
       }
       const prompt = document.getElementById("imagePrompt").value.trim();
@@ -740,7 +780,7 @@
     async function uploadFacebookImagePost() {
       if (!billingReady) await loadBillingStatus();
       if (!hasBillingAccess) {
-        alert("Subscription required. Open Profile > Billing to start trial or subscribe.");
+        alert("Web publishing requires an active plan. Start your 7 day free trial in Profile > Billing.");
         return;
       }
       if (!ensureFolderContext()) return;

@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS billing_subscriptions (
   stripe_price_id TEXT,
   plan_key TEXT,
   billing_interval TEXT,
+  is_owner INTEGER DEFAULT 0,
   subscription_status TEXT,
   current_period_end INTEGER,
   trial_end INTEGER,
