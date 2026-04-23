@@ -8,7 +8,7 @@ const YOUTUBE_REDIRECT_URI =
   "https://multipostapp.co.uk/api/auth/callback/youtube";
 
 const YOUTUBE_SCOPE =
-  "https://www.googleapis.com/auth/youtube.upload";
+  "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload";
 
 // =============================
 // Start OAuth Flow
