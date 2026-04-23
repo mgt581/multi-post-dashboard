@@ -107,6 +107,28 @@ Return ONLY valid JSON with no markdown, no extra text, no explanations:
           if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) rawText = rawText.slice(firstBrace, lastBrace + 1).trim();
           return JSON.parse(rawText);
         }, "parseSeoText");
+        const makeLocalFallbackSeo = /* @__PURE__ */ __name((promptText) => {
+          const idea = String(promptText || "viral short video").trim() || "viral short video";
+          const words = idea.toLowerCase().replace(/[^\w\s]/g, " ").split(/\s+/).filter(Boolean).filter((w) => w.length > 2);
+          const keywordSeed = [...new Set(words)].slice(0, 10);
+          const extraKeywords = ["viral", "trending", "shorts", "reels", "fyp", "social media", "marketing"];
+          const keywordText = [...new Set([...keywordSeed, ...extraKeywords])].join(", ");
+          const titleBase = idea.length > 56 ? `${idea.slice(0, 56)}...` : idea;
+          return {
+            youtube: {
+              title: `${titleBase} | Must Watch`,
+              description: `Discover ${idea} with optimized copy crafted for reach and engagement. Share, comment and follow for more high-performing content ideas.`,
+              keywords: keywordText
+            },
+            tiktok: {
+              allInOne: `${idea} 🚀 #fyp #foryoupage #viral #trending #socialmedia`
+            },
+            facebook: {
+              title: `${titleBase} | Growth Tips`,
+              descriptionAndTags: `Boost your reach with this ${idea} content strategy.\n\n#marketing #socialmedia #facebook #business #growth`
+            }
+          };
+        }, "makeLocalFallbackSeo");
         let finalData = null;
         if (apiKey) {
           try {
@@ -142,44 +164,51 @@ Generate trending, specific SEO \u2014 not generic content.` });
           }
         }
         if (!finalData) {
-          let aiResponse;
-          if (hasImage) {
-            const userContent = hasText ? `${brandContext}Analyze this image and the following context to generate platform-optimized SEO content.
+          try {
+            let aiResponse;
+            if (hasImage) {
+              const userContent = hasText ? `${brandContext}Analyze this image and the following context to generate platform-optimized SEO content.
 
 Context: ${topic}
 
 Generate trending, specific SEO \u2014 not generic content.` : `${brandContext}Analyze this image carefully and generate platform-optimized SEO content based on what you see.
 
 Generate trending, specific SEO \u2014 not generic content.`;
-            aiResponse = await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
-              messages: [{ role: "system", content: seoSystemPrompt }, { role: "user", content: userContent }],
-              images: [{ data: imageBase64, mimeType: imageMimeType }]
-            });
-          } else {
-            aiResponse = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
-              messages: [
-                { role: "system", content: seoSystemPrompt },
-                { role: "user", content: `${brandContext}Generate platform-optimized SEO content for the following:
+              aiResponse = await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
+                messages: [{ role: "system", content: seoSystemPrompt }, { role: "user", content: userContent }],
+                images: [{ data: imageBase64, mimeType: imageMimeType }]
+              });
+            } else {
+              aiResponse = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
+                messages: [
+                  { role: "system", content: seoSystemPrompt },
+                  { role: "user", content: `${brandContext}Generate platform-optimized SEO content for the following:
 ${effectiveTopic}
 
 Generate trending, specific SEO \u2014 not generic content.` }
-              ]
-            });
+                ]
+              });
+            }
+            let rawText;
+            if (typeof aiResponse === "string") {
+              rawText = aiResponse;
+            } else if (typeof aiResponse?.response === "string") {
+              rawText = aiResponse.response;
+            } else if (typeof aiResponse?.result?.response === "string") {
+              rawText = aiResponse.result.response;
+            } else {
+              rawText = JSON.stringify(aiResponse);
+            }
+            try {
+              finalData = parseSeoText(rawText);
+            } catch {
+            }
+          } catch (aiErr) {
+            console.error("Workers AI failed, using deterministic fallback...", aiErr?.message || aiErr);
           }
-          let rawText;
-          if (typeof aiResponse === "string") {
-            rawText = aiResponse;
-          } else if (typeof aiResponse?.response === "string") {
-            rawText = aiResponse.response;
-          } else if (typeof aiResponse?.result?.response === "string") {
-            rawText = aiResponse.result.response;
-          } else {
-            rawText = JSON.stringify(aiResponse);
-          }
-          try {
-            finalData = parseSeoText(rawText);
-          } catch {
-          }
+        }
+        if (!finalData) {
+          finalData = makeLocalFallbackSeo(`${brandContext}${effectiveTopic}`);
         }
         const cleanData = finalData ? {
           youtube: {

@@ -918,16 +918,14 @@
       });
 
       const bodyText = await res.text();
-
-      if (!res.ok) {
-        throw new Error(`Server error: ${res.status}`);
-      }
-
       let json;
       try {
         json = JSON.parse(bodyText);
       } catch {
         throw new Error("Bad JSON from server");
+      }
+      if (!res.ok) {
+        throw new Error(json?.error || `Server error: ${res.status}`);
       }
 
       if (json.error) {
