@@ -106,6 +106,41 @@
     .card-sub { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
 
     .chevron { color: var(--muted); font-size: 14px; }
+    .plans-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+    }
+    .plans-head {
+      margin: 0 0 10px;
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+    }
+    .plans-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .plan-link {
+      text-decoration: none;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      background: rgba(255,255,255,0.04);
+      text-align: center;
+    }
+    .plan-link:hover { border-color: rgba(14, 165, 233, 0.55); }
+    @media (max-width: 460px) {
+      .plans-grid { grid-template-columns: 1fr; }
+    }
 
     /* Folder action buttons */
     .folder-actions {
@@ -147,6 +182,18 @@
       </button>
     </header>
 
+    <div class="plans-wrap">
+      <p class="plans-head">Upgrade Plan</p>
+      <div class="plans-grid">
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="monthly">Pro Monthly £14.99</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="yearly">Pro Yearly £149</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="monthly">Pro+ Monthly £49</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="yearly">Pro+ Yearly £529.99</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="monthly">Agency Monthly £249</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="yearly">Agency Yearly £2,499</a>
+      </div>
+    </div>
+
     <div>
       <button class="btn" onclick="createNewFolder()">
         <i class="fa-solid fa-plus" style="margin-right:8px;"></i> Create New Brand
@@ -159,6 +206,18 @@
         <div class="card" style="justify-content: center; border-style: dashed; opacity: 0.7;">
           <p class="card-sub">Loading your brands...</p>
         </div>
+      </div>
+    </div>
+
+    <div class="plans-wrap">
+      <p class="plans-head">Upgrade Plan</p>
+      <div class="plans-grid">
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="monthly">Pro Monthly £14.99</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="yearly">Pro Yearly £149</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="monthly">Pro+ Monthly £49</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="yearly">Pro+ Yearly £529.99</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="monthly">Agency Monthly £249</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="yearly">Agency Yearly £2,499</a>
       </div>
     </div>
   </div>
@@ -178,8 +237,69 @@
       : "https://multipost-seo-worker.alexbryant.workers.dev/api";
 
     let userScope = null;
+    window.billingUserEmail = "";
 
     const scopedKey = name => `${name}:${userScope}`;
+    function getClientPlatform() {
+      const qp = new URLSearchParams(window.location.search);
+      const q = (qp.get("app_platform") || "").trim().toLowerCase();
+      const ls = (localStorage.getItem("app_platform") || "").trim().toLowerCase();
+      const uaAndroid = /Android/i.test(navigator.userAgent || "");
+      const fromOverride = q || ls;
+      if (fromOverride === "android") return "android";
+      if (fromOverride === "web") return "web";
+      return uaAndroid ? "web" : "web";
+    }
+
+    async function startCheckoutForPlan(planKey, billingInterval, triggerEl) {
+      if (!userScope) {
+        window.location.href = "signin.html";
+        return;
+      }
+      const platform = getClientPlatform();
+      if (platform === "android") {
+        alert("Checkout is disabled for Android app mode.");
+        return;
+      }
+      const oldText = triggerEl.textContent;
+      triggerEl.textContent = "Opening...";
+      triggerEl.style.pointerEvents = "none";
+      try {
+        const res = await fetch(`${apiBase}/billing/create-checkout-session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", client_platform: platform },
+          body: JSON.stringify({
+            user_id: userScope,
+            user_email: window.billingUserEmail || "",
+            plan_key: planKey,
+            billing_interval: billingInterval,
+            client_platform: platform,
+            success_url: "https://multipostapp.co.uk/app.html",
+            cancel_url: "https://multipostapp.co.uk/app.html?billing=cancelled"
+          })
+        });
+        const out = await res.json();
+        if (!res.ok || !out?.success || !out?.url) throw new Error(out?.error || "Failed to create checkout session");
+        window.location.href = out.url;
+      } catch (err) {
+        alert(err?.message || "Unable to start checkout");
+        triggerEl.textContent = oldText;
+        triggerEl.style.pointerEvents = "auto";
+      }
+    }
+
+    function wireCheckoutPlanLinks() {
+      document.querySelectorAll(".checkout-plan-link").forEach((link) => {
+        link.addEventListener("click", (e) => {
+          e.preventDefault();
+          const plan = String(link.dataset.plan || "").trim();
+          const interval = String(link.dataset.interval || "").trim();
+          if (!plan || !interval) return;
+          startCheckoutForPlan(plan, interval, link);
+        });
+      });
+    }
+    wireCheckoutPlanLinks();
 
     async function loadFolders() {
       if (!userScope) return;
@@ -314,6 +434,7 @@
         return;
       }
       userScope = user.uid;
+      window.billingUserEmail = user.email || "";
       document.getElementById("userGreeting").innerText = user.displayName ? user.displayName.split(' ')[0] : "Your Brands";
       loadFolders();
     });

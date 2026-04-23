@@ -193,6 +193,41 @@
       color: var(--muted);
       line-height: 1.45;
     }
+    .plans-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      box-shadow: var(--shadow);
+    }
+    .plans-head {
+      margin: 0 0 10px;
+      font-size: 13px;
+      font-weight: 800;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+    }
+    .plans-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .plan-link {
+      text-decoration: none;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 9px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      background: rgba(255,255,255,0.04);
+      text-align: center;
+    }
+    .plan-link:hover { border-color: rgba(14, 165, 233, 0.55); }
+    @media (max-width: 460px) {
+      .plans-grid { grid-template-columns: 1fr; }
+    }
 
     /* Bottom Nav */
     .bottom-nav {
@@ -230,6 +265,18 @@
       <div class="badge">Account Settings</div>
       <div class="badge">Live</div>
     </header>
+
+    <div class="plans-wrap">
+      <p class="plans-head">Quick Upgrade Links</p>
+      <div class="plans-grid">
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="monthly">Pro Monthly £14.99</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="yearly">Pro Yearly £149</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="monthly">Pro+ Monthly £49</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="yearly">Pro+ Yearly £529.99</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="monthly">Agency Monthly £249</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="yearly">Agency Yearly £2,499</a>
+      </div>
+    </div>
 
     <div class="card profile-hero">
       <div class="avatar">
@@ -311,6 +358,18 @@
         <span class="action-sub">How we protect your data</span>
       </div>
     </a>
+
+    <div class="plans-wrap">
+      <p class="plans-head">Quick Upgrade Links</p>
+      <div class="plans-grid">
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="monthly">Pro Monthly £14.99</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="yearly">Pro Yearly £149</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="monthly">Pro+ Monthly £49</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="yearly">Pro+ Yearly £529.99</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="monthly">Agency Monthly £249</a>
+        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="yearly">Agency Yearly £2,499</a>
+      </div>
+    </div>
   </div>
 
   <nav class="bottom-nav">
@@ -444,7 +503,7 @@
             plan_key: document.getElementById("planSelect").value,
             billing_interval: document.getElementById("intervalSelect").value,
             client_platform: platform,
-            success_url: `${window.location.origin}/settings.html?billing=success`,
+            success_url: "https://multipostapp.co.uk/app.html",
             cancel_url: `${window.location.origin}/settings.html?billing=cancelled`
           })
         });
@@ -455,6 +514,37 @@
         alert(err?.message || "Unable to start checkout");
         btn.disabled = false;
         btn.textContent = old;
+      }
+    }
+
+    async function startCheckoutForPlan(planKey, billingInterval, triggerEl) {
+      if (!billingUser) return;
+      const platform = getClientPlatform();
+      if (platform === "android") return;
+      const oldText = triggerEl.textContent;
+      triggerEl.textContent = "Opening...";
+      triggerEl.style.pointerEvents = "none";
+      try {
+        const res = await fetch(`${apiBase}/billing/create-checkout-session`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", client_platform: platform },
+          body: JSON.stringify({
+            user_id: billingUser.uid,
+            user_email: billingUser.email || "",
+            plan_key: planKey,
+            billing_interval: billingInterval,
+            client_platform: platform,
+            success_url: "https://multipostapp.co.uk/app.html",
+            cancel_url: `${window.location.origin}/settings.html?billing=cancelled`
+          })
+        });
+        const out = await res.json();
+        if (!res.ok || !out?.success || !out?.url) throw new Error(out?.error || "Failed to create checkout session");
+        window.location.href = out.url;
+      } catch (err) {
+        alert(err?.message || "Unable to start checkout");
+        triggerEl.textContent = oldText;
+        triggerEl.style.pointerEvents = "auto";
       }
     }
 
@@ -492,6 +582,15 @@
     });
     document.getElementById("planSelect").addEventListener("change", updatePricingHint);
     document.getElementById("intervalSelect").addEventListener("change", updatePricingHint);
+    document.querySelectorAll(".checkout-plan-link").forEach((link) => {
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        const plan = String(link.dataset.plan || "").trim();
+        const interval = String(link.dataset.interval || "").trim();
+        if (!plan || !interval) return;
+        startCheckoutForPlan(plan, interval, link);
+      });
+    });
     updatePricingHint();
 
     onAuthStateChanged(auth, (user) => {
