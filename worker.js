@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // worker.js
-var WORKER_VERSION = "2026-04-24-scopes";
+var WORKER_VERSION = "2026-04-24-youtube-two-scopes";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -246,9 +246,6 @@ Generate trending, specific SEO \u2014 not generic content.` }
     const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
     const SESSION_EXPIRY_SECONDS = 3600;
     const YOUTUBE_OAUTH_SCOPE = [
-      "openid",
-      "https://www.googleapis.com/auth/userinfo.email",
-      "https://www.googleapis.com/auth/userinfo.profile",
       "https://www.googleapis.com/auth/youtube.readonly",
       "https://www.googleapis.com/auth/youtube.upload"
     ].join(" ");
@@ -1249,17 +1246,6 @@ Follow for daily trending content! \u{1F44F}
         const channelName = userData.items?.[0]?.snippet?.title || "Linked YouTube";
         const channelId = userData.items?.[0]?.id || channelName;
         const channelThumbnail = userData.items?.[0]?.snippet?.thumbnails?.default?.url || null;
-        // Fetch Google Account ID (sub) to support Cross-Account Protection (RISC)
-        let googleSub = null;
-        try {
-          const userinfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
-            headers: { Authorization: `Bearer ${tokens.access_token}` }
-          });
-          if (userinfoRes.ok) {
-            const userinfo = await userinfoRes.json();
-            googleSub = userinfo.sub || null;
-          }
-        } catch (_) {}
         await env.DB.batch([
           env.DB.prepare(
             "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'youtube'"
@@ -1273,7 +1259,7 @@ Follow for daily trending content! \u{1F44F}
             String(tokens.access_token),
             tokens.refresh_token ? String(tokens.refresh_token) : null,
             nowMs() + Number(tokens.expires_in || 0) * 1e3,
-            googleSub,
+            null,
             channelThumbnail
           )
         ]);
