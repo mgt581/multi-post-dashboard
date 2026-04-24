@@ -693,11 +693,12 @@ Follow for daily trending content! \u{1F44F}
         derivedTrialUsed
       ).run();
     }, "persistBillingFromSubscription");
-    const evaluateBillingAccess = /* @__PURE__ */ __name((row, platform) => {
+    const evaluateBillingAccess = /* @__PURE__ */ __name((row, platform, requestedUserId = "") => {
       const userId = String(row?.user_id || "").trim();
       const userEmail = String(row?.user_email || "").trim().toLowerCase();
+      const requested = String(requestedUserId || "").trim().toLowerCase();
       const ownerByDbFlag = Number(row?.is_owner || 0) === 1;
-      const ownerByConfig = ownerUserIds.has(userId.toLowerCase()) || (userEmail && ownerEmails.has(userEmail));
+      const ownerByConfig = ownerUserIds.has(userId.toLowerCase()) || (userEmail && ownerEmails.has(userEmail)) || (requested && (ownerUserIds.has(requested) || ownerEmails.has(requested)));
       if (ownerByDbFlag || ownerByConfig) {
         return {
           enabled: true,
@@ -813,7 +814,7 @@ Follow for daily trending content! \u{1F44F}
         return { ok: false, statusCode: 400, body: { success: false, error: "Missing user_id" } };
       }
       const row = await getBillingRow(userId);
-      const evaluated = evaluateBillingAccess(row, platform);
+      const evaluated = evaluateBillingAccess(row, platform, userId);
       if (evaluated.access) {
         return { ok: true, row, evaluated };
       }
@@ -977,7 +978,7 @@ Follow for daily trending content! \u{1F44F}
         }
         const platform = getClientPlatform(request, null, url.searchParams.get("client_platform"));
         const row = await getBillingRow(userId);
-        const evaluated = evaluateBillingAccess(row, platform);
+        const evaluated = evaluateBillingAccess(row, platform, userId);
         const effPlan = getEffectivePlan(row);
         const usageYt = await countDailyPosts(userId, "youtube");
         const usageTt = await countDailyPosts(userId, "tiktok");
