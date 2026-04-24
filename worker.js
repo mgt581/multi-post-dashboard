@@ -596,6 +596,46 @@ Follow for daily trending content! \u{1F44F}
           updated_at = strftime('%s','now')
       `).bind(String(userId), userEmail ? String(userEmail) : null).run();
     }, "ensureBillingRow");
+    const isStripeNoSuchCustomerError = /* @__PURE__ */ __name((error) => {
+      const message = String(error?.message || "").toLowerCase();
+      return message.includes("no such customer");
+    }, "isStripeNoSuchCustomerError");
+    const createStripeCustomerForUser = /* @__PURE__ */ __name(async (userId, userEmail) => {
+      const customerPayload = {
+        "metadata[user_id]": String(userId),
+        "metadata[app]": "multipost"
+      };
+      if (userEmail) customerPayload.email = userEmail;
+      const customer = await stripeApi("/v1/customers", "POST", customerPayload);
+      const stripeCustomerId = String(customer.id);
+      await env.DB.prepare(`
+        UPDATE billing_subscriptions
+        SET stripe_customer_id = ?, user_email = COALESCE(?, user_email), updated_at = strftime('%s','now')
+        WHERE user_id = ?
+      `).bind(stripeCustomerId, userEmail ? String(userEmail) : null, String(userId)).run();
+      return stripeCustomerId;
+    }, "createStripeCustomerForUser");
+    const ensureStripeCustomerForUser = /* @__PURE__ */ __name(async (userId, userEmail, existingCustomerId) => {
+      let stripeCustomerId = existingCustomerId ? String(existingCustomerId) : null;
+      if (stripeCustomerId) {
+        try {
+          const customer = await stripeApi(`/v1/customers/${encodeURIComponent(stripeCustomerId)}`, "GET");
+          if (customer?.deleted) {
+            stripeCustomerId = null;
+          }
+        } catch (error) {
+          if (isStripeNoSuchCustomerError(error)) {
+            stripeCustomerId = null;
+          } else {
+            throw error;
+          }
+        }
+      }
+      if (!stripeCustomerId) {
+        stripeCustomerId = await createStripeCustomerForUser(userId, userEmail);
+      }
+      return stripeCustomerId;
+    }, "ensureStripeCustomerForUser");
     const persistBillingFromSubscription = /* @__PURE__ */ __name(async ({ userId, stripeCustomerId, stripeSubscriptionId, stripePriceId, planKey, billingInterval, status, currentPeriodEnd, trialEnd }) => {
       if (!userId && !stripeCustomerId) return;
       if (!userId && stripeCustomerId) {
@@ -1005,21 +1045,7 @@ Follow for daily trending content! \u{1F44F}
         const cancelUrl = body?.cancel_url && String(body.cancel_url).trim() ? String(body.cancel_url).trim() : `${frontendBaseUrl}/settings.html?billing=cancelled`;
         await ensureBillingRow(userId, userEmail);
         const existing = await getBillingRow(userId);
-        let stripeCustomerId = existing?.stripe_customer_id ? String(existing.stripe_customer_id) : null;
-        if (!stripeCustomerId) {
-          const customerPayload = {
-            "metadata[user_id]": String(userId),
-            "metadata[app]": "multipost"
-          };
-          if (userEmail) customerPayload.email = userEmail;
-          const customer = await stripeApi("/v1/customers", "POST", customerPayload);
-          stripeCustomerId = String(customer.id);
-          await env.DB.prepare(`
-            UPDATE billing_subscriptions
-            SET stripe_customer_id = ?, user_email = COALESCE(?, user_email), updated_at = strftime('%s','now')
-            WHERE user_id = ?
-          `).bind(stripeCustomerId, userEmail, String(userId)).run();
-        }
+        let stripeCustomerId = await ensureStripeCustomerForUser(userId, userEmail, existing?.stripe_customer_id || null);
         const trialEligible = Number(existing?.trial_used || 0) !== 1;
         const payload = {
           mode: "subscription",
@@ -1041,25 +1067,33 @@ Follow for daily trending content! \u{1F44F}
         if (requestedInterval === "yearly" && trialEligible && stripeTrialDays > 0) {
           payload["subscription_data[trial_period_days]"] = String(Math.floor(stripeTrialDays));
         }
-        const session = await stripeApi("/v1/checkout/sessions", "POST", payload);
+        let session;
+        try {
+          session = await stripeApi("/v1/checkout/sessions", "POST", payload);
+        } catch (error) {
+          if (!isStripeNoSuchCustomerError(error)) throw error;
+          stripeCustomerId = await ensureStripeCustomerForUser(userId, userEmail, null);
+          payload.customer = stripeCustomerId;
+          session = await stripeApi("/v1/checkout/sessions", "POST", payload);
+        }
         return new Response(JSON.stringify({ success: true, url: session.url || null, session_id: session.id || null }), { headers: jsonHeaders });
       }
       if (url.pathname === "/api/billing/create-portal-session" && request.method === "POST") {
         const body = await request.json().catch(() => ({}));
         const userId = requireUser(body?.user_id);
+        const userEmail = body?.user_email ? String(body.user_email).trim() : null;
         if (!userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
         }
         if (!webBillingEnabled) {
           return new Response(JSON.stringify({ success: false, error: "Web billing is disabled" }), { status: 400, headers: jsonHeaders });
         }
+        await ensureBillingRow(userId, userEmail);
         const row = await getBillingRow(userId);
-        if (!row?.stripe_customer_id) {
-          return new Response(JSON.stringify({ success: false, error: "No Stripe customer found for this account" }), { status: 400, headers: jsonHeaders });
-        }
+        const stripeCustomerId = await ensureStripeCustomerForUser(userId, userEmail, row?.stripe_customer_id || null);
         const returnUrl = body?.return_url && String(body.return_url).trim() ? String(body.return_url).trim() : `${frontendBaseUrl}/settings.html`;
         const portal = await stripeApi("/v1/billing_portal/sessions", "POST", {
-          customer: String(row.stripe_customer_id),
+          customer: String(stripeCustomerId),
           return_url: returnUrl
         });
         return new Response(JSON.stringify({ success: true, url: portal.url || null }), { headers: jsonHeaders });
