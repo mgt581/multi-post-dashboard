@@ -220,9 +220,11 @@
             createUserWithEmailAndPassword,
             signInWithEmailAndPassword,
             GoogleAuthProvider,
-            signInWithRedirect,
+            signInWithPopup,
             getRedirectResult,
             onAuthStateChanged,
+            setPersistence,
+            browserLocalPersistence,
             sendPasswordResetEmail
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
@@ -238,13 +240,22 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const provider = new GoogleAuthProvider();
+        provider.setCustomParameters({ prompt: "select_account" });
+        setPersistence(auth, browserLocalPersistence).catch((error) => {
+            console.warn("Auth persistence setup failed:", error);
+        });
 
         let currentMode = "login";
 
+        const openWorkspace = (user) => {
+            if (!user) return;
+            localStorage.setItem("currentUserKey", user.email || user.uid);
+            window.location.replace("app.html");
+        };
+
         getRedirectResult(auth).then((result) => {
             if (result?.user) {
-                localStorage.setItem("currentUserKey", result.user.email || result.user.uid);
-                window.location.replace("app.html"); 
+                openWorkspace(result.user);
             }
         }).catch((error) => {
             console.error("Google Auth Error:", error);
@@ -281,8 +292,7 @@
                 if (!signedInUser) {
                     throw new Error("Sign-in succeeded but session was not initialized. Please refresh and try again.");
                 }
-                localStorage.setItem("currentUserKey", signedInUser.email || signedInUser.uid);
-                window.location.replace("app.html");
+                openWorkspace(signedInUser);
             } catch (err) {
                 alert(err.message);
                 btnText.style.display = "block";
@@ -290,8 +300,23 @@
             }
         };
 
-        window.handleGoogleSignIn = () => {
-            signInWithRedirect(auth, provider);
+        window.handleGoogleSignIn = async () => {
+            const googleButton = document.querySelector(".btn-google");
+            if (googleButton) googleButton.disabled = true;
+
+            try {
+                await setPersistence(auth, browserLocalPersistence);
+                const result = await signInWithPopup(auth, provider);
+                const signedInUser = result?.user || auth.currentUser;
+                if (!signedInUser) {
+                    throw new Error("Google sign-in completed but the session was not initialized. Please try again.");
+                }
+                openWorkspace(signedInUser);
+            } catch (err) {
+                console.error("Google Auth Error:", err);
+                alert(err?.message || "Google sign-in failed");
+                if (googleButton) googleButton.disabled = false;
+            }
         };
 
         window.handlePasswordReset = async () => {
@@ -305,9 +330,8 @@
 
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                localStorage.setItem("currentUserKey", user.email || user.uid);
                 if (window.location.pathname.includes("signin.html")) {
-                    window.location.replace("app.html"); 
+                    openWorkspace(user);
                 }
             }
         });
