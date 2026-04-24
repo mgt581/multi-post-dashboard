@@ -4,6 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Multipost | Access Portal</title>
+    <meta name="theme-color" content="#0b1829">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Multipost">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" href="logo.png?v=20260424">
+    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260424">
+    <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
@@ -43,26 +50,6 @@
             padding: 40px 30px;
             box-shadow: var(--shadow);
             text-align: center;
-        }
-
-        .logo-box {
-            width: 72px;
-            height: 72px;
-            background: transparent !important; /* Fixed: Removed solid gradient that causes black look */
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 20px;
-            /* Optional: keeping a subtle glow instead of a solid box */
-            filter: drop-shadow(0 0 15px rgba(124, 58, 237, 0.4)); 
-        }
-
-        .logo-box img { 
-            width: 60px; /* Slightly larger as box is now transparent */
-            height: auto; 
-            background: transparent !important;
-            mix-blend-mode: normal;
         }
 
         h1 { font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -1px; }
@@ -188,9 +175,6 @@
 </head>
 <body>
     <div class="auth-card">
-        <div class="logo-box">
-            <img src="logo.png" alt="Logo">
-        </div>
         <h1>Multipost</h1>
         <p id="form-hint">Access your multi-channel dashboard</p>
 
