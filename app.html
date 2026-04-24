@@ -192,14 +192,20 @@
       } catch (_) {
         knownKeys = [];
       }
+      const ownerKeys = [
+        "alexbryant3234@gmail.com",
+        "Y98MCpY2VTQujHVwvhufxYE6Azh1"
+      ];
 
       const candidates = [
         normalizeEmail(user?.email),
         normalizeEmail(localStorage.getItem("currentUserKey")),
         ...knownKeys.map(normalizeEmail),
+        ...ownerKeys.map(normalizeEmail),
         String(user?.email || "").trim(),
         String(localStorage.getItem("currentUserKey") || "").trim(),
         ...knownKeys.map(value => String(value || "").trim()),
+        ...ownerKeys,
         String(user?.uid || "").trim()
       ].filter(Boolean);
       return [...new Set(candidates)];
