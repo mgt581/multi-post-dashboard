@@ -178,15 +178,51 @@
       : "https://multipost-seo-worker.alexbryant.workers.dev/api";
 
     let userScope = null;
+    let authUser = null;
     const scopedKey = name => `${name}:${userScope}`;
 
+    function normalizeEmail(value) {
+      return String(value || "").trim().toLowerCase();
+    }
+
+    function getUserScopeCandidates(user) {
+      const candidates = [
+        normalizeEmail(user?.email),
+        normalizeEmail(localStorage.getItem("currentUserKey")),
+        String(user?.email || "").trim(),
+        String(localStorage.getItem("currentUserKey") || "").trim(),
+        String(user?.uid || "").trim()
+      ].filter(Boolean);
+      return [...new Set(candidates)];
+    }
+
+    async function fetchFoldersForScope(scope) {
+      const res = await fetch(`${apiBase}/get-folders?user_id=${encodeURIComponent(scope)}`);
+      if (!res.ok) throw new Error("Server error");
+      return res.json();
+    }
+
     async function loadFolders() {
+      if (!userScope && authUser) {
+        userScope = getUserScopeCandidates(authUser)[0] || null;
+      }
       if (!userScope) return;
       const container = document.getElementById("folderContainer");
       try {
-        const res = await fetch(`${apiBase}/get-folders?user_id=${encodeURIComponent(userScope)}`);
-        if (!res.ok) throw new Error("Server error");
-        const folders = await res.json();
+        let folders = await fetchFoldersForScope(userScope);
+
+        if (folders.length === 0 && authUser) {
+          for (const candidate of getUserScopeCandidates(authUser)) {
+            if (candidate === userScope) continue;
+            const candidateFolders = await fetchFoldersForScope(candidate);
+            if (candidateFolders.length > 0) {
+              userScope = candidate;
+              localStorage.setItem("currentUserKey", userScope);
+              folders = candidateFolders;
+              break;
+            }
+          }
+        }
 
         if (folders.length === 0) {
           container.innerHTML = `<div class="card" style="border-style:dashed; justify-content:center; opacity:0.7;"><p class="card-sub">No brands yet. Start by creating one!</p></div>`;
@@ -312,7 +348,8 @@
         window.location.href = "signin.html";
         return;
       }
-      userScope = user.email || localStorage.getItem("currentUserKey") || user.uid;
+      authUser = user;
+      userScope = getUserScopeCandidates(user)[0] || null;
       localStorage.setItem("currentUserKey", userScope);
       document.getElementById("userGreeting").innerText = user.displayName ? user.displayName.split(' ')[0] : "Your Brands";
       loadFolders();
