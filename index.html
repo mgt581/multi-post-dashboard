@@ -816,6 +816,29 @@ Part of <a href="https://bryantgroupholdings.co.uk" target="_blank" rel="noopene
 
 </div>
 
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+const firebaseConfig = {
+apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
+authDomain: "multi-post-daefc.firebaseapp.com",
+projectId: "multi-post-daefc",
+storageBucket: "multi-post-daefc.appspot.com",
+messagingSenderId: "1099160429576",
+appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+onAuthStateChanged(auth, (user) => {
+if (!user) return;
+localStorage.setItem("currentUserKey", user.email || user.uid);
+window.location.replace("app.html");
+});
+</script>
+
 <script>
 const demoPlayer = document.getElementById('demoPlayer');
 const demoVideo = document.getElementById('demoVideo');
