@@ -312,7 +312,8 @@
         window.location.href = "signin.html";
         return;
       }
-      userScope = user.uid;
+      userScope = user.email || localStorage.getItem("currentUserKey") || user.uid;
+      localStorage.setItem("currentUserKey", userScope);
       document.getElementById("userGreeting").innerText = user.displayName ? user.displayName.split(' ')[0] : "Your Brands";
       loadFolders();
     });
