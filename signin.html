@@ -247,9 +247,21 @@
 
         let currentMode = "login";
 
+        const normalizeUserKey = (value) => String(value || "").trim().toLowerCase();
+
+        const rememberUserKey = (value) => {
+            const key = normalizeUserKey(value);
+            if (!key) return;
+            const previous = normalizeUserKey(localStorage.getItem("currentUserKey"));
+            const known = JSON.parse(localStorage.getItem("knownUserKeys") || "[]");
+            const next = [previous, key, ...known.map(normalizeUserKey)].filter(Boolean);
+            localStorage.setItem("knownUserKeys", JSON.stringify([...new Set(next)].slice(0, 8)));
+            localStorage.setItem("currentUserKey", key);
+        };
+
         const openWorkspace = (user) => {
             if (!user) return;
-            localStorage.setItem("currentUserKey", user.email || user.uid);
+            rememberUserKey(user.email || user.uid);
             window.location.replace("app.html");
         };
 

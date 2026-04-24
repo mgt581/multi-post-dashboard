@@ -186,14 +186,36 @@
     }
 
     function getUserScopeCandidates(user) {
+      let knownKeys = [];
+      try {
+        knownKeys = JSON.parse(localStorage.getItem("knownUserKeys") || "[]");
+      } catch (_) {
+        knownKeys = [];
+      }
+
       const candidates = [
         normalizeEmail(user?.email),
         normalizeEmail(localStorage.getItem("currentUserKey")),
+        ...knownKeys.map(normalizeEmail),
         String(user?.email || "").trim(),
         String(localStorage.getItem("currentUserKey") || "").trim(),
+        ...knownKeys.map(value => String(value || "").trim()),
         String(user?.uid || "").trim()
       ].filter(Boolean);
       return [...new Set(candidates)];
+    }
+
+    function rememberUserScope(scope) {
+      const key = normalizeEmail(scope);
+      if (!key) return;
+      let knownKeys = [];
+      try {
+        knownKeys = JSON.parse(localStorage.getItem("knownUserKeys") || "[]");
+      } catch (_) {
+        knownKeys = [];
+      }
+      localStorage.setItem("currentUserKey", key);
+      localStorage.setItem("knownUserKeys", JSON.stringify([...new Set([key, ...knownKeys.map(normalizeEmail)].filter(Boolean))].slice(0, 8)));
     }
 
     async function fetchFoldersForScope(scope) {
@@ -217,7 +239,7 @@
             const candidateFolders = await fetchFoldersForScope(candidate);
             if (candidateFolders.length > 0) {
               userScope = candidate;
-              localStorage.setItem("currentUserKey", userScope);
+              rememberUserScope(userScope);
               folders = candidateFolders;
               break;
             }
@@ -350,7 +372,7 @@
       }
       authUser = user;
       userScope = getUserScopeCandidates(user)[0] || null;
-      localStorage.setItem("currentUserKey", userScope);
+      rememberUserScope(userScope);
       document.getElementById("userGreeting").innerText = user.displayName ? user.displayName.split(' ')[0] : "Your Brands";
       loadFolders();
     });
