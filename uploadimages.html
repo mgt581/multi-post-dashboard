@@ -902,7 +902,8 @@
         return;
       }
 
-      userScope = user.uid;
+      userScope = localStorage.getItem("currentUserKey") || user.email || user.uid;
+      localStorage.setItem("currentUserKey", userScope);
       await loadFolderContext();
       await loadBillingStatus();
       setStatus("Ready to generate and publish image content.");

@@ -1367,7 +1367,7 @@
       return;
     }
 
-    userScope = user.email || localStorage.getItem("currentUserKey") || user.uid;
+    userScope = localStorage.getItem("currentUserKey") || user.email || user.uid;
     localStorage.setItem("currentUserKey", userScope);
     await loadFolderContext();
     await loadBillingStatus();

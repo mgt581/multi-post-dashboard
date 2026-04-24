@@ -238,6 +238,22 @@ Generate trending, specific SEO \u2014 not generic content.` }
       });
     }
     const requireUser = /* @__PURE__ */ __name((val) => val && typeof val === "string" && val.trim() ? val.trim() : null, "requireUser");
+    const normalizeUserId = /* @__PURE__ */ __name((val) => String(val || "").trim().toLowerCase(), "normalizeUserId");
+    const splitEnvList = /* @__PURE__ */ __name((val) => String(val || "").split(",").map((item) => item.trim()).filter(Boolean), "splitEnvList");
+    const getOwnerUserAliases = /* @__PURE__ */ __name(() => [...new Set([
+      ...splitEnvList(env.BILLING_OWNER_USER_IDS),
+      ...splitEnvList(env.BILLING_OWNER_EMAILS),
+      ...splitEnvList(env.OWNER_USER_IDS),
+      ...splitEnvList(env.OWNER_EMAILS)
+    ])], "getOwnerUserAliases");
+    const getUserAliases = /* @__PURE__ */ __name((userId) => {
+      const requested = requireUser(userId);
+      if (!requested) return [];
+      const ownerAliases = getOwnerUserAliases();
+      const isOwnerAlias = ownerAliases.some((alias) => normalizeUserId(alias) === normalizeUserId(requested));
+      return isOwnerAlias ? [...new Set([requested, ...ownerAliases])] : [requested];
+    }, "getUserAliases");
+    const sqlPlaceholders = /* @__PURE__ */ __name((items) => items.map(() => "?").join(","), "sqlPlaceholders");
     const redirectUri = `${siteBaseUrl}/api/auth/callback/youtube`;
     const fbRedirectUri = `${siteBaseUrl}/api/auth/callback/facebook`;
     const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
@@ -851,9 +867,10 @@ Follow for daily trending content! \u{1F44F}
         if (!userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
         }
+        const userAliases = getUserAliases(userId);
         const { results } = await env.DB.prepare(
-          "SELECT f.*, (SELECT nickname FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_channel, (SELECT profile_picture FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_picture FROM folders f WHERE f.user_id = ? ORDER BY f.created_at DESC"
-        ).bind(userId).all();
+          `SELECT f.*, (SELECT nickname FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_channel, (SELECT profile_picture FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_picture FROM folders f WHERE f.user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY f.created_at DESC`
+        ).bind(...userAliases).all();
         return new Response(JSON.stringify(results), { headers: jsonHeaders });
       }
       if (url.pathname === "/api/add-folder") {
@@ -917,9 +934,10 @@ Follow for daily trending content! \u{1F44F}
         if (!folder_id || !userId) {
           return new Response(JSON.stringify([]), { headers: jsonHeaders });
         }
+        const userAliases = getUserAliases(userId);
         const { results } = await env.DB.prepare(
-          "SELECT * FROM accounts WHERE folder_id = ? AND user_id = ? ORDER BY id DESC"
-        ).bind(folder_id, userId).all();
+          `SELECT * FROM accounts WHERE folder_id = ? AND user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY id DESC`
+        ).bind(folder_id, ...userAliases).all();
         return new Response(JSON.stringify(results), { headers: jsonHeaders });
       }
       if (url.pathname === "/api/billing/plans" && request.method === "GET") {

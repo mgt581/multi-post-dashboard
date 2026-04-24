@@ -224,6 +224,13 @@
       return res.json();
     }
 
+    function adoptFolderScope(folders) {
+      const folderUserId = String(folders?.[0]?.user_id || "").trim();
+      if (!folderUserId || folderUserId === userScope) return;
+      userScope = folderUserId;
+      rememberUserScope(userScope);
+    }
+
     async function loadFolders() {
       if (!userScope && authUser) {
         userScope = getUserScopeCandidates(authUser)[0] || null;
@@ -232,6 +239,7 @@
       const container = document.getElementById("folderContainer");
       try {
         let folders = await fetchFoldersForScope(userScope);
+        if (folders.length > 0) adoptFolderScope(folders);
 
         if (folders.length === 0 && authUser) {
           for (const candidate of getUserScopeCandidates(authUser)) {
@@ -241,6 +249,7 @@
               userScope = candidate;
               rememberUserScope(userScope);
               folders = candidateFolders;
+              adoptFolderScope(folders);
               break;
             }
           }
