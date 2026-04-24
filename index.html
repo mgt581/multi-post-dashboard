@@ -152,6 +152,185 @@ margin:24px auto 32px;
 max-width:560px;
 }
 
+.demo-section{
+margin:70px auto 0;
+}
+
+.demo-heading{
+text-align:center;
+max-width:720px;
+margin:0 auto 28px;
+}
+
+.demo-heading h2{
+font-size:36px;
+letter-spacing:-1px;
+margin:0 0 10px;
+}
+
+.demo-heading p{
+color:var(--muted);
+font-size:17px;
+line-height:1.6;
+margin:0 auto;
+max-width:620px;
+}
+
+.video-player{
+position:relative;
+width:100%;
+aspect-ratio:16/9;
+overflow:hidden;
+background:#07101c;
+box-shadow:var(--shadow);
+}
+
+.video-player video{
+display:block;
+width:100%;
+height:100%;
+object-fit:cover;
+background:#07101c;
+}
+
+.video-player::after{
+content:"";
+position:absolute;
+left:0;
+right:0;
+bottom:0;
+height:34%;
+background:linear-gradient(0deg,rgba(4,10,19,.78),transparent);
+pointer-events:none;
+opacity:0;
+transition:opacity .18s ease;
+}
+
+.video-player:hover::after,
+.video-player:focus-within::after,
+.video-player.controls-visible::after{
+opacity:1;
+}
+
+.video-controls{
+position:absolute;
+left:20px;
+right:20px;
+bottom:20px;
+z-index:2;
+display:grid;
+grid-template-columns:auto 1fr auto auto;
+gap:14px;
+align-items:center;
+opacity:0;
+transform:translateY(10px);
+transition:opacity .18s ease,transform .18s ease;
+}
+
+.video-player:hover .video-controls,
+.video-player:focus-within .video-controls,
+.video-player.controls-visible .video-controls{
+opacity:1;
+transform:translateY(0);
+}
+
+.video-btn{
+width:50px;
+height:50px;
+border-radius:50%;
+border:1px solid rgba(148,177,212,.28);
+background:rgba(8,17,31,.74);
+color:#ffffff;
+display:grid;
+place-items:center;
+cursor:pointer;
+transition:background .18s ease,border-color .18s ease,transform .18s ease;
+}
+
+.video-btn:hover,
+.video-btn:focus-visible{
+background:rgba(16,31,52,.94);
+border-color:rgba(14,165,233,.75);
+transform:translateY(-1px);
+outline:none;
+}
+
+.video-btn svg{
+width:23px;
+height:23px;
+fill:currentColor;
+}
+
+.center-play{
+position:absolute;
+left:50%;
+top:50%;
+z-index:3;
+width:96px;
+height:96px;
+border-radius:50%;
+border:1px solid rgba(255,255,255,.22);
+background:rgba(8,17,31,.68);
+color:#ffffff;
+display:grid;
+place-items:center;
+cursor:pointer;
+transform:translate(-50%,-50%);
+transition:opacity .18s ease,transform .18s ease,background .18s ease;
+}
+
+.center-play svg{
+width:42px;
+height:42px;
+fill:currentColor;
+transform:translateX(4%);
+}
+
+.center-play:hover,
+.center-play:focus-visible{
+background:rgba(16,31,52,.92);
+outline:none;
+}
+
+.video-player.is-playing .center-play{
+opacity:0;
+pointer-events:none;
+transform:translate(-50%,-50%) scale(.94);
+}
+
+.seek-wrap{
+display:flex;
+align-items:center;
+min-width:0;
+}
+
+.video-player input[type="range"]{
+width:100%;
+height:20px;
+margin:0;
+accent-color:var(--accent-2);
+cursor:pointer;
+}
+
+.video-time{
+min-width:88px;
+font-size:14px;
+font-weight:800;
+font-variant-numeric:tabular-nums;
+color:#ffffff;
+text-align:right;
+}
+
+.volume-wrap{
+width:156px;
+border:1px solid rgba(148,177,212,.28);
+border-radius:999px;
+background:rgba(8,17,31,.74);
+padding:8px 12px;
+display:flex;
+align-items:center;
+}
+
 .section{
 margin-top:80px;
 text-align:center;
@@ -280,6 +459,10 @@ padding-bottom:40px;
 margin:30px auto 0;
 }
 
+.demo-section{
+margin-top:54px;
+}
+
 .hero h2{
 font-size:40px;
 letter-spacing:-1.5px;
@@ -292,6 +475,33 @@ font-size:30px;
 
 .hero p{
 font-size:17px;
+}
+
+.demo-heading h2{
+font-size:30px;
+}
+
+.video-controls{
+left:12px;
+right:12px;
+bottom:12px;
+grid-template-columns:auto 1fr auto;
+gap:10px;
+}
+
+.volume-wrap{
+grid-column:1/-1;
+width:100%;
+}
+
+.video-btn{
+width:44px;
+height:44px;
+}
+
+.center-play{
+width:74px;
+height:74px;
 }
 
 .nav-links{
@@ -388,6 +598,50 @@ connect their accounts once and stay organised.
 <a href="signin.html" class="btn btn-primary">
 Get Started for Free
 </a>
+
+</section>
+
+<section class="demo-section" aria-labelledby="demo-title">
+
+<div class="demo-heading">
+<h2 id="demo-title">Watch Multipost in action</h2>
+<p>
+See how Multipost keeps your brands, connected accounts and AI SEO workflow together
+so you can publish faster without switching logins all day.
+</p>
+</div>
+
+<div class="video-player controls-visible" id="demoPlayer">
+<video id="demoVideo" preload="metadata" playsinline>
+<source src="multipost-demo-human-female-music.mp4" type="video/mp4">
+</video>
+
+<button class="center-play" id="centerPlay" type="button" aria-label="Play video" title="Play">
+<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
+</button>
+
+<div class="video-controls" aria-label="Video controls">
+<button class="video-btn" id="playPause" type="button" aria-label="Play video" title="Play">
+<svg id="playIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
+</button>
+
+<div class="seek-wrap">
+<input id="seek" type="range" min="0" max="100" value="0" step="0.1" aria-label="Seek video">
+</div>
+
+<div class="video-time" id="videoTime">0:00 / 0:00</div>
+
+<button class="video-btn" id="muteToggle" type="button" aria-label="Mute video" title="Mute">
+<svg id="muteIcon" viewBox="0 0 24 24" aria-hidden="true">
+<path d="M4 9v6h4l5 5V4L8 9H4zm11.5 3a3.5 3.5 0 0 0-2-3.16v6.32a3.5 3.5 0 0 0 2-3.16zm0-7.2v2.06A6 6 0 0 1 18 12a6 6 0 0 1-2.5 5.14v2.06A8 8 0 0 0 20 12a8 8 0 0 0-4.5-7.2z"></path>
+</svg>
+</button>
+
+<div class="volume-wrap">
+<input id="volume" type="range" min="0" max="1" value="1" step="0.01" aria-label="Volume">
+</div>
+</div>
+</div>
 
 </section>
 
@@ -555,5 +809,123 @@ Part of <a href="https://bryantgroupholdings.co.uk" target="_blank" rel="noopene
 </footer>
 
 </div>
+
+<script>
+const demoPlayer = document.getElementById('demoPlayer');
+const demoVideo = document.getElementById('demoVideo');
+const playPause = document.getElementById('playPause');
+const centerPlay = document.getElementById('centerPlay');
+const playIcon = document.getElementById('playIcon');
+const muteToggle = document.getElementById('muteToggle');
+const muteIcon = document.getElementById('muteIcon');
+const seek = document.getElementById('seek');
+const volume = document.getElementById('volume');
+const videoTime = document.getElementById('videoTime');
+
+const videoIcons = {
+play:'<path d="M8 5v14l11-7z"></path>',
+pause:'<path d="M6 5h4v14H6zM14 5h4v14h-4z"></path>',
+sound:'<path d="M4 9v6h4l5 5V4L8 9H4zm11.5 3a3.5 3.5 0 0 0-2-3.16v6.32a3.5 3.5 0 0 0 2-3.16zm0-7.2v2.06A6 6 0 0 1 18 12a6 6 0 0 1-2.5 5.14v2.06A8 8 0 0 0 20 12a8 8 0 0 0-4.5-7.2z"></path>',
+muted:'<path d="M4 9v6h4l5 5V4L8 9H4zm13.6 3 2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7-2.7 2.7 2.7 1.4-1.4z"></path>'
+};
+
+let controlsTimer;
+
+function formatVideoTime(value){
+if(!Number.isFinite(value)) return '0:00';
+const minutes = Math.floor(value / 60);
+const seconds = String(Math.floor(value % 60)).padStart(2,'0');
+return `${minutes}:${seconds}`;
+}
+
+function showVideoControls(){
+demoPlayer.classList.add('controls-visible');
+window.clearTimeout(controlsTimer);
+if(!demoVideo.paused){
+controlsTimer = window.setTimeout(() => {
+demoPlayer.classList.remove('controls-visible');
+},2200);
+}
+}
+
+function updatePlayState(){
+const playing = !demoVideo.paused && !demoVideo.ended;
+demoPlayer.classList.toggle('is-playing',playing);
+playIcon.innerHTML = playing ? videoIcons.pause : videoIcons.play;
+playPause.setAttribute('aria-label',playing ? 'Pause video' : 'Play video');
+playPause.title = playing ? 'Pause' : 'Play';
+}
+
+function updateMuteState(){
+const muted = demoVideo.muted || demoVideo.volume === 0;
+muteIcon.innerHTML = muted ? videoIcons.muted : videoIcons.sound;
+muteToggle.setAttribute('aria-label',muted ? 'Unmute video' : 'Mute video');
+muteToggle.title = muted ? 'Unmute' : 'Mute';
+}
+
+function updateProgress(){
+const duration = demoVideo.duration || 0;
+seek.value = duration ? (demoVideo.currentTime / duration) * 100 : 0;
+videoTime.textContent = `${formatVideoTime(demoVideo.currentTime)} / ${formatVideoTime(duration)}`;
+}
+
+async function toggleVideoPlayback(){
+if(demoVideo.paused || demoVideo.ended){
+await demoVideo.play();
+}else{
+demoVideo.pause();
+}
+}
+
+playPause.addEventListener('click',toggleVideoPlayback);
+centerPlay.addEventListener('click',toggleVideoPlayback);
+demoVideo.addEventListener('click',toggleVideoPlayback);
+
+demoVideo.addEventListener('play',() => {
+updatePlayState();
+showVideoControls();
+});
+
+demoVideo.addEventListener('pause',() => {
+updatePlayState();
+showVideoControls();
+});
+
+demoVideo.addEventListener('ended',() => {
+updatePlayState();
+showVideoControls();
+});
+
+demoVideo.addEventListener('loadedmetadata',updateProgress);
+demoVideo.addEventListener('timeupdate',updateProgress);
+
+seek.addEventListener('input',() => {
+const duration = demoVideo.duration || 0;
+demoVideo.currentTime = duration * (Number(seek.value) / 100);
+});
+
+muteToggle.addEventListener('click',() => {
+demoVideo.muted = !demoVideo.muted;
+if(!demoVideo.muted && demoVideo.volume === 0){
+demoVideo.volume = 0.7;
+volume.value = demoVideo.volume;
+}
+updateMuteState();
+});
+
+volume.addEventListener('input',() => {
+demoVideo.volume = Number(volume.value);
+demoVideo.muted = demoVideo.volume === 0;
+updateMuteState();
+});
+
+demoPlayer.addEventListener('mousemove',showVideoControls);
+demoPlayer.addEventListener('touchstart',showVideoControls,{passive:true});
+
+demoVideo.volume = Number(volume.value);
+updatePlayState();
+updateMuteState();
+updateProgress();
+</script>
 </body>
 </html>
