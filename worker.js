@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // worker.js
-var WORKER_VERSION = "2026-03-23c";
+var WORKER_VERSION = "2026-04-24-scopes";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -245,6 +245,13 @@ Generate trending, specific SEO \u2014 not generic content.` }
     const TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1e3;
     const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
     const SESSION_EXPIRY_SECONDS = 3600;
+    const YOUTUBE_OAUTH_SCOPE = [
+      "openid",
+      "https://www.googleapis.com/auth/userinfo.email",
+      "https://www.googleapis.com/auth/userinfo.profile",
+      "https://www.googleapis.com/auth/youtube.readonly",
+      "https://www.googleapis.com/auth/youtube.upload"
+    ].join(" ");
     const nowMs = /* @__PURE__ */ __name(() => Date.now(), "nowMs");
     const safeJson = /* @__PURE__ */ __name(async (res) => {
       const text = await res.text();
@@ -1165,8 +1172,7 @@ Follow for daily trending content! \u{1F44F}
         if (!env.GOOGLE_CLIENT_SECRET) {
           return new Response(JSON.stringify({ success: false, error: "Missing GOOGLE_CLIENT_SECRET env var" }), { status: 500, headers: jsonHeaders });
         }
-        const scope = "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload";
-        const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(env.GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&include_granted_scopes=true&prompt=${encodeURIComponent("consent select_account")}&state=${encodeURIComponent(state)}`;
+        const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(env.GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(YOUTUBE_OAUTH_SCOPE)}&access_type=offline&include_granted_scopes=false&prompt=${encodeURIComponent("consent select_account")}&state=${encodeURIComponent(state)}`;
         return Response.redirect(googleAuthUrl);
       }
       if (url.pathname === "/api/auth/tiktok") {
@@ -1278,7 +1284,7 @@ Follow for daily trending content! \u{1F44F}
           accessToken: String(tokens.access_token),
           refreshToken: tokens.refresh_token ? String(tokens.refresh_token) : null,
           expiresAt: nowMs() + Number(tokens.expires_in || 0) * 1e3,
-          scope: "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload"
+          scope: YOUTUBE_OAUTH_SCOPE
         });
         return Response.redirect(
           `${frontendBaseUrl}/create-post.html?youtube_connected=1&account_name=${encodeURIComponent(channelName)}&folder_id=${encodeURIComponent(folderId)}`
@@ -1624,7 +1630,7 @@ Follow for daily trending content! \u{1F44F}
                 accessToken: refreshed.access_token,
                 refreshToken: refreshed.refresh_token || refreshToken,
                 expiresAt: nowMs() + Number(refreshed.expires_in || DEFAULT_TOKEN_EXPIRY_SECONDS) * 1e3,
-                scope: token.scope || "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload"
+                scope: token.scope || YOUTUBE_OAUTH_SCOPE
               });
               return refreshed.access_token;
             }
@@ -2278,7 +2284,7 @@ Follow for daily trending content! \u{1F44F}
                 accessToken: refreshed.access_token,
                 refreshToken: refreshed.refresh_token || refreshToken,
                 expiresAt: nowMs() + Number(refreshed.expires_in || DEFAULT_TOKEN_EXPIRY_SECONDS) * 1e3,
-                scope: token.scope || "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.upload"
+                scope: token.scope || YOUTUBE_OAUTH_SCOPE
               });
               return refreshed.access_token;
             }

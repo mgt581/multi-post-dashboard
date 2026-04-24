@@ -492,17 +492,33 @@ left:12px;
 right:12px;
 bottom:12px;
 grid-template-columns:auto 1fr auto;
-gap:10px;
+gap:8px;
+padding:8px;
+border:1px solid rgba(148,177,212,.22);
+border-radius:999px;
+background:rgba(8,17,31,.78);
+backdrop-filter:blur(10px);
 }
 
 .volume-wrap{
-grid-column:1/-1;
-width:100%;
+display:none;
 }
 
 .video-btn{
-width:44px;
-height:44px;
+width:38px;
+height:38px;
+background:rgba(8,17,31,.42);
+border-color:rgba(148,177,212,.2);
+}
+
+.video-btn svg{
+width:19px;
+height:19px;
+}
+
+.video-time{
+min-width:72px;
+font-size:12px;
 }
 
 .center-play{
@@ -537,6 +553,32 @@ font-size:16px;
 
 .btn{
 width:auto;
+}
+
+.demo-heading h2{
+font-size:28px;
+line-height:1.14;
+}
+
+.demo-heading p{
+font-size:16px;
+}
+
+.video-controls{
+left:8px;
+right:8px;
+bottom:8px;
+gap:6px;
+padding:7px;
+}
+
+.video-player input[type="range"]{
+height:16px;
+}
+
+.video-time{
+min-width:66px;
+font-size:11px;
 }
 
 .nav-actions{
