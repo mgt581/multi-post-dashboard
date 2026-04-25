@@ -185,6 +185,19 @@
       return String(value || "").trim().toLowerCase();
     }
 
+    const ownerKeys = [
+      "alexbryant3234@gmail.com",
+      "Y98MCpY2VTQujHVwvhufxYE6Azh1"
+    ];
+
+    function isOwnerUser(user) {
+      const identityKeys = [
+        normalizeEmail(user?.email),
+        String(user?.uid || "").trim()
+      ].filter(Boolean);
+      return identityKeys.some(key => ownerKeys.some(ownerKey => normalizeEmail(ownerKey) === normalizeEmail(key)));
+    }
+
     function getUserScopeCandidates(user) {
       let knownKeys = [];
       try {
@@ -192,20 +205,19 @@
       } catch (_) {
         knownKeys = [];
       }
-      const ownerKeys = [
-        "alexbryant3234@gmail.com",
-        "Y98MCpY2VTQujHVwvhufxYE6Azh1"
-      ];
+      const canUseOwnerKeys = isOwnerUser(user);
+      const trustedKnownKeys = canUseOwnerKeys ? knownKeys : [];
+      const trustedStoredKey = canUseOwnerKeys ? localStorage.getItem("currentUserKey") : "";
 
       const candidates = [
         normalizeEmail(user?.email),
-        normalizeEmail(localStorage.getItem("currentUserKey")),
-        ...knownKeys.map(normalizeEmail),
-        ...ownerKeys.map(normalizeEmail),
+        normalizeEmail(trustedStoredKey),
+        ...trustedKnownKeys.map(normalizeEmail),
+        ...(canUseOwnerKeys ? ownerKeys.map(normalizeEmail) : []),
         String(user?.email || "").trim(),
-        String(localStorage.getItem("currentUserKey") || "").trim(),
-        ...knownKeys.map(value => String(value || "").trim()),
-        ...ownerKeys,
+        String(trustedStoredKey || "").trim(),
+        ...trustedKnownKeys.map(value => String(value || "").trim()),
+        ...(canUseOwnerKeys ? ownerKeys : []),
         String(user?.uid || "").trim()
       ].filter(Boolean);
       return [...new Set(candidates)];

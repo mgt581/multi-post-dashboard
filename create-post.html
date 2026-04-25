@@ -612,6 +612,13 @@
   let activeYouTubeName = "Not linked";
   let activeFacebookName = "Not linked";
   let activeTikTokName = "Not linked";
+  const OWNER_KEYS = ["alexbryant3234@gmail.com", "Y98MCpY2VTQujHVwvhufxYE6Azh1"];
+  const normalizeUserKey = value => String(value || "").trim().toLowerCase();
+  const isOwnerUser = user => [user?.email, user?.uid]
+    .some(value => OWNER_KEYS.some(ownerKey => normalizeUserKey(ownerKey) === normalizeUserKey(value)));
+  const resolveUserScope = user => isOwnerUser(user)
+    ? (localStorage.getItem("currentUserKey") || user.email || user.uid)
+    : (user.email || user.uid);
 
   function scopedKey(name) {
     return `${name}:${userScope}`;
@@ -1367,7 +1374,7 @@
       return;
     }
 
-    userScope = localStorage.getItem("currentUserKey") || user.email || user.uid;
+    userScope = resolveUserScope(user);
     localStorage.setItem("currentUserKey", userScope);
     await loadFolderContext();
     await loadBillingStatus();
