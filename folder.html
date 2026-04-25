@@ -509,7 +509,7 @@
     const isOwnerUser = user => [user?.email, user?.uid]
       .some(value => OWNER_KEYS.some(ownerKey => normalizeUserKey(ownerKey) === normalizeUserKey(value)));
     const resolveUserScope = user => isOwnerUser(user)
-      ? (user.email || user.uid || localStorage.getItem("currentUserKey"))
+      ? (localStorage.getItem("currentUserKey") || user.email || user.uid)
       : (user.email || user.uid);
 
     onAuthStateChanged(auth, async (user) => {
