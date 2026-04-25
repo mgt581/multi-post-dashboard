@@ -4,13 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Multipost | Access Portal</title>
-    <meta name="theme-color" content="#0b1829">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Multipost">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="icon" href="logo.png?v=20260424">
-    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260424">
-    <link rel="manifest" href="manifest.webmanifest">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
@@ -50,6 +43,26 @@
             padding: 40px 30px;
             box-shadow: var(--shadow);
             text-align: center;
+        }
+
+        .logo-box {
+            width: 72px;
+            height: 72px;
+            background: transparent !important; /* Fixed: Removed solid gradient that causes black look */
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            /* Optional: keeping a subtle glow instead of a solid box */
+            filter: drop-shadow(0 0 15px rgba(124, 58, 237, 0.4));
+        }
+
+        .logo-box img {
+            width: 60px; /* Slightly larger as box is now transparent */
+            height: auto;
+            background: transparent !important;
+            mix-blend-mode: normal;
         }
 
         h1 { font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -1px; }
@@ -175,6 +188,9 @@
 </head>
 <body>
     <div class="auth-card">
+        <div class="logo-box">
+            <img src="logo.png?v=20260423-1" alt="Logo">
+        </div>
         <h1>Multipost</h1>
         <p id="form-hint">Access your multi-channel dashboard</p>
 
@@ -220,11 +236,9 @@
             createUserWithEmailAndPassword,
             signInWithEmailAndPassword,
             GoogleAuthProvider,
-            signInWithPopup,
+            signInWithRedirect,
             getRedirectResult,
             onAuthStateChanged,
-            setPersistence,
-            browserLocalPersistence,
             sendPasswordResetEmail
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
@@ -240,10 +254,6 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const provider = new GoogleAuthProvider();
-        provider.setCustomParameters({ prompt: "select_account" });
-        setPersistence(auth, browserLocalPersistence).catch((error) => {
-            console.warn("Auth persistence setup failed:", error);
-        });
 
         let currentMode = "login";
 
@@ -259,15 +269,10 @@
             localStorage.setItem("currentUserKey", key);
         };
 
-        const openWorkspace = (user) => {
-            if (!user) return;
-            rememberUserKey(user.email || user.uid);
-            window.location.replace("app.html");
-        };
-
         getRedirectResult(auth).then((result) => {
             if (result?.user) {
-                openWorkspace(result.user);
+                rememberUserKey(result.user.email || result.user.uid);
+                window.location.replace("app.html");
             }
         }).catch((error) => {
             console.error("Google Auth Error:", error);
@@ -304,7 +309,8 @@
                 if (!signedInUser) {
                     throw new Error("Sign-in succeeded but session was not initialized. Please refresh and try again.");
                 }
-                openWorkspace(signedInUser);
+                rememberUserKey(signedInUser.email || signedInUser.uid);
+                window.location.replace("app.html");
             } catch (err) {
                 alert(err.message);
                 btnText.style.display = "block";
@@ -312,23 +318,8 @@
             }
         };
 
-        window.handleGoogleSignIn = async () => {
-            const googleButton = document.querySelector(".btn-google");
-            if (googleButton) googleButton.disabled = true;
-
-            try {
-                await setPersistence(auth, browserLocalPersistence);
-                const result = await signInWithPopup(auth, provider);
-                const signedInUser = result?.user || auth.currentUser;
-                if (!signedInUser) {
-                    throw new Error("Google sign-in completed but the session was not initialized. Please try again.");
-                }
-                openWorkspace(signedInUser);
-            } catch (err) {
-                console.error("Google Auth Error:", err);
-                alert(err?.message || "Google sign-in failed");
-                if (googleButton) googleButton.disabled = false;
-            }
+        window.handleGoogleSignIn = () => {
+            signInWithRedirect(auth, provider);
         };
 
         window.handlePasswordReset = async () => {
@@ -342,8 +333,9 @@
 
         onAuthStateChanged(auth, (user) => {
             if (user) {
+                rememberUserKey(user.email || user.uid);
                 if (window.location.pathname.includes("signin.html")) {
-                    openWorkspace(user);
+                    window.location.replace("app.html");
                 }
             }
         });
