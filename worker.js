@@ -1084,6 +1084,7 @@ Follow for daily trending content! \u{1F44F}
           client_reference_id: String(userId),
           allow_promotion_codes: "true",
           "subscription_data[metadata][user_id]": String(userId),
+          "subscription_data[metadata][app]": "multipost",
           "subscription_data[metadata][plan_key]": requestedPlan,
           "subscription_data[metadata][billing_interval]": requestedInterval
         };

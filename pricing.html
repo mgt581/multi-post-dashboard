@@ -216,7 +216,8 @@
 
     onAuthStateChanged(auth, (user) => {
       if (!user) return;
-      userScope = user.uid;
+      userScope = localStorage.getItem("currentUserKey") || user.email || user.uid;
+      localStorage.setItem("currentUserKey", userScope);
       billingUserEmail = user.email || "";
     });
   </script>
