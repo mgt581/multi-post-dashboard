@@ -1,4 +1,4 @@
-const SW_VERSION = "2026-04-26-owner-alias-1";
+const SW_VERSION = "2026-04-26-google-owner-alias-2";
  
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
