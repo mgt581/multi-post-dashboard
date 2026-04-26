@@ -377,7 +377,8 @@
     const paywallBanner = document.getElementById("paywallBanner");
     let billingReady = false;
     let hasBillingAccess = true;
-    const OWNER_KEYS = ["alexbryant3234@gmail.com", "Y98MCpY2VTQujHVwvhufxYE6Azh1"];
+    let signedInUserEmail = "";
+    const OWNER_KEYS = ["alexbryant3234@gmail.com", "alexbryantwork3234@outlook.com", "Y98MCpY2VTQujHVwvhufxYE6Azh1", "L6GV2I8v1IZ8ZsSJVlof9K559A43"];
     const normalizeUserKey = value => String(value || "").trim().toLowerCase();
     const isOwnerUser = user => [user?.email, user?.uid]
       .some(value => OWNER_KEYS.some(ownerKey => normalizeUserKey(ownerKey) === normalizeUserKey(value)));
@@ -451,7 +452,7 @@
         return;
       }
       try {
-        const res = await fetch(`${apiBase}/billing/status?user_id=${encodeURIComponent(userScope)}&client_platform=${encodeURIComponent(platform)}`);
+        const res = await fetch(`${apiBase}/billing/status?user_id=${encodeURIComponent(userScope)}&user_email=${encodeURIComponent(signedInUserEmail)}&client_platform=${encodeURIComponent(platform)}`);
         const out = await res.json();
         if (!res.ok || !out?.success) throw new Error(out?.error || "Failed to load billing status");
         const billing = out.billing || {};
@@ -634,7 +635,7 @@
       }
 
       try {
-        const res = await fetch(`${apiBase}/get-accounts?folder_id=${encodeURIComponent(activeFolderId)}&user_id=${encodeURIComponent(userScope)}`);
+        const res = await fetch(`${apiBase}/get-accounts?folder_id=${encodeURIComponent(activeFolderId)}&user_id=${encodeURIComponent(userScope)}&user_email=${encodeURIComponent(signedInUserEmail)}`);
         if (!res.ok) throw new Error("Failed to load accounts");
         const accounts = await res.json();
 
@@ -910,6 +911,7 @@
       }
 
       userScope = resolveUserScope(user);
+      signedInUserEmail = user.email || "";
       localStorage.setItem("currentUserKey", userScope);
       await loadFolderContext();
       await loadBillingStatus();

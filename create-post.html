@@ -850,7 +850,7 @@
 
     try {
       const res = await fetch(
-        `${apiBase}/get-accounts?folder_id=${encodeURIComponent(activeFolderId)}&user_id=${encodeURIComponent(userScope)}`
+        `${apiBase}/get-accounts?folder_id=${encodeURIComponent(activeFolderId)}&user_id=${encodeURIComponent(userScope)}&user_email=${encodeURIComponent(signedInUserEmail)}`
       );
 
       if (!res.ok) {

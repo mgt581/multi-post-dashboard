@@ -1,4 +1,4 @@
-const SW_VERSION = "2026-04-15-1";
+const SW_VERSION = "2026-04-26-owner-alias-1";
  
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));

@@ -238,7 +238,8 @@
     }
 
     async function fetchFoldersForScope(scope) {
-      const res = await fetch(`${apiBase}/get-folders?user_id=${encodeURIComponent(scope)}`);
+      const emailParam = authUser?.email ? `&user_email=${encodeURIComponent(authUser.email)}` : "";
+      const res = await fetch(`${apiBase}/get-folders?user_id=${encodeURIComponent(scope)}${emailParam}`);
       if (!res.ok) throw new Error("Server error");
       return res.json();
     }

@@ -246,12 +246,40 @@ Generate trending, specific SEO \u2014 not generic content.` }
       ...splitEnvList(env.OWNER_USER_IDS),
       ...splitEnvList(env.OWNER_EMAILS)
     ])], "getOwnerUserAliases");
-    const getUserAliases = /* @__PURE__ */ __name((userId) => {
+    const getStaticUserAliases = /* @__PURE__ */ __name((userId) => {
       const requested = requireUser(userId);
       if (!requested) return [];
       const ownerAliases = getOwnerUserAliases();
       const isOwnerAlias = ownerAliases.some((alias) => normalizeUserId(alias) === normalizeUserId(requested));
       return isOwnerAlias ? [...new Set([requested, ...ownerAliases])] : [requested];
+    }, "getStaticUserAliases");
+    const getUserAliases = /* @__PURE__ */ __name(async (userId, userEmail = "") => {
+      const requested = requireUser(userId);
+      if (!requested) return [];
+      const aliases = getStaticUserAliases(requested);
+      const ownerAliases = getOwnerUserAliases();
+      const requestedEmail = String(userEmail || "").trim();
+      const requestedEmailIsOwner = requestedEmail && ownerAliases.some((alias) => normalizeUserId(alias) === normalizeUserId(requestedEmail));
+      let row = null;
+      try {
+        row = await env.DB.prepare("SELECT user_email FROM billing_subscriptions WHERE user_id = ? LIMIT 1").bind(requested).first();
+      } catch (_) {
+        row = null;
+      }
+      const rowEmail = String(row?.user_email || "").trim();
+      const rowEmailIsOwner = rowEmail && ownerAliases.some((alias) => normalizeUserId(alias) === normalizeUserId(rowEmail));
+      if (requestedEmailIsOwner || rowEmailIsOwner) {
+        aliases.push(...ownerAliases);
+        const ownerEmailsForLookup = splitEnvList(env.BILLING_OWNER_EMAILS || env.OWNER_EMAILS || "");
+        for (const ownerEmail of ownerEmailsForLookup) {
+          try {
+            const { results } = await env.DB.prepare("SELECT user_id FROM billing_subscriptions WHERE lower(user_email) = lower(?)").bind(ownerEmail).all();
+            aliases.push(...(results || []).map((item) => item.user_id).filter(Boolean));
+          } catch (_) {
+          }
+        }
+      }
+      return [...new Set(aliases.filter(Boolean))];
     }, "getUserAliases");
     const sqlPlaceholders = /* @__PURE__ */ __name((items) => items.map(() => "?").join(","), "sqlPlaceholders");
     const redirectUri = `${siteBaseUrl}/api/auth/callback/youtube`;
@@ -866,10 +894,11 @@ Follow for daily trending content! \u{1F44F}
     try {
       if (url.pathname === "/api/get-folders") {
         const userId = requireUser(url.searchParams.get("user_id"));
+        const userEmail = String(url.searchParams.get("user_email") || "").trim();
         if (!userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
         }
-        const userAliases = getUserAliases(userId);
+        const userAliases = await getUserAliases(userId, userEmail);
         const { results } = await env.DB.prepare(
           `SELECT f.*, (SELECT nickname FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_channel, (SELECT profile_picture FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_picture FROM folders f WHERE f.user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY f.created_at DESC`
         ).bind(...userAliases).all();
@@ -933,10 +962,11 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/get-accounts") {
         const folder_id = url.searchParams.get("folder_id");
         const userId = requireUser(url.searchParams.get("user_id"));
+        const userEmail = String(url.searchParams.get("user_email") || "").trim();
         if (!folder_id || !userId) {
           return new Response(JSON.stringify([]), { headers: jsonHeaders });
         }
-        const userAliases = getUserAliases(userId);
+        const userAliases = await getUserAliases(userId, userEmail);
         const { results } = await env.DB.prepare(
           `SELECT * FROM accounts WHERE folder_id = ? AND user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY id DESC`
         ).bind(folder_id, ...userAliases).all();
