@@ -8,7 +8,7 @@ var worker_default = {
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, folder_id, user_id, client_platform",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, folder_id, user_id, client_platform",
       "X-Worker-Version": WORKER_VERSION
     };
     const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
