@@ -333,7 +333,7 @@
       }
       manageBtn.disabled = false;
       try {
-        const res = await fetch(`${apiBase}/billing/status?user_id=${encodeURIComponent(user.uid)}&client_platform=${encodeURIComponent(platform)}`);
+        const res = await fetch(`${apiBase}/billing/status?user_id=${encodeURIComponent(user.uid)}&user_email=${encodeURIComponent(user.email || "")}&client_platform=${encodeURIComponent(platform)}`);
         const out = await res.json();
         if (!res.ok || !out?.success) throw new Error(out?.error || "Failed to load billing");
         const billing = out.billing || {};
