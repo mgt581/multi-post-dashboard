@@ -155,7 +155,7 @@
     const apiBase = isProdHost ? "/api" : "https://multipost-seo-worker.alexbryant.workers.dev/api";
     let userScope = null;
     let billingUserEmail = "";
-    const OWNER_KEYS = ["alexbryant3234@gmail.com", "Y98MCpY2VTQujHVwvhufxYE6Azh1"];
+    const OWNER_KEYS = ["alexbryant3234@gmail.com", "alexbryantwork3234@outlook.com", "Y98MCpY2VTQujHVwvhufxYE6Azh1"];
     const normalizeUserKey = value => String(value || "").trim().toLowerCase();
     const isOwnerUser = user => [user?.email, user?.uid]
       .some(value => OWNER_KEYS.some(ownerKey => normalizeUserKey(ownerKey) === normalizeUserKey(value)));

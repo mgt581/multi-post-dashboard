@@ -612,7 +612,8 @@
   let activeYouTubeName = "Not linked";
   let activeFacebookName = "Not linked";
   let activeTikTokName = "Not linked";
-  const OWNER_KEYS = ["alexbryant3234@gmail.com", "Y98MCpY2VTQujHVwvhufxYE6Azh1"];
+  const OWNER_KEYS = ["alexbryant3234@gmail.com", "alexbryantwork3234@outlook.com", "Y98MCpY2VTQujHVwvhufxYE6Azh1"];
+  let signedInUserEmail = "";
   const normalizeUserKey = value => String(value || "").trim().toLowerCase();
   const isOwnerUser = user => [user?.email, user?.uid]
     .some(value => OWNER_KEYS.some(ownerKey => normalizeUserKey(ownerKey) === normalizeUserKey(value)));
@@ -755,7 +756,7 @@
     }
     try {
       const res = await fetch(
-        `${apiBase}/billing/status?user_id=${encodeURIComponent(userScope)}&client_platform=${encodeURIComponent(platform)}`
+        `${apiBase}/billing/status?user_id=${encodeURIComponent(userScope)}&user_email=${encodeURIComponent(signedInUserEmail)}&client_platform=${encodeURIComponent(platform)}`
       );
       const out = await res.json();
       if (!res.ok || !out?.success) throw new Error(out?.error || "Failed to load billing status");
@@ -1375,6 +1376,7 @@
     }
 
     userScope = resolveUserScope(user);
+    signedInUserEmail = user.email || "";
     localStorage.setItem("currentUserKey", userScope);
     await loadFolderContext();
     await loadBillingStatus();

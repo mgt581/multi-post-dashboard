@@ -693,12 +693,13 @@ Follow for daily trending content! \u{1F44F}
         derivedTrialUsed
       ).run();
     }, "persistBillingFromSubscription");
-    const evaluateBillingAccess = /* @__PURE__ */ __name((row, platform, requestedUserId = "") => {
+    const evaluateBillingAccess = /* @__PURE__ */ __name((row, platform, requestedUserId = "", requestedUserEmail = "") => {
       const userId = String(row?.user_id || "").trim();
       const userEmail = String(row?.user_email || "").trim().toLowerCase();
       const requested = String(requestedUserId || "").trim().toLowerCase();
+      const requestedEmail = String(requestedUserEmail || "").trim().toLowerCase();
       const ownerByDbFlag = Number(row?.is_owner || 0) === 1;
-      const ownerByConfig = ownerUserIds.has(userId.toLowerCase()) || (userEmail && ownerEmails.has(userEmail)) || (requested && (ownerUserIds.has(requested) || ownerEmails.has(requested)));
+      const ownerByConfig = ownerUserIds.has(userId.toLowerCase()) || (userEmail && ownerEmails.has(userEmail)) || (requested && (ownerUserIds.has(requested) || ownerEmails.has(requested))) || (requestedEmail && ownerEmails.has(requestedEmail));
       if (ownerByDbFlag || ownerByConfig) {
         return {
           enabled: true,
@@ -973,12 +974,13 @@ Follow for daily trending content! \u{1F44F}
       }
       if (url.pathname === "/api/billing/status" && request.method === "GET") {
         const userId = requireUser(url.searchParams.get("user_id"));
+        const userEmail = String(url.searchParams.get("user_email") || "").trim();
         if (!userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
         }
         const platform = getClientPlatform(request, null, url.searchParams.get("client_platform"));
         const row = await getBillingRow(userId);
-        const evaluated = evaluateBillingAccess(row, platform, userId);
+        const evaluated = evaluateBillingAccess(row, platform, userId, userEmail);
         const effPlan = getEffectivePlan(row);
         const usageYt = await countDailyPosts(userId, "youtube");
         const usageTt = await countDailyPosts(userId, "tiktok");
