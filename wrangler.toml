@@ -9,7 +9,9 @@ preview_urls = true
 # All other paths (e.g. /, /app.html) are served by Cloudflare Pages / static hosting.
 # Both www and apex variants are listed so OAuth callbacks work on either host.
 routes = [
+  { pattern = "multipostapp.co.uk/api", zone_name = "multipostapp.co.uk" },
   { pattern = "multipostapp.co.uk/api/*", zone_name = "multipostapp.co.uk" },
+  { pattern = "www.multipostapp.co.uk/api", zone_name = "multipostapp.co.uk" },
   { pattern = "www.multipostapp.co.uk/api/*", zone_name = "multipostapp.co.uk" }
 ]
 
