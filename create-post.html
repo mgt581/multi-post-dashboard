@@ -1236,6 +1236,13 @@
       btn.disabled = false;
       btn.textContent = "🎵 Publish to TikTok";
       const msg = err?.message || "TikTok upload failed";
+      const isUnauditedPolicyBlock = String(msg).includes("unaudited_client_can_only_post_to_private_accounts");
+      if (isUnauditedPolicyBlock) {
+        setStatus("TikTok API blocked by audit policy. Switched to manual upload flow.", "working");
+        await copyAndOpen(caption, "TikTok", "https://www.tiktok.com/upload");
+        alert("TikTok API is blocked for this app/account right now. Caption copied and TikTok upload page opened so you can post manually.");
+        return;
+      }
       setStatus(msg, "error");
       alert(`Upload failed:\n${msg}`);
     }
