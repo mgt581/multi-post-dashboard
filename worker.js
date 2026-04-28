@@ -18,8 +18,6 @@ var worker_default = {
     const url = new URL(request.url);
     const siteBaseUrl = env.BASE_URL || "https://multipostapp.co.uk";
     const frontendBaseUrl = env.FRONTEND_URL || siteBaseUrl;
-    const tiktokAuthBaseUrl = String(env.TIKTOK_AUTH_BASE_URL || "https://www.tiktok.com").replace(/\/+$/, "");
-    const tiktokApiBaseUrl = String(env.TIKTOK_API_BASE_URL || "https://open.tiktokapis.com").replace(/\/+$/, "");
     if (url.pathname === "/api" || url.pathname === "/api/" || url.pathname === "/api/health") {
       return new Response(JSON.stringify({ ok: true, service: "multipost-worker", version: WORKER_VERSION }), {
         status: 200,
@@ -1242,7 +1240,7 @@ Follow for daily trending content! \u{1F44F}
         const tiktokRedirectUri = `${siteBaseUrl}/api/auth/callback/tiktok`;
         const scopes = "video.upload,video.publish,user.info.basic";
         const state = encodeState({ folderId, platform: "tiktok", userId });
-        const tiktokAuthUrl = `${tiktokAuthBaseUrl}/v2/auth/authorize/?client_key=${env.TIKTOK_CLIENT_KEY}&scope=${encodeURIComponent(scopes)}&response_type=code&redirect_uri=${encodeURIComponent(tiktokRedirectUri)}&state=${encodeURIComponent(state)}`;
+        const tiktokAuthUrl = `https://www.tiktok.com/v2/auth/authorize/?client_key=${env.TIKTOK_CLIENT_KEY}&scope=${encodeURIComponent(scopes)}&response_type=code&redirect_uri=${encodeURIComponent(tiktokRedirectUri)}&state=${encodeURIComponent(state)}`;
         return Response.redirect(tiktokAuthUrl);
       }
       if (url.pathname === "/api/auth/facebook") {
@@ -1342,7 +1340,7 @@ Follow for daily trending content! \u{1F44F}
           const err = url.searchParams.get("error") || "missing_code";
           return new Response(JSON.stringify({ success: false, error: `TikTok OAuth failed: ${err}` }), { status: 400, headers: jsonHeaders });
         }
-        const tokenRes = await fetch(`${tiktokApiBaseUrl}/v2/oauth/token/`, {
+        const tokenRes = await fetch("https://open.tiktokapis.com/v2/oauth/token/", {
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
@@ -1367,7 +1365,7 @@ Follow for daily trending content! \u{1F44F}
         let tiktokAvatar = null;
         try {
           const userInfoRes = await fetch(
-            `${tiktokApiBaseUrl}/v2/user/info/?fields=display_name,avatar_url`,
+            "https://open.tiktokapis.com/v2/user/info/?fields=display_name,avatar_url",
             {
               headers: { "Authorization": `Bearer ${accessToken}` }
             }
@@ -1817,7 +1815,7 @@ Follow for daily trending content! \u{1F44F}
             }
           }), "buildInitBody");
           console.log("tiktok_chunks", { videoSize, chunkSize, totalChunks, remainder: videoSize % chunkSize });
-          let initRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/video/init/`, {
+          let initRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
             method: "POST",
             headers: { Authorization: `Bearer ${token.access_token}`, "Content-Type": "application/json; charset=UTF-8" },
             body: buildInitBody(privacyStatus)
@@ -1827,7 +1825,7 @@ Follow for daily trending content! \u{1F44F}
           if (initData?.error?.code === "unaudited_client_can_only_post_to_private_accounts") {
             privacyDowngraded = privacyStatus !== "SELF_ONLY";
             privacyStatus = "SELF_ONLY";
-            const retryRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/video/init/`, {
+            const retryRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
               method: "POST",
               headers: { Authorization: `Bearer ${token.access_token}`, "Content-Type": "application/json; charset=UTF-8" },
               body: buildInitBody("SELF_ONLY")
@@ -2560,7 +2558,7 @@ Follow for daily trending content! \u{1F44F}
         }
         const bearer = account?.access_token;
         if (platform === "tiktok") {
-          const tiktokRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/video/init/`, {
+          const tiktokRes = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
             method: "POST",
             headers: {
               Authorization: `Bearer ${bearer}`,

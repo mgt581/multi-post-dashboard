@@ -119,33 +119,7 @@ npx wrangler tail
 
 ---
 
-## 6. TikTok sandbox mode + `access_token_invalid`
-
-### Symptom
-TikTok upload fails with:
-
-`{"code":"access_token_invalid","message":"The access token is invalid or not found in the request."}`
-
-### Why this happens
-- The linked TikTok token is expired/invalid, or
-- The token was created in a different TikTok app/environment than the one now used by the worker.
-
-### Fix
-1. Set TikTok environment base URLs in Worker vars:
-   - `TIKTOK_AUTH_BASE_URL`
-   - `TIKTOK_API_BASE_URL`
-2. For production, use:
-   - `https://www.tiktok.com`
-   - `https://open.tiktokapis.com`
-3. For sandbox/testing, set both vars to the sandbox hosts configured for your TikTok app in the developer portal.
-4. After changing these vars, reconnect TikTok in-app (OAuth again) so a token is minted for that same environment.
-5. Retry publish.
-
-If you switch environment but keep an old token, TikTok will return `access_token_invalid`.
-
----
-
-## 7. Test locally before deploying
+## 6. Test locally before deploying
 
 ```bash
 npm run dev
@@ -155,7 +129,7 @@ curl -si http://localhost:8787/api/health
 
 ---
 
-## 8. Check the deployed version without curl
+## 7. Check the deployed version without curl
 
 The `X-Worker-Version` header is returned on **every** API response.  
 It matches the `WORKER_VERSION` constant at the top of `worker.js`.
