@@ -48,7 +48,6 @@ enabled = true
 [env.preview]
 workers_dev = true
 preview_urls = true
-routes = []
 
 [env.preview.vars]
 BASE_URL = "https://multipostapp.co.uk"
@@ -68,12 +67,3 @@ STRIPE_PRICE_PRO_PLUS_MONTHLY = "price_1TPO8rPpTMFHe2pe3kXyiDnS"
 STRIPE_PRICE_PRO_PLUS_YEARLY = "price_1TPOC9PpTMFHe2peecc24e8U"
 STRIPE_PRICE_AGENCY_MONTHLY = "price_1TPOFwPpTMFHe2peLNCTth3E"
 STRIPE_PRICE_AGENCY_YEARLY = "price_1TPOJQPpTMFHe2peKGbz36WJ"
-
-[[env.preview.d1_databases]]
-binding = "DB"
-database_name = "accountsmultipostapp"
-database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
-migrations_dir = "migrations"
-
-[env.preview.ai]
-binding = "AI"
