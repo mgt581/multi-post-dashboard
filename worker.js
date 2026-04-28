@@ -1832,7 +1832,11 @@ Follow for daily trending content! \u{1F44F}
             });
             initData = await safeJson(retryRes);
             if (!retryRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
-              throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
+              return new Response(JSON.stringify({
+                success: false,
+                unauditedBlock: true,
+                error: `TikTok init failed: ${JSON.stringify(initData?.error || initData)}`
+              }), { headers: jsonHeaders });
             }
           } else if (!initRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
             throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
