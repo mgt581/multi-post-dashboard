@@ -1240,7 +1240,9 @@ Follow for daily trending content! \u{1F44F}
         const tiktokRedirectUri = `${siteBaseUrl}/api/auth/callback/tiktok`;
         const scopes = "video.upload,video.publish,user.info.basic";
         const state = encodeState({ folderId, platform: "tiktok", userId });
-        const tiktokAuthUrl = `https://www.tiktok.com/v2/auth/authorize/?client_key=${env.TIKTOK_CLIENT_KEY}&scope=${encodeURIComponent(scopes)}&response_type=code&redirect_uri=${encodeURIComponent(tiktokRedirectUri)}&state=${encodeURIComponent(state)}`;
+        const sandboxMode = env.TIKTOK_SANDBOX_MODE === "true";
+        const activeClientKey = sandboxMode && env.TIKTOK_SANDBOX_CLIENT_KEY ? env.TIKTOK_SANDBOX_CLIENT_KEY : env.TIKTOK_CLIENT_KEY;
+        const tiktokAuthUrl = `https://www.tiktok.com/v2/auth/authorize/?client_key=${activeClientKey}&scope=${encodeURIComponent(scopes)}&response_type=code&redirect_uri=${encodeURIComponent(tiktokRedirectUri)}&state=${encodeURIComponent(state)}`;
         return Response.redirect(tiktokAuthUrl);
       }
       if (url.pathname === "/api/auth/facebook") {
@@ -1344,8 +1346,8 @@ Follow for daily trending content! \u{1F44F}
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
-            client_key: env.TIKTOK_CLIENT_KEY,
-            client_secret: env.TIKTOK_CLIENT_SECRET,
+            client_key: (env.TIKTOK_SANDBOX_MODE === "true" && env.TIKTOK_SANDBOX_CLIENT_KEY) ? env.TIKTOK_SANDBOX_CLIENT_KEY : env.TIKTOK_CLIENT_KEY,
+            client_secret: (env.TIKTOK_SANDBOX_MODE === "true" && env.TIKTOK_SANDBOX_CLIENT_SECRET) ? env.TIKTOK_SANDBOX_CLIENT_SECRET : env.TIKTOK_CLIENT_SECRET,
             code,
             grant_type: "authorization_code",
             redirect_uri: `${siteBaseUrl}/api/auth/callback/tiktok`
@@ -1783,6 +1785,9 @@ Follow for daily trending content! \u{1F44F}
         if (!validPrivacyLevels.includes(privacyStatus)) {
           privacyStatus = "SELF_ONLY";
         }
+        if (env.TIKTOK_SANDBOX_MODE === "true") {
+          privacyStatus = "SELF_ONLY";
+        }
         const token = await env.DB.prepare(`
           SELECT * FROM tokens
           WHERE folder_id = ? AND platform = 'tiktok'
@@ -1855,7 +1860,9 @@ Follow for daily trending content! \u{1F44F}
             chunkSize,
             totalChunks,
             videoSize,
-            ...(privacyDowngraded ? { warning: "Your TikTok app is unaudited, so this post was automatically set to Private (SELF_ONLY). Submit your app for review at https://developers.tiktok.com/ to enable public posting." } : {})
+            ...(env.TIKTOK_SANDBOX_MODE === "true"
+              ? { warning: "TikTok sandbox mode is active. Posts are set to Private (SELF_ONLY) and only visible to your test account. Disable TIKTOK_SANDBOX_MODE once your production app is approved." }
+              : privacyDowngraded ? { warning: "Your TikTok app is unaudited, so this post was automatically set to Private (SELF_ONLY). Submit your app for review at https://developers.tiktok.com/ to enable public posting." } : {})
           }), { headers: jsonHeaders });
         } catch (err) {
           console.error("TikTok init-upload error:", err);
