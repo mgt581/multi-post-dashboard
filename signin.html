@@ -221,7 +221,6 @@
             signInWithEmailAndPassword,
             GoogleAuthProvider,
             signInWithPopup,
-            signInWithRedirect,
             getRedirectResult,
             onAuthStateChanged,
             setPersistence,
@@ -329,19 +328,7 @@
                 openWorkspace(signedInUser);
             } catch (err) {
                 console.error("Google Auth Error:", err);
-                const code = String(err?.code || "");
-                const needsRedirectFallback = code === "auth/popup-blocked" || code === "auth/popup-closed-by-user" || code === "auth/cancelled-popup-request";
-                if (needsRedirectFallback) {
-                    try {
-                        await signInWithRedirect(auth, provider);
-                        return;
-                    } catch (redirectErr) {
-                        console.error("Google Redirect Auth Error:", redirectErr);
-                        alert(redirectErr?.message || "Google sign-in redirect failed");
-                    }
-                } else {
-                    alert(err?.message || "Google sign-in failed");
-                }
+                alert(err?.message || "Google sign-in failed");
                 if (googleButton) googleButton.disabled = false;
             }
         };
