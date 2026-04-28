@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // worker.js
-var WORKER_VERSION = "2026-04-28-tiktok-chunk-fix";
+var WORKER_VERSION = "2026-04-24-youtube-two-scopes";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
