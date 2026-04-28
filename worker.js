@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // worker.js
-var WORKER_VERSION = "2026-04-28-tiktok-chunk-fix";
+var WORKER_VERSION = "2026-04-28-tiktok-private-fallback";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -1823,8 +1823,9 @@ Follow for daily trending content! \u{1F44F}
             body: buildInitBody(privacyStatus)
           });
           let initData = await safeJson(initRes);
+          const initErrCode = initData?.error?.code || initData?.code || "";
           let privacyDowngraded = false;
-          if (initData?.error?.code === "unaudited_client_can_only_post_to_private_accounts") {
+          if (initErrCode === "unaudited_client_can_only_post_to_private_accounts") {
             privacyDowngraded = privacyStatus !== "SELF_ONLY";
             privacyStatus = "SELF_ONLY";
             const retryRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/video/init/`, {
@@ -1833,10 +1834,11 @@ Follow for daily trending content! \u{1F44F}
               body: buildInitBody("SELF_ONLY")
             });
             initData = await safeJson(retryRes);
-            if (!retryRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
+            const retryErrCode = initData?.error?.code || initData?.code || "";
+            if (!retryRes.ok || (retryErrCode && retryErrCode !== "ok")) {
               throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
             }
-          } else if (!initRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
+          } else if (!initRes.ok || (initErrCode && initErrCode !== "ok")) {
             throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
           }
           const publishId = initData?.data?.publish_id;
