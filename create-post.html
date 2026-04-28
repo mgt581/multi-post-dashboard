@@ -1235,7 +1235,10 @@
       console.error(err);
       btn.disabled = false;
       btn.textContent = "🎵 Publish to TikTok";
-      const msg = err?.message || "TikTok upload failed";
+      const rawMsg = err?.message || "TikTok upload failed";
+      const msg = String(rawMsg).includes("unaudited_client_can_only_post_to_private_accounts")
+        ? "TikTok app is unaudited. Add this TikTok account as a tester in TikTok Developer, reconnect TikTok in this app, and post with privacy set to Private (SELF_ONLY)."
+        : rawMsg;
       setStatus(msg, "error");
       alert(`Upload failed:\n${msg}`);
     }
