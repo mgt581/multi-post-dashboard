@@ -286,6 +286,7 @@ Generate trending, specific SEO \u2014 not generic content.` }
     const sqlPlaceholders = /* @__PURE__ */ __name((items) => items.map(() => "?").join(","), "sqlPlaceholders");
     const redirectUri = `${siteBaseUrl}/api/auth/callback/youtube`;
     const fbRedirectUri = `${siteBaseUrl}/api/auth/callback/facebook`;
+    const tiktokLoginRedirectUri = `${siteBaseUrl}/api/auth/login/tiktok/callback`;
     const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
     const MAX_IMAGE_SIZE_BYTES = 25 * 1024 * 1024;
     const TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1e3;
@@ -395,6 +396,67 @@ Generate trending, specific SEO \u2014 not generic content.` }
       const sig = await crypto.subtle.sign("HMAC", key, enc.encode(accessToken));
       return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
     }, "appsecretProof");
+    const base64Url = /* @__PURE__ */ __name((input) => {
+      const bytes = typeof input === "string" ? new TextEncoder().encode(input) : new Uint8Array(input);
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += 8192) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+      }
+      return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+    }, "base64Url");
+    const randomState = /* @__PURE__ */ __name(() => {
+      const bytes = new Uint8Array(32);
+      crypto.getRandomValues(bytes);
+      return base64Url(bytes);
+    }, "randomState");
+    const parseCookies = /* @__PURE__ */ __name((cookieHeader) => {
+      const out = {};
+      for (const item of String(cookieHeader || "").split(";")) {
+        const idx = item.indexOf("=");
+        if (idx === -1) continue;
+        const key = item.slice(0, idx).trim();
+        const value = item.slice(idx + 1).trim();
+        if (key) out[key] = decodeURIComponent(value);
+      }
+      return out;
+    }, "parseCookies");
+    const authCookie = /* @__PURE__ */ __name((name, value, maxAgeSeconds) => {
+      return `${name}=${encodeURIComponent(value)}; Max-Age=${maxAgeSeconds}; Path=/api/auth; HttpOnly; Secure; SameSite=Lax`;
+    }, "authCookie");
+    const clearAuthCookie = /* @__PURE__ */ __name((name) => `${name}=; Max-Age=0; Path=/api/auth; HttpOnly; Secure; SameSite=Lax`, "clearAuthCookie");
+    const importFirebasePrivateKey = /* @__PURE__ */ __name(async (privateKeyPem) => {
+      const pem = String(privateKeyPem || "").replace(/\\n/g, "\n");
+      const body = pem.replace(/-----BEGIN PRIVATE KEY-----/g, "").replace(/-----END PRIVATE KEY-----/g, "").replace(/\s+/g, "");
+      const binary = atob(body);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      return crypto.subtle.importKey(
+        "pkcs8",
+        bytes,
+        { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+        false,
+        ["sign"]
+      );
+    }, "importFirebasePrivateKey");
+    const createFirebaseCustomToken = /* @__PURE__ */ __name(async ({ uid, claims = {} }) => {
+      const clientEmail = requireEnv(env.FIREBASE_CLIENT_EMAIL, "FIREBASE_CLIENT_EMAIL");
+      const privateKey = requireEnv(env.FIREBASE_PRIVATE_KEY, "FIREBASE_PRIVATE_KEY");
+      const now = Math.floor(Date.now() / 1e3);
+      const header = { alg: "RS256", typ: "JWT" };
+      const payload = {
+        iss: clientEmail,
+        sub: clientEmail,
+        aud: "https://identitytoolkit.googleapis.com/google.identity.identitytoolkit.v1.IdentityToolkit",
+        iat: now,
+        exp: now + 3600,
+        uid: String(uid).slice(0, 128),
+        claims
+      };
+      const unsigned = `${base64Url(JSON.stringify(header))}.${base64Url(JSON.stringify(payload))}`;
+      const key = await importFirebasePrivateKey(privateKey);
+      const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(unsigned));
+      return `${unsigned}.${base64Url(signature)}`;
+    }, "createFirebaseCustomToken");
     const publishFacebookReelFromUrl = /* @__PURE__ */ __name(async ({ pageId, pageAccessToken, videoUrl, description }) => {
       const proof = await appsecretProof(pageAccessToken);
       const proofParam = proof ? `?appsecret_proof=${encodeURIComponent(proof)}` : "";
@@ -1225,6 +1287,103 @@ Follow for daily trending content! \u{1F44F}
         }
         const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(env.GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(YOUTUBE_OAUTH_SCOPE)}&access_type=offline&include_granted_scopes=false&prompt=${encodeURIComponent("consent select_account")}&state=${encodeURIComponent(state)}`;
         return Response.redirect(googleAuthUrl);
+      }
+      if (url.pathname === "/api/auth/login/tiktok") {
+        const clientKey = requireEnv(env.TIKTOK_CLIENT_KEY, "TIKTOK_CLIENT_KEY");
+        requireEnv(env.TIKTOK_CLIENT_SECRET, "TIKTOK_CLIENT_SECRET");
+        const state = randomState();
+        const scopes = "user.info.basic";
+        const tiktokAuthUrl = `${tiktokAuthBaseUrl}/v2/auth/authorize/?client_key=${encodeURIComponent(clientKey)}&scope=${encodeURIComponent(scopes)}&response_type=code&redirect_uri=${encodeURIComponent(tiktokLoginRedirectUri)}&state=${encodeURIComponent(state)}`;
+        return new Response(null, {
+          status: 302,
+          headers: {
+            Location: tiktokAuthUrl,
+            "Set-Cookie": authCookie("mp_tiktok_login_state", state, 600)
+          }
+        });
+      }
+      if (url.pathname === "/api/auth/login/tiktok/callback") {
+        const cookies = parseCookies(request.headers.get("Cookie"));
+        const expectedState = cookies.mp_tiktok_login_state || "";
+        const returnedState = url.searchParams.get("state") || "";
+        const error = url.searchParams.get("error") || "";
+        const code = url.searchParams.get("code") || "";
+        const redirectWithError = (message) => new Response(null, {
+          status: 302,
+          headers: {
+            Location: `${frontendBaseUrl}/signin.html?auth_error=${encodeURIComponent(message)}`,
+            "Set-Cookie": clearAuthCookie("mp_tiktok_login_state")
+          }
+        });
+        if (error) {
+          return redirectWithError(url.searchParams.get("error_description") || error);
+        }
+        if (!expectedState || !returnedState || expectedState !== returnedState) {
+          return redirectWithError("TikTok sign-in state validation failed. Please try again.");
+        }
+        if (!code) {
+          return redirectWithError("TikTok did not return an authorization code.");
+        }
+        try {
+          const tokenRes = await fetch(`${tiktokApiBaseUrl}/v2/oauth/token/`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              client_key: requireEnv(env.TIKTOK_CLIENT_KEY, "TIKTOK_CLIENT_KEY"),
+              client_secret: requireEnv(env.TIKTOK_CLIENT_SECRET, "TIKTOK_CLIENT_SECRET"),
+              code,
+              grant_type: "authorization_code",
+              redirect_uri: tiktokLoginRedirectUri
+            })
+          });
+          const tokenJson = await safeJson(tokenRes);
+          const tData = tokenJson.data || tokenJson;
+          if (!tokenRes.ok || tokenJson.error || tData.error || !tData.access_token) {
+            throw new Error(tokenJson.error_description || tData.error_description || tData.error || "TikTok token exchange failed");
+          }
+          let openId = String(tData.open_id || tData.openid || "");
+          let displayName = "TikTok User";
+          let avatarUrl = "";
+          const userInfoRes = await fetch(`${tiktokApiBaseUrl}/v2/user/info/?fields=open_id,union_id,display_name,avatar_url`, {
+            headers: { Authorization: `Bearer ${tData.access_token}` }
+          });
+          const userInfo = await safeJson(userInfoRes);
+          const user = userInfo?.data?.user || {};
+          openId = String(user.open_id || openId || "");
+          displayName = String(user.display_name || displayName);
+          avatarUrl = String(user.avatar_url || "");
+          if (!openId) {
+            throw new Error("TikTok profile did not include a stable user id.");
+          }
+          const customToken = await createFirebaseCustomToken({
+            uid: `tiktok:${openId}`,
+            claims: {
+              provider: "tiktok",
+              tiktok_open_id: openId,
+              name: displayName,
+              picture: avatarUrl
+            }
+          });
+          const successHeaders = new Headers({ Location: `${frontendBaseUrl}/signin.html?tiktok_login=complete` });
+          successHeaders.append("Set-Cookie", clearAuthCookie("mp_tiktok_login_state"));
+          successHeaders.append("Set-Cookie", authCookie("mp_firebase_custom_token", customToken, 120));
+          return new Response(null, { status: 302, headers: successHeaders });
+        } catch (err) {
+          return redirectWithError(err?.message || "TikTok sign-in failed");
+        }
+      }
+      if (url.pathname === "/api/auth/tiktok/firebase-token" && request.method === "POST") {
+        const cookies = parseCookies(request.headers.get("Cookie"));
+        const customToken = cookies.mp_firebase_custom_token || "";
+        if (!customToken) {
+          return new Response(JSON.stringify({ success: false, error: "Missing TikTok sign-in session. Please try again." }), {
+            status: 401,
+            headers: { ...jsonHeaders, "Set-Cookie": clearAuthCookie("mp_firebase_custom_token") }
+          });
+        }
+        return new Response(JSON.stringify({ success: true, custom_token: customToken }), {
+          headers: { ...jsonHeaders, "Set-Cookie": clearAuthCookie("mp_firebase_custom_token") }
+        });
       }
       if (url.pathname === "/api/auth/tiktok") {
         const folderId = url.searchParams.get("folder_id");
