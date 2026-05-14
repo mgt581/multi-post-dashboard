@@ -20,6 +20,8 @@ BASE_URL = "https://multipostapp.co.uk"
 FRONTEND_URL = "https://multipostapp.co.uk"
 GOOGLE_CLIENT_ID = "1099160429576-38kfvgqfgahc80oc11v1abl79n1gdspm.apps.googleusercontent.com"
 TIKTOK_CLIENT_KEY = "awfqyscbk5kl6pu8"
+TIKTOK_AUTH_BASE_URL = "https://www.tiktok.com"
+TIKTOK_API_BASE_URL = "https://open.tiktokapis.com"
 FB_CLIENT_ID = "1596560914709231"
 WEB_BILLING_ENABLED = "true"
 BILLING_OWNER_USER_IDS = "Y98MCpY2VTQujHVwvhufxYE6Azh1,L6GV2I8v1IZ8ZsSJVlof9K559A43,XvLFswTmQ7YalJNYTC3vT7Y9OsB3"
@@ -42,3 +44,36 @@ binding = "AI"
 
 [observability.logs]
 enabled = true
+
+[env.preview]
+workers_dev = true
+preview_urls = true
+routes = []
+
+[env.preview.vars]
+BASE_URL = "https://multipostapp.co.uk"
+FRONTEND_URL = "https://multipostapp.co.uk"
+GOOGLE_CLIENT_ID = "1099160429576-38kfvgqfgahc80oc11v1abl79n1gdspm.apps.googleusercontent.com"
+TIKTOK_CLIENT_KEY = "awfqyscbk5kl6pu8"
+TIKTOK_AUTH_BASE_URL = "https://www.tiktok.com"
+TIKTOK_API_BASE_URL = "https://open.tiktokapis.com"
+FB_CLIENT_ID = "1596560914709231"
+WEB_BILLING_ENABLED = "true"
+BILLING_OWNER_USER_IDS = "Y98MCpY2VTQujHVwvhufxYE6Azh1,L6GV2I8v1IZ8ZsSJVlof9K559A43,XvLFswTmQ7YalJNYTC3vT7Y9OsB3"
+BILLING_OWNER_EMAILS = "alexbryant3234@gmail.com,alexbryantwork3234@outlook.com"
+STRIPE_TRIAL_DAYS = "7"
+STRIPE_PRICE_PRO_MONTHLY = "price_1TPNonPpTMFHe2pevPcOyV7K"
+STRIPE_PRICE_PRO_YEARLY = "price_1TPNubPpTMFHe2pee0l1Vnkd"
+STRIPE_PRICE_PRO_PLUS_MONTHLY = "price_1TPO8rPpTMFHe2pe3kXyiDnS"
+STRIPE_PRICE_PRO_PLUS_YEARLY = "price_1TPOC9PpTMFHe2peecc24e8U"
+STRIPE_PRICE_AGENCY_MONTHLY = "price_1TPOFwPpTMFHe2peLNCTth3E"
+STRIPE_PRICE_AGENCY_YEARLY = "price_1TPOJQPpTMFHe2peKGbz36WJ"
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "accountsmultipostapp"
+database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
+migrations_dir = "migrations"
+
+[env.preview.ai]
+binding = "AI"

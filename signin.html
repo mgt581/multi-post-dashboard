@@ -126,6 +126,26 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
+        .btn-social {
+            background: rgba(255, 255, 255, 0.06);
+            color: #f8fafc;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            border: 1px solid var(--border);
+            box-shadow: none;
+        }
+
+        .btn-facebook { background: #1877f2; border-color: #1877f2; }
+        .btn-tiktok { background: #0f172a; border-color: rgba(255, 255, 255, 0.16); }
+
+        .btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.72;
+        }
+
         .forgot-link {
             display: block;
             margin-top: 16px;
@@ -197,8 +217,18 @@
             </button>
 
             <button class="btn btn-google" onclick="handleGoogleSignIn()">
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18">
+                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" alt="">
                 Continue with Google
+            </button>
+
+            <button class="btn btn-social btn-facebook" onclick="handleFacebookSignIn()">
+                <i class="fa-brands fa-facebook-f" aria-hidden="true"></i>
+                Log in with Facebook
+            </button>
+
+            <button class="btn btn-social btn-tiktok" onclick="handleTikTokSignIn()">
+                <i class="fa-brands fa-tiktok" aria-hidden="true"></i>
+                Log in with TikTok
             </button>
 
             <a href="#" class="forgot-link" onclick="handlePasswordReset()">Forgot your password?</a>
@@ -220,7 +250,10 @@
             createUserWithEmailAndPassword,
             signInWithEmailAndPassword,
             GoogleAuthProvider,
+            FacebookAuthProvider,
             signInWithPopup,
+            signInWithCredential,
+            signInWithCustomToken,
             getRedirectResult,
             onAuthStateChanged,
             setPersistence,
@@ -240,6 +273,9 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const provider = new GoogleAuthProvider();
+        const FACEBOOK_APP_ID = "1596560914709231";
+        const apiBase = "https://multipostapp.co.uk/api";
+
         provider.addScope("email");
         provider.addScope("profile");
         provider.setCustomParameters({ prompt: "select_account" });
@@ -248,6 +284,7 @@
         });
 
         let currentMode = "login";
+        let facebookSdkReady = null;
 
         const normalizeUserKey = (value) => String(value || "").trim().toLowerCase();
 
@@ -267,6 +304,64 @@
             window.location.replace("app.html");
         };
 
+        const getFacebookSdk = () => {
+            if (facebookSdkReady) return facebookSdkReady;
+            facebookSdkReady = new Promise((resolve, reject) => {
+                if (window.FB) return resolve(window.FB);
+                window.fbAsyncInit = function() {
+                    window.FB.init({
+                        appId: FACEBOOK_APP_ID,
+                        cookie: true,
+                        xfbml: false,
+                        version: "v18.0"
+                    });
+                    resolve(window.FB);
+                };
+                const existing = document.getElementById("facebook-jssdk");
+                if (existing) return;
+                const script = document.createElement("script");
+                script.id = "facebook-jssdk";
+                script.async = true;
+                script.defer = true;
+                script.crossOrigin = "anonymous";
+                script.src = "https://connect.facebook.net/en_US/sdk.js";
+                script.onerror = () => reject(new Error("Facebook SDK failed to load"));
+                document.head.appendChild(script);
+            });
+            return facebookSdkReady;
+        };
+
+        const showOauthError = () => {
+            const params = new URLSearchParams(window.location.search);
+            const error = params.get("auth_error");
+            if (!error) return;
+            alert(error);
+            params.delete("auth_error");
+            const nextUrl = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
+            window.history.replaceState({}, document.title, nextUrl);
+        };
+
+        const completeTikTokCustomTokenSignIn = async () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get("tiktok_login") !== "complete") return false;
+            const response = await fetch(`${apiBase}/auth/tiktok/firebase-token`, {
+                method: "POST",
+                credentials: "include"
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data?.custom_token) {
+                throw new Error(data?.error || "TikTok sign-in could not be completed");
+            }
+            await setPersistence(auth, browserLocalPersistence);
+            const result = await signInWithCustomToken(auth, data.custom_token);
+            const signedInUser = result?.user || auth.currentUser;
+            if (!signedInUser) {
+                throw new Error("TikTok sign-in completed but the session was not initialized. Please try again.");
+            }
+            openWorkspace(signedInUser);
+            return true;
+        };
+
         getRedirectResult(auth).then((result) => {
             if (result?.user) {
                 openWorkspace(result.user);
@@ -274,6 +369,12 @@
         }).catch((error) => {
             console.error("Google Auth Error:", error);
             alert(error?.message || "Google sign-in failed");
+        });
+
+        showOauthError();
+        completeTikTokCustomTokenSignIn().catch((error) => {
+            console.error("TikTok Auth Error:", error);
+            alert(error?.message || "TikTok sign-in failed");
         });
 
         window.switchMode = (mode) => {
@@ -330,6 +431,51 @@
                 console.error("Google Auth Error:", err);
                 alert(err?.message || "Google sign-in failed");
                 if (googleButton) googleButton.disabled = false;
+            }
+        };
+
+        window.handleFacebookSignIn = async () => {
+            const facebookButton = document.querySelector(".btn-facebook");
+            if (facebookButton) facebookButton.disabled = true;
+
+            try {
+                await setPersistence(auth, browserLocalPersistence);
+                const FB = await getFacebookSdk();
+                const response = await new Promise((resolve) => {
+                    FB.login(resolve, {
+                        scope: "public_profile,email",
+                        return_scopes: true,
+                        auth_type: "rerequest"
+                    });
+                });
+
+                if (response?.status !== "connected" || !response?.authResponse?.accessToken) {
+                    throw new Error("Facebook login was cancelled or not fully authorized.");
+                }
+
+                const credential = FacebookAuthProvider.credential(response.authResponse.accessToken);
+                const result = await signInWithCredential(auth, credential);
+                const signedInUser = result?.user || auth.currentUser;
+                if (!signedInUser) {
+                    throw new Error("Facebook sign-in completed but the session was not initialized. Please try again.");
+                }
+                openWorkspace(signedInUser);
+            } catch (err) {
+                console.error("Facebook Auth Error:", err);
+                alert(err?.message || "Facebook sign-in failed");
+                if (facebookButton) facebookButton.disabled = false;
+            }
+        };
+
+        window.handleTikTokSignIn = async () => {
+            const tiktokButton = document.querySelector(".btn-tiktok");
+            if (tiktokButton) tiktokButton.disabled = true;
+            try {
+                window.location.assign(`${apiBase}/auth/login/tiktok`);
+            } catch (err) {
+                console.error("TikTok Auth Error:", err);
+                alert(err?.message || "TikTok sign-in failed");
+                if (tiktokButton) tiktokButton.disabled = false;
             }
         };
 
