@@ -286,7 +286,7 @@ Generate trending, specific SEO \u2014 not generic content.` }
     const sqlPlaceholders = /* @__PURE__ */ __name((items) => items.map(() => "?").join(","), "sqlPlaceholders");
     const redirectUri = `${siteBaseUrl}/api/auth/callback/youtube`;
     const fbRedirectUri = `${siteBaseUrl}/api/auth/callback/facebook`;
-    const tiktokLoginRedirectUri = `${siteBaseUrl}/api/auth/login/tiktok/callback`;
+    const tiktokLoginRedirectUri = `${siteBaseUrl}/api/auth/callback/tiktok`;
     const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
     const MAX_IMAGE_SIZE_BYTES = 25 * 1024 * 1024;
     const TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1e3;
@@ -1291,86 +1291,23 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/auth/login/tiktok") {
         const clientKey = requireEnv(env.TIKTOK_CLIENT_KEY, "TIKTOK_CLIENT_KEY");
         requireEnv(env.TIKTOK_CLIENT_SECRET, "TIKTOK_CLIENT_SECRET");
-        const state = randomState();
+        const loginState = randomState();
         const scopes = "user.info.basic";
-        const tiktokAuthUrl = `${tiktokAuthBaseUrl}/v2/auth/authorize/?client_key=${encodeURIComponent(clientKey)}&scope=${encodeURIComponent(scopes)}&response_type=code&redirect_uri=${encodeURIComponent(tiktokLoginRedirectUri)}&state=${encodeURIComponent(state)}`;
+        const params = new URLSearchParams({
+          client_key: clientKey,
+          scope: scopes,
+          response_type: "code",
+          redirect_uri: tiktokLoginRedirectUri,
+          state: loginState
+        });
+        const tiktokAuthUrl = `${tiktokAuthBaseUrl}/v2/auth/authorize/?${params.toString()}`;
         return new Response(null, {
           status: 302,
           headers: {
             Location: tiktokAuthUrl,
-            "Set-Cookie": authCookie("mp_tiktok_login_state", state, 600)
+            "Set-Cookie": authCookie("mp_tiktok_login_state", loginState, 600)
           }
         });
-      }
-      if (url.pathname === "/api/auth/login/tiktok/callback") {
-        const cookies = parseCookies(request.headers.get("Cookie"));
-        const expectedState = cookies.mp_tiktok_login_state || "";
-        const returnedState = url.searchParams.get("state") || "";
-        const error = url.searchParams.get("error") || "";
-        const code = url.searchParams.get("code") || "";
-        const redirectWithError = (message) => new Response(null, {
-          status: 302,
-          headers: {
-            Location: `${frontendBaseUrl}/signin.html?auth_error=${encodeURIComponent(message)}`,
-            "Set-Cookie": clearAuthCookie("mp_tiktok_login_state")
-          }
-        });
-        if (error) {
-          return redirectWithError(url.searchParams.get("error_description") || error);
-        }
-        if (!expectedState || !returnedState || expectedState !== returnedState) {
-          return redirectWithError("TikTok sign-in state validation failed. Please try again.");
-        }
-        if (!code) {
-          return redirectWithError("TikTok did not return an authorization code.");
-        }
-        try {
-          const tokenRes = await fetch(`${tiktokApiBaseUrl}/v2/oauth/token/`, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
-              client_key: requireEnv(env.TIKTOK_CLIENT_KEY, "TIKTOK_CLIENT_KEY"),
-              client_secret: requireEnv(env.TIKTOK_CLIENT_SECRET, "TIKTOK_CLIENT_SECRET"),
-              code,
-              grant_type: "authorization_code",
-              redirect_uri: tiktokLoginRedirectUri
-            })
-          });
-          const tokenJson = await safeJson(tokenRes);
-          const tData = tokenJson.data || tokenJson;
-          if (!tokenRes.ok || tokenJson.error || tData.error || !tData.access_token) {
-            throw new Error(tokenJson.error_description || tData.error_description || tData.error || "TikTok token exchange failed");
-          }
-          let openId = String(tData.open_id || tData.openid || "");
-          let displayName = "TikTok User";
-          let avatarUrl = "";
-          const userInfoRes = await fetch(`${tiktokApiBaseUrl}/v2/user/info/?fields=open_id,union_id,display_name,avatar_url`, {
-            headers: { Authorization: `Bearer ${tData.access_token}` }
-          });
-          const userInfo = await safeJson(userInfoRes);
-          const user = userInfo?.data?.user || {};
-          openId = String(user.open_id || openId || "");
-          displayName = String(user.display_name || displayName);
-          avatarUrl = String(user.avatar_url || "");
-          if (!openId) {
-            throw new Error("TikTok profile did not include a stable user id.");
-          }
-          const customToken = await createFirebaseCustomToken({
-            uid: `tiktok:${openId}`,
-            claims: {
-              provider: "tiktok",
-              tiktok_open_id: openId,
-              name: displayName,
-              picture: avatarUrl
-            }
-          });
-          const successHeaders = new Headers({ Location: `${frontendBaseUrl}/signin.html?tiktok_login=complete` });
-          successHeaders.append("Set-Cookie", clearAuthCookie("mp_tiktok_login_state"));
-          successHeaders.append("Set-Cookie", authCookie("mp_firebase_custom_token", customToken, 120));
-          return new Response(null, { status: 302, headers: successHeaders });
-        } catch (err) {
-          return redirectWithError(err?.message || "TikTok sign-in failed");
-        }
       }
       if (url.pathname === "/api/auth/tiktok/firebase-token" && request.method === "POST") {
         const cookies = parseCookies(request.headers.get("Cookie"));
@@ -1491,7 +1428,77 @@ Follow for daily trending content! \u{1F44F}
       }
       if (url.pathname === "/api/auth/callback/tiktok") {
         const code = url.searchParams.get("code");
-        const stateObj = decodeState(url.searchParams.get("state"));
+        const rawState = url.searchParams.get("state") || "";
+        const cookies = parseCookies(request.headers.get("Cookie"));
+        if (cookies.mp_tiktok_login_state) {
+          const expectedState = cookies.mp_tiktok_login_state || "";
+          const returnedState = rawState;
+          const error = url.searchParams.get("error") || "";
+          const redirectWithError = (message) => new Response(null, {
+            status: 302,
+            headers: {
+              Location: `${frontendBaseUrl}/signin.html?auth_error=${encodeURIComponent(message)}`,
+              "Set-Cookie": clearAuthCookie("mp_tiktok_login_state")
+            }
+          });
+          if (error) {
+            return redirectWithError(url.searchParams.get("error_description") || error);
+          }
+          if (!expectedState || !returnedState || expectedState !== returnedState) {
+            return redirectWithError("TikTok sign-in state validation failed. Please try again.");
+          }
+          if (!code) {
+            return redirectWithError("TikTok did not return an authorization code.");
+          }
+          try {
+            const tokenRes = await fetch(`${tiktokApiBaseUrl}/v2/oauth/token/`, {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({
+                client_key: requireEnv(env.TIKTOK_CLIENT_KEY, "TIKTOK_CLIENT_KEY"),
+                client_secret: requireEnv(env.TIKTOK_CLIENT_SECRET, "TIKTOK_CLIENT_SECRET"),
+                code,
+                grant_type: "authorization_code",
+                redirect_uri: tiktokLoginRedirectUri
+              })
+            });
+            const tokenJson = await safeJson(tokenRes);
+            const tData = tokenJson.data || tokenJson;
+            if (!tokenRes.ok || tokenJson.error || tData.error || !tData.access_token) {
+              throw new Error(tokenJson.error_description || tData.error_description || tData.error || "TikTok token exchange failed");
+            }
+            let openId = String(tData.open_id || tData.openid || "");
+            let displayName = "TikTok User";
+            let avatarUrl = "";
+            const userInfoRes = await fetch(`${tiktokApiBaseUrl}/v2/user/info/?fields=open_id,union_id,display_name,avatar_url`, {
+              headers: { Authorization: `Bearer ${tData.access_token}` }
+            });
+            const userInfo = await safeJson(userInfoRes);
+            const user = userInfo?.data?.user || {};
+            openId = String(user.open_id || openId || "");
+            displayName = String(user.display_name || displayName);
+            avatarUrl = String(user.avatar_url || "");
+            if (!openId) {
+              throw new Error("TikTok profile did not include a stable user id.");
+            }
+            const customToken = await createFirebaseCustomToken({
+              uid: `tiktok:${openId}`,
+              claims: {
+                provider: "tiktok",
+                tiktok_open_id: openId,
+                name: displayName,
+                picture: avatarUrl
+              }
+            });
+            const successHeaders = new Headers({ Location: `${frontendBaseUrl}/signin.html?tiktok_login=complete` });
+            successHeaders.append("Set-Cookie", clearAuthCookie("mp_tiktok_login_state"));
+            successHeaders.append("Set-Cookie", authCookie("mp_firebase_custom_token", customToken, 120));
+            return new Response(null, { status: 302, headers: successHeaders });
+          } catch (err) {
+            return redirectWithError(err?.message || "TikTok sign-in failed");
+          }
+        }
+        const stateObj = decodeState(rawState);
         const folderId = stateObj.folderId;
         const userId = requireUser(stateObj.userId);
         if (!folderId || !userId) {
