@@ -119,7 +119,7 @@ jobs:
         run: |
           set -euo pipefail
           for i in 1 2 3 4 5; do
-            if curl -fsS "https://multipostapp.co.uk/api/health" > /tmp/health.json; then
+            if curl -fsS -A "GitHub-Actions-Deploy-Healthcheck" -H "Accept: application/json" "https://multipostapp.co.uk/api/health" > /tmp/health.json; then
               cat /tmp/health.json
               exit 0
             fi
