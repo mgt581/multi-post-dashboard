@@ -1317,7 +1317,7 @@ Follow for daily trending content! \u{1F44F}
         const params = new URLSearchParams({
           client_id: fbClientId,
           redirect_uri: fbRedirectUri,
-          scope: "public_profile,email,pages_show_list,pages_read_engagement,pages_manage_posts",
+          scope: "public_profile,pages_show_list,pages_read_engagement,pages_manage_posts",
           response_type: "code",
           state: loginState,
           auth_type: "rerequest",
@@ -1651,14 +1651,13 @@ Follow for daily trending content! \u{1F44F}
             }
             const meProof = await appsecretProof(accessToken);
             const me = await fetchFbJson(
-              `${fbGraph}/me?fields=id,name,email,picture&access_token=${encodeURIComponent(accessToken)}${meProof ? `&appsecret_proof=${encodeURIComponent(meProof)}` : ""}`
+              `${fbGraph}/me?fields=id,name,picture&access_token=${encodeURIComponent(accessToken)}${meProof ? `&appsecret_proof=${encodeURIComponent(meProof)}` : ""}`
             );
             const fbUserId = String(me?.id || "");
             if (!fbUserId) {
               throw new Error("Facebook profile did not include a stable user id.");
             }
             const displayName = String(me?.name || "Facebook User");
-            const email = me?.email ? String(me.email) : "";
             const picture = me?.picture?.data?.url ? String(me.picture.data.url) : `https://graph.facebook.com/${encodeURIComponent(fbUserId)}/picture?type=square`;
             const customToken = await createFirebaseCustomToken({
               uid: `facebook:${fbUserId}`,
@@ -1666,7 +1665,6 @@ Follow for daily trending content! \u{1F44F}
                 provider: "facebook",
                 facebook_user_id: fbUserId,
                 name: displayName,
-                email,
                 picture
               }
             });
