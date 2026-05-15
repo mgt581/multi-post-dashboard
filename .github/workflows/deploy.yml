@@ -48,7 +48,7 @@ jobs:
       - name: Upload GOOGLE_CLIENT_SECRET
         run: |
           if [ -n "${GOOGLE_CLIENT_SECRET:-}" ]; then
-            printf '%s' "$GOOGLE_CLIENT_SECRET" | npx wrangler secret put GOOGLE_CLIENT_SECRET
+            printf '%s' "$GOOGLE_CLIENT_SECRET" | npx wrangler versions secret put GOOGLE_CLIENT_SECRET
           fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -58,7 +58,7 @@ jobs:
       - name: Upload TIKTOK_CLIENT_SECRET
         run: |
           if [ -n "${TIKTOK_CLIENT_SECRET:-}" ]; then
-            printf '%s' "$TIKTOK_CLIENT_SECRET" | npx wrangler secret put TIKTOK_CLIENT_SECRET
+            printf '%s' "$TIKTOK_CLIENT_SECRET" | npx wrangler versions secret put TIKTOK_CLIENT_SECRET
           fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -68,7 +68,7 @@ jobs:
       - name: Upload FB_CLIENT_SECRET
         run: |
           if [ -n "${FB_CLIENT_SECRET:-}" ]; then
-            printf '%s' "$FB_CLIENT_SECRET" | npx wrangler secret put FB_CLIENT_SECRET
+            printf '%s' "$FB_CLIENT_SECRET" | npx wrangler versions secret put FB_CLIENT_SECRET
           fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -78,7 +78,7 @@ jobs:
       - name: Upload OPENAI_API_KEY
         run: |
           if [ -n "${OPENAI_API_KEY:-}" ]; then
-            printf '%s' "$OPENAI_API_KEY" | npx wrangler secret put OPENAI_API_KEY
+            printf '%s' "$OPENAI_API_KEY" | npx wrangler versions secret put OPENAI_API_KEY
           fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -88,7 +88,7 @@ jobs:
       - name: Upload STRIPE_SECRET_KEY
         run: |
           if [ -n "${STRIPE_SECRET_KEY:-}" ]; then
-            printf '%s' "$STRIPE_SECRET_KEY" | npx wrangler secret put STRIPE_SECRET_KEY
+            printf '%s' "$STRIPE_SECRET_KEY" | npx wrangler versions secret put STRIPE_SECRET_KEY
           fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -98,7 +98,7 @@ jobs:
       - name: Upload STRIPE_WEBHOOK_SECRET
         run: |
           if [ -n "${STRIPE_WEBHOOK_SECRET:-}" ]; then
-            printf '%s' "$STRIPE_WEBHOOK_SECRET" | npx wrangler secret put STRIPE_WEBHOOK_SECRET
+            printf '%s' "$STRIPE_WEBHOOK_SECRET" | npx wrangler versions secret put STRIPE_WEBHOOK_SECRET
           fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -108,7 +108,7 @@ jobs:
       - name: Upload OWNER_ADMIN_TOKEN
         run: |
           if [ -n "${OWNER_ADMIN_TOKEN:-}" ]; then
-            printf '%s' "$OWNER_ADMIN_TOKEN" | npx wrangler secret put OWNER_ADMIN_TOKEN
+            printf '%s' "$OWNER_ADMIN_TOKEN" | npx wrangler versions secret put OWNER_ADMIN_TOKEN
           fi
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
