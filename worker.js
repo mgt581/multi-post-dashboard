@@ -1292,9 +1292,15 @@ Follow for daily trending content! \u{1F44F}
         const clientKey = requireEnv(env.TIKTOK_CLIENT_KEY, "TIKTOK_CLIENT_KEY");
         requireEnv(env.TIKTOK_CLIENT_SECRET, "TIKTOK_CLIENT_SECRET");
         const loginState = randomState();
-        const state = encodeState({ platform: "tiktok_login", loginState });
         const scopes = "user.info.basic";
-        const tiktokAuthUrl = `${tiktokAuthBaseUrl}/v2/auth/authorize/?client_key=${encodeURIComponent(clientKey)}&scope=${encodeURIComponent(scopes)}&response_type=code&redirect_uri=${encodeURIComponent(tiktokLoginRedirectUri)}&state=${encodeURIComponent(state)}`;
+        const params = new URLSearchParams({
+          client_key: clientKey,
+          scope: scopes,
+          response_type: "code",
+          redirect_uri: tiktokLoginRedirectUri,
+          state: loginState
+        });
+        const tiktokAuthUrl = `${tiktokAuthBaseUrl}/v2/auth/authorize/?${params.toString()}`;
         return new Response(null, {
           status: 302,
           headers: {
@@ -1422,11 +1428,11 @@ Follow for daily trending content! \u{1F44F}
       }
       if (url.pathname === "/api/auth/callback/tiktok") {
         const code = url.searchParams.get("code");
-        const stateObj = decodeState(url.searchParams.get("state"));
-        if (stateObj.platform === "tiktok_login") {
-          const cookies = parseCookies(request.headers.get("Cookie"));
+        const rawState = url.searchParams.get("state") || "";
+        const cookies = parseCookies(request.headers.get("Cookie"));
+        if (cookies.mp_tiktok_login_state) {
           const expectedState = cookies.mp_tiktok_login_state || "";
-          const returnedState = stateObj.loginState || "";
+          const returnedState = rawState;
           const error = url.searchParams.get("error") || "";
           const redirectWithError = (message) => new Response(null, {
             status: 302,
@@ -1492,6 +1498,7 @@ Follow for daily trending content! \u{1F44F}
             return redirectWithError(err?.message || "TikTok sign-in failed");
           }
         }
+        const stateObj = decodeState(rawState);
         const folderId = stateObj.folderId;
         const userId = requireUser(stateObj.userId);
         if (!folderId || !userId) {
