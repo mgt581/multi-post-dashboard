@@ -250,14 +250,13 @@
             createUserWithEmailAndPassword,
             signInWithEmailAndPassword,
             GoogleAuthProvider,
-            FacebookAuthProvider,
             signInWithPopup,
-            signInWithCredential,
             signInWithCustomToken,
             getRedirectResult,
             onAuthStateChanged,
             setPersistence,
             browserLocalPersistence,
+            signOut,
             sendPasswordResetEmail
         } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
@@ -273,7 +272,6 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const provider = new GoogleAuthProvider();
-        const FACEBOOK_APP_ID = "1596560914709231";
         const apiBase = "https://multipostapp.co.uk/api";
 
         provider.addScope("email");
@@ -284,7 +282,12 @@
         });
 
         let currentMode = "login";
-        let facebookSdkReady = null;
+        const initialParams = new URLSearchParams(window.location.search);
+        const hasProviderCallback =
+            initialParams.get("tiktok_login") === "complete" ||
+            initialParams.get("facebook_login") === "complete" ||
+            initialParams.has("auth_error");
+        let suppressExistingSessionRedirect = hasProviderCallback;
 
         const normalizeUserKey = (value) => String(value || "").trim().toLowerCase();
 
@@ -304,33 +307,6 @@
             window.location.replace("app.html");
         };
 
-        const getFacebookSdk = () => {
-            if (facebookSdkReady) return facebookSdkReady;
-            facebookSdkReady = new Promise((resolve, reject) => {
-                if (window.FB) return resolve(window.FB);
-                window.fbAsyncInit = function() {
-                    window.FB.init({
-                        appId: FACEBOOK_APP_ID,
-                        cookie: true,
-                        xfbml: false,
-                        version: "v18.0"
-                    });
-                    resolve(window.FB);
-                };
-                const existing = document.getElementById("facebook-jssdk");
-                if (existing) return;
-                const script = document.createElement("script");
-                script.id = "facebook-jssdk";
-                script.async = true;
-                script.defer = true;
-                script.crossOrigin = "anonymous";
-                script.src = "https://connect.facebook.net/en_US/sdk.js";
-                script.onerror = () => reject(new Error("Facebook SDK failed to load"));
-                document.head.appendChild(script);
-            });
-            return facebookSdkReady;
-        };
-
         const showOauthError = () => {
             const params = new URLSearchParams(window.location.search);
             const error = params.get("auth_error");
@@ -341,25 +317,42 @@
             window.history.replaceState({}, document.title, nextUrl);
         };
 
-        const completeTikTokCustomTokenSignIn = async () => {
+        const completeCustomTokenSignIn = async ({ providerName, queryKey, endpoint }) => {
             const params = new URLSearchParams(window.location.search);
-            if (params.get("tiktok_login") !== "complete") return false;
-            const response = await fetch(`${apiBase}/auth/tiktok/firebase-token`, {
+            if (params.get(queryKey) !== "complete") return false;
+            const response = await fetch(`${apiBase}${endpoint}`, {
                 method: "POST",
                 credentials: "include"
             });
             const data = await response.json().catch(() => ({}));
             if (!response.ok || !data?.custom_token) {
-                throw new Error(data?.error || "TikTok sign-in could not be completed");
+                throw new Error(data?.error || `${providerName} sign-in could not be completed`);
             }
             await setPersistence(auth, browserLocalPersistence);
             const result = await signInWithCustomToken(auth, data.custom_token);
             const signedInUser = result?.user || auth.currentUser;
             if (!signedInUser) {
-                throw new Error("TikTok sign-in completed but the session was not initialized. Please try again.");
+                throw new Error(`${providerName} sign-in completed but the session was not initialized. Please try again.`);
             }
+            await signedInUser.getIdToken(true);
             openWorkspace(signedInUser);
             return true;
+        };
+
+        const completePendingProviderSignIn = async () => {
+            return (
+                await completeCustomTokenSignIn({
+                    providerName: "TikTok",
+                    queryKey: "tiktok_login",
+                    endpoint: "/auth/tiktok/firebase-token"
+                })
+            ) || (
+                await completeCustomTokenSignIn({
+                    providerName: "Facebook",
+                    queryKey: "facebook_login",
+                    endpoint: "/auth/facebook/firebase-token"
+                })
+            );
         };
 
         getRedirectResult(auth).then((result) => {
@@ -372,9 +365,9 @@
         });
 
         showOauthError();
-        completeTikTokCustomTokenSignIn().catch((error) => {
-            console.error("TikTok Auth Error:", error);
-            alert(error?.message || "TikTok sign-in failed");
+        completePendingProviderSignIn().catch((error) => {
+            console.error("Provider Auth Error:", error);
+            alert(error?.message || "Social sign-in failed");
         });
 
         window.switchMode = (mode) => {
@@ -440,26 +433,8 @@
 
             try {
                 await setPersistence(auth, browserLocalPersistence);
-                const FB = await getFacebookSdk();
-                const response = await new Promise((resolve) => {
-                    FB.login(resolve, {
-                        scope: "public_profile,email",
-                        return_scopes: true,
-                        auth_type: "rerequest"
-                    });
-                });
-
-                if (response?.status !== "connected" || !response?.authResponse?.accessToken) {
-                    throw new Error("Facebook login was cancelled or not fully authorized.");
-                }
-
-                const credential = FacebookAuthProvider.credential(response.authResponse.accessToken);
-                const result = await signInWithCredential(auth, credential);
-                const signedInUser = result?.user || auth.currentUser;
-                if (!signedInUser) {
-                    throw new Error("Facebook sign-in completed but the session was not initialized. Please try again.");
-                }
-                openWorkspace(signedInUser);
+                await signOut(auth).catch(() => {});
+                window.location.assign(`${apiBase}/auth/login/facebook`);
             } catch (err) {
                 console.error("Facebook Auth Error:", err);
                 alert(err?.message || "Facebook sign-in failed");
@@ -471,6 +446,8 @@
             const tiktokButton = document.querySelector(".btn-tiktok");
             if (tiktokButton) tiktokButton.disabled = true;
             try {
+                await setPersistence(auth, browserLocalPersistence);
+                await signOut(auth).catch(() => {});
                 window.location.assign(`${apiBase}/auth/login/tiktok`);
             } catch (err) {
                 console.error("TikTok Auth Error:", err);
@@ -489,6 +466,7 @@
         };
 
         onAuthStateChanged(auth, (user) => {
+            if (suppressExistingSessionRedirect) return;
             if (user) {
                 if (window.location.pathname.includes("signin.html")) {
                     openWorkspace(user);
