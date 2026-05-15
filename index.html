@@ -903,10 +903,30 @@ appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd"
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const ownerKeys = [
+"alexbryant3234@gmail.com",
+"alexbryantwork3234@outlook.com",
+"Y98MCpY2VTQujHVwvhufxYE6Azh1",
+"L6GV2I8v1IZ8ZsSJVlof9K559A43",
+"XvLFswTmQ7YalJNYTC3vT7Y9OsB3"
+];
+const normalizeUserKey = value => String(value || "").trim().toLowerCase();
+const isOwnerKey = value => ownerKeys.some(ownerKey => normalizeUserKey(ownerKey) === normalizeUserKey(value));
+const isSocialProviderUid = uid => /^(facebook|tiktok):/.test(normalizeUserKey(uid));
+function getStoredOwnerKey() {
+let known = [];
+try {
+known = JSON.parse(localStorage.getItem("knownUserKeys") || "[]");
+} catch (_) {
+known = [];
+}
+return [localStorage.getItem("currentUserKey"), ...known].find(isOwnerKey) || "";
+}
 
 onAuthStateChanged(auth, (user) => {
 if (!user) return;
-localStorage.setItem("currentUserKey", user.email || user.uid);
+const ownerKey = getStoredOwnerKey();
+localStorage.setItem("currentUserKey", isSocialProviderUid(user.uid) && ownerKey ? normalizeUserKey(ownerKey) : (user.email || user.uid));
 window.location.replace("app.html");
 });
 </script>

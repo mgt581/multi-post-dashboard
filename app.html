@@ -201,6 +201,16 @@
       return identityKeys.some(key => ownerKeys.some(ownerKey => normalizeEmail(ownerKey) === normalizeEmail(key)));
     }
 
+    function isSocialProviderUser(user) {
+      return /^(facebook|tiktok):/.test(normalizeEmail(user?.uid));
+    }
+
+    function getStoredOwnerKeys(keys) {
+      return keys
+        .map(value => String(value || "").trim())
+        .filter(value => ownerKeys.some(ownerKey => normalizeEmail(ownerKey) === normalizeEmail(value)));
+    }
+
     function getUserScopeCandidates(user) {
       let knownKeys = [];
       try {
@@ -209,8 +219,14 @@
         knownKeys = [];
       }
       const canUseOwnerKeys = isOwnerUser(user);
-      const trustedKnownKeys = canUseOwnerKeys ? knownKeys : [];
-      const trustedStoredKey = canUseOwnerKeys ? localStorage.getItem("currentUserKey") : "";
+      const canUseStoredOwnerKeys = canUseOwnerKeys || isSocialProviderUser(user);
+      const storedOwnerKeys = canUseStoredOwnerKeys
+        ? getStoredOwnerKeys([localStorage.getItem("currentUserKey"), ...knownKeys])
+        : [];
+      const trustedKnownKeys = canUseOwnerKeys ? knownKeys : storedOwnerKeys;
+      const trustedStoredKey = canUseOwnerKeys
+        ? (storedOwnerKeys[0] || localStorage.getItem("currentUserKey"))
+        : (storedOwnerKeys[0] || "");
 
       const candidates = [
         normalizeEmail(user?.email),

@@ -290,6 +290,24 @@
         let suppressExistingSessionRedirect = hasProviderCallback;
 
         const normalizeUserKey = (value) => String(value || "").trim().toLowerCase();
+        const ownerKeys = [
+            "alexbryant3234@gmail.com",
+            "alexbryantwork3234@outlook.com",
+            "Y98MCpY2VTQujHVwvhufxYE6Azh1",
+            "L6GV2I8v1IZ8ZsSJVlof9K559A43",
+            "XvLFswTmQ7YalJNYTC3vT7Y9OsB3"
+        ];
+        const isOwnerKey = (value) => ownerKeys.some((ownerKey) => normalizeUserKey(ownerKey) === normalizeUserKey(value));
+        const isSocialProviderKey = (value) => /^(facebook|tiktok):/.test(normalizeUserKey(value));
+        const getStoredOwnerKey = () => {
+            let known = [];
+            try {
+                known = JSON.parse(localStorage.getItem("knownUserKeys") || "[]");
+            } catch (_) {
+                known = [];
+            }
+            return [localStorage.getItem("currentUserKey"), ...known].find(isOwnerKey) || "";
+        };
 
         const rememberUserKey = (value) => {
             const key = normalizeUserKey(value);
@@ -298,7 +316,8 @@
             const known = JSON.parse(localStorage.getItem("knownUserKeys") || "[]");
             const next = [previous, key, ...known.map(normalizeUserKey)].filter(Boolean);
             localStorage.setItem("knownUserKeys", JSON.stringify([...new Set(next)].slice(0, 8)));
-            localStorage.setItem("currentUserKey", key);
+            const ownerKey = getStoredOwnerKey();
+            localStorage.setItem("currentUserKey", isSocialProviderKey(key) && ownerKey ? normalizeUserKey(ownerKey) : key);
         };
 
         const openWorkspace = (user) => {
