@@ -1292,7 +1292,7 @@ Follow for daily trending content! \u{1F44F}
         const clientKey = requireEnv(env.TIKTOK_CLIENT_KEY, "TIKTOK_CLIENT_KEY");
         requireEnv(env.TIKTOK_CLIENT_SECRET, "TIKTOK_CLIENT_SECRET");
         const loginState = randomState();
-        const scopes = "user.info.basic";
+        const scopes = "user.info.basic,video.upload,video.publish";
         const params = new URLSearchParams({
           client_key: clientKey,
           scope: scopes,
@@ -1317,7 +1317,7 @@ Follow for daily trending content! \u{1F44F}
         const params = new URLSearchParams({
           client_id: fbClientId,
           redirect_uri: fbRedirectUri,
-          scope: "public_profile,email",
+          scope: "public_profile,email,pages_show_list,pages_read_engagement,pages_manage_posts",
           response_type: "code",
           state: loginState,
           auth_type: "rerequest",
@@ -1389,7 +1389,7 @@ Follow for daily trending content! \u{1F44F}
         )}&redirect_uri=${encodeURIComponent(
           fbRedirectUri
         )}&scope=${encodeURIComponent(
-          "pages_show_list,pages_manage_posts"
+          "pages_show_list,pages_read_engagement,pages_manage_posts"
         )}&response_type=code&state=${encodeURIComponent(state)}`;
         return Response.redirect(fbAuthUrl);
       }
@@ -1742,7 +1742,7 @@ Follow for daily trending content! \u{1F44F}
           accessToken,
           refreshToken: null,
           expiresAt: nowMs() + expiresIn * 1e3,
-          scope: "pages_manage_posts,pages_show_list"
+          scope: "pages_manage_posts,pages_read_engagement,pages_show_list"
         });
         return Response.redirect(
           `${frontendBaseUrl}/folder.html?id=${encodeURIComponent(folderId)}&facebook=pages`
