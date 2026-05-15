@@ -1373,7 +1373,7 @@ Follow for daily trending content! \u{1F44F}
         const tiktokRedirectUri = `${siteBaseUrl}/api/auth/callback/tiktok`;
         const scopes = "video.upload,video.publish,user.info.basic";
         const state = encodeState({ folderId, platform: "tiktok", userId });
-        const tiktokAuthUrl = `${tiktokAuthBaseUrl}/v2/auth/authorize/?client_key=${env.TIKTOK_CLIENT_KEY}&scope=${encodeURIComponent(scopes)}&response_type=code&redirect_uri=${encodeURIComponent(tiktokRedirectUri)}&state=${encodeURIComponent(state)}&disable_auto_auth=1`;
+        const tiktokAuthUrl = `${tiktokAuthBaseUrl}/v2/auth/authorize/?client_key=${env.TIKTOK_CLIENT_KEY}&scope=${encodeURIComponent(scopes)}&response_type=code&redirect_uri=${encodeURIComponent(tiktokRedirectUri)}&state=${encodeURIComponent(state)}`;
         return Response.redirect(tiktokAuthUrl);
       }
       if (url.pathname === "/api/auth/facebook") {
