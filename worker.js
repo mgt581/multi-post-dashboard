@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // worker.js
-var WORKER_VERSION = "2026-05-19-tiktok-chunk-rules";
+var WORKER_VERSION = "2026-05-19-tiktok-inbox-fallback";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -2218,26 +2218,50 @@ Follow for daily trending content! \u{1F44F}
             }
           }), "buildInitBody");
           console.log("tiktok_chunks", { videoSize, chunkSize, totalChunks, remainder: videoSize % chunkSize });
-          let initRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/video/init/`, {
+          const directPostInit = /* @__PURE__ */ __name((privacy) => fetch(`${tiktokApiBaseUrl}/v2/post/publish/video/init/`, {
             method: "POST",
             headers: { Authorization: `Bearer ${token.access_token}`, "Content-Type": "application/json; charset=UTF-8" },
-            body: buildInitBody(privacyStatus)
-          });
+            body: buildInitBody(privacy)
+          }), "directPostInit");
+          const inboxUploadInit = /* @__PURE__ */ __name(() => fetch(`${tiktokApiBaseUrl}/v2/post/publish/inbox/video/init/`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${token.access_token}`, "Content-Type": "application/json; charset=UTF-8" },
+            body: JSON.stringify({
+              source_info: {
+                source: "FILE_UPLOAD",
+                video_size: videoSize,
+                chunk_size: chunkSize,
+                total_chunk_count: totalChunks
+              }
+            })
+          }), "inboxUploadInit");
+          const getTikTokErrorCode = /* @__PURE__ */ __name((data) => String(data?.error?.code || ""), "getTikTokErrorCode");
+          const unauditedCode = "unaudited_client_can_only_post_to_private_accounts";
+          let deliveryMode = "direct_post";
+          let initRes = await directPostInit(privacyStatus);
           let initData = await safeJson(initRes);
           let privacyDowngraded = false;
-          if (initData?.error?.code === "unaudited_client_can_only_post_to_private_accounts") {
+          let inboxFallback = false;
+          if (getTikTokErrorCode(initData) === unauditedCode) {
             privacyDowngraded = privacyStatus !== "SELF_ONLY";
             privacyStatus = "SELF_ONLY";
-            const retryRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/video/init/`, {
-              method: "POST",
-              headers: { Authorization: `Bearer ${token.access_token}`, "Content-Type": "application/json; charset=UTF-8" },
-              body: buildInitBody("SELF_ONLY")
-            });
+            const retryRes = await directPostInit("SELF_ONLY");
             initData = await safeJson(retryRes);
-            if (!retryRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
+            if (getTikTokErrorCode(initData) === unauditedCode) {
+              const inboxRes = await inboxUploadInit();
+              initData = await safeJson(inboxRes);
+              initRes = inboxRes;
+              deliveryMode = "inbox_upload";
+              inboxFallback = true;
+            } else if (!retryRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
               throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
+            } else {
+              initRes = retryRes;
             }
           } else if (!initRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
+            throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
+          }
+          if (!initRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
             throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
           }
           const publishId = initData?.data?.publish_id;
@@ -2245,6 +2269,7 @@ Follow for daily trending content! \u{1F44F}
           if (!publishId || !uploadUrl) {
             throw new Error(`TikTok init missing publish_id or upload_url: ${JSON.stringify(initData)}`);
           }
+          const warning = inboxFallback ? "TikTok Direct Post is blocked while this app is unaudited unless the TikTok test account is private. The video was uploaded to TikTok Inbox instead; open TikTok to finish the post." : privacyDowngraded ? "Your TikTok app is unaudited, so this post was automatically set to Private (SELF_ONLY). Submit your app for review at https://developers.tiktok.com/ to enable public posting." : "";
           const sessionId = crypto.randomUUID();
           const expiresAt = Math.floor(Date.now() / 1e3) + SESSION_EXPIRY_SECONDS;
           await env.DB.prepare(
@@ -2258,7 +2283,8 @@ Follow for daily trending content! \u{1F44F}
             chunkSize,
             totalChunks,
             videoSize,
-            ...(privacyDowngraded ? { warning: "Your TikTok app is unaudited, so this post was automatically set to Private (SELF_ONLY). Submit your app for review at https://developers.tiktok.com/ to enable public posting." } : {})
+            deliveryMode,
+            ...(warning ? { warning } : {})
           }), { headers: jsonHeaders });
         } catch (err) {
           console.error("TikTok init-upload error:", err);
@@ -2312,10 +2338,11 @@ Follow for daily trending content! \u{1F44F}
           const chunkBytes = await chunkFile.arrayBuffer();
           const chunkEnd = offset + chunkBytes.byteLength - 1;
           const totalSize = session.file_size;
+          const contentType = String(formData.get("fileType") || chunkFile.type || "video/mp4");
           const uploadRes = await fetch(session.upload_url, {
             method: "PUT",
             headers: {
-              "Content-Type": "video/mp4",
+              "Content-Type": contentType,
               "Content-Length": String(chunkBytes.byteLength),
               "Content-Range": `bytes ${offset}-${chunkEnd}/${totalSize}`
             },

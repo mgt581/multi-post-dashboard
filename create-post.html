@@ -1256,7 +1256,7 @@
         throw new Error(initData.error || "TikTok init-upload failed");
       }
 
-      const { sessionId, chunkSize, totalChunks, warning } = initData;
+      const { sessionId, chunkSize, totalChunks, warning, deliveryMode } = initData;
 
       // Step 2: upload chunks
       for (let i = 0; i < totalChunks; i++) {
@@ -1268,6 +1268,7 @@
         const fd = new FormData();
         fd.append("sessionId", sessionId);
         fd.append("offset", String(offset));
+        fd.append("fileType", file.type || "video/mp4");
         fd.append("chunk", chunkBlob, file.name);
 
         const upRes = await fetch(`${uploadApiBase}/tiktok/upload-chunk`, {
@@ -1286,8 +1287,13 @@
         }
       }
 
-      setStatus(`Published to "${activeTikTokName}"`, "success");
-      btn.textContent = "✅ Uploaded";
+      if (deliveryMode === "inbox_upload") {
+        setStatus(`Uploaded to "${activeTikTokName}" TikTok Inbox`, "success");
+        btn.textContent = "✅ Sent to Inbox";
+      } else {
+        setStatus(`Published to "${activeTikTokName}"`, "success");
+        btn.textContent = "✅ Uploaded";
+      }
 
       if (warning) {
         alert(`⚠️ Note: ${warning}`);
