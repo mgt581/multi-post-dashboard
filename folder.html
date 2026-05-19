@@ -216,8 +216,11 @@
   <script>
     const host = window.location.hostname;
     const isProdHost = host === "multipostapp.co.uk" || host === "www.multipostapp.co.uk";
+    const isPreviewHost = host.endsWith(".pages.dev");
     const apiBase = isProdHost
       ? "/api"
+      : isPreviewHost
+        ? "https://multipost-seo-worker-preview.alexbryant.workers.dev/api"
       : "https://multipost-seo-worker.alexbryant.workers.dev/api";
 
     let userScope = null;
