@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // worker.js
-var WORKER_VERSION = "2026-05-19-chunked-video-uploads";
+var WORKER_VERSION = "2026-05-19-tiktok-chunk-rules";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -290,6 +290,7 @@ Generate trending, specific SEO \u2014 not generic content.` }
     const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
     const MAX_IMAGE_SIZE_BYTES = 25 * 1024 * 1024;
     const UPLOAD_CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
+    const TIKTOK_MAX_CHUNK_SIZE_BYTES = 64 * 1000 * 1000;
     const TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1e3;
     const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
     const SESSION_EXPIRY_SECONDS = 3600;
@@ -2188,9 +2189,18 @@ Follow for daily trending content! \u{1F44F}
           });
         }
         try {
-          const CHUNK_SIZE = 10 * 1024 * 1024;
-          const chunkSize = videoSize <= CHUNK_SIZE ? videoSize : CHUNK_SIZE;
-          const totalChunks = Math.max(1, Math.floor(videoSize / chunkSize));
+          const getTikTokChunkPlan = /* @__PURE__ */ __name((size) => {
+            if (size <= TIKTOK_MAX_CHUNK_SIZE_BYTES) {
+              return { chunkSize: size, totalChunks: 1 };
+            }
+            const targetChunks = Math.max(2, Math.ceil(size / TIKTOK_MAX_CHUNK_SIZE_BYTES));
+            const chunkSize = Math.floor(size / targetChunks);
+            return {
+              chunkSize,
+              totalChunks: Math.max(1, Math.floor(size / chunkSize))
+            };
+          }, "getTikTokChunkPlan");
+          const { chunkSize, totalChunks } = getTikTokChunkPlan(videoSize);
           const buildInitBody = /* @__PURE__ */ __name((privacy) => JSON.stringify({
             post_info: {
               title: caption,
@@ -2306,6 +2316,7 @@ Follow for daily trending content! \u{1F44F}
             method: "PUT",
             headers: {
               "Content-Type": "video/mp4",
+              "Content-Length": String(chunkBytes.byteLength),
               "Content-Range": `bytes ${offset}-${chunkEnd}/${totalSize}`
             },
             body: chunkBytes
