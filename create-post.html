@@ -1101,35 +1101,78 @@
       return;
     }
 
-    const form = new FormData();
-    form.append("title", title);
-    form.append("description", description);
-    form.append("keywords", keywords);
-    form.append("privacyStatus", privacyStatus);
-    form.append("video", file);
-
     try {
       btn.disabled = true;
-      btn.textContent = "Uploading video...";
+      btn.textContent = "Starting upload...";
 
       setStatus(`Uploading to "${activeYouTubeName}"…`, "working");
 
-      const res = await fetch(`${apiBase}/youtube/upload`, {
+      const initRes = await fetch(`${apiBase}/youtube/init-upload`, {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           folder_id: activeFolderId,
           user_id: userScope,
           client_platform: getClientPlatform()
         },
-        body: form
+        body: JSON.stringify({
+          title,
+          description,
+          keywords,
+          privacyStatus,
+          fileType: file.type || "video/mp4",
+          fileSize: file.size
+        })
       });
 
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Upload failed");
+      const initData = await initRes.json().catch(() => ({}));
+      if (!initRes.ok || !initData.success) {
+        throw new Error(initData.error || "YouTube init-upload failed");
       }
 
+      const chunkSize = Number(initData.chunkSize || 10 * 1024 * 1024);
+      const totalChunks = Number(initData.totalChunks || Math.ceil(file.size / chunkSize));
+      let finalData = null;
+
+      for (let i = 0; i < totalChunks; i++) {
+        const offset = i * chunkSize;
+        const end = i === totalChunks - 1 ? file.size : Math.min(file.size, offset + chunkSize);
+        const chunkBlob = file.slice(offset, end, file.type || "video/mp4");
+
+        btn.textContent = `Uploading… (${i + 1}/${totalChunks})`;
+        setStatus(`Uploading to "${activeYouTubeName}" (${i + 1}/${totalChunks})…`, "working");
+
+        const fd = new FormData();
+        fd.append("sessionId", initData.sessionId);
+        fd.append("offset", String(offset));
+        fd.append("fileType", file.type || "video/mp4");
+        fd.append("chunk", chunkBlob, file.name);
+
+        const upRes = await fetch(`${apiBase}/youtube/upload-chunk`, {
+          method: "POST",
+          headers: {
+            folder_id: activeFolderId,
+            user_id: userScope,
+            client_platform: getClientPlatform()
+          },
+          body: fd
+        });
+
+        const upData = await upRes.json().catch(() => ({}));
+        if (!upRes.ok || !upData.success) {
+          throw new Error(upData.error || `YouTube upload-chunk failed at chunk ${i + 1}/${totalChunks}`);
+        }
+        if (upData.complete) {
+          finalData = upData;
+          break;
+        }
+      }
+
+      if (!finalData?.complete) {
+        throw new Error("YouTube upload did not complete. Please retry with the same video.");
+      }
+
+      const data = finalData || {};
       setStatus(`Published to "${activeYouTubeName}"`, "success");
       btn.textContent = "✅ Uploaded";
 
@@ -1292,31 +1335,79 @@
       return;
     }
 
-    const form = new FormData();
-    form.append("title", title);
-    form.append("description", description);
-    form.append("video", file);
-
     try {
       btn.disabled = true;
-      btn.textContent = "Uploading video...";
+      btn.textContent = "Starting upload...";
 
       setStatus(`Uploading to "${activeFacebookName}"…`, "working");
 
-      const res = await fetch(`${apiBase}/facebook/upload`, {
+      const initRes = await fetch(`${apiBase}/facebook/init-upload`, {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           folder_id: activeFolderId,
           user_id: userScope,
           client_platform: getClientPlatform()
         },
-        body: form
+        body: JSON.stringify({
+          title,
+          description,
+          fileSize: file.size
+        })
       });
 
-      const data = await res.json();
+      const initData = await initRes.json().catch(() => ({}));
+      if (!initRes.ok || !initData.success) {
+        throw new Error(initData.error || "Facebook init-upload failed");
+      }
 
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Facebook upload failed");
+      const chunkSize = Number(initData.chunkSize || 10 * 1024 * 1024);
+      const totalChunks = Number(initData.totalChunks || Math.ceil(file.size / chunkSize));
+
+      for (let i = 0; i < totalChunks; i++) {
+        const offset = i * chunkSize;
+        const end = i === totalChunks - 1 ? file.size : Math.min(file.size, offset + chunkSize);
+        const chunkBlob = file.slice(offset, end, file.type || "video/mp4");
+
+        btn.textContent = `Uploading… (${i + 1}/${totalChunks})`;
+        setStatus(`Uploading to "${activeFacebookName}" (${i + 1}/${totalChunks})…`, "working");
+
+        const fd = new FormData();
+        fd.append("sessionId", initData.sessionId);
+        fd.append("offset", String(offset));
+        fd.append("chunk", chunkBlob, file.name);
+
+        const upRes = await fetch(`${apiBase}/facebook/upload-chunk`, {
+          method: "POST",
+          headers: {
+            folder_id: activeFolderId,
+            user_id: userScope,
+            client_platform: getClientPlatform()
+          },
+          body: fd
+        });
+
+        const upData = await upRes.json().catch(() => ({}));
+        if (!upRes.ok || !upData.success) {
+          throw new Error(upData.error || `Facebook upload-chunk failed at chunk ${i + 1}/${totalChunks}`);
+        }
+      }
+
+      btn.textContent = "Finishing upload...";
+      const finishRes = await fetch(`${apiBase}/facebook/finish-upload`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          folder_id: activeFolderId,
+          user_id: userScope,
+          client_platform: getClientPlatform()
+        },
+        body: JSON.stringify({ sessionId: initData.sessionId })
+      });
+
+      const data = await finishRes.json().catch(() => ({}));
+      if (!finishRes.ok || !data.success) {
+        throw new Error(data.error || "Facebook finish-upload failed");
       }
 
       setStatus(`Published to "${activeFacebookName}"`, "success");

@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // worker.js
-var WORKER_VERSION = "2026-04-24-youtube-two-scopes";
+var WORKER_VERSION = "2026-05-19-chunked-video-uploads";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -289,6 +289,7 @@ Generate trending, specific SEO \u2014 not generic content.` }
     const tiktokLoginRedirectUri = `${siteBaseUrl}/api/auth/callback/tiktok`;
     const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
     const MAX_IMAGE_SIZE_BYTES = 25 * 1024 * 1024;
+    const UPLOAD_CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
     const TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1e3;
     const DEFAULT_TOKEN_EXPIRY_SECONDS = 3600;
     const SESSION_EXPIRY_SECONDS = 3600;
@@ -1996,11 +1997,137 @@ Follow for daily trending content! \u{1F44F}
           if (!uploadUrl) {
             throw new Error("No upload location returned by YouTube");
           }
-          await recordPublishUsage(user_id, "youtube");
-          return new Response(JSON.stringify({ success: true, uploadUrl }), { headers: jsonHeaders });
+          const sessionId = crypto.randomUUID();
+          const chunkSize = fileSize <= UPLOAD_CHUNK_SIZE_BYTES ? fileSize : UPLOAD_CHUNK_SIZE_BYTES;
+          const totalChunks = Math.max(1, Math.ceil(fileSize / chunkSize));
+          const expiresAt = Math.floor(Date.now() / 1e3) + SESSION_EXPIRY_SECONDS;
+          await env.DB.prepare(
+            "INSERT INTO upload_sessions (id, platform, upload_url, access_token, file_size, expires_at) VALUES (?, ?, ?, ?, ?, ?)"
+          ).bind(sessionId, "youtube", uploadUrl, accessToken, fileSize, expiresAt).run();
+          return new Response(JSON.stringify({
+            success: true,
+            sessionId,
+            uploadUrl,
+            chunkSize,
+            totalChunks,
+            videoSize: fileSize
+          }), { headers: jsonHeaders });
         } catch (err) {
           console.error("YouTube init-upload error:", err);
           return new Response(JSON.stringify({ success: false, error: err.message || "Init failed" }), {
+            status: 500,
+            headers: jsonHeaders
+          });
+        }
+      }
+      if (url.pathname === "/api/youtube/upload-chunk" && request.method === "POST") {
+        const folder_id = request.headers.get("folder_id") || "";
+        const user_id = request.headers.get("user_id") || "";
+        if (!folder_id || !user_id) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const formData = await request.formData();
+        const sessionId = String(formData.get("sessionId") || "").trim();
+        const offset = Number(formData.get("offset") || 0);
+        const fileType = String(formData.get("fileType") || "video/mp4").trim() || "video/mp4";
+        const chunkFile = formData.get("chunk");
+        if (!sessionId) {
+          return new Response(JSON.stringify({ success: false, error: "sessionId required" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        if (!Number.isFinite(offset) || offset < 0) {
+          return new Response(JSON.stringify({ success: false, error: "Valid offset required" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        if (!chunkFile || !(chunkFile instanceof File)) {
+          return new Response(JSON.stringify({ success: false, error: "chunk required" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const session = await env.DB.prepare(
+          "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'youtube' LIMIT 1"
+        ).bind(sessionId).first();
+        if (!session) {
+          return new Response(JSON.stringify({ success: false, error: "Upload session not found or expired" }), {
+            status: 404,
+            headers: jsonHeaders
+          });
+        }
+        if (Math.floor(Date.now() / 1e3) > session.expires_at) {
+          return new Response(JSON.stringify({ success: false, error: "Upload session expired" }), {
+            status: 410,
+            headers: jsonHeaders
+          });
+        }
+        try {
+          const chunkBytes = await chunkFile.arrayBuffer();
+          if (!chunkBytes.byteLength) {
+            return new Response(JSON.stringify({ success: false, error: "chunk is empty" }), {
+              status: 400,
+              headers: jsonHeaders
+            });
+          }
+          const totalSize = Number(session.file_size) || 0;
+          const chunkEnd = offset + chunkBytes.byteLength - 1;
+          if (!totalSize || chunkEnd >= totalSize) {
+            return new Response(JSON.stringify({ success: false, error: "Invalid chunk range" }), {
+              status: 400,
+              headers: jsonHeaders
+            });
+          }
+          const uploadRes = await fetch(session.upload_url, {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              "Content-Type": fileType,
+              "Content-Length": String(chunkBytes.byteLength),
+              "Content-Range": `bytes ${offset}-${chunkEnd}/${totalSize}`
+            },
+            body: chunkBytes
+          });
+          const uploadText = await uploadRes.text();
+          if (uploadRes.status === 308) {
+            const range = uploadRes.headers.get("Range") || "";
+            const match = range.match(/bytes=0-(\d+)/);
+            const uploadedBytes = match ? Number(match[1]) + 1 : chunkEnd + 1;
+            return new Response(JSON.stringify({
+              success: true,
+              complete: false,
+              uploadedBytes
+            }), { headers: jsonHeaders });
+          }
+          let uploadData = {};
+          if (uploadText) {
+            try {
+              uploadData = JSON.parse(uploadText);
+            } catch {
+              uploadData = { raw: uploadText };
+            }
+          }
+          if (!uploadRes.ok) {
+            throw new Error(`YouTube chunk upload failed: ${uploadRes.status} ${uploadText}`);
+          }
+          const videoId = uploadData?.id;
+          await recordPublishUsage(user_id, "youtube");
+          await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(sessionId).run();
+          return new Response(JSON.stringify({
+            success: true,
+            complete: true,
+            videoId,
+            youtubeUrl: videoId ? `https://youtube.com/watch?v=${videoId}` : "",
+            data: uploadData
+          }), { headers: jsonHeaders });
+        } catch (err) {
+          console.error("YouTube upload-chunk error:", err);
+          return new Response(JSON.stringify({ success: false, error: err.message || "Chunk upload failed" }), {
             status: 500,
             headers: jsonHeaders
           });
@@ -2259,13 +2386,14 @@ Follow for daily trending content! \u{1F44F}
           if (!videoId || !uploadUrl) {
             throw new Error(`Bad reels start response: ${JSON.stringify(startRes)}`);
           }
+          const chunkSize = fileSize <= UPLOAD_CHUNK_SIZE_BYTES ? fileSize : UPLOAD_CHUNK_SIZE_BYTES;
+          const totalChunks = Math.max(1, Math.ceil(fileSize / chunkSize));
           const sessionId = crypto.randomUUID();
           const expiresAt = Math.floor(Date.now() / 1e3) + SESSION_EXPIRY_SECONDS;
           await env.DB.prepare(
             "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, page_id, title, description, file_size, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
           ).bind(sessionId, "facebook", uploadUrl, pageAccessToken, videoId, pageId, title, description, fileSize, expiresAt).run();
-          await recordPublishUsage(user_id, "facebook");
-          return new Response(JSON.stringify({ success: true, sessionId, videoId }), { headers: jsonHeaders });
+          return new Response(JSON.stringify({ success: true, sessionId, videoId, chunkSize, totalChunks }), { headers: jsonHeaders });
         } catch (err) {
           console.error("Facebook init-upload error:", err);
           return new Response(JSON.stringify({ success: false, error: err.message || "Init failed" }), {
@@ -2389,6 +2517,7 @@ Follow for daily trending content! \u{1F44F}
               description: session.description || ""
             })
           });
+          await recordPublishUsage(user_id, "facebook");
           await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(sessionId).run();
           return new Response(JSON.stringify({
             success: true,
