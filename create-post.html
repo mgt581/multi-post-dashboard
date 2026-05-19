@@ -594,9 +594,10 @@
   const isPreviewHost = host.endsWith(".pages.dev");
   const apiBase = isProdHost
     ? "/api"
-    : isPreviewHost
-      ? "https://multipost-seo-worker-preview.alexbryant.workers.dev/api"
     : "https://multipost-seo-worker.alexbryant.workers.dev/api";
+  const uploadApiBase = isPreviewHost
+    ? "https://multipost-seo-worker-preview.alexbryant.workers.dev/api"
+    : apiBase;
 
   const statusEl = document.getElementById("status");
   const generateBtn = document.getElementById("generateBtn");
@@ -1110,7 +1111,7 @@
 
       setStatus(`Uploading to "${activeYouTubeName}"…`, "working");
 
-      const initRes = await fetch(`${apiBase}/youtube/init-upload`, {
+      const initRes = await fetch(`${uploadApiBase}/youtube/init-upload`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1151,7 +1152,7 @@
         fd.append("fileType", file.type || "video/mp4");
         fd.append("chunk", chunkBlob, file.name);
 
-        const upRes = await fetch(`${apiBase}/youtube/upload-chunk`, {
+        const upRes = await fetch(`${uploadApiBase}/youtube/upload-chunk`, {
           method: "POST",
           headers: {
             folder_id: activeFolderId,
@@ -1235,7 +1236,7 @@
       setStatus(`Uploading to "${activeTikTokName}"…`, "working");
 
       // Step 1: initialise upload session
-      const initRes = await fetch(`${apiBase}/tiktok/init-upload`, {
+      const initRes = await fetch(`${uploadApiBase}/tiktok/init-upload`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1269,7 +1270,7 @@
         fd.append("offset", String(offset));
         fd.append("chunk", chunkBlob, file.name);
 
-        const upRes = await fetch(`${apiBase}/tiktok/upload-chunk`, {
+        const upRes = await fetch(`${uploadApiBase}/tiktok/upload-chunk`, {
           method: "POST",
           headers: {
             folder_id: activeFolderId,
@@ -1344,7 +1345,7 @@
 
       setStatus(`Uploading to "${activeFacebookName}"…`, "working");
 
-      const initRes = await fetch(`${apiBase}/facebook/init-upload`, {
+      const initRes = await fetch(`${uploadApiBase}/facebook/init-upload`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1380,7 +1381,7 @@
         fd.append("offset", String(offset));
         fd.append("chunk", chunkBlob, file.name);
 
-        const upRes = await fetch(`${apiBase}/facebook/upload-chunk`, {
+        const upRes = await fetch(`${uploadApiBase}/facebook/upload-chunk`, {
           method: "POST",
           headers: {
             folder_id: activeFolderId,
@@ -1397,7 +1398,7 @@
       }
 
       btn.textContent = "Finishing upload...";
-      const finishRes = await fetch(`${apiBase}/facebook/finish-upload`, {
+      const finishRes = await fetch(`${uploadApiBase}/facebook/finish-upload`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

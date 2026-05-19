@@ -272,11 +272,7 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const provider = new GoogleAuthProvider();
-        const host = window.location.hostname;
-        const isPreviewHost = host.endsWith(".pages.dev");
-        const apiBase = isPreviewHost
-            ? "https://multipost-seo-worker-preview.alexbryant.workers.dev/api"
-            : "https://multipostapp.co.uk/api";
+        const apiBase = "https://multipostapp.co.uk/api";
 
         provider.addScope("email");
         provider.addScope("profile");

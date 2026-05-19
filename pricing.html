@@ -152,12 +152,9 @@
 
     const host = window.location.hostname;
     const isProdHost = host === "multipostapp.co.uk" || host === "www.multipostapp.co.uk";
-    const isPreviewHost = host.endsWith(".pages.dev");
     const apiBase = isProdHost
       ? "/api"
-      : isPreviewHost
-        ? "https://multipost-seo-worker-preview.alexbryant.workers.dev/api"
-        : "https://multipost-seo-worker.alexbryant.workers.dev/api";
+      : "https://multipost-seo-worker.alexbryant.workers.dev/api";
     let userScope = null;
     let billingUserEmail = "";
     const OWNER_KEYS = ["alexbryant3234@gmail.com", "alexbryantwork3234@outlook.com", "Y98MCpY2VTQujHVwvhufxYE6Azh1", "L6GV2I8v1IZ8ZsSJVlof9K559A43", "XvLFswTmQ7YalJNYTC3vT7Y9OsB3"];
