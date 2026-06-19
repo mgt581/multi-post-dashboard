@@ -1458,36 +1458,27 @@
         throw new Error(initData.error || "Facebook init-upload failed");
       }
 
-      const chunkSize = Number(initData.chunkSize || 10 * 1024 * 1024);
-      const totalChunks = Number(initData.totalChunks || Math.ceil(file.size / chunkSize));
+      btn.textContent = "Uploading… (1/1)";
+      setStatus(`Uploading complete video to "${activeFacebookName}"…`, "working");
 
-      for (let i = 0; i < totalChunks; i++) {
-        const offset = i * chunkSize;
-        const end = i === totalChunks - 1 ? file.size : Math.min(file.size, offset + chunkSize);
-        const chunkBlob = file.slice(offset, end, file.type || "video/mp4");
+      const fd = new FormData();
+      fd.append("sessionId", initData.sessionId);
+      fd.append("offset", "0");
+      fd.append("chunk", file, file.name);
 
-        btn.textContent = `Uploading… (${i + 1}/${totalChunks})`;
-        setStatus(`Uploading to "${activeFacebookName}" (${i + 1}/${totalChunks})…`, "working");
+      const upRes = await fetch(`${uploadApiBase}/facebook/upload-chunk`, {
+        method: "POST",
+        headers: {
+          folder_id: activeFolderId,
+          user_id: userScope,
+          client_platform: getClientPlatform()
+        },
+        body: fd
+      });
 
-        const fd = new FormData();
-        fd.append("sessionId", initData.sessionId);
-        fd.append("offset", String(offset));
-        fd.append("chunk", chunkBlob, file.name);
-
-        const upRes = await fetch(`${uploadApiBase}/facebook/upload-chunk`, {
-          method: "POST",
-          headers: {
-            folder_id: activeFolderId,
-            user_id: userScope,
-            client_platform: getClientPlatform()
-          },
-          body: fd
-        });
-
-        const upData = await upRes.json().catch(() => ({}));
-        if (!upRes.ok || !upData.success) {
-          throw new Error(upData.error || `Facebook upload-chunk failed at chunk ${i + 1}/${totalChunks}`);
-        }
+      const upData = await upRes.json().catch(() => ({}));
+      if (!upRes.ok || !upData.success) {
+        throw new Error(upData.error || "Facebook video upload failed");
       }
 
       btn.textContent = "Finishing upload...";
