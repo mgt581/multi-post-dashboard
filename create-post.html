@@ -736,16 +736,59 @@
     document.getElementById("facebookPublishSuccess")?.classList.remove("visible");
   }
 
-  function showFacebookPublishSuccess({ message, url, label }) {
+  function showFacebookPublishSuccess({ message, url, label, disabled = false }) {
     const panel = document.getElementById("facebookPublishSuccess");
     const messageEl = document.getElementById("facebookPublishSuccessMessage");
     const link = document.getElementById("facebookPublishSuccessLink");
     if (!panel || !messageEl || !link || !url) return;
     messageEl.textContent = message;
-    link.href = url;
     link.textContent = label;
+    if (disabled) {
+      link.removeAttribute("href");
+      link.setAttribute("aria-disabled", "true");
+      link.style.pointerEvents = "none";
+      link.style.opacity = "0.65";
+    } else {
+      link.href = url;
+      link.removeAttribute("aria-disabled");
+      link.style.pointerEvents = "";
+      link.style.opacity = "";
+    }
     panel.classList.add("visible");
     panel.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  async function waitForFacebookVideo(videoId, pageUrl) {
+    if (!videoId) return;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000));
+      try {
+        const response = await fetch(`${uploadApiBase}/facebook/video-status?videoId=${encodeURIComponent(videoId)}`, {
+          headers: {
+            folder_id: activeFolderId,
+            user_id: userScope,
+            client_platform: getClientPlatform()
+          }
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && data.success && data.ready && data.videoUrl) {
+          showFacebookPublishSuccess({
+            message: `Video is live on "${activeFacebookName}".`,
+            url: data.videoUrl,
+            label: "View Facebook Video"
+          });
+          setStatus(`Video is live on "${activeFacebookName}"`, "success");
+          return;
+        }
+      } catch (error) {
+        console.warn("Facebook video status check failed:", error);
+      }
+    }
+    showFacebookPublishSuccess({
+      message: `Facebook is still processing the video for "${activeFacebookName}". Open the Page and check again shortly.`,
+      url: pageUrl,
+      label: "Go to Facebook Page"
+    });
   }
 
   function setLoading(isLoading) {
@@ -1450,12 +1493,14 @@
 
       setStatus(`Published to "${activeFacebookName}"`, "success");
       btn.textContent = "✅ Uploaded";
-      const publishedUrl = data.pageUrl || data.facebookUrl || data.postUrl || data.videoUrl || "";
+      const publishedUrl = data.pageUrl || data.facebookUrl || "";
       showFacebookPublishSuccess({
-        message: `Video submitted to "${activeFacebookName}". Facebook may need a moment to finish processing it.`,
+        message: `Video uploaded to "${activeFacebookName}". Waiting for Facebook to finish processing it…`,
         url: publishedUrl,
-        label: "Go to Facebook Page"
+        label: "Facebook is processing video…",
+        disabled: true
       });
+      await waitForFacebookVideo(data.videoId, publishedUrl);
     } catch (err) {
       console.error(err);
       btn.disabled = false;

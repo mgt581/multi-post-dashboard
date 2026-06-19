@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // worker.js
-var WORKER_VERSION = "2026-06-19-facebook-success-links-hotfix-1";
+var WORKER_VERSION = "2026-06-19-facebook-video-ready-link";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -2563,6 +2563,58 @@ Follow for daily trending content! \u{1F44F}
           console.error("Facebook finish-upload error:", err);
           return new Response(JSON.stringify({ success: false, error: err.message || "Finish failed" }), {
             status: 500,
+            headers: jsonHeaders
+          });
+        }
+      }
+      if (url.pathname === "/api/facebook/video-status" && request.method === "GET") {
+        const folder_id = request.headers.get("folder_id") || "";
+        const user_id = request.headers.get("user_id") || "";
+        const videoId = String(url.searchParams.get("videoId") || "").trim();
+        if (!folder_id || !user_id || !videoId) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id, user_id, or videoId" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const pageAccount = await env.DB.prepare(
+          "SELECT facebook_page_id, facebook_page_access_token FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook_page' LIMIT 1"
+        ).bind(folder_id, user_id).first();
+        if (!pageAccount?.facebook_page_id || !pageAccount?.facebook_page_access_token) {
+          return new Response(JSON.stringify({ success: false, error: "No Facebook Page selected" }), {
+            status: 404,
+            headers: jsonHeaders
+          });
+        }
+        try {
+          const pageId = String(pageAccount.facebook_page_id);
+          const pageAccessToken = String(pageAccount.facebook_page_access_token);
+          const params = new URLSearchParams({
+            access_token: pageAccessToken,
+            fields: "status,permalink_url"
+          });
+          const proof = await appsecretProof(pageAccessToken);
+          if (proof) params.set("appsecret_proof", proof);
+          const video = await fetchFbJson(`${fbGraph}/${encodeURIComponent(videoId)}?${params.toString()}`);
+          const status = video?.status || {};
+          const videoStatus = String(status.video_status || "").toLowerCase();
+          const publishingStatus = String(status.publishing_phase?.status || "").toLowerCase();
+          const ready = Boolean(video?.permalink_url) || ["ready", "published"].includes(videoStatus) || ["complete", "completed", "published"].includes(publishingStatus);
+          const rawPermalink = String(video?.permalink_url || "").trim();
+          const permalinkUrl = rawPermalink ? (/^https?:\/\//i.test(rawPermalink) ? rawPermalink : `https://www.facebook.com${rawPermalink.startsWith("/") ? "" : "/"}${rawPermalink}`) : "";
+          const directVideoUrl = `https://www.facebook.com/${encodeURIComponent(pageId)}/videos/${encodeURIComponent(videoId)}`;
+          return new Response(JSON.stringify({
+            success: true,
+            ready,
+            videoId,
+            status,
+            videoUrl: ready ? permalinkUrl || directVideoUrl : "",
+            pageUrl: `https://www.facebook.com/${encodeURIComponent(pageId)}`
+          }), { headers: jsonHeaders });
+        } catch (err) {
+          console.error("Facebook video-status error:", err);
+          return new Response(JSON.stringify({ success: false, error: err.message || "Status check failed" }), {
+            status: 502,
             headers: jsonHeaders
           });
         }
