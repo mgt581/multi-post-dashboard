@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // worker.js
-var WORKER_VERSION = "2026-06-19-facebook-success-links";
+var WORKER_VERSION = "2026-06-19-facebook-success-links-hotfix-1";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -520,9 +520,8 @@ Generate trending, specific SEO \u2014 not generic content.` }
     }, "publishFacebookReelFromUrl");
     const publishFacebookPhotoFromUrl = /* @__PURE__ */ __name(async ({ pageId, pageAccessToken, imageUrl, caption }) => {
       const proof = await appsecretProof(pageAccessToken);
-      const uploadParams = new URLSearchParams({ fields: "post_id" });
-      if (proof) uploadParams.set("appsecret_proof", proof);
-      const out = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/photos?${uploadParams.toString()}`, {
+      const proofParam = proof ? `?appsecret_proof=${encodeURIComponent(proof)}` : "";
+      const out = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/photos${proofParam}`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
@@ -2621,14 +2620,13 @@ Follow for daily trending content! \u{1F44F}
         const caption = [title, description].filter(Boolean).join("\n\n");
         try {
           const uploadProof = await appsecretProof(pageAccessToken);
-          const uploadQuery = new URLSearchParams({ fields: "post_id" });
-          if (uploadProof) uploadQuery.set("appsecret_proof", uploadProof);
+          const uploadProofParam = uploadProof ? `?appsecret_proof=${encodeURIComponent(uploadProof)}` : "";
           const fbForm = new FormData();
           fbForm.append("access_token", pageAccessToken);
           if (caption) fbForm.append("caption", caption);
           fbForm.append("published", "true");
           fbForm.append("source", imageFile, imageFile.name || "image.jpg");
-          const res = await fetch(`${fbGraph}/${encodeURIComponent(pageId)}/photos?${uploadQuery.toString()}`, {
+          const res = await fetch(`${fbGraph}/${encodeURIComponent(pageId)}/photos${uploadProofParam}`, {
             method: "POST",
             body: fbForm
           });
@@ -2638,23 +2636,8 @@ Follow for daily trending content! \u{1F44F}
           }
           let postId = String(out?.post_id || "").trim();
           const photoId = String(out?.id || "").trim();
-          let permalinkUrl = "";
-          if (photoId && !postId) {
-            try {
-              const lookupParams = new URLSearchParams({
-                fields: "post_id,permalink_url",
-                access_token: pageAccessToken
-              });
-              if (uploadProof) lookupParams.set("appsecret_proof", uploadProof);
-              const lookup = await fetchFbJson(`${fbGraph}/${encodeURIComponent(photoId)}?${lookupParams.toString()}`);
-              postId = String(lookup?.post_id || "").trim();
-              permalinkUrl = String(lookup?.permalink_url || "").trim();
-            } catch (lookupErr) {
-              console.warn("Facebook photo permalink lookup failed:", lookupErr?.message || lookupErr);
-            }
-          }
           const pageUrl = `https://www.facebook.com/${encodeURIComponent(pageId)}`;
-          const postUrl = postId ? `https://www.facebook.com/${postId}` : permalinkUrl;
+          const postUrl = postId ? `https://www.facebook.com/${postId}` : "";
           await recordPublishUsage(user_id, "facebook");
           return new Response(JSON.stringify({
             success: true,
