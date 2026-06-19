@@ -1318,7 +1318,9 @@ Follow for daily trending content! \u{1F44F}
         const params = new URLSearchParams({
           client_id: fbClientId,
           redirect_uri: fbRedirectUri,
-          scope: "public_profile,pages_show_list,pages_read_engagement,pages_manage_posts",
+          // Account authentication only. Page permissions are requested later,
+          // when the user explicitly chooses Link Facebook in a workspace.
+          scope: "public_profile",
           response_type: "code",
           state: loginState,
           auth_type: "rerequest",
