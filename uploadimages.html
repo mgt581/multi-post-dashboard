@@ -203,6 +203,19 @@
     .status.error { color: var(--error); }
     .status.working { color: var(--warning); }
 
+    .publish-success {
+      display: none;
+      margin-top: 16px;
+      padding: 16px;
+      border: 1px solid rgba(34, 197, 94, 0.45);
+      border-radius: 12px;
+      background: rgba(34, 197, 94, 0.1);
+    }
+
+    .publish-success.visible { display: block; }
+    .publish-success strong { display: block; color: var(--success); margin-bottom: 10px; }
+    .publish-success .btn { display: inline-flex; text-decoration: none; }
+
     .section-title {
       margin: 0;
       font-size: 16px;
@@ -339,6 +352,10 @@
         <button id="uploadBtn" type="button" class="btn" onclick="uploadFacebookImagePost()">Upload Image to Facebook</button>
         <button type="button" class="btn secondary" onclick="copyFacebookImageText()">Copy Caption</button>
       </div>
+      <div id="facebookPublishSuccess" class="publish-success" role="status">
+        <strong id="facebookPublishSuccessMessage">Image published successfully.</strong>
+        <a id="facebookPublishSuccessLink" class="btn" href="#" target="_blank" rel="noopener noreferrer">View Facebook Post</a>
+      </div>
     </section>
   </main>
 
@@ -413,6 +430,22 @@
       if (!btn) return;
       btn.disabled = isLoading;
       btn.textContent = isLoading ? loadingText : normalText;
+    }
+
+    function hideFacebookPublishSuccess() {
+      document.getElementById("facebookPublishSuccess")?.classList.remove("visible");
+    }
+
+    function showFacebookPublishSuccess({ message, url, label }) {
+      const panel = document.getElementById("facebookPublishSuccess");
+      const messageEl = document.getElementById("facebookPublishSuccessMessage");
+      const link = document.getElementById("facebookPublishSuccessLink");
+      if (!panel || !messageEl || !link || !url) return;
+      messageEl.textContent = message;
+      link.href = url;
+      link.textContent = label;
+      panel.classList.add("visible");
+      panel.scrollIntoView({ behavior: "smooth", block: "center" });
     }
 
     function escapeHtml(value) {
@@ -834,6 +867,7 @@
       form.append("image", selectedImageFile);
 
       setLoading("uploadBtn", true, "Uploading image...", "Upload Image to Facebook");
+      hideFacebookPublishSuccess();
       setStatus(`Uploading image post to "${activeFacebookName}"...`, "working");
 
       try {
@@ -854,12 +888,12 @@
 
         saveReusableDefaults();
         setStatus(`Image post published to "${activeFacebookName}".`, "success");
-
-        const publishedUrl = data.facebookUrl || data.url || "";
-        if (publishedUrl) {
-          const openNow = confirm("Image post uploaded successfully. Open the post now?");
-          if (openNow) window.open(publishedUrl, "_blank");
-        }
+        const publishedUrl = data.postUrl || data.facebookUrl || data.pageUrl || "";
+        showFacebookPublishSuccess({
+          message: `Image published successfully to "${activeFacebookName}".`,
+          url: publishedUrl,
+          label: data.postUrl ? "View Facebook Post" : "Go to Facebook Page"
+        });
       } catch (err) {
         console.error(err);
         setStatus(err?.message || "Facebook image upload failed", "error");

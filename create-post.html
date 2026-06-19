@@ -193,6 +193,19 @@
     .status.error { color: var(--error); }
     .status.working { color: var(--accent-2); }
 
+    .publish-success {
+      display: none;
+      margin-top: 12px;
+      padding: 16px;
+      border: 1px solid rgba(34, 197, 94, 0.45);
+      border-radius: 12px;
+      background: rgba(34, 197, 94, 0.1);
+    }
+
+    .publish-success.visible { display: block; }
+    .publish-success strong { display: block; color: var(--success); margin-bottom: 10px; }
+    .publish-success .btn { display: inline-flex; text-decoration: none; }
+
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -405,6 +418,10 @@
       <div class="controls">
         <button id="generateBtn" class="btn" onclick="generateSEO()">✨ Generate Trending SEO</button>
         <span id="status" class="status">Upload an image, enter a description, or both</span>
+      </div>
+      <div id="facebookPublishSuccess" class="publish-success" role="status">
+        <strong id="facebookPublishSuccessMessage">Video submitted successfully.</strong>
+        <a id="facebookPublishSuccessLink" class="btn" href="#" target="_blank" rel="noopener noreferrer">Go to Facebook Page</a>
       </div>
     </section>
 
@@ -713,6 +730,22 @@
     if (tone === "success") statusEl.classList.add("success");
     if (tone === "error") statusEl.classList.add("error");
     if (tone === "working") statusEl.classList.add("working");
+  }
+
+  function hideFacebookPublishSuccess() {
+    document.getElementById("facebookPublishSuccess")?.classList.remove("visible");
+  }
+
+  function showFacebookPublishSuccess({ message, url, label }) {
+    const panel = document.getElementById("facebookPublishSuccess");
+    const messageEl = document.getElementById("facebookPublishSuccessMessage");
+    const link = document.getElementById("facebookPublishSuccessLink");
+    if (!panel || !messageEl || !link || !url) return;
+    messageEl.textContent = message;
+    link.href = url;
+    link.textContent = label;
+    panel.classList.add("visible");
+    panel.scrollIntoView({ behavior: "smooth", block: "center" });
   }
 
   function setLoading(isLoading) {
@@ -1342,6 +1375,7 @@
     try {
       btn.disabled = true;
       btn.textContent = "Starting upload...";
+      hideFacebookPublishSuccess();
 
       setStatus(`Uploading to "${activeFacebookName}"…`, "working");
 
@@ -1416,18 +1450,12 @@
 
       setStatus(`Published to "${activeFacebookName}"`, "success");
       btn.textContent = "✅ Uploaded";
-
-      const publishedUrl = data.facebookUrl || data.url || data.postUrl || data.videoUrl;
-
-      if (publishedUrl) {
-        const openNow = confirm(
-          `Upload complete for "${activeFacebookName}".\n\nOpen the published post now?`
-        );
-
-        if (openNow) {
-          window.open(publishedUrl, "_blank");
-        }
-      }
+      const publishedUrl = data.pageUrl || data.facebookUrl || data.postUrl || data.videoUrl || "";
+      showFacebookPublishSuccess({
+        message: `Video submitted to "${activeFacebookName}". Facebook may need a moment to finish processing it.`,
+        url: publishedUrl,
+        label: "Go to Facebook Page"
+      });
     } catch (err) {
       console.error(err);
       btn.disabled = false;
