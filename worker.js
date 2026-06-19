@@ -2,7 +2,7 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // worker.js
-var WORKER_VERSION = "2026-05-19-chunked-video-uploads";
+var WORKER_VERSION = "2026-06-19-facebook-success-links";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -504,12 +504,25 @@ Generate trending, specific SEO \u2014 not generic content.` }
           description: description || ""
         })
       });
-      return { video_id: videoId, finish: finishRes };
+      const pageUrl = `https://www.facebook.com/${encodeURIComponent(pageId)}`;
+      const postUrl = finishRes?.post_id ? `https://www.facebook.com/${finishRes.post_id}` : "";
+      const directVideoUrl = `https://www.facebook.com/${encodeURIComponent(pageId)}/videos/${encodeURIComponent(videoId)}`;
+      return {
+        video_id: videoId,
+        finish: finishRes,
+        pageId,
+        pageUrl,
+        postUrl,
+        videoUrl: directVideoUrl,
+        facebookUrl: pageUrl,
+        processing: true
+      };
     }, "publishFacebookReelFromUrl");
     const publishFacebookPhotoFromUrl = /* @__PURE__ */ __name(async ({ pageId, pageAccessToken, imageUrl, caption }) => {
       const proof = await appsecretProof(pageAccessToken);
-      const proofParam = proof ? `?appsecret_proof=${encodeURIComponent(proof)}` : "";
-      const out = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/photos${proofParam}`, {
+      const uploadParams = new URLSearchParams({ fields: "post_id" });
+      if (proof) uploadParams.set("appsecret_proof", proof);
+      const out = await fetchFbJson(`${fbGraph}/${encodeURIComponent(pageId)}/photos?${uploadParams.toString()}`, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
@@ -519,7 +532,19 @@ Generate trending, specific SEO \u2014 not generic content.` }
           published: "true"
         })
       });
-      return out;
+      const postId = String(out?.post_id || "").trim();
+      const photoId = String(out?.id || "").trim();
+      const pageUrl = `https://www.facebook.com/${encodeURIComponent(pageId)}`;
+      const postUrl = postId ? `https://www.facebook.com/${postId}` : "";
+      return {
+        ...out,
+        postId,
+        photoId,
+        pageId,
+        postUrl,
+        pageUrl,
+        facebookUrl: postUrl || pageUrl
+      };
     }, "publishFacebookPhotoFromUrl");
     const looksLikeImageUrl = /* @__PURE__ */ __name((mediaUrl) => {
       try {
@@ -2521,10 +2546,18 @@ Follow for daily trending content! \u{1F44F}
           });
           await recordPublishUsage(user_id, "facebook");
           await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(sessionId).run();
+          const pageUrl = `https://www.facebook.com/${encodeURIComponent(pageId)}`;
+          const postUrl = finishRes?.post_id ? `https://www.facebook.com/${finishRes.post_id}` : "";
+          const videoUrl = `https://www.facebook.com/${encodeURIComponent(pageId)}/videos/${encodeURIComponent(videoId)}`;
           return new Response(JSON.stringify({
             success: true,
             videoId,
-            facebookUrl: finishRes?.post_id ? `https://www.facebook.com/${finishRes.post_id}` : `https://www.facebook.com/video/${videoId}`,
+            pageId,
+            postUrl,
+            pageUrl,
+            videoUrl,
+            facebookUrl: pageUrl,
+            processing: true,
             data: finishRes
           }), { headers: jsonHeaders });
         } catch (err) {
@@ -2588,13 +2621,14 @@ Follow for daily trending content! \u{1F44F}
         const caption = [title, description].filter(Boolean).join("\n\n");
         try {
           const uploadProof = await appsecretProof(pageAccessToken);
-          const uploadProofParam = uploadProof ? `?appsecret_proof=${encodeURIComponent(uploadProof)}` : "";
+          const uploadQuery = new URLSearchParams({ fields: "post_id" });
+          if (uploadProof) uploadQuery.set("appsecret_proof", uploadProof);
           const fbForm = new FormData();
           fbForm.append("access_token", pageAccessToken);
           if (caption) fbForm.append("caption", caption);
           fbForm.append("published", "true");
           fbForm.append("source", imageFile, imageFile.name || "image.jpg");
-          const res = await fetch(`${fbGraph}/${encodeURIComponent(pageId)}/photos${uploadProofParam}`, {
+          const res = await fetch(`${fbGraph}/${encodeURIComponent(pageId)}/photos?${uploadQuery.toString()}`, {
             method: "POST",
             body: fbForm
           });
@@ -2602,14 +2636,34 @@ Follow for daily trending content! \u{1F44F}
           if (!res.ok || out?.error) {
             throw new Error(`Facebook image upload failed: ${JSON.stringify(out?.error || out)}`);
           }
-          const postId = String(out?.post_id || "").trim();
+          let postId = String(out?.post_id || "").trim();
           const photoId = String(out?.id || "").trim();
+          let permalinkUrl = "";
+          if (photoId && !postId) {
+            try {
+              const lookupParams = new URLSearchParams({
+                fields: "post_id,permalink_url",
+                access_token: pageAccessToken
+              });
+              if (uploadProof) lookupParams.set("appsecret_proof", uploadProof);
+              const lookup = await fetchFbJson(`${fbGraph}/${encodeURIComponent(photoId)}?${lookupParams.toString()}`);
+              postId = String(lookup?.post_id || "").trim();
+              permalinkUrl = String(lookup?.permalink_url || "").trim();
+            } catch (lookupErr) {
+              console.warn("Facebook photo permalink lookup failed:", lookupErr?.message || lookupErr);
+            }
+          }
+          const pageUrl = `https://www.facebook.com/${encodeURIComponent(pageId)}`;
+          const postUrl = postId ? `https://www.facebook.com/${postId}` : permalinkUrl;
           await recordPublishUsage(user_id, "facebook");
           return new Response(JSON.stringify({
             success: true,
             postId,
             photoId,
-            facebookUrl: postId ? `https://www.facebook.com/${postId}` : photoId ? `https://www.facebook.com/photo/?fbid=${photoId}` : ""
+            pageId,
+            postUrl,
+            pageUrl,
+            facebookUrl: postUrl || pageUrl
           }), { headers: jsonHeaders });
         } catch (err) {
           console.error("Facebook image upload error:", err);
@@ -3022,7 +3076,14 @@ Follow for daily trending content! \u{1F44F}
               caption: desc
             });
             await recordPublishUsage(billingUserId, "facebook");
-            return new Response(JSON.stringify({ success: true, data: out, postType: "image" }), {
+            return new Response(JSON.stringify({
+              success: true,
+              data: out,
+              postType: "image",
+              postUrl: out.postUrl,
+              pageUrl: out.pageUrl,
+              facebookUrl: out.facebookUrl
+            }), {
               headers: jsonHeaders
             });
           }
@@ -3033,7 +3094,16 @@ Follow for daily trending content! \u{1F44F}
             description: desc
           });
           await recordPublishUsage(billingUserId, "facebook");
-          return new Response(JSON.stringify({ success: true, data: out, postType: "video" }), {
+          return new Response(JSON.stringify({
+            success: true,
+            data: out,
+            postType: "video",
+            postUrl: out.postUrl,
+            pageUrl: out.pageUrl,
+            videoUrl: out.videoUrl,
+            facebookUrl: out.facebookUrl,
+            processing: true
+          }), {
             headers: jsonHeaders
           });
         }
