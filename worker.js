@@ -4,7 +4,7 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // worker.js
-var WORKER_VERSION = "2026-06-19-facebook-preview-secret-guard";
+var WORKER_VERSION = "2026-06-19-facebook-preview-secret-guard-video-offset-zero";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -2419,8 +2419,10 @@ Follow for daily trending content! \u{1F44F}
           if (!videoId || !uploadUrl) {
             throw new Error(`Bad reels start response: ${JSON.stringify(startRes)}`);
           }
-          const chunkSize = fileSize <= UPLOAD_CHUNK_SIZE_BYTES ? fileSize : UPLOAD_CHUNK_SIZE_BYTES;
-          const totalChunks = Math.max(1, Math.ceil(fileSize / chunkSize));
+          // Facebook's Reels upload URL expects the complete binary in one
+          // request. It is not a resumable chunk endpoint: offset must stay 0.
+          const chunkSize = fileSize;
+          const totalChunks = 1;
           const sessionId = crypto.randomUUID();
           const expiresAt = Math.floor(Date.now() / 1e3) + SESSION_EXPIRY_SECONDS;
           await env.DB.prepare(
@@ -2475,6 +2477,24 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
+        if (offset !== 0) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: `Facebook Reels requires offset 0; received ${offset}`
+          }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        if (Number(chunkFile.size) !== Number(session.file_size)) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: `Facebook Reels requires the complete video in one request (${session.file_size} bytes expected, ${chunkFile.size} received)`
+          }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
         try {
           const chunkBytes = await chunkFile.arrayBuffer();
           const upRes = await fetch(session.upload_url, {
@@ -2482,7 +2502,7 @@ Follow for daily trending content! \u{1F44F}
             headers: {
               Authorization: `OAuth ${session.access_token}`,
               "Content-Type": "application/octet-stream",
-              offset: String(offset),
+              offset: "0",
               file_size: String(session.file_size)
             },
             body: chunkBytes
