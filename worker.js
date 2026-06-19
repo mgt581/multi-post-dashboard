@@ -3398,3 +3398,117 @@ Generate trending, specific SEO \u2014 not generic content.`
         const stmts = [];
         for (const acct of results) {
           stmts.push(
+            env.DB.prepare("DELETE FROM tokens WHERE folder_id = ? AND platform = 'youtube'")
+              .bind(String(acct.folder_id))
+          );
+          stmts.push(
+            env.DB.prepare("DELETE FROM accounts WHERE id = ?").bind(acct.id)
+          );
+        }
+        await env.DB.batch(stmts);
+      }, "revokeGoogleAccountTokens");
+      // Helper: dispatch a RISC event to the appropriate action
+      const handleRiscEvent = /* @__PURE__ */ __name(async (eventType, eventData, googleSub) => {
+        const SESSIONS_REVOKED = "https://schemas.openid.net/secevent/risc/event-type/sessions-revoked";
+        const TOKENS_REVOKED = "https://schemas.openid.net/secevent/oauth/event-type/tokens-revoked";
+        const TOKEN_REVOKED = "https://schemas.openid.net/secevent/oauth/event-type/token-revoked";
+        const ACCOUNT_DISABLED = "https://schemas.openid.net/secevent/risc/event-type/account-disabled";
+        const ACCOUNT_ENABLED = "https://schemas.openid.net/secevent/risc/event-type/account-enabled";
+        const CREDENTIAL_CHANGE = "https://schemas.openid.net/secevent/risc/event-type/account-credential-change-required";
+        const VERIFICATION = "https://schemas.openid.net/secevent/risc/event-type/verification";
+        if (eventType === SESSIONS_REVOKED || eventType === ACCOUNT_DISABLED || eventType === TOKENS_REVOKED) {
+          // Required: end user's open sessions by revoking stored Google/YouTube tokens
+          await revokeGoogleAccountTokens(googleSub);
+        } else if (eventType === TOKEN_REVOKED) {
+          // Required: if we hold the identified refresh token, delete it
+          const subject = eventData.subject || {};
+          const tokenType = subject.token_type;
+          const alg = subject.token_identifier_alg;
+          const tokenValue = subject.token;
+          if (tokenType === "refresh_token" && alg === "prefix" && tokenValue) {
+            // Per RISC spec, `token` contains the first 16 characters of the refresh token
+            const prefix = tokenValue + "%";
+            await env.DB.batch([
+              env.DB.prepare(
+                "DELETE FROM tokens WHERE platform = 'youtube' AND refresh_token LIKE ?"
+              ).bind(prefix),
+              env.DB.prepare(
+                "DELETE FROM accounts WHERE platform = 'youtube' AND refresh_token LIKE ?"
+              ).bind(prefix)
+            ]);
+          } else {
+            // Cannot match token precisely; fall back to revoking all tokens for this user
+            await revokeGoogleAccountTokens(googleSub);
+          }
+        } else if (eventType === ACCOUNT_ENABLED) {
+          // Suggested: user may re-authorize; no action required on our side
+        } else if (eventType === CREDENTIAL_CHANGE) {
+          // Suggested: event is logged; no further automated action required
+        } else if (eventType === VERIFICATION) {
+          // Test token; event is logged
+          console.log("RISC verification token received");
+        }
+      }, "handleRiscEvent");
+      if (url.pathname === "/api/security-events/google" && request.method === "POST") {
+        try {
+          const body = await request.text();
+          let payload;
+          try {
+            payload = await validateRiscToken(body);
+          } catch (validationErr) {
+            console.error("RISC token validation failed:", validationErr.message);
+            return new Response(JSON.stringify({ error: validationErr.message }), {
+              status: 400,
+              headers: jsonHeaders
+            });
+          }
+          const jti = payload.jti ? String(payload.jti) : null;
+          // De-duplicate: ignore events we have already processed
+          if (jti) {
+            const existing = await env.DB.prepare(
+              "SELECT id FROM risc_events WHERE jti = ?"
+            ).bind(jti).first();
+            if (existing) {
+              return new Response("", { status: 202 });
+            }
+          }
+          // Extract the first event type and its data
+          const events = payload.events || {};
+          const eventType = Object.keys(events)[0] || null;
+          const eventData = eventType ? (events[eventType] || {}) : {};
+          const subject = eventData.subject || {};
+          const googleSub = subject.sub ? String(subject.sub) : null;
+          // Log the event for audit and de-duplication
+          if (jti) {
+            await env.DB.prepare(
+              "INSERT OR IGNORE INTO risc_events (jti, event_type, google_sub) VALUES (?, ?, ?)"
+            ).bind(jti, eventType, googleSub).run();
+          }
+          if (googleSub && eventType) {
+            await handleRiscEvent(eventType, eventData, googleSub);
+          }
+          return new Response("", { status: 202 });
+        } catch (riscErr) {
+          console.error("RISC endpoint error:", riscErr.message);
+          return new Response(JSON.stringify({ error: "Internal error" }), {
+            status: 500,
+            headers: jsonHeaders
+          });
+        }
+      }
+      return new Response(JSON.stringify({ success: false, error: "Not found" }), {
+        status: 404,
+        headers: jsonHeaders
+      });
+    } catch (err) {
+      return new Response(JSON.stringify({ success: false, error: err.message || String(err) }), {
+        status: 500,
+        headers: jsonHeaders
+      });
+    }
+  }
+};
+export {
+  worker_default as default
+};
+//# sourceMappingURL=worker.js.map
