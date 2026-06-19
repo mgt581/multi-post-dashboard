@@ -1,0 +1,61 @@
+name: Deploy Preview Worker
+
+on:
+  push:
+    branches:
+      - "codex/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: deploy-preview-worker
+  cancel-in-progress: true
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    name: Deploy Cloudflare Preview Worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy preview environment
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env preview
+
+      - name: Restore Facebook app secret in preview
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FB_CLIENT_SECRET: ${{ secrets.FB_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          if [ -z "${FB_CLIENT_SECRET:-}" ]; then
+            echo "FB_CLIENT_SECRET is required for Facebook appsecret_proof"
+            exit 1
+          fi
+          printf '%s' "$FB_CLIENT_SECRET" | npx wrangler secret put FB_CLIENT_SECRET --env preview
+
+      - name: Verify preview health
+        run: |
+          set -euo pipefail
+          preview_url="https://multipost-seo-worker-preview.alexbryant.workers.dev/api/health"
+          for attempt in 1 2 3 4 5; do
+            response="$(curl -fsS -H "Accept: application/json" "$preview_url" || true)"
+            if printf '%s' "$response" | grep -q 'facebook-preview-secret-guard' \
+              && printf '%s' "$response" | grep -q '"facebookAppSecret":true'; then
+              printf '%s\n' "$response"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Preview health check did not confirm the expected worker version and Facebook secret"
+          exit 1

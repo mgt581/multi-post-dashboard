@@ -1,8 +1,10 @@
+import { evaluateFacebookVideoReadiness } from "./facebook-video-readiness.mjs";
+
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // worker.js
-var WORKER_VERSION = "2026-06-19-facebook-video-ready-link";
+var WORKER_VERSION = "2026-06-19-facebook-preview-secret-guard";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -21,7 +23,12 @@ var worker_default = {
     const tiktokAuthBaseUrl = String(env.TIKTOK_AUTH_BASE_URL || "https://www.tiktok.com").replace(/\/+$/, "");
     const tiktokApiBaseUrl = String(env.TIKTOK_API_BASE_URL || "https://open.tiktokapis.com").replace(/\/+$/, "");
     if (url.pathname === "/api" || url.pathname === "/api/" || url.pathname === "/api/health") {
-      return new Response(JSON.stringify({ ok: true, service: "multipost-worker", version: WORKER_VERSION }), {
+      return new Response(JSON.stringify({
+        ok: true,
+        service: "multipost-worker",
+        version: WORKER_VERSION,
+        configured: { facebookAppSecret: Boolean(env.FB_CLIENT_SECRET) }
+      }), {
         status: 200,
         headers: jsonHeaders
       });
@@ -2591,24 +2598,21 @@ Follow for daily trending content! \u{1F44F}
           const pageAccessToken = String(pageAccount.facebook_page_access_token);
           const params = new URLSearchParams({
             access_token: pageAccessToken,
-            fields: "status,permalink_url"
+            fields: "id,status,permalink_url"
           });
           const proof = await appsecretProof(pageAccessToken);
           if (proof) params.set("appsecret_proof", proof);
           const video = await fetchFbJson(`${fbGraph}/${encodeURIComponent(videoId)}?${params.toString()}`);
           const status = video?.status || {};
-          const videoStatus = String(status.video_status || "").toLowerCase();
-          const publishingStatus = String(status.publishing_phase?.status || "").toLowerCase();
-          const ready = Boolean(video?.permalink_url) || ["ready", "published"].includes(videoStatus) || ["complete", "completed", "published"].includes(publishingStatus);
-          const rawPermalink = String(video?.permalink_url || "").trim();
-          const permalinkUrl = rawPermalink ? (/^https?:\/\//i.test(rawPermalink) ? rawPermalink : `https://www.facebook.com${rawPermalink.startsWith("/") ? "" : "/"}${rawPermalink}`) : "";
-          const directVideoUrl = `https://www.facebook.com/${encodeURIComponent(pageId)}/videos/${encodeURIComponent(videoId)}`;
+          const readiness = evaluateFacebookVideoReadiness(videoId, video);
           return new Response(JSON.stringify({
             success: true,
-            ready,
+            ready: readiness.ready,
             videoId,
             status,
-            videoUrl: ready ? permalinkUrl || directVideoUrl : "",
+            processingReady: readiness.processingReady,
+            permalinkReady: readiness.permalinkReady,
+            videoUrl: readiness.ready ? readiness.permalinkUrl : "",
             pageUrl: `https://www.facebook.com/${encodeURIComponent(pageId)}`
           }), { headers: jsonHeaders });
         } catch (err) {
