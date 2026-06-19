@@ -760,7 +760,9 @@
 
   async function waitForFacebookVideo(videoId, pageUrl) {
     if (!videoId) return;
-    for (let attempt = 0; attempt < 40; attempt += 1) {
+    let candidatePermalink = "";
+    let consecutiveConfirmations = 0;
+    for (let attempt = 0; attempt < 100; attempt += 1) {
       if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000));
       try {
         const response = await fetch(`${uploadApiBase}/facebook/video-status?videoId=${encodeURIComponent(videoId)}`, {
@@ -772,15 +774,29 @@
         });
         const data = await response.json().catch(() => ({}));
         if (response.ok && data.success && data.ready && data.videoUrl) {
-          showFacebookPublishSuccess({
-            message: `Video is live on "${activeFacebookName}".`,
-            url: data.videoUrl,
-            label: "View Facebook Video"
-          });
-          setStatus(`Video is live on "${activeFacebookName}"`, "success");
-          return;
+          if (candidatePermalink === data.videoUrl) {
+            consecutiveConfirmations += 1;
+          } else {
+            candidatePermalink = data.videoUrl;
+            consecutiveConfirmations = 1;
+          }
+          if (consecutiveConfirmations >= 2) {
+            showFacebookPublishSuccess({
+              message: `Video is live on "${activeFacebookName}".`,
+              url: candidatePermalink,
+              label: "View Facebook Video"
+            });
+            setStatus(`Video is live on "${activeFacebookName}"`, "success");
+            return;
+          }
+          setStatus(`Facebook returned the final video link. Confirming it is stable…`, "working");
+        } else {
+          candidatePermalink = "";
+          consecutiveConfirmations = 0;
         }
       } catch (error) {
+        candidatePermalink = "";
+        consecutiveConfirmations = 0;
         console.warn("Facebook video status check failed:", error);
       }
     }
