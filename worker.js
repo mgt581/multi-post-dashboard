@@ -1,11 +1,12 @@
 import { evaluateFacebookVideoReadiness } from "./facebook-video-readiness.mjs";
 import { createTikTokChunkPlan } from "./tiktok-chunks.mjs";
+import { normalizeTikTokCreatorInfo, normalizeTikTokPublishStatus } from "./tiktok-publish.mjs";
 
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // worker.js
-var WORKER_VERSION = "2026-06-20-facebook-preview-secret-guard-tiktok-balanced-chunks";
+var WORKER_VERSION = "2026-06-20-facebook-preview-secret-guard-tiktok-review-flow";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -2167,6 +2168,60 @@ Follow for daily trending content! \u{1F44F}
           });
         }
       }
+      if (url.pathname === "/api/tiktok/creator-info" && request.method === "GET") {
+        const folder_id = request.headers.get("folder_id") || "";
+        const user_id = request.headers.get("user_id") || "";
+        if (!folder_id || !user_id) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const linkedAccount = await env.DB.prepare(
+          "SELECT id FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'tiktok' LIMIT 1"
+        ).bind(folder_id, user_id).first();
+        if (!linkedAccount) {
+          return new Response(JSON.stringify({ success: false, error: "TikTok account is not linked to this workspace" }), {
+            status: 404,
+            headers: jsonHeaders
+          });
+        }
+        const token = await env.DB.prepare(`
+          SELECT * FROM tokens
+          WHERE folder_id = ? AND platform = 'tiktok'
+          ORDER BY updated_at DESC LIMIT 1
+        `).bind(folder_id).first();
+        if (!token?.access_token) {
+          return new Response(JSON.stringify({ success: false, error: "No TikTok token found. Link account first." }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        try {
+          const creatorRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/creator_info/query/`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token.access_token}`,
+              "Content-Type": "application/json; charset=UTF-8"
+            },
+            body: "{}"
+          });
+          const creatorData = await safeJson(creatorRes);
+          if (!creatorRes.ok || (creatorData?.error?.code && creatorData.error.code !== "ok")) {
+            throw new Error(`TikTok creator info failed: ${JSON.stringify(creatorData?.error || creatorData)}`);
+          }
+          return new Response(JSON.stringify({
+            success: true,
+            ...normalizeTikTokCreatorInfo(creatorData?.data || {})
+          }), { headers: jsonHeaders });
+        } catch (err) {
+          console.error("TikTok creator-info error:", err);
+          return new Response(JSON.stringify({ success: false, error: err.message || "Creator info failed" }), {
+            status: 500,
+            headers: jsonHeaders
+          });
+        }
+      }
       if (url.pathname === "/api/tiktok/init-upload" && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
@@ -2188,6 +2243,10 @@ Follow for daily trending content! \u{1F44F}
         const caption = String(body.caption || "").trim();
         let privacyStatus = String(body.privacyStatus || "SELF_ONLY").toUpperCase();
         const videoSize = Number(body.videoSize) || 0;
+        const videoDurationSec = Math.max(0, Number(body.videoDurationSec) || 0);
+        const disableComment = Boolean(body.disableComment);
+        const disableDuet = Boolean(body.disableDuet);
+        const disableStitch = Boolean(body.disableStitch);
         if (!caption) {
           return new Response(JSON.stringify({ success: false, error: "Caption required" }), {
             status: 400,
@@ -2222,14 +2281,33 @@ Follow for daily trending content! \u{1F44F}
           });
         }
         try {
+          const creatorRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/creator_info/query/`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token.access_token}`,
+              "Content-Type": "application/json; charset=UTF-8"
+            },
+            body: "{}"
+          });
+          const creatorData = await safeJson(creatorRes);
+          if (!creatorRes.ok || (creatorData?.error?.code && creatorData.error.code !== "ok")) {
+            throw new Error(`TikTok creator info failed: ${JSON.stringify(creatorData?.error || creatorData)}`);
+          }
+          const creatorInfo = normalizeTikTokCreatorInfo(creatorData?.data || {});
+          if (!creatorInfo.privacyLevelOptions.includes(privacyStatus)) {
+            throw new Error("TikTok does not currently allow the selected privacy option for this creator");
+          }
+          if (creatorInfo.maxVideoDurationSec && videoDurationSec > creatorInfo.maxVideoDurationSec + 0.5) {
+            throw new Error(`Video is too long for this TikTok creator (maximum ${creatorInfo.maxVideoDurationSec} seconds)`);
+          }
           const { chunkSize, totalChunks } = createTikTokChunkPlan(videoSize);
           const buildInitBody = /* @__PURE__ */ __name((privacy) => JSON.stringify({
             post_info: {
               title: caption,
               privacy_level: privacy,
-              disable_duet: false,
-              disable_comment: false,
-              disable_stitch: false,
+              disable_duet: creatorInfo.duetDisabled || disableDuet,
+              disable_comment: creatorInfo.commentDisabled || disableComment,
+              disable_stitch: creatorInfo.stitchDisabled || disableStitch,
               video_cover_timestamp_ms: 0
             },
             source_info: {
@@ -2350,6 +2428,66 @@ Follow for daily trending content! \u{1F44F}
         } catch (err) {
           console.error("TikTok upload-chunk error:", err);
           return new Response(JSON.stringify({ success: false, error: err.message || "Chunk upload failed" }), {
+            status: 500,
+            headers: jsonHeaders
+          });
+        }
+      }
+      if (url.pathname === "/api/tiktok/publish-status" && request.method === "GET") {
+        const folder_id = request.headers.get("folder_id") || "";
+        const user_id = request.headers.get("user_id") || "";
+        const sessionId = String(url.searchParams.get("sessionId") || "").trim();
+        if (!folder_id || !user_id || !sessionId) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id, user_id or sessionId" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const linkedAccount = await env.DB.prepare(
+          "SELECT id FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'tiktok' LIMIT 1"
+        ).bind(folder_id, user_id).first();
+        if (!linkedAccount) {
+          return new Response(JSON.stringify({ success: false, error: "TikTok account is not linked to this workspace" }), {
+            status: 404,
+            headers: jsonHeaders
+          });
+        }
+        const session = await env.DB.prepare(
+          "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'tiktok' LIMIT 1"
+        ).bind(sessionId).first();
+        if (!session?.access_token || !session?.video_id) {
+          return new Response(JSON.stringify({ success: false, error: "TikTok upload session not found" }), {
+            status: 404,
+            headers: jsonHeaders
+          });
+        }
+        if (Math.floor(Date.now() / 1e3) > session.expires_at) {
+          return new Response(JSON.stringify({ success: false, error: "TikTok upload session expired" }), {
+            status: 410,
+            headers: jsonHeaders
+          });
+        }
+        try {
+          const statusRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/status/fetch/`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              "Content-Type": "application/json; charset=UTF-8"
+            },
+            body: JSON.stringify({ publish_id: session.video_id })
+          });
+          const statusData = await safeJson(statusRes);
+          if (!statusRes.ok || (statusData?.error?.code && statusData.error.code !== "ok")) {
+            throw new Error(`TikTok status failed: ${JSON.stringify(statusData?.error || statusData)}`);
+          }
+          return new Response(JSON.stringify({
+            success: true,
+            publishId: session.video_id,
+            ...normalizeTikTokPublishStatus(statusData?.data || {})
+          }), { headers: jsonHeaders });
+        } catch (err) {
+          console.error("TikTok publish-status error:", err);
+          return new Response(JSON.stringify({ success: false, error: err.message || "Status check failed" }), {
             status: 500,
             headers: jsonHeaders
           });
