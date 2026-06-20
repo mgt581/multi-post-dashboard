@@ -39,7 +39,8 @@ export function readTikTokVideoDuration(file) {
     video.preload = "metadata";
     video.onloadedmetadata = () => finish(resolve, Number(video.duration) || 0);
     video.onerror = () => finish(reject, new Error("Unable to read the TikTok video duration"));
-    video.src = objectUrl;
+    // The browser creates this opaque blob URL from the selected local File; it is not HTML.
+    video.src = objectUrl; // lgtm[js/xss-through-dom]
   });
 }
 
