@@ -601,6 +601,7 @@
        <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
   import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  import { readTikTokVideoDuration } from "./tiktok-publish.mjs";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
@@ -810,22 +811,6 @@
       if (required) throw error;
       return null;
     }
-  }
-
-  function readVideoDuration(file) {
-    return new Promise((resolve, reject) => {
-      const video = document.createElement("video");
-      const objectUrl = URL.createObjectURL(file);
-      const finish = (callback, value) => {
-        URL.revokeObjectURL(objectUrl);
-        video.removeAttribute("src");
-        callback(value);
-      };
-      video.preload = "metadata";
-      video.onloadedmetadata = () => finish(resolve, Number(video.duration) || 0);
-      video.onerror = () => finish(reject, new Error("Unable to read the TikTok video duration"));
-      video.src = objectUrl;
-    });
   }
 
   function hideTikTokPublishSuccess() {
@@ -1504,7 +1489,7 @@
         throw new Error("Select one of the privacy options currently allowed by TikTok");
       }
       if (!ttVideoDurationSeconds) {
-        ttVideoDurationSeconds = await readVideoDuration(file);
+        ttVideoDurationSeconds = await readTikTokVideoDuration(file);
       }
       if (creatorInfo.maxVideoDurationSec && ttVideoDurationSeconds > creatorInfo.maxVideoDurationSec + 0.5) {
         throw new Error(`Video is ${Math.ceil(ttVideoDurationSeconds)} seconds; this creator's TikTok limit is ${creatorInfo.maxVideoDurationSec} seconds`);
@@ -1761,7 +1746,7 @@
     ttVideoDurationSeconds = 0;
     if (!file) return;
     try {
-      ttVideoDurationSeconds = await readVideoDuration(file);
+      ttVideoDurationSeconds = await readTikTokVideoDuration(file);
       const info = document.getElementById("ttFileInfo");
       if (info && ttVideoDurationSeconds) {
         info.appendChild(document.createTextNode(` · ${Math.ceil(ttVideoDurationSeconds)}s`));

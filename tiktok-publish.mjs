@@ -27,6 +27,22 @@ export function getTikTokPrivacyLabel(value) {
   return PRIVACY_LABELS[value] || value;
 }
 
+export function readTikTokVideoDuration(file) {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement("video");
+    const objectUrl = URL.createObjectURL(file);
+    const finish = (callback, value) => {
+      URL.revokeObjectURL(objectUrl);
+      video.removeAttribute("src");
+      callback(value);
+    };
+    video.preload = "metadata";
+    video.onloadedmetadata = () => finish(resolve, Number(video.duration) || 0);
+    video.onerror = () => finish(reject, new Error("Unable to read the TikTok video duration"));
+    video.src = objectUrl;
+  });
+}
+
 export function normalizeTikTokPublishStatus(data = {}, creatorUsername = "") {
   const status = String(data.status || "").trim().toUpperCase();
   const postIds = Array.isArray(data.publicaly_available_post_id)
@@ -47,4 +63,3 @@ export function normalizeTikTokPublishStatus(data = {}, creatorUsername = "") {
       : profileUrl
   };
 }
-
