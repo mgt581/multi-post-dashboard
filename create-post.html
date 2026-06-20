@@ -1349,6 +1349,10 @@
       }
 
       const { sessionId, chunkSize, totalChunks, warning } = initData;
+      if (!sessionId || !Number.isSafeInteger(chunkSize) || chunkSize <= 0 ||
+          !Number.isSafeInteger(totalChunks) || totalChunks <= 0) {
+        throw new Error("TikTok returned an invalid upload session");
+      }
 
       // Step 2: upload chunks
       for (let i = 0; i < totalChunks; i++) {
@@ -1390,6 +1394,8 @@
       btn.textContent = "🎵 Publish to TikTok";
       const msg = err?.message || "TikTok upload failed";
       setStatus(msg, "error");
+      // Yield once so mobile browsers repaint the reset button before alert blocks rendering.
+      await new Promise((resolve) => setTimeout(resolve, 0));
       alert(`Upload failed:\n${msg}`);
     }
   }

@@ -1,10 +1,11 @@
 import { evaluateFacebookVideoReadiness } from "./facebook-video-readiness.mjs";
+import { createTikTokChunkPlan } from "./tiktok-chunks.mjs";
 
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // worker.js
-var WORKER_VERSION = "2026-06-19-facebook-preview-secret-guard-video-offset-zero";
+var WORKER_VERSION = "2026-06-20-facebook-preview-secret-guard-tiktok-balanced-chunks";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -2221,9 +2222,7 @@ Follow for daily trending content! \u{1F44F}
           });
         }
         try {
-          const CHUNK_SIZE = 10 * 1024 * 1024;
-          const chunkSize = videoSize <= CHUNK_SIZE ? videoSize : CHUNK_SIZE;
-          const totalChunks = Math.max(1, Math.floor(videoSize / chunkSize));
+          const { chunkSize, totalChunks } = createTikTokChunkPlan(videoSize);
           const buildInitBody = /* @__PURE__ */ __name((privacy) => JSON.stringify({
             post_info: {
               title: caption,
