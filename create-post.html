@@ -490,20 +490,6 @@
           </div>
         </div>
 
-        <script>
-          document.getElementById("ytVideoFile").addEventListener("change", function(e) {
-            const file = e.target.files[0];
-            const info = document.getElementById("fileInfo");
-            if (file) {
-              const sizeMB = (file.size / (1024*1024)).toFixed(1);
-              const color = file.size > 500*1024*1024 ? "var(--error)" : "var(--success)";
-              info.innerHTML = `<strong>${file.name}</strong> (${sizeMB}MB) <span style="color: ${color};">✓</span>`;
-            } else {
-              info.innerHTML = "";
-            }
-          });
-        </script>
-
         <div class="controls">
           <button class="btn" onclick="publishYouTube()">🚀 Publish to YouTube</button>
         </div>
