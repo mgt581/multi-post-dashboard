@@ -490,20 +490,6 @@
           </div>
         </div>
 
-        <script>
-          document.getElementById("ytVideoFile").addEventListener("change", function(e) {
-            const file = e.target.files[0];
-            const info = document.getElementById("fileInfo");
-            if (file) {
-              const sizeMB = (file.size / (1024*1024)).toFixed(1);
-              const color = file.size > 500*1024*1024 ? "var(--error)" : "var(--success)";
-              info.innerHTML = `<strong>${file.name}</strong> (${sizeMB}MB) <span style="color: ${color};">✓</span>`;
-            } else {
-              info.innerHTML = "";
-            }
-          });
-        </script>
-
         <div class="controls">
           <button class="btn" onclick="publishYouTube()">🚀 Publish to YouTube</button>
         </div>
@@ -533,26 +519,48 @@
             <select id="ttPrivacy">
               <option value="SELF_ONLY">🔒 Private</option>
               <option value="MUTUAL_FOLLOW_FRIENDS">👥 Friends</option>
+              <option value="FOLLOWER_OF_CREATOR">👤 Followers</option>
               <option value="PUBLIC_TO_EVERYONE">🌐 Public</option>
             </select>
           </div>
+
+          <fieldset style="border: 1px solid var(--border); border-radius: 12px; margin-top: 12px; padding: 12px;">
+            <legend style="padding: 0 6px; color: var(--muted);">Interaction settings</legend>
+            <label style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+              <input id="ttAllowComments" type="checkbox" checked style="width: auto; margin: 0;"> Allow comments
+            </label>
+            <label style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+              <input id="ttAllowDuet" type="checkbox" checked style="width: auto; margin: 0;"> Allow Duet
+            </label>
+            <label style="display: flex; gap: 8px; align-items: center; margin: 0;">
+              <input id="ttAllowStitch" type="checkbox" checked style="width: auto; margin: 0;"> Allow Stitch
+            </label>
+          </fieldset>
 
           <div class="upload-help" style="margin-top: 12px;">
             <span id="ttConnectionStatus" style="font-weight: 700;">Checking connection...</span>
             <div style="font-size: 12px; opacity: 0.8;">
               Linked to workspace TikTok →
             </div>
+            <div id="ttCreatorDetails" style="font-size: 12px; opacity: 0.8; margin-top: 4px;">
+              Loading TikTok publishing options…
+            </div>
           </div>
         </div>
 
         <div class="controls">
           <button class="btn" onclick="publishTikTok()">🎵 Publish to TikTok</button>
+          <button id="ttCheckStatusBtn" class="btn secondary" onclick="checkTikTokStatus()" hidden>🔄 Check TikTok Status</button>
           <button
             class="btn secondary"
             onclick="copyGeneric('ttAllInOne', 'TikTok', 'https://www.tiktok.com/upload')"
           >
             📱 Copy & Go to TikTok
           </button>
+        </div>
+        <div id="tiktokPublishSuccess" class="publish-success" role="status">
+          <strong id="tiktokPublishSuccessMessage">TikTok is processing your video.</strong>
+          <a id="tiktokPublishSuccessLink" class="btn" href="#" target="_blank" rel="noopener noreferrer">View on TikTok</a>
         </div>
       </div>
 
@@ -593,6 +601,7 @@
        <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
   import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  import { readTikTokVideoDuration } from "./tiktok-publish.mjs";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
@@ -633,6 +642,9 @@
   let activeYouTubeName = "Not linked";
   let activeFacebookName = "Not linked";
   let activeTikTokName = "Not linked";
+  let activeTikTokCreatorInfo = null;
+  let ttVideoDurationSeconds = 0;
+  let lastTikTokSessionId = "";
   const OWNER_KEYS = ["alexbryant3234@gmail.com", "alexbryantwork3234@outlook.com", "Y98MCpY2VTQujHVwvhufxYE6Azh1", "L6GV2I8v1IZ8ZsSJVlof9K559A43", "XvLFswTmQ7YalJNYTC3vT7Y9OsB3"];
   let signedInUserEmail = "";
   const normalizeUserKey = value => String(value || "").trim().toLowerCase();
@@ -730,6 +742,148 @@
     if (tone === "success") statusEl.classList.add("success");
     if (tone === "error") statusEl.classList.add("error");
     if (tone === "working") statusEl.classList.add("working");
+  }
+
+  const TIKTOK_PRIVACY_LABELS = {
+    SELF_ONLY: "🔒 Private",
+    MUTUAL_FOLLOW_FRIENDS: "👥 Friends",
+    FOLLOWER_OF_CREATOR: "👤 Followers",
+    PUBLIC_TO_EVERYONE: "🌐 Public"
+  };
+
+  function renderTikTokCreatorInfo(info) {
+    const privacySelect = document.getElementById("ttPrivacy");
+    const details = document.getElementById("ttCreatorDetails");
+    const currentPrivacy = privacySelect?.value || "SELF_ONLY";
+    const options = Array.isArray(info?.privacyLevelOptions) ? info.privacyLevelOptions : [];
+    if (privacySelect && options.length) {
+      privacySelect.replaceChildren(...options.map((value) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = TIKTOK_PRIVACY_LABELS[value] || value;
+        return option;
+      }));
+      privacySelect.value = options.includes(currentPrivacy) ? currentPrivacy : options[0];
+    }
+
+    const interactionSettings = [
+      ["ttAllowComments", Boolean(info?.commentDisabled)],
+      ["ttAllowDuet", Boolean(info?.duetDisabled)],
+      ["ttAllowStitch", Boolean(info?.stitchDisabled)]
+    ];
+    interactionSettings.forEach(([id, disabledByCreator]) => {
+      const input = document.getElementById(id);
+      if (!input) return;
+      input.disabled = disabledByCreator;
+      if (disabledByCreator) input.checked = false;
+    });
+
+    if (details) {
+      const username = info?.username ? `@${info.username}` : activeTikTokName;
+      const duration = info?.maxVideoDurationSec
+        ? ` · Max video ${info.maxVideoDurationSec}s`
+        : "";
+      details.textContent = `${username}${duration}`;
+    }
+  }
+
+  async function loadTikTokCreatorInfo({ required = false } = {}) {
+    if (!activeFolderId || !userScope || !isLinked(activeTikTokName)) return null;
+    try {
+      const response = await fetch(`${uploadApiBase}/tiktok/creator-info`, {
+        headers: {
+          folder_id: activeFolderId,
+          user_id: userScope,
+          client_platform: getClientPlatform()
+        }
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "TikTok creator information could not be loaded");
+      }
+      activeTikTokCreatorInfo = data;
+      renderTikTokCreatorInfo(data);
+      return data;
+    } catch (error) {
+      activeTikTokCreatorInfo = null;
+      const details = document.getElementById("ttCreatorDetails");
+      if (details) details.textContent = "TikTok publishing options unavailable—relink the account.";
+      if (required) throw error;
+      return null;
+    }
+  }
+
+  function hideTikTokPublishSuccess() {
+    document.getElementById("tiktokPublishSuccess")?.classList.remove("visible");
+  }
+
+  function showTikTokPublishSuccess({ message, url, label }) {
+    const panel = document.getElementById("tiktokPublishSuccess");
+    const messageEl = document.getElementById("tiktokPublishSuccessMessage");
+    const link = document.getElementById("tiktokPublishSuccessLink");
+    if (!panel || !messageEl || !link || !url) return;
+    messageEl.textContent = message;
+    link.textContent = label;
+    link.href = url;
+    panel.classList.add("visible");
+    panel.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  async function waitForTikTokPublish(sessionId, creatorInfo) {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000));
+      const response = await fetch(
+        `${uploadApiBase}/tiktok/publish-status?sessionId=${encodeURIComponent(sessionId)}`,
+        {
+          headers: {
+            folder_id: activeFolderId,
+            user_id: userScope,
+            client_platform: getClientPlatform()
+          }
+        }
+      );
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "TikTok publish status could not be checked");
+      }
+      if (data.failed) {
+        throw new Error(`TikTok processing failed${data.failReason ? `: ${data.failReason}` : ""}`);
+      }
+      if (data.complete) {
+        const profileUrl = creatorInfo?.profileUrl || "https://www.tiktok.com/";
+        const viewUrl = data.postIds?.[0] && creatorInfo?.username
+          ? `${profileUrl}/video/${encodeURIComponent(data.postIds[0])}`
+          : profileUrl;
+        const isDirectVideo = Boolean(data.postIds?.[0] && creatorInfo?.username);
+        showTikTokPublishSuccess({
+          message: `Video published successfully to "${activeTikTokName}".`,
+          url: viewUrl,
+          label: isDirectVideo ? "View TikTok Video" : "View TikTok Profile"
+        });
+        setStatus(`Published to "${activeTikTokName}"`, "success");
+        return data;
+      }
+      setStatus(`TikTok is processing the video (${data.status || "PROCESSING"})…`, "working");
+    }
+    return null;
+  }
+
+  async function checkTikTokStatus() {
+    if (!lastTikTokSessionId) return;
+    const checkButton = document.getElementById("ttCheckStatusBtn");
+    if (checkButton) checkButton.disabled = true;
+    try {
+      const result = await waitForTikTokPublish(lastTikTokSessionId, activeTikTokCreatorInfo);
+      if (!result) {
+        setStatus("TikTok is still processing the video. Check again shortly.", "working");
+      } else if (checkButton) {
+        checkButton.hidden = true;
+      }
+    } catch (error) {
+      setStatus(error?.message || "TikTok status check failed", "error");
+    } finally {
+      if (checkButton) checkButton.disabled = false;
+    }
   }
 
   function hideFacebookPublishSuccess() {
@@ -1315,7 +1469,7 @@
     }
 
     const caption = document.getElementById("ttAllInOne").value.trim();
-    const privacyStatus = document.getElementById("ttPrivacy").value;
+    let privacyStatus = document.getElementById("ttPrivacy").value;
 
     if (!caption) {
       alert("Please enter a TikTok caption.");
@@ -1323,7 +1477,23 @@
     }
 
     try {
+      hideTikTokPublishSuccess();
+      lastTikTokSessionId = "";
+      const checkButton = document.getElementById("ttCheckStatusBtn");
+      if (checkButton) checkButton.hidden = true;
       btn.disabled = true;
+      btn.textContent = "Checking TikTok settings...";
+      const creatorInfo = await loadTikTokCreatorInfo({ required: true });
+      privacyStatus = document.getElementById("ttPrivacy").value;
+      if (!creatorInfo?.privacyLevelOptions?.includes(privacyStatus)) {
+        throw new Error("Select one of the privacy options currently allowed by TikTok");
+      }
+      if (!ttVideoDurationSeconds) {
+        ttVideoDurationSeconds = await readTikTokVideoDuration(file);
+      }
+      if (creatorInfo.maxVideoDurationSec && ttVideoDurationSeconds > creatorInfo.maxVideoDurationSec + 0.5) {
+        throw new Error(`Video is ${Math.ceil(ttVideoDurationSeconds)} seconds; this creator's TikTok limit is ${creatorInfo.maxVideoDurationSec} seconds`);
+      }
       btn.textContent = "Uploading video...";
       setStatus(`Uploading to "${activeTikTokName}"…`, "working");
 
@@ -1339,7 +1509,11 @@
         body: JSON.stringify({
           caption,
           privacyStatus: String(privacyStatus || "SELF_ONLY").toUpperCase(),
-          videoSize: file.size
+          videoSize: file.size,
+          videoDurationSec: ttVideoDurationSeconds,
+          disableComment: !document.getElementById("ttAllowComments")?.checked,
+          disableDuet: !document.getElementById("ttAllowDuet")?.checked,
+          disableStitch: !document.getElementById("ttAllowStitch")?.checked
         })
       });
 
@@ -1349,6 +1523,10 @@
       }
 
       const { sessionId, chunkSize, totalChunks, warning } = initData;
+      if (!sessionId || !Number.isSafeInteger(chunkSize) || chunkSize <= 0 ||
+          !Number.isSafeInteger(totalChunks) || totalChunks <= 0) {
+        throw new Error("TikTok returned an invalid upload session");
+      }
 
       // Step 2: upload chunks
       for (let i = 0; i < totalChunks; i++) {
@@ -1378,18 +1556,32 @@
         }
       }
 
-      setStatus(`Published to "${activeTikTokName}"`, "success");
-      btn.textContent = "✅ Uploaded";
-
-      if (warning) {
-        alert(`⚠️ Note: ${warning}`);
+      lastTikTokSessionId = sessionId;
+      if (checkButton) checkButton.hidden = false;
+      btn.textContent = "⏳ TikTok processing...";
+      setStatus(`Upload complete. TikTok is processing the video for "${activeTikTokName}"…`, "working");
+      const publishResult = await waitForTikTokPublish(sessionId, creatorInfo);
+      if (publishResult) {
+        btn.textContent = "✅ Published";
+        if (checkButton) checkButton.hidden = true;
+      } else {
+        btn.textContent = "⏳ Processing";
+        showTikTokPublishSuccess({
+          message: "Video uploaded successfully and is still processing on TikTok.",
+          url: creatorInfo.profileUrl || "https://www.tiktok.com/",
+          label: "View TikTok Profile"
+        });
+        setStatus("TikTok is still processing. Use Check TikTok Status shortly.", "working");
       }
+      if (warning) console.info(warning);
     } catch (err) {
       console.error(err);
       btn.disabled = false;
       btn.textContent = "🎵 Publish to TikTok";
       const msg = err?.message || "TikTok upload failed";
       setStatus(msg, "error");
+      // Yield once so mobile browsers repaint the reset button before alert blocks rendering.
+      await new Promise((resolve) => setTimeout(resolve, 0));
       alert(`Upload failed:\n${msg}`);
     }
   }
@@ -1549,10 +1741,25 @@
   bindVideoFileInfo("ytVideoFile", "fileInfo");
   bindVideoFileInfo("ttVideoFile", "ttFileInfo");
   bindVideoFileInfo("fbVideoFile", "fbFileInfo");
+  document.getElementById("ttVideoFile")?.addEventListener("change", async (event) => {
+    const file = event.target.files?.[0];
+    ttVideoDurationSeconds = 0;
+    if (!file) return;
+    try {
+      ttVideoDurationSeconds = await readTikTokVideoDuration(file);
+      const info = document.getElementById("ttFileInfo");
+      if (info && ttVideoDurationSeconds) {
+        info.appendChild(document.createTextNode(` · ${Math.ceil(ttVideoDurationSeconds)}s`));
+      }
+    } catch (error) {
+      setStatus(error?.message || "Unable to inspect TikTok video", "error");
+    }
+  });
 
   window.generateSEO = generateSEO;
   window.publishYouTube = publishYouTube;
   window.publishTikTok = publishTikTok;
+  window.checkTikTokStatus = checkTikTokStatus;
   window.publishFacebook = publishFacebook;
   window.copyGeneric = copyGeneric;
   window.copyFB = copyFB;
@@ -1568,6 +1775,7 @@
     signedInUserEmail = user.email || "";
     localStorage.setItem("currentUserKey", userScope);
     await loadFolderContext();
+    await loadTikTokCreatorInfo();
     await loadBillingStatus();
 
     const youtubeConnected = getUrlParam("youtube_connected");
@@ -1592,6 +1800,7 @@
 
     if (tiktokConnected) {
       await loadFolderContext();
+      await loadTikTokCreatorInfo();
       const accountName = getUrlParam("account_name") || activeTikTokName;
       setStatus(isLinked(accountName) ? `TikTok connected: ${accountName}` : "TikTok account connected to this folder", "success");
     }
