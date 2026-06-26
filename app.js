@@ -193,7 +193,14 @@ generateBtn &&
       if (result.success && !result.fallbackUsed) {
         // --- FACEBOOK & INSTAGRAM ---
         if (outputs.facebook) outputs.facebook.value = result.data.facebook.descriptionAndTags;
-        if (outputs.instagram) outputs.instagram.value = result.data.facebook.descriptionAndTags;
+        if (outputs.instagram) {
+          const instagram = result.data.instagram || result.data.facebook;
+          outputs.instagram.value = instagram.descriptionAndTags || [
+            instagram.title,
+            instagram.description,
+            Array.isArray(instagram.hashtags) ? instagram.hashtags.join(" ") : instagram.hashtags
+          ].filter(Boolean).join("\n\n");
+        }
 
         // --- YOUTUBE ---
         if (outputs.youtube) {

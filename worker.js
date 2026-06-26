@@ -24,6 +24,388 @@ var worker_default = {
     const frontendBaseUrl = env.FRONTEND_URL || siteBaseUrl;
     const tiktokAuthBaseUrl = String(env.TIKTOK_AUTH_BASE_URL || "https://www.tiktok.com").replace(/\/+$/, "");
     const tiktokApiBaseUrl = String(env.TIKTOK_API_BASE_URL || "https://open.tiktokapis.com").replace(/\/+$/, "");
+    const SEO_TEXT_MODEL = env.CF_SEO_TEXT_MODEL || "@cf/meta/llama-4-scout-17b-16e-instruct";
+    const SEO_VISION_MODEL = env.CF_SEO_VISION_MODEL || "@cf/llava-hf/llava-1.5-7b-hf";
+    const SEO_SCHEMA = {
+      type: "object",
+      properties: {
+        facebook: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            description: { type: "string" },
+            hashtags: { type: "array", items: { type: "string" } },
+            keywords: { type: "array", items: { type: "string" } },
+            confidence: { type: "number" }
+          },
+          required: ["title", "description", "hashtags", "keywords", "confidence"]
+        },
+        instagram: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            description: { type: "string" },
+            hashtags: { type: "array", items: { type: "string" } },
+            keywords: { type: "array", items: { type: "string" } },
+            confidence: { type: "number" }
+          },
+          required: ["title", "description", "hashtags", "keywords", "confidence"]
+        },
+        tiktok: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            description: { type: "string" },
+            hashtags: { type: "array", items: { type: "string" } },
+            keywords: { type: "array", items: { type: "string" } },
+            allInOne: { type: "string" },
+            confidence: { type: "number" }
+          },
+          required: ["title", "description", "hashtags", "keywords", "allInOne", "confidence"]
+        },
+        youtubeShorts: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            description: { type: "string" },
+            hashtags: { type: "array", items: { type: "string" } },
+            keywords: { type: "array", items: { type: "string" } },
+            confidence: { type: "number" }
+          },
+          required: ["title", "description", "hashtags", "keywords", "confidence"]
+        },
+        confidence: { type: "number" }
+      },
+      required: ["facebook", "instagram", "tiktok", "youtubeShorts", "confidence"]
+    };
+    const seoSystemPrompt = `You are a senior social SEO strategist for Facebook, Instagram, TikTok, and YouTube Shorts. Generate premium, platform-specific SEO from the supplied text prompt, uploaded image, or both.
+
+Quality bar:
+- Use the image details when an image is supplied. If text and image are both supplied, blend them and do not ignore either one.
+- Make each platform distinct. Do not copy one platform's copy into another.
+- Prefer specific visual details, niche audience language, and currently common discovery phrases over generic words like amazing, viral, must-watch, or growth tips.
+- Include platform-specific title, description, hashtags, and keywords for Facebook, Instagram, TikTok, and YouTube Shorts.
+- TikTok also needs allInOne: one ready-to-post caption with hook, short description, emojis where natural, and hashtags.
+- YouTube Shorts titles should be 45-65 characters. Facebook and Instagram titles should be 35-65 characters. TikTok titles should be 25-55 characters.
+- Descriptions should be concise, search-rich, and human: Facebook/Instagram 100-220 characters, TikTok 70-150 characters, YouTube Shorts 150-300 characters.
+- Hashtags must be arrays of 5-10 relevant tags, include #fyp and #foryoupage only for TikTok when relevant, and avoid banned/spammy-looking repetition.
+- Keywords must be arrays of 10-20 high-intent search phrases mixing broad, niche, visual, and audience terms.
+- Set both a top-level confidence and a confidence score inside each platform object from 0 to 1. Use confidence below 0.78 if the input is too vague, the image cannot be understood, or the output may be generic.
+- Output exactly one JSON object with these top-level keys: facebook, instagram, tiktok, youtubeShorts, confidence. Do not return separate platform blocks.
+
+Return only valid JSON matching the requested schema. No markdown, headings, prose, comments, or trailing text.`;
+    const parseSeoText = /* @__PURE__ */ __name((rawText) => {
+      rawText = String(rawText || "").trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+      const platformBlocks = {};
+      const blockPattern = /(?:\*\*)?\b(Facebook|Instagram|TikTok|YouTube(?:\s+Shorts)?|YouTube)\b(?:\*\*)?[\s\S]{0,120}?```(?:json)?\s*([\s\S]*?)```/gi;
+      let blockMatch;
+      while ((blockMatch = blockPattern.exec(rawText))) {
+        try {
+          const rawKey = blockMatch[1].toLowerCase().replace(/\s+/g, "");
+          const key = rawKey === "youtube" || rawKey === "youtubeshorts" ? "youtubeShorts" : rawKey;
+          platformBlocks[key] = JSON.parse(blockMatch[2].trim());
+        } catch (_) {
+        }
+      }
+      if (Object.keys(platformBlocks).length >= 2) {
+        const confidenceValues = Object.values(platformBlocks).map((item) => Number(item?.confidence)).filter(Number.isFinite);
+        return {
+          ...platformBlocks,
+          confidence: confidenceValues.length ? Math.min(...confidenceValues) : 0.82
+        };
+      }
+      const firstBrace = rawText.indexOf("{");
+      if (firstBrace !== -1) {
+        let depth = 0;
+        let inString = false;
+        let escaped = false;
+        for (let i = firstBrace; i < rawText.length; i += 1) {
+          const char = rawText[i];
+          if (escaped) {
+            escaped = false;
+          } else if (char === "\\") {
+            escaped = true;
+          } else if (char === "\"") {
+            inString = !inString;
+          } else if (!inString && char === "{") {
+            depth += 1;
+          } else if (!inString && char === "}") {
+            depth -= 1;
+            if (depth === 0) {
+              rawText = rawText.slice(firstBrace, i + 1).trim();
+              break;
+            }
+          }
+        }
+      }
+      return JSON.parse(rawText);
+    }, "parseSeoText");
+    const extractAiText = /* @__PURE__ */ __name((aiResponse) => {
+      if (typeof aiResponse === "string") return aiResponse;
+      if (typeof aiResponse?.response === "string") return aiResponse.response;
+      if (typeof aiResponse?.result?.response === "string") return aiResponse.result.response;
+      if (typeof aiResponse?.text === "string") return aiResponse.text;
+      return JSON.stringify(aiResponse || {});
+    }, "extractAiText");
+    const uniqueStrings = /* @__PURE__ */ __name((items, limit = 20) => {
+      const source = Array.isArray(items) ? items : [items];
+      const values = source.flatMap((item) => String(item || "").split(/[,;\n]+/));
+      const out = [];
+      const seen = /* @__PURE__ */ new Set();
+      for (const item of values) {
+        const clean = String(item || "").trim();
+        if (!clean) continue;
+        const key = clean.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(clean);
+        if (out.length >= limit) break;
+      }
+      return out;
+    }, "uniqueStrings");
+    const normalizeHashtags = /* @__PURE__ */ __name((items) => {
+      const source = Array.isArray(items) ? items : [items];
+      const expanded = source.flatMap((item) => {
+        const text = String(item || "");
+        const tags = text.match(/#[\w]+/g);
+        return tags?.length ? tags : text.split(/\s+/);
+      });
+      return uniqueStrings(expanded, 10).map((tag) => {
+      const clean = tag.replace(/^#+/, "").replace(/[^\w]/g, "");
+      return clean ? `#${clean}` : "";
+      }).filter(Boolean);
+    }, "normalizeHashtags");
+    const expandSeoTitle = /* @__PURE__ */ __name((title, keywords) => {
+      let cleanTitle = String(title || "").trim();
+      for (const keyword of keywords || []) {
+        const cleanKeyword = String(keyword || "").trim();
+        if (cleanTitle.length >= 25) break;
+        if (!cleanKeyword || cleanTitle.toLowerCase().includes(cleanKeyword.toLowerCase())) continue;
+        cleanTitle = [cleanTitle, cleanKeyword].filter(Boolean).join(" ");
+      }
+      if (cleanTitle.length > 70) {
+        cleanTitle = cleanTitle.slice(0, 70).replace(/\s+\S*$/, "").trim();
+      }
+      return cleanTitle;
+    }, "expandSeoTitle");
+    const normalizeSeoPlatform = /* @__PURE__ */ __name((platform, fallbackTitle = "") => {
+      const description = String(platform?.description || platform?.descriptionAndTags || "").trim();
+      const keywords = uniqueStrings(platform?.keywords || platform?.tags || "", 20);
+      return {
+        title: expandSeoTitle(platform?.title || fallbackTitle || "", keywords),
+        description,
+        hashtags: normalizeHashtags(platform?.hashtags || description.match(/#[\w]+/g) || []),
+        keywords,
+        confidence: Number(platform?.confidence ?? 0)
+      };
+    }, "normalizeSeoPlatform");
+    const normalizeSeoData = /* @__PURE__ */ __name((raw) => {
+      const data = raw?.data || raw || {};
+      const youtubeShorts = data.youtubeShorts || data.youtube || {};
+      const normalized = {
+        facebook: normalizeSeoPlatform(data.facebook),
+        instagram: normalizeSeoPlatform(data.instagram || data.facebook),
+        tiktok: {
+          ...normalizeSeoPlatform(data.tiktok),
+          allInOne: String(data.tiktok?.allInOne || data.tiktok?.caption || data.tiktok?.description || "").trim()
+        },
+        youtubeShorts: normalizeSeoPlatform(youtubeShorts),
+        confidence: Number(data.confidence ?? 0)
+      };
+      if (normalized.tiktok.description.length < 60 && normalized.tiktok.allInOne) {
+        const captionDescription = normalized.tiktok.allInOne
+          .replace(/#[\w]+/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+        if (captionDescription.length >= normalized.tiktok.description.length) {
+          normalized.tiktok.description = captionDescription;
+        }
+      }
+      const confidenceValues = ["facebook", "instagram", "tiktok", "youtubeShorts"]
+        .map((name) => normalized[name].confidence)
+        .filter(Number.isFinite)
+        .filter((value) => value > 0);
+      if (!normalized.confidence && confidenceValues.length) normalized.confidence = Math.min(...confidenceValues);
+      normalized.facebook.descriptionAndTags = [normalized.facebook.description, normalized.facebook.hashtags.join(" ")].filter(Boolean).join("\n\n");
+      normalized.instagram.descriptionAndTags = [normalized.instagram.description, normalized.instagram.hashtags.join(" ")].filter(Boolean).join("\n\n");
+      normalized.youtube = {
+        title: normalized.youtubeShorts.title,
+        description: normalized.youtubeShorts.description,
+        keywords: normalized.youtubeShorts.keywords.join(", "),
+        hashtags: normalized.youtubeShorts.hashtags
+      };
+      return normalized;
+    }, "normalizeSeoData");
+    const extractImageSignals = /* @__PURE__ */ __name((visualAnalysis) => {
+      const stop = /* @__PURE__ */ new Set(["this", "that", "with", "from", "there", "their", "image", "photo", "picture", "shows", "showing", "visible", "appears", "looks", "likely", "food"]);
+      return uniqueStrings(String(visualAnalysis || "").toLowerCase().replace(/[^\w\s]/g, " ").split(/\s+/).filter((word) => word.length > 4 && !stop.has(word)), 12);
+    }, "extractImageSignals");
+    const scoreSeoQuality = /* @__PURE__ */ __name((data, hasImage, hasText, imageSignals = []) => {
+      const issues = [];
+      const platforms = ["facebook", "instagram", "tiktok", "youtubeShorts"];
+      for (const name of platforms) {
+        const item = data?.[name] || {};
+        if (String(item.title || "").trim().length < 25) issues.push(`${name} title is missing or too short`);
+        if (String(item.description || "").trim().length < 60) issues.push(`${name} description is missing or too short`);
+        if (!Array.isArray(item.hashtags) || item.hashtags.length < 5) issues.push(`${name} needs at least 5 hashtags`);
+        if (!Array.isArray(item.keywords) || item.keywords.length < 10) issues.push(`${name} needs at least 10 keywords`);
+        if (Number(item.confidence || 0) < 0.78) issues.push(`${name} confidence below quality threshold`);
+      }
+      if (!String(data?.tiktok?.allInOne || "").includes("#")) issues.push("tiktok allInOne must include hashtags");
+      const combined = JSON.stringify(data || {}).toLowerCase();
+      const genericSignals = ["your brand", "viral video", "must watch", "growth tips", "social media marketing"];
+      const genericHits = genericSignals.filter((term) => combined.includes(term)).length;
+      if (genericHits >= 2) issues.push("output is too generic");
+      if (hasImage) {
+        const signalHits = imageSignals.filter((term) => combined.includes(term)).length;
+        if (imageSignals.length >= 2 && signalHits < 2) issues.push("image analysis is not evident");
+      }
+      if (Number(data?.confidence || 0) < 0.78) issues.push("model confidence below quality threshold");
+      return { ok: issues.length === 0, issues };
+    }, "scoreSeoQuality");
+    const imageUrlToBase64 = /* @__PURE__ */ __name(async (imageUrl) => {
+      if (!imageUrl) return { imageBase64: "", imageMimeType: "image/jpeg" };
+      if (String(imageUrl).startsWith("data:")) {
+        const match = String(imageUrl).match(/^data:([^;]+);base64,(.+)$/);
+        return match ? { imageBase64: match[2], imageMimeType: match[1] } : { imageBase64: "", imageMimeType: "image/jpeg" };
+      }
+      const imgRes = await fetch(imageUrl);
+      if (!imgRes.ok) throw new Error(`Image fetch failed: ${imgRes.status}`);
+      const imageMimeType = (imgRes.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
+      const buf = await imgRes.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      const chunks = [];
+      for (let i = 0; i < bytes.length; i += 8192) chunks.push(String.fromCharCode.apply(null, bytes.subarray(i, i + 8192)));
+      return { imageBase64: btoa(chunks.join("")), imageMimeType };
+    }, "imageUrlToBase64");
+    const base64ToNumberArray = /* @__PURE__ */ __name((base64) => {
+      const binary = atob(base64);
+      const bytes = new Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      return bytes;
+    }, "base64ToNumberArray");
+    const buildSeoInput = /* @__PURE__ */ __name((body, imageMimeType, visualAnalysis = "") => {
+      const topic = String(body.topic || body.prompt || "").trim();
+      const brandParts = [];
+      if (body.folder_name) brandParts.push(`Brand/Channel: ${body.folder_name}`);
+      if (body.youtube_channel) brandParts.push(`YouTube account: ${body.youtube_channel}`);
+      if (body.facebook_account) brandParts.push(`Facebook account: ${body.facebook_account}`);
+      if (body.instagram_account) brandParts.push(`Instagram account: ${body.instagram_account}`);
+      if (body.tiktok_account) brandParts.push(`TikTok account: ${body.tiktok_account}`);
+      return [
+        brandParts.length ? brandParts.join(". ") : "",
+        topic ? `User prompt: ${topic}` : "",
+        imageMimeType ? `Uploaded image type: ${imageMimeType}. Analyze the image content and use visible details in every platform's SEO.` : "",
+        visualAnalysis ? `Cloudflare Workers AI visual analysis: ${visualAnalysis}` : "",
+        `Produce separately optimized SEO for Facebook, Instagram, TikTok, and YouTube Shorts.
+Return exactly this JSON shape:
+{
+  "facebook": {"title": "", "description": "", "hashtags": [], "keywords": [], "confidence": 0.9},
+  "instagram": {"title": "", "description": "", "hashtags": [], "keywords": [], "confidence": 0.9},
+  "tiktok": {"title": "", "description": "", "hashtags": [], "keywords": [], "allInOne": "", "confidence": 0.9},
+  "youtubeShorts": {"title": "", "description": "", "hashtags": [], "keywords": [], "confidence": 0.9},
+  "confidence": 0.9
+}`
+      ].filter(Boolean).join("\n");
+    }, "buildSeoInput");
+    const generateCloudflareSeo = /* @__PURE__ */ __name(async (body) => {
+      let imageBase64 = String(body.image_base64 || "").trim();
+      let imageMimeType = imageBase64 ? (String(body.image_filename || "").toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg") : "";
+      if (!imageBase64 && body.image_url) {
+        const imageData = await imageUrlToBase64(body.image_url);
+        imageBase64 = imageData.imageBase64;
+        imageMimeType = imageData.imageMimeType;
+      }
+      const hasImage = !!imageBase64;
+      const hasText = !!String(body.topic || body.prompt || "").trim();
+      if (!hasImage && !hasText) throw new Error("Provide an image, a text prompt, or both");
+      let visualAnalysis = "";
+      if (hasImage) {
+        const visionResponse = await env.AI.run(SEO_VISION_MODEL, {
+          image: base64ToNumberArray(imageBase64),
+          prompt: "Describe this image for a social media SEO strategist. Include subject, setting, colors, visible product or food details, mood, audience, and any text you can read. Be specific and concise.",
+          max_tokens: 512
+        });
+        visualAnalysis = extractAiText(visionResponse).trim();
+        if (visualAnalysis.length < 30) throw new Error("Cloudflare Workers AI could not confidently analyse this image.");
+      }
+      const imageSignals = extractImageSignals(visualAnalysis);
+      const userContent = buildSeoInput(body, hasImage ? imageMimeType : "", visualAnalysis);
+      const model = SEO_TEXT_MODEL;
+      const runPayload = {
+        messages: [
+          { role: "system", content: seoSystemPrompt },
+          { role: "user", content: userContent }
+        ],
+        max_tokens: 2800,
+        temperature: 0.25,
+        top_p: 0.9,
+        guided_json: SEO_SCHEMA
+      };
+      const aiResponse = await env.AI.run(model, runPayload);
+      const rawAiText = extractAiText(aiResponse);
+      let parsed = normalizeSeoData(parseSeoText(rawAiText));
+      let quality = scoreSeoQuality(parsed, hasImage, hasText, imageSignals);
+      let finalModel = hasImage ? `${SEO_VISION_MODEL} + ${model}` : model;
+      let finalRawText = rawAiText;
+      for (let repairAttempt = 1; !quality.ok && repairAttempt <= 2; repairAttempt += 1) {
+        const repairResponse = await env.AI.run(SEO_TEXT_MODEL, {
+          messages: [
+            { role: "system", content: seoSystemPrompt },
+            {
+              role: "user",
+              content: `Repair and complete the SEO JSON. Do not summarize. Do not apologize. Return only one complete JSON object.
+
+Quality issues to fix:
+${quality.issues.map((issue) => `- ${issue}`).join("\n")}
+
+Original input:
+${userContent}
+
+Previous model output:
+${finalRawText}
+
+Hard requirements:
+- Include facebook, instagram, tiktok, youtubeShorts, and confidence.
+- Every platform must include title, description, hashtags, keywords, and confidence.
+- TikTok must also include allInOne.
+- Every hashtags array must have 5-10 separate hashtag strings.
+- Every keywords array must have 10-20 separate keyword strings.
+- Every description must be at least 60 characters and specific to the platform.
+- Every confidence must be 0.78 or higher only if the completed SEO is specific and high quality.
+- Return JSON only.`
+            }
+          ],
+          max_tokens: 2800,
+          temperature: 0.1,
+          top_p: 0.85,
+          guided_json: SEO_SCHEMA
+        });
+        finalRawText = extractAiText(repairResponse);
+        try {
+          parsed = normalizeSeoData(parseSeoText(finalRawText));
+          quality = scoreSeoQuality(parsed, hasImage, hasText, imageSignals);
+          finalModel = `${finalModel} + repair${repairAttempt}:${SEO_TEXT_MODEL}`;
+        } catch (_) {
+        }
+      }
+      if (!quality.ok) {
+        return {
+          success: false,
+          status: 422,
+          error: "Cloudflare Workers AI could not confidently produce high-quality SEO for this input.",
+          qualityIssues: quality.issues,
+          model: finalModel
+        };
+      }
+      return {
+        success: true,
+        data: parsed,
+        provider: "cloudflare-workers-ai",
+        model: finalModel,
+        quality
+      };
+    }, "generateCloudflareSeo");
     if (url.pathname === "/api" || url.pathname === "/api/" || url.pathname === "/api/health") {
       return new Response(JSON.stringify({
         ok: true,
@@ -38,7 +420,22 @@ var worker_default = {
     if (url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
       try {
         const body = await request.json();
-        const apiKey = env.OPENAI_API_KEY;
+        const result = await generateCloudflareSeo(body);
+        return new Response(JSON.stringify(result), {
+          status: result.success ? 200 : result.status || 422,
+          headers: jsonHeaders
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: err?.message || "SEO generation failed"
+        }), { status: 500, headers: jsonHeaders });
+      }
+    }
+    if (false && url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
+      try {
+        const body = await request.json();
+        const apiKey = "";
         const topic = body.topic || "";
         const imageUrl = body.image_url || "";
         const folderName = body.folder_name || "";
@@ -158,10 +555,10 @@ ${effectiveTopic}
 
 Generate trending, specific SEO \u2014 not generic content.` });
             }
-            const flagshipResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+            const flagshipResponse = await fetch("about:blank", {
               method: "POST",
               headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ model: "gpt-4o", messages: oaiMessages, response_format: { type: "json_object" } })
+              body: JSON.stringify({ model: "cloudflare-seo-disabled-legacy", messages: oaiMessages, response_format: { type: "json_object" } })
             });
             const oaiData = await flagshipResponse.json();
             if (oaiData.choices?.[0]?.message?.content) {
@@ -171,7 +568,7 @@ Generate trending, specific SEO \u2014 not generic content.` });
               }
             }
           } catch (e) {
-            console.error("OpenAI failed, falling back...", e.message);
+            console.error("legacy AI failed, falling back...", e.message);
           }
         }
         if (!finalData) {
@@ -3309,6 +3706,21 @@ Follow for daily trending content! \u{1F44F}
         });
       }
       if (url.pathname === "/api/generate-seo" && request.method === "POST") {
+        try {
+          const payload = await request.json();
+          const result = await generateCloudflareSeo(payload);
+          return new Response(JSON.stringify(result), {
+            status: result.success ? 200 : result.status || 422,
+            headers: jsonHeaders
+          });
+        } catch (err) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: err?.message || "SEO generation failed"
+          }), { status: 500, headers: jsonHeaders });
+        }
+      }
+      if (false && url.pathname === "/api/generate-seo" && request.method === "POST") {
         const payload = await request.json();
         const imageBase64 = payload.image_base64 || "";
         const imageFilename = payload.image_filename || "";
@@ -3373,7 +3785,7 @@ Return ONLY valid JSON with no markdown, no extra text, no explanations:
           return JSON.parse(rawText);
         }, "parseSeoText");
         let parsed = null;
-        const apiKey = env.OPENAI_API_KEY;
+        const apiKey = "";
         if (apiKey) {
           try {
             const oaiMessages = (
@@ -3392,10 +3804,10 @@ ${textPrompt}
 
 Generate trending, specific SEO \u2014 not generic content.` });
             }
-            const oaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+            const oaiResponse = await fetch("about:blank", {
               method: "POST",
               headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ model: "gpt-4o", messages: oaiMessages, response_format: { type: "json_object" } })
+              body: JSON.stringify({ model: "cloudflare-seo-disabled-legacy", messages: oaiMessages, response_format: { type: "json_object" } })
             });
             const oaiData = await oaiResponse.json();
             if (oaiData.choices?.[0]?.message?.content) {
@@ -3405,7 +3817,7 @@ Generate trending, specific SEO \u2014 not generic content.` });
               }
             }
           } catch (e) {
-            console.error("OpenAI failed, falling back to Cloudflare AI...", e.message);
+            console.error("legacy AI failed, falling back to Cloudflare AI...", e.message);
           }
         }
         if (!parsed) {

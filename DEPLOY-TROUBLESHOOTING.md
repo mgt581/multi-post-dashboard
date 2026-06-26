@@ -53,7 +53,6 @@ Ensure the following secrets are set in the repository's **Settings → Secrets 
 | `GOOGLE_CLIENT_SECRET`   | Google Cloud Console → OAuth credentials |
 | `TIKTOK_CLIENT_SECRET`   | TikTok for Developers → your app |
 | `FB_CLIENT_SECRET`       | Meta for Developers → your app |
-| `OPENAI_API_KEY`         | OpenAI platform → API keys |
 
 ---
 

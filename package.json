@@ -6,7 +6,8 @@
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "build": "wrangler deploy --dry-run",
-    "test": "node --test"
+    "test": "node --test",
+    "test:seo-quality": "node scripts/seo-quality-comparison.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.103.0"
