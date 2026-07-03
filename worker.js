@@ -24,7 +24,7 @@ var worker_default = {
     const frontendBaseUrl = env.FRONTEND_URL || siteBaseUrl;
     const tiktokAuthBaseUrl = String(env.TIKTOK_AUTH_BASE_URL || "https://www.tiktok.com").replace(/\/+$/, "");
     const tiktokApiBaseUrl = String(env.TIKTOK_API_BASE_URL || "https://open.tiktokapis.com").replace(/\/+$/, "");
-    const SEO_TEXT_MODEL = env.CF_SEO_TEXT_MODEL || "@cf/meta/llama-4-scout-17b-16e-instruct";
+    const SEO_TEXT_MODEL = env.CF_SEO_TEXT_MODEL || "@cf/meta/llama-3.1-8b-instruct-fast";
     const SEO_VISION_MODEL = env.CF_SEO_VISION_MODEL || "@cf/llava-hf/llava-1.5-7b-hf";
     const SEO_SCHEMA = {
       type: "object",
@@ -240,7 +240,7 @@ Return only valid JSON matching the requested schema. No markdown, headings, pro
       const stop = /* @__PURE__ */ new Set(["this", "that", "with", "from", "there", "their", "image", "photo", "picture", "shows", "showing", "visible", "appears", "looks", "likely", "food"]);
       return uniqueStrings(String(visualAnalysis || "").toLowerCase().replace(/[^\w\s]/g, " ").split(/\s+/).filter((word) => word.length > 4 && !stop.has(word)), 12);
     }, "extractImageSignals");
-    const scoreSeoQuality = /* @__PURE__ */ __name((data, hasImage, hasText, imageSignals = []) => {
+    const scoreSeoQuality = /* @__PURE__ */ __name((data, hasImage, hasText) => {
       const issues = [];
       const platforms = ["facebook", "instagram", "tiktok", "youtubeShorts"];
       for (const name of platforms) {
@@ -256,10 +256,6 @@ Return only valid JSON matching the requested schema. No markdown, headings, pro
       const genericSignals = ["your brand", "viral video", "must watch", "growth tips", "social media marketing"];
       const genericHits = genericSignals.filter((term) => combined.includes(term)).length;
       if (genericHits >= 2) issues.push("output is too generic");
-      if (hasImage) {
-        const signalHits = imageSignals.filter((term) => combined.includes(term)).length;
-        if (imageSignals.length >= 2 && signalHits < 2) issues.push("image analysis is not evident");
-      }
       if (Number(data?.confidence || 0) < 0.78) issues.push("model confidence below quality threshold");
       return { ok: issues.length === 0, issues };
     }, "scoreSeoQuality");
@@ -284,7 +280,7 @@ Return only valid JSON matching the requested schema. No markdown, headings, pro
       for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
       return bytes;
     }, "base64ToNumberArray");
-    const buildSeoInput = /* @__PURE__ */ __name((body, imageMimeType, visualAnalysis = "") => {
+    const buildSeoInput = /* @__PURE__ */ __name((body, imageMimeType) => {
       const topic = String(body.topic || body.prompt || "").trim();
       const brandParts = [];
       if (body.folder_name) brandParts.push(`Brand/Channel: ${body.folder_name}`);
@@ -295,8 +291,7 @@ Return only valid JSON matching the requested schema. No markdown, headings, pro
       return [
         brandParts.length ? brandParts.join(". ") : "",
         topic ? `User prompt: ${topic}` : "",
-        imageMimeType ? `Uploaded image type: ${imageMimeType}. Analyze the image content and use visible details in every platform's SEO.` : "",
-        visualAnalysis ? `Cloudflare Workers AI visual analysis: ${visualAnalysis}` : "",
+        imageMimeType ? `Uploaded image type: ${imageMimeType}. Analyze the image directly and use visible details in every platform's SEO.` : "",
         `Produce separately optimized SEO for Facebook, Instagram, TikTok, and YouTube Shorts.
 Return exactly this JSON shape:
 {
@@ -319,37 +314,29 @@ Return exactly this JSON shape:
       const hasImage = !!imageBase64;
       const hasText = !!String(body.topic || body.prompt || "").trim();
       if (!hasImage && !hasText) throw new Error("Provide an image, a text prompt, or both");
-      let visualAnalysis = "";
-      if (hasImage) {
-        const visionResponse = await env.AI.run(SEO_VISION_MODEL, {
-          image: base64ToNumberArray(imageBase64),
-          prompt: "Describe this image for a social media SEO strategist. Include subject, setting, colors, visible product or food details, mood, audience, and any text you can read. Be specific and concise.",
-          max_tokens: 512
-        });
-        visualAnalysis = extractAiText(visionResponse).trim();
-        if (visualAnalysis.length < 30) throw new Error("Cloudflare Workers AI could not confidently analyse this image.");
-      }
-      const imageSignals = extractImageSignals(visualAnalysis);
-      const userContent = buildSeoInput(body, hasImage ? imageMimeType : "", visualAnalysis);
-      const model = SEO_TEXT_MODEL;
+      const userContent = buildSeoInput(body, hasImage ? imageMimeType : "");
+      const model = hasImage ? SEO_VISION_MODEL : SEO_TEXT_MODEL;
       const runPayload = {
         messages: [
           { role: "system", content: seoSystemPrompt },
           { role: "user", content: userContent }
         ],
-        max_tokens: 2800,
-        temperature: 0.25,
+        max_tokens: hasImage ? 1600 : 1200,
+        temperature: 0.2,
         top_p: 0.9,
         guided_json: SEO_SCHEMA
       };
+      if (hasImage) {
+        runPayload.images = [{ data: imageBase64, mimeType: imageMimeType }];
+      }
       const aiResponse = await env.AI.run(model, runPayload);
       const rawAiText = extractAiText(aiResponse);
       let parsed = normalizeSeoData(parseSeoText(rawAiText));
-      let quality = scoreSeoQuality(parsed, hasImage, hasText, imageSignals);
-      let finalModel = hasImage ? `${SEO_VISION_MODEL} + ${model}` : model;
+      let quality = scoreSeoQuality(parsed, hasImage, hasText);
+      let finalModel = model;
       let finalRawText = rawAiText;
-      for (let repairAttempt = 1; !quality.ok && repairAttempt <= 2; repairAttempt += 1) {
-        const repairResponse = await env.AI.run(SEO_TEXT_MODEL, {
+      for (let repairAttempt = 1; !quality.ok && repairAttempt <= 1; repairAttempt += 1) {
+        const repairResponse = await env.AI.run(model, {
           messages: [
             { role: "system", content: seoSystemPrompt },
             {
@@ -376,7 +363,7 @@ Hard requirements:
 - Return JSON only.`
             }
           ],
-          max_tokens: 2800,
+          max_tokens: 1000,
           temperature: 0.1,
           top_p: 0.85,
           guided_json: SEO_SCHEMA
@@ -384,8 +371,8 @@ Hard requirements:
         finalRawText = extractAiText(repairResponse);
         try {
           parsed = normalizeSeoData(parseSeoText(finalRawText));
-          quality = scoreSeoQuality(parsed, hasImage, hasText, imageSignals);
-          finalModel = `${finalModel} + repair${repairAttempt}:${SEO_TEXT_MODEL}`;
+          quality = scoreSeoQuality(parsed, hasImage, hasText);
+          finalModel = `${finalModel} + repair${repairAttempt}`;
         } catch (_) {
         }
       }
