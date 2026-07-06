@@ -29,11 +29,17 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
         run: |
           set -euo pipefail
           missing=""
           [ -n "${CLOUDFLARE_API_TOKEN:-}" ] || missing="$missing CLOUDFLARE_API_TOKEN"
           [ -n "${CLOUDFLARE_ACCOUNT_ID:-}" ] || missing="$missing CLOUDFLARE_ACCOUNT_ID"
+          [ -n "${TIKTOK_CLIENT_SECRET:-}" ] || missing="$missing TIKTOK_CLIENT_SECRET"
+          [ -n "${FIREBASE_CLIENT_EMAIL:-}" ] || missing="$missing FIREBASE_CLIENT_EMAIL"
+          [ -n "${FIREBASE_PRIVATE_KEY:-}" ] || missing="$missing FIREBASE_PRIVATE_KEY"
           if [ -n "$missing" ]; then
             echo "Missing required GitHub Actions secrets:$missing"
             exit 1
@@ -65,6 +71,26 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
 
+      - name: Upload FIREBASE_CLIENT_EMAIL
+        run: |
+          if [ -n "${FIREBASE_CLIENT_EMAIL:-}" ]; then
+            printf '%s' "$FIREBASE_CLIENT_EMAIL" | npx wrangler versions secret put FIREBASE_CLIENT_EMAIL
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+
+      - name: Upload FIREBASE_PRIVATE_KEY
+        run: |
+          if [ -n "${FIREBASE_PRIVATE_KEY:-}" ]; then
+            printf '%s' "$FIREBASE_PRIVATE_KEY" | npx wrangler versions secret put FIREBASE_PRIVATE_KEY
+          fi
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+
       - name: Upload FB_CLIENT_SECRET
         run: |
           if [ -n "${FB_CLIENT_SECRET:-}" ]; then
@@ -74,16 +100,6 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           FB_CLIENT_SECRET: ${{ secrets.FB_CLIENT_SECRET }}
-
-      - name: Upload OPENAI_API_KEY
-        run: |
-          if [ -n "${OPENAI_API_KEY:-}" ]; then
-            printf '%s' "$OPENAI_API_KEY" | npx wrangler versions secret put OPENAI_API_KEY
-          fi
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
       - name: Upload STRIPE_SECRET_KEY
         run: |
