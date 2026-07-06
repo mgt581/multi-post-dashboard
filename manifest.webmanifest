@@ -1,11 +1,18 @@
 {
   "name": "Multipost",
   "short_name": "Multipost",
+  "description": "Business productivity software for agencies to manage client social media workspaces, generate SEO copy, and publish approved posts.",
   "start_url": "/signin.html",
   "scope": "/",
   "display": "standalone",
   "background_color": "#0b1829",
   "theme_color": "#0b1829",
+  "categories": [
+    "business",
+    "productivity",
+    "utilities"
+  ],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icon-192.png",

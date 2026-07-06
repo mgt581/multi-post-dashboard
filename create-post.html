@@ -403,7 +403,7 @@
           <label for="seoImage">📸 Upload image <span class="small" style="color: var(--muted);">(optional — AI analyzes image for richer SEO)</span></label>
           <input id="seoImage" type="file" accept="image/*" style="width: 100%; margin-bottom: 8px;">
           <div id="imagePreview" style="width: 100%; height: 200px; border: 2px dashed var(--border); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--muted); background: rgba(255,255,255,0.02); font-size: 14px;">
-            Select image (JPG/PNG, &lt;5MB) — optional
+            Select image (JPG/PNG, up to 20MB; resized before SEO) — optional
           </div>
         </div>
         <div>
@@ -430,22 +430,49 @@
       const imagePreview = document.getElementById('imagePreview');
       window.seoImageDataUrl = null;
       
-      seoImageInput.addEventListener('change', function(e) {
+      function resizeSeoImage(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onerror = () => reject(new Error("Could not read image file"));
+          reader.onload = (ev) => {
+            const img = new Image();
+            img.onerror = () => reject(new Error("Could not load image preview"));
+            img.onload = () => {
+              const maxSide = 1280;
+              const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+              const canvas = document.createElement("canvas");
+              canvas.width = Math.max(1, Math.round(img.width * scale));
+              canvas.height = Math.max(1, Math.round(img.height * scale));
+              const ctx = canvas.getContext("2d");
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              resolve(canvas.toDataURL("image/jpeg", 0.84));
+            };
+            img.src = ev.target.result;
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      seoImageInput.addEventListener('change', async function(e) {
         const file = e.target.files[0];
         if (!file) {
           window.seoImageDataUrl = null;
           return;
         }
-        if (file.size < 5 * 1024 * 1024) { // 5MB limit
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            window.seoImageDataUrl = ev.target.result;
-            imagePreview.innerHTML = `<img src="${window.seoImageDataUrl}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px;">`;
-          };
-          reader.readAsDataURL(file);
-        } else {
+        if (!String(file.type || "").toLowerCase().startsWith("image/") || file.size > 20 * 1024 * 1024) {
           window.seoImageDataUrl = null;
-          imagePreview.innerHTML = 'Image too large or invalid (JPG/PNG <5MB)';
+          imagePreview.innerHTML = 'Image too large or invalid (JPG/PNG up to 20MB)';
+          imagePreview.style.color = 'var(--error)';
+          return;
+        }
+        try {
+          imagePreview.style.color = 'var(--muted)';
+          imagePreview.textContent = "Optimising image for SEO analysis...";
+          window.seoImageDataUrl = await resizeSeoImage(file);
+          imagePreview.innerHTML = `<img src="${window.seoImageDataUrl}" style="max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px;">`;
+        } catch (err) {
+          window.seoImageDataUrl = null;
+          imagePreview.innerHTML = err?.message || 'Image could not be prepared for SEO analysis';
           imagePreview.style.color = 'var(--error)';
         }
       });
@@ -1175,7 +1202,7 @@
     setStatus(statusMsg, "working");
 
     try {
-      const res = await fetch(`${apiBase}/generate-premium-seo`, {
+      const res = await fetch(`${apiBase}/generate-seo`, {
         method: "POST",
         headers: { "Content-Type": "application/json", client_platform: getClientPlatform() },
         body: JSON.stringify({

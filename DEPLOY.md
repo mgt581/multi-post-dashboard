@@ -46,9 +46,17 @@ wrangler secret put GOOGLE_CLIENT_ID
 wrangler secret put GOOGLE_CLIENT_SECRET
 wrangler secret put TIKTOK_CLIENT_KEY
 wrangler secret put TIKTOK_CLIENT_SECRET
+wrangler secret put FIREBASE_CLIENT_EMAIL
+wrangler secret put FIREBASE_PRIVATE_KEY
 wrangler secret put FB_CLIENT_ID
 wrangler secret put FB_CLIENT_SECRET
 ```
+
+`FIREBASE_CLIENT_EMAIL` and `FIREBASE_PRIVATE_KEY` come from a service account in
+the `multi-post-daefc` Firebase project. They are required for the Worker to mint
+Firebase custom tokens after TikTok or Facebook OAuth succeeds. Keep the private
+key only in Cloudflare/GitHub secrets; never add the service-account JSON file to
+the repository.
 
 ### Getting OAuth Credentials
 
@@ -67,7 +75,10 @@ wrangler secret put FB_CLIENT_SECRET
 **TikTok:**
 1. Go to [TikTok for Developers](https://developers.tiktok.com/)
 2. Create an app
-3. Add redirect URI: `https://your-worker.workers.dev/api/auth/callback/tiktok`
+3. Add Login Kit and the required scopes.
+4. Add this exact production redirect URI:
+   - `https://multipostapp.co.uk/api/auth/callback/tiktok`
+5. For a separate preview app, register its exact HTTPS callback independently.
 
 **Facebook:**
 1. Go to [Meta for Developers](https://developers.facebook.com/)

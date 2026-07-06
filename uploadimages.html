@@ -637,7 +637,30 @@
       dropzone.innerHTML = `<img src="${dataUrl}" alt="Selected image preview">`;
     }
 
-    function handleImageFile(file) {
+    function resizeImageForSeo(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("Could not read image file"));
+        reader.onload = (ev) => {
+          const img = new Image();
+          img.onerror = () => reject(new Error("Could not load image preview"));
+          img.onload = () => {
+            const maxSide = 1280;
+            const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.max(1, Math.round(img.width * scale));
+            canvas.height = Math.max(1, Math.round(img.height * scale));
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL("image/jpeg", 0.84));
+          };
+          img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function handleImageFile(file) {
       if (!file) return;
       if (!String(file.type || "").toLowerCase().startsWith("image/")) {
         alert("Please choose an image file.");
@@ -649,12 +672,15 @@
       }
 
       selectedImageFile = file;
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        selectedImageDataUrl = ev.target?.result || "";
+      dropzone.textContent = "Optimising image for SEO analysis...";
+      try {
+        selectedImageDataUrl = await resizeImageForSeo(file);
         renderImagePreview(selectedImageDataUrl);
-      };
-      reader.readAsDataURL(file);
+      } catch (err) {
+        selectedImageDataUrl = "";
+        renderImagePreview("");
+        alert(err?.message || "Could not prepare image for SEO analysis.");
+      }
     }
 
     async function loadFolderContext() {
@@ -763,13 +789,13 @@
 
       try {
         const topicParts = [
-          "Create polished social media SEO copy for a business-promotional Facebook image post.",
+          "Create business-specific SEO for a Facebook image post. Use the uploaded image as the factual source.",
           prompt ? `Campaign brief: ${prompt}` : "",
           activeFolderName ? `Workspace: ${activeFolderName}` : "",
           activeFacebookName ? `Account: ${activeFacebookName}` : ""
         ].filter(Boolean);
 
-        const res = await fetch(`${apiBase}/generate-premium-seo`, {
+        const res = await fetch(`${apiBase}/generate-seo`, {
           method: "POST",
           headers: { "Content-Type": "application/json", client_platform: getClientPlatform() },
           body: JSON.stringify({

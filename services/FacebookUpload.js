@@ -1,6 +1,9 @@
 import fs from "fs";
 import fetch from "node-fetch";
 
+const FB_GRAPH_API_VERSION = "v25.0";
+const FB_GRAPH_BASE_URL = `https://graph.facebook.com/${FB_GRAPH_API_VERSION}`;
+
 export async function publishFacebook(videoPath, accessToken, pageId) {
   const stats = fs.statSync(videoPath);
   const videoSize = stats.size;
@@ -8,7 +11,7 @@ export async function publishFacebook(videoPath, accessToken, pageId) {
   const totalChunks = Math.ceil(videoSize / chunkSize);
 
   // 1️⃣ Init upload
-  const initRes = await fetch(`https://graph.facebook.com/v17.0/${pageId}/videos`, {
+  const initRes = await fetch(`${FB_GRAPH_BASE_URL}/${pageId}/videos`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -26,7 +29,7 @@ export async function publishFacebook(videoPath, accessToken, pageId) {
     const end_offset = Math.min(start_offset + chunkSize, videoSize);
     const chunk = fs.readFileSync(videoPath, { start: start_offset, end: end_offset });
 
-    await fetch(`https://graph.facebook.com/v17.0/${pageId}/videos`, {
+    await fetch(`${FB_GRAPH_BASE_URL}/${pageId}/videos`, {
       method: "POST",
       body: JSON.stringify({
         upload_phase: "transfer",
@@ -40,7 +43,7 @@ export async function publishFacebook(videoPath, accessToken, pageId) {
   }
 
   // 3️⃣ Finish upload / publish
-  const finishRes = await fetch(`https://graph.facebook.com/v17.0/${pageId}/videos`, {
+  const finishRes = await fetch(`${FB_GRAPH_BASE_URL}/${pageId}/videos`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

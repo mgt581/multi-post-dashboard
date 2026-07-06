@@ -128,7 +128,7 @@ function assertPlatformShape(data, caseName) {
 }
 
 async function runCase(testCase) {
-  const res = await fetch(`${baseUrl}/generate-premium-seo`, {
+  const res = await fetch(`${baseUrl}/generate-seo`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(testCase.payload)

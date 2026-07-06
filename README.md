@@ -15,6 +15,10 @@ The app uses **two separate Google Cloud projects**:
 - Configured in `.firebaserc` as the default project.
 - All HTML files use `projectId: "multi-post-daefc"` in their `firebaseConfig`.
 - Deploy to Firebase Hosting with: `firebase deploy`
+- Google uses Firebase's built-in provider. TikTok and Facebook use OAuth through
+  the Cloudflare Worker, which securely mints a Firebase custom token and then
+  completes sign-in with `signInWithCustomToken()` in `signin.html`. They therefore
+  do not appear as configurable native providers in the Firebase console.
 
 ### Google Cloud — YouTube API
 

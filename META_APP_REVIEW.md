@@ -6,7 +6,8 @@ Multi Post is a multi-brand social publishing dashboard for users who manage
 multiple Facebook Pages. Its core function is to organise Pages into separate
 brand workspaces, let the user choose the correct Page for each workspace, and
 publish user-created image and video posts to that Page. The requested Facebook
-permissions are essential parts of this single end-to-end workflow:
+permissions are essential parts of one single end-to-end workflow, not separate
+features:
 
 1. `public_profile` identifies the person connecting Facebook and displays their
    name and profile picture.
@@ -20,6 +21,9 @@ permissions are essential parts of this single end-to-end workflow:
 This is not a one-Page utility or an internal tool. Users can create multiple
 brand workspaces, connect a different Facebook Page to each workspace, change
 the selected Page, and manage publishing destinations from one dashboard.
+The app is browser-based and the Facebook login/consent flow happens in the
+browser; the backend only calls Graph API after the user explicitly completes
+that flow and chooses a Page.
 
 ## Permissions and access to configure
 
@@ -42,10 +46,11 @@ account email address.
 
 Multi Post uses `public_profile` when a user chooses **Continue with Facebook**.
 After consent, the app reads the user's Facebook ID, name, and profile picture
-from `/me?fields=id,name,picture`. The server uses the stable Facebook ID to mint
-a Firebase custom token. The name and profile picture identify which Facebook
-user connected the account and make the account recognisable in Multi Post's
-multi-workspace interface. Multi Post does not publish content during sign-in.
+from `/me?fields=id,name,picture`. The backend uses the stable Facebook ID to
+mint a Firebase custom token. The name and profile picture identify which
+Facebook user connected the account and make the account recognisable in
+Multi Post's multi-workspace interface. Multi Post does not publish content
+during sign-in.
 
 ### pages_show_list
 
@@ -54,8 +59,8 @@ and selects **Link Facebook**. The app calls `/me/accounts` to show only the
 Facebook Pages the user is authorised to manage. The Page picker displays each
 Page's name and picture. The user explicitly chooses one Page as the publishing
 destination for that workspace and can later use **Change Page** to select a
-different managed Page. This permission is fundamental because the app is
-designed for users who organise and publish across multiple Facebook Pages.
+different managed Page. This permission is required because the app is designed
+for users who organise and publish across multiple Facebook Pages.
 
 ### pages_read_engagement
 
@@ -78,6 +83,21 @@ or silently. After success, it displays a link to the resulting Facebook post.
 Publishing user-prepared content across the Pages assigned to each brand
 workspace is the app's primary function.
 
+## Copy-ready submission note
+
+Use this wording in the App Review notes field:
+
+> Multi Post is a browser-based, multi-brand publishing dashboard. The reviewer
+> can sign in at `https://multipostapp.co.uk/signin.html`, complete the Meta
+> login flow, link Facebook from inside a workspace, see the Page picker
+> populated by `pages_show_list`, choose the review Page, confirm it is shown
+> in the workspace via `pages_read_engagement`, and then publish a review-safe
+> image or MP4 using `pages_manage_posts`. The recording shows the complete
+> consent flow, the selected Page, the post composition screen, and the final
+> published result. This is a browser app; the backend only submits Graph API
+> calls after the user explicitly completes login, selects a Page, and presses
+> Publish.
+
 ## Reviewer access instructions
 
 1. Visit `https://multipostapp.co.uk/signin.html`.
@@ -93,6 +113,10 @@ workspace is the app's primary function.
    and press **Publish to Facebook**.
 9. Use the success link to verify that the post was created on the test Page.
 
+If the reviewer asks for clarification, say the use case is page management and
+publishing for multiple client workspaces, not a one-off post or an internal
+admin tool.
+
 Provide reviewer credentials and the test Page name in Meta's review notes. Do
 not put passwords, access tokens, app secrets, or service-account keys in this
 repository.
@@ -103,22 +127,26 @@ Record at 1080p with the entire browser window visible. Use a fresh private
 window or revoke the app first so the Facebook consent screen appears.
 
 1. Show `multipostapp.co.uk` in the address bar and sign in.
-2. Briefly show the Active Brands screen with multiple brand workspaces. Explain
-   that each workspace can have its own Facebook Page.
+2. Briefly show the Active Brands screen with multiple brand workspaces.
+   Explain that each workspace can have its own Facebook Page.
 3. Open one workspace and click **Link** beside Facebook.
-4. Show the Facebook consent screen and the requested Page permissions.
+4. Show the Facebook consent screen and clearly pause on the requested
+   permissions.
 5. Continue and return to Multi Post.
 6. Show the Page picker populated with multiple managed Pages
    (`pages_show_list`).
 7. Select the review Page and show its name/picture in the workspace
    (`pages_read_engagement`).
-8. Use **Change Page** and briefly reopen the Page picker to demonstrate that the
-   app genuinely manages multiple Pages, then keep the review Page selected.
+8. Use **Change Page** and briefly reopen the Page picker to prove the app
+   really supports multiple Pages, then keep the review Page selected.
 9. Open **Create Post** and show that same Page as the destination.
-10. Select a short, review-safe MP4 or image and enter the title and description.
+10. Select a short, review-safe MP4 or image and enter the title and
+    description.
 11. Click **Publish to Facebook** (`pages_manage_posts`).
 12. Wait for the success state, open the resulting Facebook URL, and show the
     post on the selected Page.
+13. Keep the on-screen narration in English and explain each button before you
+    click it.
 
 Keep the recording concise and avoid developer tools, source code, unrelated
 tabs, personal notifications, or any secret values.

@@ -6,7 +6,7 @@ var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 // worker.js
-var WORKER_VERSION = "2026-06-20-facebook-preview-secret-guard-tiktok-review-flow";
+var WORKER_VERSION = "2026-07-06-seo-provider-fallback-quality";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -24,8 +24,13 @@ var worker_default = {
     const frontendBaseUrl = env.FRONTEND_URL || siteBaseUrl;
     const tiktokAuthBaseUrl = String(env.TIKTOK_AUTH_BASE_URL || "https://www.tiktok.com").replace(/\/+$/, "");
     const tiktokApiBaseUrl = String(env.TIKTOK_API_BASE_URL || "https://open.tiktokapis.com").replace(/\/+$/, "");
-    const SEO_TEXT_MODEL = env.CF_SEO_TEXT_MODEL || "@cf/meta/llama-4-scout-17b-16e-instruct";
+    const SEO_PROVIDER = String(env.SEO_PROVIDER || "cloudflare").trim().toLowerCase();
+    const SEO_TEXT_MODEL = env.CF_SEO_TEXT_MODEL || "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+    const SEO_REPAIR_MODEL = env.CF_SEO_REPAIR_MODEL || SEO_TEXT_MODEL;
     const SEO_VISION_MODEL = env.CF_SEO_VISION_MODEL || "@cf/llava-hf/llava-1.5-7b-hf";
+    const PAID_SEO_API_KEY = env.PAID_SEO_API_KEY || env.OPENAI_API_KEY || "";
+    const PAID_SEO_MODEL = env.PAID_SEO_MODEL || "gpt-4o";
+    const PAID_SEO_BASE_URL = env.PAID_SEO_BASE_URL || "https://api.openai.com/v1/chat/completions";
     const SEO_SCHEMA = {
       type: "object",
       properties: {
@@ -78,19 +83,23 @@ var worker_default = {
       },
       required: ["facebook", "instagram", "tiktok", "youtubeShorts", "confidence"]
     };
-    const seoSystemPrompt = `You are a senior social SEO strategist for Facebook, Instagram, TikTok, and YouTube Shorts. Generate premium, platform-specific SEO from the supplied text prompt, uploaded image, or both.
+    const seoSystemPrompt = `You are a senior social SEO strategist for local businesses, creators, trades, food brands, and service companies. Generate premium, platform-specific SEO for Facebook, Instagram, TikTok, and YouTube Shorts from the supplied text prompt, uploaded image analysis, or both.
 
 Quality bar:
-- Use the image details when an image is supplied. If text and image are both supplied, blend them and do not ignore either one.
+- Ground every output in concrete details from the prompt and/or visual analysis. If an image is supplied, use visible subject matter in every platform's SEO.
+- If the visual analysis suggests construction, brickwork, paving, driveway work, boundary walls, property maintenance, damage, repairs, or before/after trade work, write local business-style SEO for that service.
+- If a business/account/workspace name is supplied, make the copy sound commercially useful for that business rather than like a generic creator caption.
 - Make each platform distinct. Do not copy one platform's copy into another.
-- Prefer specific visual details, niche audience language, and currently common discovery phrases over generic words like amazing, viral, must-watch, or growth tips.
+- Prefer specific visual details, niche audience language, buyer intent, location/service terms when present, and natural search phrases.
+- Do not use generic filler such as "viral short video image post", "Create polished social media SEO copy", "Discover viral", "Discover this", "Boost your reach", "must watch", "growth tips", or "high-performing content ideas".
+- Do not refuse, hedge, or mention low confidence. If evidence is limited, make the best grounded copy from the visible details and provided business context.
 - Include platform-specific title, description, hashtags, and keywords for Facebook, Instagram, TikTok, and YouTube Shorts.
 - TikTok also needs allInOne: one ready-to-post caption with hook, short description, emojis where natural, and hashtags.
 - YouTube Shorts titles should be 45-65 characters. Facebook and Instagram titles should be 35-65 characters. TikTok titles should be 25-55 characters.
 - Descriptions should be concise, search-rich, and human: Facebook/Instagram 100-220 characters, TikTok 70-150 characters, YouTube Shorts 150-300 characters.
-- Hashtags must be arrays of 5-10 relevant tags, include #fyp and #foryoupage only for TikTok when relevant, and avoid banned/spammy-looking repetition.
-- Keywords must be arrays of 10-20 high-intent search phrases mixing broad, niche, visual, and audience terms.
-- Set both a top-level confidence and a confidence score inside each platform object from 0 to 1. Use confidence below 0.78 if the input is too vague, the image cannot be understood, or the output may be generic.
+- Hashtags must be arrays of 5-10 relevant tags, include #fyp and #foryoupage only for TikTok when relevant, and avoid spammy repetition.
+- Keywords must be arrays of 10-20 high-intent search phrases mixing broad, niche, visual, service, and audience terms.
+- Set confidence to 0.82-0.95 for grounded, specific copy. Never lower confidence just because the input is an image-only request.
 - Output exactly one JSON object with these top-level keys: facebook, instagram, tiktok, youtubeShorts, confidence. Do not return separate platform blocks.
 
 Return only valid JSON matching the requested schema. No markdown, headings, prose, comments, or trailing text.`;
@@ -236,11 +245,28 @@ Return only valid JSON matching the requested schema. No markdown, headings, pro
       };
       return normalized;
     }, "normalizeSeoData");
-    const extractImageSignals = /* @__PURE__ */ __name((visualAnalysis) => {
-      const stop = /* @__PURE__ */ new Set(["this", "that", "with", "from", "there", "their", "image", "photo", "picture", "shows", "showing", "visible", "appears", "looks", "likely", "food"]);
-      return uniqueStrings(String(visualAnalysis || "").toLowerCase().replace(/[^\w\s]/g, " ").split(/\s+/).filter((word) => word.length > 4 && !stop.has(word)), 12);
-    }, "extractImageSignals");
-    const scoreSeoQuality = /* @__PURE__ */ __name((data, hasImage, hasText, imageSignals = []) => {
+    const extractSeoSignals = /* @__PURE__ */ __name((value) => {
+      const stop = /* @__PURE__ */ new Set([
+        "this", "that", "with", "from", "there", "their", "image", "photo", "picture", "shows",
+        "showing", "visible", "appears", "looks", "likely", "content", "social", "media",
+        "platform", "business", "campaign", "brief", "account", "workspace", "video", "post",
+        "create", "polished", "copy", "generate", "description", "optional", "uploaded"
+      ]);
+      return uniqueStrings(
+        String(value || "")
+          .toLowerCase()
+          .replace(/#[\w]+/g, " ")
+          .replace(/[^\w\s]/g, " ")
+          .split(/\s+/)
+          .filter((word) => word.length > 3 && !stop.has(word)),
+        16
+      );
+    }, "extractSeoSignals");
+    const scoreSeoQuality = /* @__PURE__ */ __name((data, context = {}) => {
+      const hasImage = !!context.hasImage;
+      const hasText = !!context.hasText;
+      const imageSignals = Array.isArray(context.imageSignals) ? context.imageSignals : [];
+      const promptSignals = Array.isArray(context.promptSignals) ? context.promptSignals : [];
       const issues = [];
       const platforms = ["facebook", "instagram", "tiktok", "youtubeShorts"];
       for (const name of platforms) {
@@ -253,13 +279,36 @@ Return only valid JSON matching the requested schema. No markdown, headings, pro
       }
       if (!String(data?.tiktok?.allInOne || "").includes("#")) issues.push("tiktok allInOne must include hashtags");
       const combined = JSON.stringify(data || {}).toLowerCase();
-      const genericSignals = ["your brand", "viral video", "must watch", "growth tips", "social media marketing"];
-      const genericHits = genericSignals.filter((term) => combined.includes(term)).length;
-      if (genericHits >= 2) issues.push("output is too generic");
+      const forbiddenPhrases = [
+        "viral short video image post",
+        "create polished social media seo copy",
+        "discover viral",
+        "discover this",
+        "boost your reach",
+        "optimized copy crafted",
+        "high-performing content ideas",
+        "must watch",
+        "growth tips",
+        "your brand",
+        "social media marketing",
+        "generic content",
+        "i can't",
+        "i cannot",
+        "unable to determine",
+        "cannot identify"
+      ];
+      const genericHits = forbiddenPhrases.filter((term) => combined.includes(term));
+      if (genericHits.length) issues.push(`output includes generic/refusal phrases: ${genericHits.slice(0, 3).join(", ")}`);
       if (hasImage) {
         const signalHits = imageSignals.filter((term) => combined.includes(term)).length;
-        if (imageSignals.length >= 2 && signalHits < 2) issues.push("image analysis is not evident");
+        if (imageSignals.length >= 3 && signalHits < 2) issues.push("image analysis is not evident");
       }
+      if (hasText) {
+        const promptHits = promptSignals.filter((term) => combined.includes(term)).length;
+        if (promptSignals.length >= 3 && promptHits < 2) issues.push("prompt/business details are not evident");
+      }
+      const descriptions = platforms.map((name) => String(data?.[name]?.description || "").trim().toLowerCase()).filter(Boolean);
+      if (new Set(descriptions).size < Math.min(3, descriptions.length)) issues.push("platform descriptions are too similar");
       if (Number(data?.confidence || 0) < 0.78) issues.push("model confidence below quality threshold");
       return { ok: issues.length === 0, issues };
     }, "scoreSeoQuality");
@@ -284,6 +333,16 @@ Return only valid JSON matching the requested schema. No markdown, headings, pro
       for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
       return bytes;
     }, "base64ToNumberArray");
+    const loadSeoImage = /* @__PURE__ */ __name(async (body) => {
+      let imageBase64 = String(body.image_base64 || "").trim();
+      let imageMimeType = imageBase64 ? (String(body.image_filename || "").toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg") : "";
+      if (!imageBase64 && body.image_url) {
+        const imageData = await imageUrlToBase64(body.image_url);
+        imageBase64 = imageData.imageBase64;
+        imageMimeType = imageData.imageMimeType;
+      }
+      return { imageBase64, imageMimeType };
+    }, "loadSeoImage");
     const buildSeoInput = /* @__PURE__ */ __name((body, imageMimeType, visualAnalysis = "") => {
       const topic = String(body.topic || body.prompt || "").trim();
       const brandParts = [];
@@ -295,9 +354,12 @@ Return only valid JSON matching the requested schema. No markdown, headings, pro
       return [
         brandParts.length ? brandParts.join(". ") : "",
         topic ? `User prompt: ${topic}` : "",
-        imageMimeType ? `Uploaded image type: ${imageMimeType}. Analyze the image content and use visible details in every platform's SEO.` : "",
-        visualAnalysis ? `Cloudflare Workers AI visual analysis: ${visualAnalysis}` : "",
+        imageMimeType ? `Uploaded image type: ${imageMimeType}. Use the visual analysis below as factual context for every platform.` : "",
+        visualAnalysis ? `Visual analysis: ${visualAnalysis}` : "",
+        !topic && visualAnalysis ? "This is an image-only request. Build SEO from the visible subject, setting, use case, and likely buyer/audience intent. Do not call it an image post." : "",
         `Produce separately optimized SEO for Facebook, Instagram, TikTok, and YouTube Shorts.
+If the content is trade/service related, use local business terms, service keywords, problem/solution language, and buyer intent.
+Avoid generic filler, vague hype, confidence disclaimers, and copy-pasted descriptions.
 Return exactly this JSON shape:
 {
   "facebook": {"title": "", "description": "", "hashtags": [], "keywords": [], "confidence": 0.9},
@@ -308,53 +370,36 @@ Return exactly this JSON shape:
 }`
       ].filter(Boolean).join("\n");
     }, "buildSeoInput");
-    const generateCloudflareSeo = /* @__PURE__ */ __name(async (body) => {
-      let imageBase64 = String(body.image_base64 || "").trim();
-      let imageMimeType = imageBase64 ? (String(body.image_filename || "").toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg") : "";
-      if (!imageBase64 && body.image_url) {
-        const imageData = await imageUrlToBase64(body.image_url);
-        imageBase64 = imageData.imageBase64;
-        imageMimeType = imageData.imageMimeType;
-      }
-      const hasImage = !!imageBase64;
-      const hasText = !!String(body.topic || body.prompt || "").trim();
-      if (!hasImage && !hasText) throw new Error("Provide an image, a text prompt, or both");
-      let visualAnalysis = "";
-      if (hasImage) {
-        const visionResponse = await env.AI.run(SEO_VISION_MODEL, {
-          image: base64ToNumberArray(imageBase64),
-          prompt: "Describe this image for a social media SEO strategist. Include subject, setting, colors, visible product or food details, mood, audience, and any text you can read. Be specific and concise.",
-          max_tokens: 512
-        });
-        visualAnalysis = extractAiText(visionResponse).trim();
-        if (visualAnalysis.length < 30) throw new Error("Cloudflare Workers AI could not confidently analyse this image.");
-      }
-      const imageSignals = extractImageSignals(visualAnalysis);
-      const userContent = buildSeoInput(body, hasImage ? imageMimeType : "", visualAnalysis);
-      const model = SEO_TEXT_MODEL;
-      const runPayload = {
+    const analyzeImageWithCloudflare = /* @__PURE__ */ __name(async (imageBase64) => {
+      if (!imageBase64) return "";
+      const visionResponse = await env.AI.run(SEO_VISION_MODEL, {
+        image: base64ToNumberArray(imageBase64),
+        prompt: "Describe this image for a social media SEO strategist. Include the exact visible subject, setting, materials, colours, condition, action, business/service category, likely audience or buyer intent, and any readable text. If it shows brickwork, construction, repairs, paving, driveways, boundary walls, or property maintenance, say that clearly. Be specific and concise.",
+        max_tokens: 768
+      });
+      const visualAnalysis = extractAiText(visionResponse).trim();
+      if (visualAnalysis.length < 30) throw new Error("Cloudflare Workers AI could not confidently analyse this image.");
+      return visualAnalysis;
+    }, "analyzeImageWithCloudflare");
+    const makeSeoQualityContext = /* @__PURE__ */ __name(({ body, hasImage, hasText, visualAnalysis }) => ({
+      hasImage,
+      hasText,
+      imageSignals: extractSeoSignals(visualAnalysis),
+      promptSignals: extractSeoSignals([
+        body.topic || body.prompt || "",
+        body.folder_name || "",
+        body.facebook_account || "",
+        body.youtube_channel || "",
+        body.tiktok_account || ""
+      ].filter(Boolean).join(" "))
+    }), "makeSeoQualityContext");
+    const repairSeoWithCloudflare = /* @__PURE__ */ __name(async ({ userContent, previousOutput, quality, qualityContext }) => {
+      const repairResponse = await env.AI.run(SEO_REPAIR_MODEL, {
         messages: [
           { role: "system", content: seoSystemPrompt },
-          { role: "user", content: userContent }
-        ],
-        max_tokens: 2800,
-        temperature: 0.25,
-        top_p: 0.9,
-        guided_json: SEO_SCHEMA
-      };
-      const aiResponse = await env.AI.run(model, runPayload);
-      const rawAiText = extractAiText(aiResponse);
-      let parsed = normalizeSeoData(parseSeoText(rawAiText));
-      let quality = scoreSeoQuality(parsed, hasImage, hasText, imageSignals);
-      let finalModel = hasImage ? `${SEO_VISION_MODEL} + ${model}` : model;
-      let finalRawText = rawAiText;
-      for (let repairAttempt = 1; !quality.ok && repairAttempt <= 2; repairAttempt += 1) {
-        const repairResponse = await env.AI.run(SEO_TEXT_MODEL, {
-          messages: [
-            { role: "system", content: seoSystemPrompt },
-            {
-              role: "user",
-              content: `Repair and complete the SEO JSON. Do not summarize. Do not apologize. Return only one complete JSON object.
+          {
+            role: "user",
+            content: `Repair and complete the SEO JSON. Return only one complete JSON object.
 
 Quality issues to fix:
 ${quality.issues.map((issue) => `- ${issue}`).join("\n")}
@@ -363,7 +408,7 @@ Original input:
 ${userContent}
 
 Previous model output:
-${finalRawText}
+${previousOutput}
 
 Hard requirements:
 - Include facebook, instagram, tiktok, youtubeShorts, and confidence.
@@ -371,21 +416,52 @@ Hard requirements:
 - TikTok must also include allInOne.
 - Every hashtags array must have 5-10 separate hashtag strings.
 - Every keywords array must have 10-20 separate keyword strings.
-- Every description must be at least 60 characters and specific to the platform.
-- Every confidence must be 0.78 or higher only if the completed SEO is specific and high quality.
+- Use visible image details and business context throughout.
+- Do not use generic filler, "discover viral", "boost your reach", "must watch", or confidence/refusal language.
+- If this is construction/brickwork/property maintenance, use service and local-business SEO terms.
 - Return JSON only.`
-            }
-          ],
-          max_tokens: 2800,
-          temperature: 0.1,
-          top_p: 0.85,
-          guided_json: SEO_SCHEMA
-        });
-        finalRawText = extractAiText(repairResponse);
+          }
+        ],
+        max_tokens: 2800,
+        temperature: 0.12,
+        top_p: 0.85,
+        guided_json: SEO_SCHEMA
+      });
+      const rawText = extractAiText(repairResponse);
+      const parsed = normalizeSeoData(parseSeoText(rawText));
+      return { rawText, parsed, quality: scoreSeoQuality(parsed, qualityContext) };
+    }, "repairSeoWithCloudflare");
+    const generateCloudflareSeo = /* @__PURE__ */ __name(async (body, preparedImage = null) => {
+      const { imageBase64, imageMimeType } = preparedImage || await loadSeoImage(body);
+      const hasImage = !!imageBase64;
+      const hasText = !!String(body.topic || body.prompt || "").trim();
+      if (!hasImage && !hasText) throw new Error("Provide an image, a text prompt, or both");
+      const visualAnalysis = hasImage ? await analyzeImageWithCloudflare(imageBase64) : "";
+      const userContent = buildSeoInput(body, hasImage ? imageMimeType : "", visualAnalysis);
+      const qualityContext = makeSeoQualityContext({ body, hasImage, hasText, visualAnalysis });
+      const runPayload = {
+        messages: [
+          { role: "system", content: seoSystemPrompt },
+          { role: "user", content: userContent }
+        ],
+        max_tokens: 2800,
+        temperature: 0.24,
+        top_p: 0.9,
+        guided_json: SEO_SCHEMA
+      };
+      const aiResponse = await env.AI.run(SEO_TEXT_MODEL, runPayload);
+      const rawAiText = extractAiText(aiResponse);
+      let parsed = normalizeSeoData(parseSeoText(rawAiText));
+      let quality = scoreSeoQuality(parsed, qualityContext);
+      let finalModel = hasImage ? `${SEO_VISION_MODEL} + ${SEO_TEXT_MODEL}` : SEO_TEXT_MODEL;
+      let finalRawText = rawAiText;
+      for (let repairAttempt = 1; !quality.ok && repairAttempt <= 2; repairAttempt += 1) {
         try {
-          parsed = normalizeSeoData(parseSeoText(finalRawText));
-          quality = scoreSeoQuality(parsed, hasImage, hasText, imageSignals);
-          finalModel = `${finalModel} + repair${repairAttempt}:${SEO_TEXT_MODEL}`;
+          const repaired = await repairSeoWithCloudflare({ userContent, previousOutput: finalRawText, quality, qualityContext });
+          finalRawText = repaired.rawText;
+          parsed = repaired.parsed;
+          quality = repaired.quality;
+          finalModel = `${finalModel} + repair${repairAttempt}:${SEO_REPAIR_MODEL}`;
         } catch (_) {
         }
       }
@@ -395,32 +471,147 @@ Hard requirements:
           status: 422,
           error: "Cloudflare Workers AI could not confidently produce high-quality SEO for this input.",
           qualityIssues: quality.issues,
-          model: finalModel
+          provider: "cloudflare",
+          model: finalModel,
+          visualAnalysis: visualAnalysis || undefined
         };
       }
       return {
         success: true,
         data: parsed,
-        provider: "cloudflare-workers-ai",
+        provider: "cloudflare",
         model: finalModel,
-        quality
+        quality,
+        visualAnalysis: visualAnalysis || undefined
       };
     }, "generateCloudflareSeo");
+    const generatePaidSeo = /* @__PURE__ */ __name(async (body, preparedImage = null, providerLabel = "paid", fallbackReason = "") => {
+      if (!PAID_SEO_API_KEY) throw new Error("Paid SEO provider key is not configured");
+      const { imageBase64, imageMimeType } = preparedImage || await loadSeoImage(body);
+      const hasImage = !!imageBase64;
+      const hasText = !!String(body.topic || body.prompt || "").trim();
+      if (!hasImage && !hasText) throw new Error("Provide an image, a text prompt, or both");
+      const userContent = buildSeoInput(body, hasImage ? imageMimeType : "", body.visual_analysis || "");
+      const content = hasImage ? [
+        { type: "text", text: `${userContent}${fallbackReason ? `\n\nFallback reason: ${fallbackReason}` : ""}` },
+        { type: "image_url", image_url: { url: `data:${imageMimeType || "image/jpeg"};base64,${imageBase64}` } }
+      ] : `${userContent}${fallbackReason ? `\n\nFallback reason: ${fallbackReason}` : ""}`;
+      const paidResponse = await fetch(PAID_SEO_BASE_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${PAID_SEO_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: PAID_SEO_MODEL,
+          messages: [
+            { role: "system", content: seoSystemPrompt },
+            { role: "user", content }
+          ],
+          response_format: { type: "json_object" },
+          temperature: 0.22,
+          max_tokens: 2800
+        })
+      });
+      const paidData = await paidResponse.json().catch(() => ({}));
+      if (!paidResponse.ok) {
+        throw new Error(paidData?.error?.message || `Paid SEO provider failed with ${paidResponse.status}`);
+      }
+      const rawText = paidData?.choices?.[0]?.message?.content || paidData?.output_text || paidData?.response || JSON.stringify(paidData || {});
+      const parsed = normalizeSeoData(parseSeoText(rawText));
+      const qualityContext = makeSeoQualityContext({
+        body,
+        hasImage,
+        hasText,
+        visualAnalysis: body.visual_analysis || ""
+      });
+      const quality = scoreSeoQuality(parsed, qualityContext);
+      if (!quality.ok) {
+        return {
+          success: false,
+          status: 422,
+          error: "Paid SEO provider returned low-quality SEO.",
+          qualityIssues: quality.issues,
+          provider: providerLabel,
+          model: PAID_SEO_MODEL
+        };
+      }
+      return {
+        success: true,
+        data: parsed,
+        provider: providerLabel,
+        model: PAID_SEO_MODEL,
+        quality
+      };
+    }, "generatePaidSeo");
+    const logSeoGeneration = /* @__PURE__ */ __name((meta) => {
+      try {
+        console.log("seo_generation", JSON.stringify(meta));
+      } catch (_) {
+      }
+    }, "logSeoGeneration");
+    const generateSeoWithProvider = /* @__PURE__ */ __name(async (body) => {
+      const preparedImage = await loadSeoImage(body);
+      const requestedProvider = SEO_PROVIDER === "paid" ? "paid" : "cloudflare";
+      if (requestedProvider === "paid") {
+        const paid = await generatePaidSeo(body, preparedImage, "paid");
+        logSeoGeneration({ provider: paid.provider, requestedProvider, model: paid.model, qualityOk: paid.quality?.ok });
+        return paid;
+      }
+      const cloudflare = await generateCloudflareSeo(body, preparedImage).catch((error) => ({
+        success: false,
+        status: 422,
+        error: error?.message || "Cloudflare Workers AI failed",
+        qualityIssues: ["cloudflare_exception"],
+        provider: "cloudflare"
+      }));
+      if (cloudflare.success) {
+        logSeoGeneration({ provider: "cloudflare", requestedProvider, model: cloudflare.model, qualityOk: true });
+        return cloudflare;
+      }
+      if (PAID_SEO_API_KEY) {
+        const paidFallback = await generatePaidSeo(
+          { ...body, visual_analysis: cloudflare.visualAnalysis || body.visual_analysis || "" },
+          preparedImage,
+          "fallback-paid",
+          [cloudflare.error, ...(cloudflare.qualityIssues || [])].filter(Boolean).join("; ")
+        );
+        paidFallback.fallbackFrom = "cloudflare";
+        paidFallback.cloudflareIssues = cloudflare.qualityIssues || [];
+        paidFallback.cloudflareError = cloudflare.error || "";
+        logSeoGeneration({
+          provider: paidFallback.provider,
+          requestedProvider,
+          model: paidFallback.model,
+          qualityOk: paidFallback.quality?.ok,
+          fallbackFrom: "cloudflare",
+          cloudflareIssues: cloudflare.qualityIssues || []
+        });
+        return paidFallback;
+      }
+      logSeoGeneration({ provider: "cloudflare", requestedProvider, qualityOk: false, issues: cloudflare.qualityIssues || [] });
+      return cloudflare;
+    }, "generateSeoWithProvider");
     if (url.pathname === "/api" || url.pathname === "/api/" || url.pathname === "/api/health") {
       return new Response(JSON.stringify({
         ok: true,
         service: "multipost-worker",
         version: WORKER_VERSION,
-        configured: { facebookAppSecret: Boolean(env.FB_CLIENT_SECRET) }
+        configured: {
+          facebookAppSecret: Boolean(env.FB_CLIENT_SECRET),
+          facebookLoginConfig: Boolean(env.FB_LOGIN_CONFIG_ID),
+          seoProvider: SEO_PROVIDER === "paid" ? "paid" : "cloudflare",
+          paidSeoProvider: Boolean(PAID_SEO_API_KEY)
+        }
       }), {
         status: 200,
         headers: jsonHeaders
       });
     }
-    if (url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
+    if ((url.pathname === "/api/generate-seo" || url.pathname === "/api/generate-premium-seo") && request.method === "POST") {
       try {
         const body = await request.json();
-        const result = await generateCloudflareSeo(body);
+        const result = await generateSeoWithProvider(body);
         return new Response(JSON.stringify(result), {
           status: result.success ? 200 : result.status || 422,
           headers: jsonHeaders
@@ -584,7 +775,7 @@ Generate trending, specific SEO \u2014 not generic content.` : `${brandContext}A
 Generate trending, specific SEO \u2014 not generic content.`;
               aiResponse = await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
                 messages: [{ role: "system", content: seoSystemPrompt }, { role: "user", content: userContent }],
-                images: [{ data: imageBase64, mimeType: imageMimeType }]
+                image: `data:${imageMimeType};base64,${imageBase64}`
               });
             } else {
               aiResponse = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
@@ -770,7 +961,9 @@ Generate trending, specific SEO \u2014 not generic content.` }
       if (!v) throw new Error(`Missing ${name} env var`);
       return v;
     }, "requireEnv");
-    const fbGraph = "https://graph.facebook.com/v18.0";
+    const FB_GRAPH_API_VERSION = "v25.0";
+    const fbGraph = `https://graph.facebook.com/${FB_GRAPH_API_VERSION}`;
+    const fbDialog = `https://www.facebook.com/${FB_GRAPH_API_VERSION}/dialog/oauth`;
     const fbSafe = /* @__PURE__ */ __name(async (res) => {
       const data = await safeJson(res);
       if (!res.ok) {
@@ -1745,21 +1938,25 @@ Follow for daily trending content! \u{1F44F}
         const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
         requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
         const loginState = randomState();
+        const fbLoginConfigId = env.FB_LOGIN_CONFIG_ID ? String(env.FB_LOGIN_CONFIG_ID).trim() : "";
         const params = new URLSearchParams({
           client_id: fbClientId,
           redirect_uri: fbRedirectUri,
-          // Account authentication only. Page permissions are requested later,
-          // when the user explicitly chooses Link Facebook in a workspace.
-          scope: "public_profile",
           response_type: "code",
           state: loginState,
-          auth_type: "rerequest",
-          return_scopes: "true"
+          auth_type: "rerequest"
         });
+        if (fbLoginConfigId) {
+          params.set("config_id", fbLoginConfigId);
+          params.set("override_default_response_type", "true");
+        } else {
+          params.set("scope", "pages_show_list");
+          params.set("return_scopes", "true");
+        }
         return new Response(null, {
           status: 302,
           headers: {
-            Location: `https://www.facebook.com/v18.0/dialog/oauth?${params.toString()}`,
+            Location: `${fbDialog}?${params.toString()}`,
             "Set-Cookie": authCookie("mp_facebook_login_state", loginState, 600)
           }
         });
@@ -1817,7 +2014,7 @@ Follow for daily trending content! \u{1F44F}
         const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
         requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
         const state = encodeState({ folderId, platform: "facebook", userId });
-        const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${encodeURIComponent(
+        const fbAuthUrl = `${fbDialog}?client_id=${encodeURIComponent(
           fbClientId
         )}&redirect_uri=${encodeURIComponent(
           fbRedirectUri
@@ -3837,7 +4034,7 @@ Generate trending, specific SEO \u2014 not generic content.`;
                   { role: "system", content: seoSystemPrompt },
                   { role: "user", content: userContent }
                 ],
-                images: [{ data: imageBase64, mimeType }]
+                image: `data:${mimeType};base64,${imageBase64}`
               });
             } else {
               aiResponse = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
