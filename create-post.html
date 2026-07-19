@@ -547,6 +547,15 @@
 
         <div class="controls">
           <button class="btn" onclick="publishTikTok()">🎵 Publish to TikTok</button>
+          <a
+            id="tiktokPublishLink"
+            class="btn secondary"
+            href="#"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-disabled="true"
+            style="pointer-events: none; opacity: 0.65;"
+          >View on TikTok</a>
           <button
             class="btn secondary"
             onclick="copyGeneric('ttAllInOne', 'TikTok', 'https://www.tiktok.com/upload')"
@@ -756,6 +765,54 @@
     }
     panel.classList.add("visible");
     panel.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function setTikTokViewButton({ url = "", label = "View on TikTok", disabled = true } = {}) {
+    const link = document.getElementById("tiktokPublishLink");
+    if (!link) return;
+    link.textContent = label;
+    if (disabled || !url) {
+      link.removeAttribute("href");
+      link.setAttribute("aria-disabled", "true");
+      link.style.pointerEvents = "none";
+      link.style.opacity = "0.65";
+      return;
+    }
+    link.href = url;
+    link.removeAttribute("aria-disabled");
+    link.style.pointerEvents = "";
+    link.style.opacity = "";
+  }
+
+  async function waitForTikTokVideo(publishId, sessionId) {
+    if (!publishId) return;
+    setTikTokViewButton({ label: "TikTok is processing…", disabled: true });
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000));
+      try {
+        const params = new URLSearchParams({ publishId });
+        if (sessionId) params.set("sessionId", sessionId);
+        const response = await fetch(`${uploadApiBase}/tiktok/publish-status?${params.toString()}`, {
+          headers: {
+            folder_id: activeFolderId,
+            user_id: userScope,
+            client_platform: getClientPlatform()
+          }
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && data.success && data.ready && data.tiktokUrl) {
+          setTikTokViewButton({ url: data.tiktokUrl, label: "View on TikTok", disabled: false });
+          setStatus(`Video is live on "${activeTikTokName}"`, "success");
+          return;
+        }
+        if (response.ok && data.success) {
+          setStatus(`TikTok is processing "${activeTikTokName}"…`, "working");
+        }
+      } catch (error) {
+        console.warn("TikTok publish status check failed:", error);
+      }
+    }
+    setTikTokViewButton({ label: "TikTok still processing…", disabled: true });
   }
 
   async function waitForFacebookVideo(videoId, pageUrl) {
@@ -1325,6 +1382,7 @@
     try {
       btn.disabled = true;
       btn.textContent = "Uploading video...";
+      setTikTokViewButton({ label: "Uploading to TikTok…", disabled: true });
       setStatus(`Uploading to "${activeTikTokName}"…`, "working");
 
       // Step 1: initialise upload session
@@ -1348,7 +1406,7 @@
         throw new Error(initData.error || "TikTok init-upload failed");
       }
 
-      const { sessionId, chunkSize, totalChunks, warning } = initData;
+      const { sessionId, publishId, chunkSize, totalChunks, warning } = initData;
 
       // Step 2: upload chunks
       for (let i = 0; i < totalChunks; i++) {
@@ -1380,14 +1438,17 @@
 
       setStatus(`Published to "${activeTikTokName}"`, "success");
       btn.textContent = "✅ Uploaded";
+      setTikTokViewButton({ label: "TikTok is processing…", disabled: true });
 
       if (warning) {
         alert(`⚠️ Note: ${warning}`);
       }
+      await waitForTikTokVideo(publishId, sessionId);
     } catch (err) {
       console.error(err);
       btn.disabled = false;
       btn.textContent = "🎵 Publish to TikTok";
+      setTikTokViewButton({ label: "View on TikTok", disabled: true });
       const msg = err?.message || "TikTok upload failed";
       setStatus(msg, "error");
       alert(`Upload failed:\n${msg}`);

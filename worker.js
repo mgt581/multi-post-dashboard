@@ -2490,11 +2490,117 @@ Follow for daily trending content! \u{1F44F}
           if (!uploadRes.ok) {
             throw new Error(`TikTok chunk upload failed: ${uploadRes.status} ${uploadResText}`);
           }
-          return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
+          const complete = chunkEnd + 1 >= Number(session.file_size);
+          return new Response(JSON.stringify({
+            success: true,
+            complete,
+            publishId: String(session.video_id || "")
+          }), { headers: jsonHeaders });
         } catch (err) {
           console.error("TikTok upload-chunk error:", err);
           return new Response(JSON.stringify({ success: false, error: err.message || "Chunk upload failed" }), {
             status: 500,
+            headers: jsonHeaders
+          });
+        }
+      }
+      if (url.pathname === "/api/tiktok/publish-status" && request.method === "GET") {
+        const folder_id = request.headers.get("folder_id") || "";
+        const user_id = request.headers.get("user_id") || "";
+        const publishId = String(url.searchParams.get("publishId") || "").trim();
+        const sessionId = String(url.searchParams.get("sessionId") || "").trim();
+        if (!folder_id || !user_id || !publishId) {
+          return new Response(JSON.stringify({ success: false, error: "Missing folder_id, user_id, or publishId" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        let session = null;
+        if (sessionId) {
+          session = await env.DB.prepare(
+            "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'tiktok' LIMIT 1"
+          ).bind(sessionId).first();
+        }
+        if (!session) {
+          session = await env.DB.prepare(
+            "SELECT * FROM upload_sessions WHERE video_id = ? AND platform = 'tiktok' ORDER BY expires_at DESC LIMIT 1"
+          ).bind(publishId).first();
+        }
+        if (!session?.access_token || String(session.video_id || "") !== publishId) {
+          return new Response(JSON.stringify({ success: false, error: "TikTok publish session not found" }), {
+            status: 404,
+            headers: jsonHeaders
+          });
+        }
+        try {
+          const statusRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/status/fetch/`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+              "Content-Type": "application/json; charset=UTF-8"
+            },
+            body: JSON.stringify({ publish_id: publishId })
+          });
+          const statusJson = await safeJson(statusRes);
+          if (!statusRes.ok || (statusJson?.error?.code && statusJson.error.code !== "ok")) {
+            throw new Error(`TikTok status failed: ${JSON.stringify(statusJson?.error || statusJson)}`);
+          }
+          const data = statusJson?.data || statusJson || {};
+          const status = String(data.status || data.publish_status || "").toUpperCase();
+          const ready = ["PUBLISH_COMPLETE", "SEND_TO_USER_INBOX"].includes(status);
+          const postId = String(
+            data.publicaly_available_post_id ||
+            data.publicly_available_post_id ||
+            data.post_id ||
+            data.video_id ||
+            ""
+          ).trim();
+          let tiktokUrl = String(
+            data.share_url ||
+            data.public_share_url ||
+            data.video_url ||
+            data.post_url ||
+            data.url ||
+            ""
+          ).trim();
+          let creatorUsername = "";
+          if (ready && !tiktokUrl && postId) {
+            try {
+              const creatorRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/creator_info/query/`, {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${session.access_token}`,
+                  "Content-Type": "application/json; charset=UTF-8"
+                },
+                body: JSON.stringify({})
+              });
+              const creatorJson = await safeJson(creatorRes);
+              const creator = creatorJson?.data || creatorJson || {};
+              creatorUsername = String(creator.creator_username || creator.username || "").trim().replace(/^@+/, "");
+              if (creatorRes.ok && creatorUsername) {
+                tiktokUrl = `https://www.tiktok.com/@${encodeURIComponent(creatorUsername)}/video/${encodeURIComponent(postId)}`;
+              }
+            } catch (creatorErr) {
+              console.warn("TikTok creator info lookup failed:", creatorErr?.message || creatorErr);
+            }
+          }
+          if (ready && tiktokUrl) {
+            await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(session.id).run();
+          }
+          return new Response(JSON.stringify({
+            success: true,
+            ready,
+            publishId,
+            status,
+            postId,
+            creatorUsername,
+            tiktokUrl,
+            data
+          }), { headers: jsonHeaders });
+        } catch (err) {
+          console.error("TikTok publish-status error:", err);
+          return new Response(JSON.stringify({ success: false, error: err.message || "Status check failed" }), {
+            status: 502,
             headers: jsonHeaders
           });
         }
