@@ -12,9 +12,7 @@ permissions are essential parts of this single end-to-end workflow:
    name and profile picture.
 2. `pages_show_list` retrieves the Pages that person is authorised to manage so
    Multi Post can display the Page picker.
-3. `pages_read_engagement` lets Multi Post read the selected Page's basic Page
-   identity and confirm the destination shown in the workspace.
-4. `pages_manage_posts` publishes content only after the user selects a Page,
+3. `pages_manage_posts` publishes content only after the user selects a Page,
    chooses the media, enters the post details, and presses the publish button.
 
 This is not a one-Page utility or an internal tool. Users can create multiple
@@ -26,7 +24,6 @@ the selected Page, and manage publishing destinations from one dashboard.
 Request Advanced Access only for the Page permissions the product uses:
 
 - `pages_show_list`
-- `pages_read_engagement`
 - `pages_manage_posts`
 
 Use the standard `public_profile` permission for Facebook Login. It is documented
@@ -56,16 +53,6 @@ Page's name and picture. The user explicitly chooses one Page as the publishing
 destination for that workspace and can later use **Change Page** to select a
 different managed Page. This permission is fundamental because the app is
 designed for users who organise and publish across multiple Facebook Pages.
-
-### pages_read_engagement
-
-Multi Post uses `pages_read_engagement` with the Page-linking flow to read the
-selected Page's basic identity and Page access information needed by the Graph
-API. The app displays the Page name and picture in the workspace and on the
-create-post screen so the user can confirm the destination before publishing.
-This prevents content intended for one brand from being published to another
-Page. Multi Post does not use this permission for profiling, advertising, or
-unrelated data collection.
 
 ### pages_manage_posts
 
@@ -110,8 +97,7 @@ window or revoke the app first so the Facebook consent screen appears.
 5. Continue and return to Multi Post.
 6. Show the Page picker populated with multiple managed Pages
    (`pages_show_list`).
-7. Select the review Page and show its name/picture in the workspace
-   (`pages_read_engagement`).
+7. Select the review Page and show its name/picture in the workspace.
 8. Use **Change Page** and briefly reopen the Page picker to demonstrate that the
    app genuinely manages multiple Pages, then keep the review Page selected.
 9. Open **Create Post** and show that same Page as the destination.
@@ -132,6 +118,6 @@ tabs, personal notifications, or any secret values.
 - The app domain includes `multipostapp.co.uk`.
 - The reviewer Facebook account can manage the supplied test Page.
 - The test Page is visible in the Page picker and accepts a real test post.
-- Facebook Login requests only `public_profile`; Page scopes are requested only
-  from **Link Facebook** inside a workspace.
+- Facebook Login requests `public_profile`, `pages_show_list`, and
+  `pages_manage_posts`; no `pages_read_engagement` permission is requested.
 - Each requested permission is demonstrated visibly in the recording.
