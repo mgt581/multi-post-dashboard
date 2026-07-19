@@ -3,9 +3,10 @@
 ## App review overview
 
 Multi Post is a multi-brand social publishing dashboard for users who manage
-multiple Facebook Pages. Its core function is to organise Pages into separate
-brand workspaces, let the user choose the correct Page for each workspace, and
-publish user-created image and video posts to that Page. The requested Facebook
+multiple Facebook Pages. The reviewed Facebook flow starts with **Log in with
+Facebook**, then lets the signed-in user organise Pages into separate brand
+workspaces, choose the correct Page for each workspace, and publish
+user-created image and video posts to that Page. The requested Facebook
 permissions are essential parts of this single end-to-end workflow:
 
 1. `public_profile` identifies the person connecting Facebook and displays their
@@ -26,18 +27,41 @@ Request Advanced Access only for the Page permissions the product uses:
 - `pages_show_list`
 - `pages_manage_posts`
 
-Use the standard `public_profile` permission for Facebook Login. It is documented
-below so the sign-in use case is clear, but it should not be presented as an
-unrelated Page-management permission request.
+Use the standard `public_profile` permission for Facebook Login. Sign-in is part
+of the review flow and must be shown first, before requesting Page publishing
+permissions from inside a workspace. The Page-linking dialog may also include
+`public_profile` as the baseline supported Facebook Login permission alongside
+the Page permissions, but the app uses profile data only to identify the person
+connecting Facebook.
 
 Do not request `email` unless the product begins reading and using the Facebook
 account email address.
+
+Do not submit unrelated Meta features or permissions for this review. Multi Post
+does not use Business Manager APIs, Live Video, branded content ads, creator
+marketplace discovery, Page comment moderation, Page metadata/webhooks,
+user-generated Page content, or Insights in the current Facebook publishing
+flow. Leave these unrequested or remove them from the review bundle if they are
+listed in the dashboard:
+
+- Business Asset User Profile Access
+- Live Video API
+- `business_management`
+- `email`
+- `facebook_branded_content_ads_brand`
+- `facebook_creator_marketplace_discovery`
+- `pages_manage_engagement`
+- `pages_manage_metadata`
+- `pages_read_engagement`
+- `pages_read_user_content`
+- `read_insights`
 
 ## Copy-ready permission explanations
 
 ### public_profile
 
-Multi Post uses `public_profile` when a user chooses **Continue with Facebook**.
+Multi Post uses `public_profile` when a user chooses **Log in with Facebook** on
+the sign-in page.
 After consent, the app reads the user's Facebook ID, name, and profile picture
 from `/me?fields=id,name,picture`. The server uses the stable Facebook ID to mint
 a Firebase custom token. The name and profile picture identify which Facebook
@@ -68,11 +92,14 @@ workspace is the app's primary function.
 ## Reviewer access instructions
 
 1. Visit `https://multipostapp.co.uk/signin.html`.
-2. Sign in using the supplied reviewer account.
+2. Select **Log in with Facebook** and complete Facebook Login with the supplied
+   Facebook reviewer/test user. This demonstrates the `public_profile` sign-in
+   use case and returns the reviewer to Multi Post.
 3. Open an existing workspace or create a workspace.
 4. Select **Link** beside Facebook.
-5. Complete Facebook consent using the supplied Facebook test user. The test
-   user must have sufficient task access to the supplied test Page.
+5. Complete the Page permission consent for the same supplied Facebook test
+   user. The test user must have sufficient task access to the supplied test
+   Page.
 6. Select the test Page in Multi Post's Page picker.
 7. Open **Create Post** and confirm the selected Page is shown as the Facebook
    destination.
@@ -89,21 +116,24 @@ repository.
 Record at 1080p with the entire browser window visible. Use a fresh private
 window or revoke the app first so the Facebook consent screen appears.
 
-1. Show `multipostapp.co.uk` in the address bar and sign in.
-2. Briefly show the Active Brands screen with multiple brand workspaces. Explain
+1. Show `multipostapp.co.uk/signin.html` in the address bar and click **Log in
+   with Facebook**.
+2. Show the Facebook Login consent screen for `public_profile`, then return to
+   Multi Post signed in.
+3. Briefly show the Active Brands screen with multiple brand workspaces. Explain
    that each workspace can have its own Facebook Page.
-3. Open one workspace and click **Link** beside Facebook.
-4. Show the Facebook consent screen and the requested Page permissions.
-5. Continue and return to Multi Post.
-6. Show the Page picker populated with multiple managed Pages
+4. Open one workspace and click **Link** beside Facebook.
+5. Show the Facebook consent screen and the requested Page permissions.
+6. Continue and return to Multi Post.
+7. Show the Page picker populated with multiple managed Pages
    (`pages_show_list`).
-7. Select the review Page and show its name/picture in the workspace.
-8. Use **Change Page** and briefly reopen the Page picker to demonstrate that the
+8. Select the review Page and show its name/picture in the workspace.
+9. Use **Change Page** and briefly reopen the Page picker to demonstrate that the
    app genuinely manages multiple Pages, then keep the review Page selected.
-9. Open **Create Post** and show that same Page as the destination.
-10. Select a short, review-safe MP4 or image and enter the title and description.
-11. Click **Publish to Facebook** (`pages_manage_posts`).
-12. Wait for the success state, open the resulting Facebook URL, and show the
+10. Open **Create Post** and show that same Page as the destination.
+11. Select a short, review-safe MP4 or image and enter the title and description.
+12. Click **Publish to Facebook** (`pages_manage_posts`).
+13. Wait for the success state, open the resulting Facebook URL, and show the
     post on the selected Page.
 
 Keep the recording concise and avoid developer tools, source code, unrelated
@@ -113,6 +143,9 @@ tabs, personal notifications, or any secret values.
 
 - App icon, app name, domain, privacy policy, terms, and data-deletion
   instructions all use the same Multi Post identity.
+- The Meta app has a Facebook Login/authentication use case configured with
+   `public_profile` available, so the app is not submitted with only Page
+   permissions.
 - `https://multipostapp.co.uk/api/auth/callback/facebook` is registered as an
   exact valid OAuth redirect URI.
 - The app domain includes `multipostapp.co.uk`.

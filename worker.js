@@ -1488,12 +1488,13 @@ Follow for daily trending content! \u{1F44F}
         const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
         requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
         const state = encodeState({ folderId, platform: "facebook", userId });
+        const facebookPageLinkScope = "public_profile,pages_show_list,pages_manage_posts";
         const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${encodeURIComponent(
           fbClientId
         )}&redirect_uri=${encodeURIComponent(
           fbRedirectUri
         )}&scope=${encodeURIComponent(
-          "public_profile,pages_show_list,pages_manage_posts"
+          facebookPageLinkScope
         )}&response_type=code&state=${encodeURIComponent(state)}`;
         return Response.redirect(fbAuthUrl);
       }
