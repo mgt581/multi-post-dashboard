@@ -1413,27 +1413,7 @@ Follow for daily trending content! \u{1F44F}
         });
       }
       if (url.pathname === "/api/auth/login/facebook") {
-        const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
-        requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
-        const loginState = randomState();
-        const params = new URLSearchParams({
-          client_id: fbClientId,
-          redirect_uri: fbRedirectUri,
-          // Account authentication only. Page permissions are requested later,
-          // when the user explicitly chooses Link Facebook in a workspace.
-          scope: "public_profile",
-          response_type: "code",
-          state: loginState,
-          auth_type: "rerequest",
-          return_scopes: "true"
-        });
-        return new Response(null, {
-          status: 302,
-          headers: {
-            Location: `https://www.facebook.com/v18.0/dialog/oauth?${params.toString()}`,
-            "Set-Cookie": authCookie("mp_facebook_login_state", loginState, 600)
-          }
-        });
+        return Response.redirect(`${frontendBaseUrl}/signin.html?auth_error=${encodeURIComponent("Facebook sign-in has been removed. Sign in with email, Google, or TikTok, then link Facebook from a workspace.")}`);
       }
       if (url.pathname === "/api/auth/tiktok/firebase-token" && request.method === "POST") {
         const cookies = parseCookies(request.headers.get("Cookie"));
@@ -1449,16 +1429,9 @@ Follow for daily trending content! \u{1F44F}
         });
       }
       if (url.pathname === "/api/auth/facebook/firebase-token" && request.method === "POST") {
-        const cookies = parseCookies(request.headers.get("Cookie"));
-        const customToken = cookies.mp_firebase_custom_token || "";
-        if (!customToken) {
-          return new Response(JSON.stringify({ success: false, error: "Missing Facebook sign-in session. Please try again." }), {
-            status: 401,
-            headers: { ...jsonHeaders, "Set-Cookie": clearAuthCookie("mp_firebase_custom_token") }
-          });
-        }
-        return new Response(JSON.stringify({ success: true, custom_token: customToken }), {
-          headers: { ...jsonHeaders, "Set-Cookie": clearAuthCookie("mp_firebase_custom_token") }
+        return new Response(JSON.stringify({ success: false, error: "Facebook sign-in has been removed. Link Facebook from a workspace instead." }), {
+          status: 410,
+          headers: jsonHeaders
         });
       }
       if (url.pathname === "/api/auth/tiktok") {

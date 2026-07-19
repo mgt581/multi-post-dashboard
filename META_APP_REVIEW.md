@@ -3,14 +3,14 @@
 ## App review overview
 
 Multi Post is a multi-brand social publishing dashboard for users who manage
-multiple Facebook Pages. The reviewed Facebook flow starts with **Log in with
-Facebook**, then lets the signed-in user organise Pages into separate brand
-workspaces, choose the correct Page for each workspace, and publish
-user-created image and video posts to that Page. The requested Facebook
-permissions are essential parts of this single end-to-end workflow:
+multiple Facebook Pages. Reviewers sign in to Multi Post with email, Google, or
+TikTok first. The reviewed Facebook flow begins inside a signed-in workspace,
+where the user links Facebook, chooses the correct Page for that workspace, and
+publishes user-created image and video posts to that Page. The requested
+Facebook permissions are essential parts of this single end-to-end workflow:
 
-1. `public_profile` identifies the person connecting Facebook and displays their
-   name and profile picture.
+1. `public_profile` identifies the Facebook person linking Pages and displays
+   their name and profile picture.
 2. `pages_show_list` retrieves the Pages that person is authorised to manage so
    Multi Post can display the Page picker.
 3. `pages_manage_posts` publishes content only after the user selects a Page,
@@ -27,12 +27,10 @@ Request Advanced Access only for the Page permissions the product uses:
 - `pages_show_list`
 - `pages_manage_posts`
 
-Use the standard `public_profile` permission for Facebook Login. Sign-in is part
-of the review flow and must be shown first, before requesting Page publishing
-permissions from inside a workspace. The Page-linking dialog may also include
-`public_profile` as the baseline supported Facebook Login permission alongside
-the Page permissions, but the app uses profile data only to identify the person
-connecting Facebook.
+Use the standard `public_profile` permission only as the baseline Facebook Login
+permission in the **Link Facebook** workspace flow. Multi Post no longer offers
+Facebook as an app account sign-in method. The reviewer signs in to Multi Post
+first, then links Facebook from a workspace to connect a Page.
 
 Do not request `email` unless the product begins reading and using the Facebook
 account email address.
@@ -60,13 +58,12 @@ listed in the dashboard:
 
 ### public_profile
 
-Multi Post uses `public_profile` when a user chooses **Log in with Facebook** on
-the sign-in page.
-After consent, the app reads the user's Facebook ID, name, and profile picture
-from `/me?fields=id,name,picture`. The server uses the stable Facebook ID to mint
-a Firebase custom token. The name and profile picture identify which Facebook
-user connected the account and make the account recognisable in Multi Post's
-multi-workspace interface. Multi Post does not publish content during sign-in.
+Multi Post uses `public_profile` when a signed-in user chooses **Link Facebook**
+inside a workspace. After consent, the app reads the user's Facebook ID, name,
+and profile picture from `/me?fields=id,name,picture`. The name and profile
+picture identify which Facebook user connected the Pages and make the account
+recognisable in Multi Post's multi-workspace interface. Multi Post does not use
+Facebook as an app account sign-in method.
 
 ### pages_show_list
 
@@ -92,14 +89,13 @@ workspace is the app's primary function.
 ## Reviewer access instructions
 
 1. Visit `https://multipostapp.co.uk/signin.html`.
-2. Select **Log in with Facebook** and complete Facebook Login with the supplied
-   Facebook reviewer/test user. This demonstrates the `public_profile` sign-in
-   use case and returns the reviewer to Multi Post.
+2. Sign in to Multi Post with the supplied email/password reviewer account or
+   Google reviewer account.
 3. Open an existing workspace or create a workspace.
 4. Select **Link** beside Facebook.
-5. Complete the Page permission consent for the same supplied Facebook test
-   user. The test user must have sufficient task access to the supplied test
-   Page.
+5. Complete Facebook consent with the supplied Facebook test user. This
+   demonstrates `public_profile`, `pages_show_list`, and `pages_manage_posts`.
+   The test user must have sufficient task access to the supplied test Page.
 6. Select the test Page in Multi Post's Page picker.
 7. Open **Create Post** and confirm the selected Page is shown as the Facebook
    destination.
@@ -116,10 +112,9 @@ repository.
 Record at 1080p with the entire browser window visible. Use a fresh private
 window or revoke the app first so the Facebook consent screen appears.
 
-1. Show `multipostapp.co.uk/signin.html` in the address bar and click **Log in
-   with Facebook**.
-2. Show the Facebook Login consent screen for `public_profile`, then return to
-   Multi Post signed in.
+1. Show `multipostapp.co.uk/signin.html` in the address bar and sign in to Multi
+   Post with the supplied reviewer account.
+2. Show that the reviewer is signed in and lands on the Active Brands screen.
 3. Briefly show the Active Brands screen with multiple brand workspaces. Explain
    that each workspace can have its own Facebook Page.
 4. Open one workspace and click **Link** beside Facebook.
@@ -144,13 +139,14 @@ tabs, personal notifications, or any secret values.
 - App icon, app name, domain, privacy policy, terms, and data-deletion
   instructions all use the same Multi Post identity.
 - The Meta app has a Facebook Login/authentication use case configured with
-   `public_profile` available, so the app is not submitted with only Page
-   permissions.
+   `public_profile` available for the workspace **Link Facebook** flow, so the
+   app is not submitted with only Page permissions.
 - `https://multipostapp.co.uk/api/auth/callback/facebook` is registered as an
   exact valid OAuth redirect URI.
 - The app domain includes `multipostapp.co.uk`.
 - The reviewer Facebook account can manage the supplied test Page.
 - The test Page is visible in the Page picker and accepts a real test post.
-- Facebook Login requests `public_profile`, `pages_show_list`, and
-  `pages_manage_posts`; no `pages_read_engagement` permission is requested.
+- The app sign-in screen does not offer Facebook sign-in. The workspace **Link
+   Facebook** flow requests `public_profile`, `pages_show_list`, and
+   `pages_manage_posts`; no `pages_read_engagement` permission is requested.
 - Each requested permission is demonstrated visibly in the recording.

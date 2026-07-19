@@ -138,7 +138,6 @@
             box-shadow: none;
         }
 
-        .btn-facebook { background: #1877f2; border-color: #1877f2; }
         .btn-tiktok { background: #0f172a; border-color: rgba(255, 255, 255, 0.16); }
 
         .btn:disabled {
@@ -221,11 +220,6 @@
                 Continue with Google
             </button>
 
-            <button class="btn btn-social btn-facebook" onclick="handleFacebookSignIn()">
-                <i class="fa-brands fa-facebook-f" aria-hidden="true"></i>
-                Log in with Facebook
-            </button>
-
             <button class="btn btn-social btn-tiktok" onclick="handleTikTokSignIn()">
                 <i class="fa-brands fa-tiktok" aria-hidden="true"></i>
                 Log in with TikTok
@@ -285,7 +279,6 @@
         const initialParams = new URLSearchParams(window.location.search);
         const hasProviderCallback =
             initialParams.get("tiktok_login") === "complete" ||
-            initialParams.get("facebook_login") === "complete" ||
             initialParams.has("auth_error");
         let suppressExistingSessionRedirect = hasProviderCallback;
 
@@ -359,19 +352,11 @@
         };
 
         const completePendingProviderSignIn = async () => {
-            return (
-                await completeCustomTokenSignIn({
-                    providerName: "TikTok",
-                    queryKey: "tiktok_login",
-                    endpoint: "/auth/tiktok/firebase-token"
-                })
-            ) || (
-                await completeCustomTokenSignIn({
-                    providerName: "Facebook",
-                    queryKey: "facebook_login",
-                    endpoint: "/auth/facebook/firebase-token"
-                })
-            );
+            return await completeCustomTokenSignIn({
+                providerName: "TikTok",
+                queryKey: "tiktok_login",
+                endpoint: "/auth/tiktok/firebase-token"
+            });
         };
 
         getRedirectResult(auth).then((result) => {
@@ -443,21 +428,6 @@
                 console.error("Google Auth Error:", err);
                 alert(err?.message || "Google sign-in failed");
                 if (googleButton) googleButton.disabled = false;
-            }
-        };
-
-        window.handleFacebookSignIn = async () => {
-            const facebookButton = document.querySelector(".btn-facebook");
-            if (facebookButton) facebookButton.disabled = true;
-
-            try {
-                await setPersistence(auth, browserLocalPersistence);
-                await signOut(auth).catch(() => {});
-                window.location.assign(`${apiBase}/auth/login/facebook`);
-            } catch (err) {
-                console.error("Facebook Auth Error:", err);
-                alert(err?.message || "Facebook sign-in failed");
-                if (facebookButton) facebookButton.disabled = false;
             }
         };
 
