@@ -1130,7 +1130,14 @@
       const tiktok = d.tiktok || {};
       const facebook = d.facebook || {};
 
-      const hasContent = youtube.title || youtube.description || tiktok.allInOne || facebook.title;
+      const hasContent =
+        youtube.title ||
+        youtube.description ||
+        youtube.keywords ||
+        tiktok.allInOne ||
+        facebook.title ||
+        facebook.descriptionAndTags ||
+        facebook.description;
       if (!hasContent) {
         throw new Error("AI returned no content. Please try again.");
       }
