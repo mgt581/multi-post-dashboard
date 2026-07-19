@@ -1412,9 +1412,6 @@ Follow for daily trending content! \u{1F44F}
           }
         });
       }
-      if (url.pathname === "/api/auth/login/facebook") {
-        return Response.redirect(`${frontendBaseUrl}/signin.html?auth_error=${encodeURIComponent("Facebook sign-in has been removed. Sign in with email, Google, or TikTok, then link Facebook from a workspace.")}`);
-      }
       if (url.pathname === "/api/auth/tiktok/firebase-token" && request.method === "POST") {
         const cookies = parseCookies(request.headers.get("Cookie"));
         const customToken = cookies.mp_firebase_custom_token || "";
@@ -1426,12 +1423,6 @@ Follow for daily trending content! \u{1F44F}
         }
         return new Response(JSON.stringify({ success: true, custom_token: customToken }), {
           headers: { ...jsonHeaders, "Set-Cookie": clearAuthCookie("mp_firebase_custom_token") }
-        });
-      }
-      if (url.pathname === "/api/auth/facebook/firebase-token" && request.method === "POST") {
-        return new Response(JSON.stringify({ success: false, error: "Facebook sign-in has been removed. Link Facebook from a workspace instead." }), {
-          status: 410,
-          headers: jsonHeaders
         });
       }
       if (url.pathname === "/api/auth/tiktok") {
@@ -1692,68 +1683,6 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/auth/callback/facebook") {
         const code = url.searchParams.get("code");
         const rawState = url.searchParams.get("state") || "";
-        const cookies = parseCookies(request.headers.get("Cookie"));
-        if (cookies.mp_facebook_login_state) {
-          const expectedState = cookies.mp_facebook_login_state || "";
-          const returnedState = rawState;
-          const error = url.searchParams.get("error") || "";
-          const redirectWithError = (message) => new Response(null, {
-            status: 302,
-            headers: {
-              Location: `${frontendBaseUrl}/signin.html?auth_error=${encodeURIComponent(message)}`,
-              "Set-Cookie": clearAuthCookie("mp_facebook_login_state")
-            }
-          });
-          if (error) {
-            return redirectWithError(url.searchParams.get("error_description") || error);
-          }
-          if (!expectedState || !returnedState || expectedState !== returnedState) {
-            return redirectWithError("Facebook sign-in state validation failed. Please try again.");
-          }
-          if (!code) {
-            return redirectWithError("Facebook did not return an authorization code.");
-          }
-          try {
-            const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
-            const fbClientSecret = requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
-            const tokenParams = new URLSearchParams({
-              client_id: fbClientId,
-              redirect_uri: fbRedirectUri,
-              client_secret: fbClientSecret,
-              code
-            });
-            const tokens = await fbSafe(await fetch(`${fbGraph}/oauth/access_token?${tokenParams.toString()}`));
-            const accessToken = tokens?.access_token ? String(tokens.access_token) : "";
-            if (!accessToken) {
-              throw new Error("Facebook token exchange did not return an access token.");
-            }
-            const meProof = await appsecretProof(accessToken);
-            const me = await fetchFbJson(
-              `${fbGraph}/me?fields=id,name,picture&access_token=${encodeURIComponent(accessToken)}${meProof ? `&appsecret_proof=${encodeURIComponent(meProof)}` : ""}`
-            );
-            const fbUserId = String(me?.id || "");
-            if (!fbUserId) {
-              throw new Error("Facebook profile did not include a stable user id.");
-            }
-            const displayName = String(me?.name || "Facebook User");
-            const picture = me?.picture?.data?.url ? String(me.picture.data.url) : `https://graph.facebook.com/${encodeURIComponent(fbUserId)}/picture?type=square`;
-            const customToken = await createFirebaseCustomToken({
-              uid: `facebook:${fbUserId}`,
-              claims: {
-                provider: "facebook",
-                facebook_user_id: fbUserId,
-                name: displayName,
-                picture
-              }
-            });
-            const successHeaders = new Headers({ Location: `${frontendBaseUrl}/signin.html?facebook_login=complete` });
-            successHeaders.append("Set-Cookie", clearAuthCookie("mp_facebook_login_state"));
-            successHeaders.append("Set-Cookie", authCookie("mp_firebase_custom_token", customToken, 120));
-            return new Response(null, { status: 302, headers: successHeaders });
-          } catch (err) {
-            return redirectWithError(err?.message || "Facebook sign-in failed");
-          }
-        }
         const stateObj = decodeState(rawState);
         const folderId = stateObj.folderId;
         const userId = requireUser(stateObj.userId);
