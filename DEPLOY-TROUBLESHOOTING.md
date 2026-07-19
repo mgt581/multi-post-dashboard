@@ -141,6 +141,19 @@ TikTok upload fails with:
 4. After changing these vars, reconnect TikTok in-app (OAuth again) so a token is minted for that same environment.
 5. Retry publish.
 
+### Important if you use separate TikTok apps
+If your TikTok sign-in app is different from your TikTok publishing app, configure separate Worker vars:
+
+- Sign-in flow:
+   - `TIKTOK_SIGNIN_CLIENT_KEY`
+   - `TIKTOK_SIGNIN_CLIENT_SECRET`
+- Connect/publish flow:
+   - `TIKTOK_PUBLISH_CLIENT_KEY`
+   - `TIKTOK_PUBLISH_CLIENT_SECRET`
+
+If these are not set, the worker falls back to `TIKTOK_CLIENT_KEY` and `TIKTOK_CLIENT_SECRET`.
+After changing client vars, re-link TikTok from inside the app so publish tokens are minted with the publish app credentials.
+
 If you switch environment but keep an old token, TikTok will return `access_token_invalid`.
 
 ---

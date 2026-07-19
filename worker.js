@@ -371,6 +371,50 @@ Generate trending, specific SEO \u2014 not generic content.` }
       if (!v) throw new Error(`Missing ${name} env var`);
       return v;
     }, "requireEnv");
+    const getTikTokSigninClientKey = /* @__PURE__ */ __name(
+      () => requireEnv(env.TIKTOK_SIGNIN_CLIENT_KEY || env.TIKTOK_CLIENT_KEY, "TIKTOK_SIGNIN_CLIENT_KEY (or TIKTOK_CLIENT_KEY)"),
+      "getTikTokSigninClientKey"
+    );
+    const getTikTokSigninClientSecret = /* @__PURE__ */ __name(
+      () => requireEnv(env.TIKTOK_SIGNIN_CLIENT_SECRET || env.TIKTOK_CLIENT_SECRET, "TIKTOK_SIGNIN_CLIENT_SECRET (or TIKTOK_CLIENT_SECRET)"),
+      "getTikTokSigninClientSecret"
+    );
+    const getTikTokPublishClientKey = /* @__PURE__ */ __name(
+      () => requireEnv(env.TIKTOK_PUBLISH_CLIENT_KEY || env.TIKTOK_CLIENT_KEY, "TIKTOK_PUBLISH_CLIENT_KEY (or TIKTOK_CLIENT_KEY)"),
+      "getTikTokPublishClientKey"
+    );
+    const getTikTokPublishClientSecret = /* @__PURE__ */ __name(
+      () => requireEnv(env.TIKTOK_PUBLISH_CLIENT_SECRET || env.TIKTOK_CLIENT_SECRET, "TIKTOK_PUBLISH_CLIENT_SECRET (or TIKTOK_CLIENT_SECRET)"),
+      "getTikTokPublishClientSecret"
+    );
+    const refreshTikTokAccessToken = /* @__PURE__ */ __name(async (refreshToken) => {
+      const safeRefreshToken = String(refreshToken || "").trim();
+      if (!safeRefreshToken) {
+        throw new Error("Missing TikTok refresh token");
+      }
+      const tokenRes = await fetch(`${tiktokApiBaseUrl}/v2/oauth/token/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_key: getTikTokPublishClientKey(),
+          client_secret: getTikTokPublishClientSecret(),
+          grant_type: "refresh_token",
+          refresh_token: safeRefreshToken
+        })
+      });
+      const tokenJson = await safeJson(tokenRes);
+      const tData = tokenJson?.data || tokenJson || {};
+      if (!tokenRes.ok || tokenJson?.error || tData?.error || !tData?.access_token) {
+        throw new Error(tokenJson?.error_description || tData?.error_description || tData?.message || tData?.error || "TikTok token refresh failed");
+      }
+      return {
+        accessToken: String(tData.access_token),
+        refreshToken: String(tData.refresh_token || safeRefreshToken),
+        expiresAt: nowMs() + Number(tData.expires_in || DEFAULT_TOKEN_EXPIRY_SECONDS) * 1e3,
+        accountId: String(tData.open_id || tData.openid || "").trim(),
+        scope: String(tData.scope || "")
+      };
+    }, "refreshTikTokAccessToken");
     const fbGraph = "https://graph.facebook.com/v18.0";
     const fbSafe = /* @__PURE__ */ __name(async (res) => {
       const data = await safeJson(res);
@@ -1321,8 +1365,8 @@ Follow for daily trending content! \u{1F44F}
         return Response.redirect(googleAuthUrl);
       }
       if (url.pathname === "/api/auth/login/tiktok") {
-        const clientKey = requireEnv(env.TIKTOK_CLIENT_KEY, "TIKTOK_CLIENT_KEY");
-        requireEnv(env.TIKTOK_CLIENT_SECRET, "TIKTOK_CLIENT_SECRET");
+        const clientKey = getTikTokSigninClientKey();
+        getTikTokSigninClientSecret();
         const loginState = randomState();
         const scopes = "user.info.basic,video.upload,video.publish";
         const params = new URLSearchParams({
@@ -1407,7 +1451,7 @@ Follow for daily trending content! \u{1F44F}
         const tiktokRedirectUri = `${siteBaseUrl}/api/auth/callback/tiktok`;
         const scopes = "video.upload,video.publish,user.info.basic";
         const state = encodeState({ folderId, platform: "tiktok", userId });
-        const tiktokAuthUrl = `${tiktokAuthBaseUrl}/v2/auth/authorize/?client_key=${env.TIKTOK_CLIENT_KEY}&scope=${encodeURIComponent(scopes)}&response_type=code&redirect_uri=${encodeURIComponent(tiktokRedirectUri)}&state=${encodeURIComponent(state)}`;
+        const tiktokAuthUrl = `${tiktokAuthBaseUrl}/v2/auth/authorize/?client_key=${encodeURIComponent(getTikTokPublishClientKey())}&scope=${encodeURIComponent(scopes)}&response_type=code&redirect_uri=${encodeURIComponent(tiktokRedirectUri)}&state=${encodeURIComponent(state)}`;
         return Response.redirect(tiktokAuthUrl);
       }
       if (url.pathname === "/api/auth/facebook") {
@@ -1524,8 +1568,8 @@ Follow for daily trending content! \u{1F44F}
               method: "POST",
               headers: { "Content-Type": "application/x-www-form-urlencoded" },
               body: new URLSearchParams({
-                client_key: requireEnv(env.TIKTOK_CLIENT_KEY, "TIKTOK_CLIENT_KEY"),
-                client_secret: requireEnv(env.TIKTOK_CLIENT_SECRET, "TIKTOK_CLIENT_SECRET"),
+                client_key: getTikTokSigninClientKey(),
+                client_secret: getTikTokSigninClientSecret(),
                 code,
                 grant_type: "authorization_code",
                 redirect_uri: tiktokLoginRedirectUri
@@ -1581,8 +1625,8 @@ Follow for daily trending content! \u{1F44F}
           method: "POST",
           headers: { "Content-Type": "application/x-www-form-urlencoded" },
           body: new URLSearchParams({
-            client_key: env.TIKTOK_CLIENT_KEY,
-            client_secret: env.TIKTOK_CLIENT_SECRET,
+            client_key: getTikTokPublishClientKey(),
+            client_secret: getTikTokPublishClientSecret(),
             code,
             grant_type: "authorization_code",
             redirect_uri: `${siteBaseUrl}/api/auth/callback/tiktok`
@@ -2209,21 +2253,52 @@ Follow for daily trending content! \u{1F44F}
         if (!validPrivacyLevels.includes(privacyStatus)) {
           privacyStatus = "SELF_ONLY";
         }
-        const token = await env.DB.prepare(`
+        const tiktokAccount = await env.DB.prepare(
+          "SELECT id, access_token, refresh_token, expires_at FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'tiktok' LIMIT 1"
+        ).bind(folder_id, user_id).first();
+        const tokenSnapshot = await env.DB.prepare(`
           SELECT * FROM tokens
           WHERE folder_id = ? AND platform = 'tiktok'
           ORDER BY updated_at DESC LIMIT 1
         `).bind(folder_id).first();
-        if (!token?.access_token) {
+        let tiktokAccessToken = String(tiktokAccount?.access_token || tokenSnapshot?.access_token || "").trim();
+        let tiktokRefreshToken = String(tiktokAccount?.refresh_token || tokenSnapshot?.refresh_token || "").trim();
+        let tiktokExpiresAt = Number(tiktokAccount?.expires_at || tokenSnapshot?.expires_at || 0);
+        let tiktokAccountId = String(tokenSnapshot?.account_id || "").trim();
+        let refreshedBeforeInit = false;
+        if (!tiktokAccessToken) {
           return new Response(JSON.stringify({ success: false, error: "No TikTok token found. Link account first." }), {
             status: 400,
             headers: jsonHeaders
           });
         }
         try {
+          const persistTikTokTokens = /* @__PURE__ */ __name(async () => {
+            await env.DB.prepare(
+              "UPDATE accounts SET access_token = ?, refresh_token = ?, expires_at = ? WHERE folder_id = ? AND user_id = ? AND platform = 'tiktok'"
+            ).bind(tiktokAccessToken, tiktokRefreshToken || null, tiktokExpiresAt || null, folder_id, user_id).run();
+            await upsertToken({
+              folderId: String(folder_id),
+              platform: "tiktok",
+              accountId: String(tiktokAccountId || user_id),
+              accessToken: tiktokAccessToken,
+              refreshToken: tiktokRefreshToken || null,
+              expiresAt: tiktokExpiresAt || null,
+              scope: String(tokenSnapshot?.scope || "")
+            });
+          }, "persistTikTokTokens");
+          if (tiktokRefreshToken && (!tiktokExpiresAt || tiktokExpiresAt - nowMs() < TOKEN_REFRESH_WINDOW_MS)) {
+            const refreshed = await refreshTikTokAccessToken(tiktokRefreshToken);
+            tiktokAccessToken = refreshed.accessToken;
+            tiktokRefreshToken = refreshed.refreshToken;
+            tiktokExpiresAt = refreshed.expiresAt;
+            tiktokAccountId = String(refreshed.accountId || tiktokAccountId || "").trim();
+            await persistTikTokTokens();
+            refreshedBeforeInit = true;
+          }
           const CHUNK_SIZE = 10 * 1024 * 1024;
           const chunkSize = videoSize <= CHUNK_SIZE ? videoSize : CHUNK_SIZE;
-          const totalChunks = Math.max(1, Math.floor(videoSize / chunkSize));
+          const totalChunks = Math.max(1, Math.ceil(videoSize / chunkSize));
           const buildInitBody = /* @__PURE__ */ __name((privacy) => JSON.stringify({
             post_info: {
               title: caption,
@@ -2243,17 +2318,31 @@ Follow for daily trending content! \u{1F44F}
           console.log("tiktok_chunks", { videoSize, chunkSize, totalChunks, remainder: videoSize % chunkSize });
           let initRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/video/init/`, {
             method: "POST",
-            headers: { Authorization: `Bearer ${token.access_token}`, "Content-Type": "application/json; charset=UTF-8" },
+            headers: { Authorization: `Bearer ${tiktokAccessToken}`, "Content-Type": "application/json; charset=UTF-8" },
             body: buildInitBody(privacyStatus)
           });
           let initData = await safeJson(initRes);
+          if (initData?.error?.code === "access_token_invalid" && tiktokRefreshToken && !refreshedBeforeInit) {
+            const refreshed = await refreshTikTokAccessToken(tiktokRefreshToken);
+            tiktokAccessToken = refreshed.accessToken;
+            tiktokRefreshToken = refreshed.refreshToken;
+            tiktokExpiresAt = refreshed.expiresAt;
+            tiktokAccountId = String(refreshed.accountId || tiktokAccountId || "").trim();
+            await persistTikTokTokens();
+            initRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/video/init/`, {
+              method: "POST",
+              headers: { Authorization: `Bearer ${tiktokAccessToken}`, "Content-Type": "application/json; charset=UTF-8" },
+              body: buildInitBody(privacyStatus)
+            });
+            initData = await safeJson(initRes);
+          }
           let privacyDowngraded = false;
           if (initData?.error?.code === "unaudited_client_can_only_post_to_private_accounts") {
             privacyDowngraded = privacyStatus !== "SELF_ONLY";
             privacyStatus = "SELF_ONLY";
             const retryRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/video/init/`, {
               method: "POST",
-              headers: { Authorization: `Bearer ${token.access_token}`, "Content-Type": "application/json; charset=UTF-8" },
+              headers: { Authorization: `Bearer ${tiktokAccessToken}`, "Content-Type": "application/json; charset=UTF-8" },
               body: buildInitBody("SELF_ONLY")
             });
             initData = await safeJson(retryRes);
@@ -2272,7 +2361,7 @@ Follow for daily trending content! \u{1F44F}
           const expiresAt = Math.floor(Date.now() / 1e3) + SESSION_EXPIRY_SECONDS;
           await env.DB.prepare(
             "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, file_size, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-          ).bind(sessionId, "tiktok", uploadUrl, token.access_token, publishId, videoSize, expiresAt).run();
+          ).bind(sessionId, "tiktok", uploadUrl, tiktokAccessToken, publishId, videoSize, expiresAt).run();
           await recordPublishUsage(user_id, "tiktok");
           return new Response(JSON.stringify({
             success: true,
