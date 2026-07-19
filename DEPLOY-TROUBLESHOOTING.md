@@ -156,6 +156,13 @@ After changing client vars, re-link TikTok from inside the app so publish tokens
 
 If you switch environment but keep an old token, TikTok will return `access_token_invalid`.
 
+### `unaudited_client_can_only_post_to_private_accounts`
+TikTok can return this even when Multipost sends `privacy_level: SELF_ONLY`.
+It means the TikTok developer app has not passed Content Posting API review and TikTok is restricting publish tests to TikTok accounts set to Private.
+
+For testing, set the connected TikTok account itself to Private, then reconnect it in Multipost and retry.
+For production posting from public accounts, submit the TikTok app for Content Posting API review.
+
 ---
 
 ## 7. Test locally before deploying

@@ -2335,6 +2335,11 @@ Follow for daily trending content! \u{1F44F}
             const haystack = JSON.stringify(data?.error || data || {}).toLowerCase();
             return haystack.includes("chunk") && (haystack.includes("invalid") || haystack.includes("size"));
           }, "isChunkConfigError");
+          const isUnauditedPrivateAccountError = /* @__PURE__ */ __name(
+            (data) => data?.error?.code === "unaudited_client_can_only_post_to_private_accounts",
+            "isUnauditedPrivateAccountError"
+          );
+          const unauditedPrivateAccountMessage = "TikTok rejected this publish because the TikTok app is unaudited. For testing, connect a TikTok account set to Private, or submit the TikTok app for Content Posting API review to enable posting from public accounts.";
           const chunkProfiles = buildChunkProfiles();
           let initRes = null;
           let initData = null;
@@ -2372,7 +2377,7 @@ Follow for daily trending content! \u{1F44F}
               });
               initData = await safeJson(initRes);
             }
-            if (initData?.error?.code === "unaudited_client_can_only_post_to_private_accounts") {
+            if (isUnauditedPrivateAccountError(initData)) {
               privacyDowngraded = attemptPrivacy !== "SELF_ONLY";
               attemptPrivacy = "SELF_ONLY";
               initRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/video/init/`, {
@@ -2381,6 +2386,9 @@ Follow for daily trending content! \u{1F44F}
                 body: buildInitBody("SELF_ONLY", profile.chunkSize, profile.totalChunks)
               });
               initData = await safeJson(initRes);
+              if (isUnauditedPrivateAccountError(initData)) {
+                throw new Error(unauditedPrivateAccountMessage);
+              }
             }
             if (initRes.ok && (!initData?.error?.code || initData.error.code === "ok")) {
               selectedChunkSize = profile.chunkSize;
