@@ -2564,7 +2564,8 @@ Follow for daily trending content! \u{1F44F}
             ""
           ).trim();
           let creatorUsername = "";
-          if (ready && !tiktokUrl && postId) {
+          let tiktokProfileUrl = "";
+          if (ready && !tiktokUrl) {
             try {
               const creatorRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/creator_info/query/`, {
                 method: "POST",
@@ -2577,24 +2578,34 @@ Follow for daily trending content! \u{1F44F}
               const creatorJson = await safeJson(creatorRes);
               const creator = creatorJson?.data || creatorJson || {};
               creatorUsername = String(creator.creator_username || creator.username || "").trim().replace(/^@+/, "");
-              if (creatorRes.ok && creatorUsername) {
+              if (creatorRes.ok && creatorUsername && postId) {
                 tiktokUrl = `https://www.tiktok.com/@${encodeURIComponent(creatorUsername)}/video/${encodeURIComponent(postId)}`;
+              }
+              if (creatorRes.ok && creatorUsername) {
+                tiktokProfileUrl = `https://www.tiktok.com/@${encodeURIComponent(creatorUsername)}`;
               }
             } catch (creatorErr) {
               console.warn("TikTok creator info lookup failed:", creatorErr?.message || creatorErr);
             }
           }
-          if (ready && tiktokUrl) {
+          const failed = ["FAILED", "PUBLISH_FAILED"].includes(status);
+          const viewUrl = tiktokUrl || tiktokProfileUrl || "https://www.tiktok.com/";
+          if (ready || failed) {
             await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(session.id).run();
           }
           return new Response(JSON.stringify({
             success: true,
             ready,
+            failed,
             publishId,
             status,
             postId,
             creatorUsername,
             tiktokUrl,
+            tiktokProfileUrl,
+            viewUrl,
+            viewLabel: tiktokUrl ? "View on TikTok" : creatorUsername ? "Open TikTok Profile" : "Open TikTok",
+            message: ready && !tiktokUrl ? "TikTok marked the post complete but did not return a direct video URL. This can happen for private or unaudited-app posts." : "",
             data
           }), { headers: jsonHeaders });
         } catch (err) {

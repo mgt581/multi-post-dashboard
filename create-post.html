@@ -800,9 +800,16 @@
           }
         });
         const data = await response.json().catch(() => ({}));
-        if (response.ok && data.success && data.ready && data.tiktokUrl) {
-          setTikTokViewButton({ url: data.tiktokUrl, label: "View on TikTok", disabled: false });
-          setStatus(`Video is live on "${activeTikTokName}"`, "success");
+        if (response.ok && data.success && data.failed) {
+          setTikTokViewButton({ label: "View on TikTok", disabled: true });
+          setStatus(`TikTok publish failed for "${activeTikTokName}"`, "error");
+          return;
+        }
+        if (response.ok && data.success && data.ready) {
+          const viewUrl = data.tiktokUrl || data.viewUrl || data.tiktokProfileUrl || "https://www.tiktok.com/";
+          const viewLabel = data.tiktokUrl ? "View on TikTok" : (data.viewLabel || "Open TikTok");
+          setTikTokViewButton({ url: viewUrl, label: viewLabel, disabled: false });
+          setStatus(data.tiktokUrl ? `Video is live on "${activeTikTokName}"` : `TikTok published for "${activeTikTokName}"`, "success");
           return;
         }
         if (response.ok && data.success) {
