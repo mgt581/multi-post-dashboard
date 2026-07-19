@@ -2296,15 +2296,20 @@ Follow for daily trending content! \u{1F44F}
             await persistTikTokTokens();
             refreshedBeforeInit = true;
           }
-          const CHUNK_SIZE_10MB = 10 * 1024 * 1024;
-          const CHUNK_SIZE_5MB = 5 * 1024 * 1024;
+          const TIKTOK_MIN_CHUNK_SIZE = 5 * 1024 * 1024;
+          const TIKTOK_DEFAULT_CHUNK_SIZE = 10 * 1024 * 1024;
+          const TIKTOK_MAX_CHUNK_SIZE = 64 * 1024 * 1024;
+          const clampTikTokChunkSize = /* @__PURE__ */ __name((size) => Math.min(
+            TIKTOK_MAX_CHUNK_SIZE,
+            Math.max(TIKTOK_MIN_CHUNK_SIZE, Number(size) || TIKTOK_MIN_CHUNK_SIZE)
+          ), "clampTikTokChunkSize");
           const buildChunkProfiles = /* @__PURE__ */ __name(() => {
             const candidates = [
-              Math.min(CHUNK_SIZE_10MB, videoSize),
-              Math.min(CHUNK_SIZE_5MB, videoSize),
-              videoSize
+              clampTikTokChunkSize(videoSize),
+              clampTikTokChunkSize(TIKTOK_DEFAULT_CHUNK_SIZE),
+              TIKTOK_MIN_CHUNK_SIZE
             ];
-            const unique = [...new Set(candidates.map((size) => Math.max(1, Number(size) || 1)))];
+            const unique = [...new Set(candidates)];
             return unique.map((size) => ({
               chunkSize: size,
               totalChunks: Math.max(1, Math.ceil(videoSize / size))
@@ -2337,8 +2342,10 @@ Follow for daily trending content! \u{1F44F}
           let selectedTotalChunks = chunkProfiles[0].totalChunks;
           let privacyDowngraded = false;
           let lastChunkErr = null;
+          const triedChunkProfiles = [];
           for (const profile of chunkProfiles) {
             let attemptPrivacy = privacyStatus;
+            triedChunkProfiles.push(`${profile.chunkSize}/${profile.totalChunks}`);
             console.log("tiktok_chunks", {
               videoSize,
               chunkSize: profile.chunkSize,
@@ -2389,7 +2396,7 @@ Follow for daily trending content! \u{1F44F}
             throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
           }
           if (lastChunkErr) {
-            throw new Error(`TikTok init failed after chunk fallback attempts: ${JSON.stringify(lastChunkErr)}`);
+            throw new Error(`TikTok init failed after chunk fallback attempts (${triedChunkProfiles.join(", ")}): ${JSON.stringify(lastChunkErr)}`);
           }
           const publishId = initData?.data?.publish_id;
           const uploadUrl = initData?.data?.upload_url;
