@@ -2296,10 +2296,21 @@ Follow for daily trending content! \u{1F44F}
             await persistTikTokTokens();
             refreshedBeforeInit = true;
           }
-          const CHUNK_SIZE = 10 * 1024 * 1024;
-          const chunkSize = videoSize <= CHUNK_SIZE ? videoSize : CHUNK_SIZE;
-          const totalChunks = Math.max(1, Math.ceil(videoSize / chunkSize));
-          const buildInitBody = /* @__PURE__ */ __name((privacy) => JSON.stringify({
+          const CHUNK_SIZE_10MB = 10 * 1024 * 1024;
+          const CHUNK_SIZE_5MB = 5 * 1024 * 1024;
+          const buildChunkProfiles = /* @__PURE__ */ __name(() => {
+            const candidates = [
+              Math.min(CHUNK_SIZE_10MB, videoSize),
+              Math.min(CHUNK_SIZE_5MB, videoSize),
+              videoSize
+            ];
+            const unique = [...new Set(candidates.map((size) => Math.max(1, Number(size) || 1)))];
+            return unique.map((size) => ({
+              chunkSize: size,
+              totalChunks: Math.max(1, Math.ceil(videoSize / size))
+            }));
+          }, "buildChunkProfiles");
+          const buildInitBody = /* @__PURE__ */ __name((privacy, chunkSize, totalChunks) => JSON.stringify({
             post_info: {
               title: caption,
               privacy_level: privacy,
@@ -2315,42 +2326,70 @@ Follow for daily trending content! \u{1F44F}
               total_chunk_count: totalChunks
             }
           }), "buildInitBody");
-          console.log("tiktok_chunks", { videoSize, chunkSize, totalChunks, remainder: videoSize % chunkSize });
-          let initRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/video/init/`, {
-            method: "POST",
-            headers: { Authorization: `Bearer ${tiktokAccessToken}`, "Content-Type": "application/json; charset=UTF-8" },
-            body: buildInitBody(privacyStatus)
-          });
-          let initData = await safeJson(initRes);
-          if (initData?.error?.code === "access_token_invalid" && tiktokRefreshToken && !refreshedBeforeInit) {
-            const refreshed = await refreshTikTokAccessToken(tiktokRefreshToken);
-            tiktokAccessToken = refreshed.accessToken;
-            tiktokRefreshToken = refreshed.refreshToken;
-            tiktokExpiresAt = refreshed.expiresAt;
-            tiktokAccountId = String(refreshed.accountId || tiktokAccountId || "").trim();
-            await persistTikTokTokens();
+          const isChunkConfigError = /* @__PURE__ */ __name((data) => {
+            const haystack = JSON.stringify(data?.error || data || {}).toLowerCase();
+            return haystack.includes("chunk") && (haystack.includes("invalid") || haystack.includes("size"));
+          }, "isChunkConfigError");
+          const chunkProfiles = buildChunkProfiles();
+          let initRes = null;
+          let initData = null;
+          let selectedChunkSize = chunkProfiles[0].chunkSize;
+          let selectedTotalChunks = chunkProfiles[0].totalChunks;
+          let privacyDowngraded = false;
+          let lastChunkErr = null;
+          for (const profile of chunkProfiles) {
+            let attemptPrivacy = privacyStatus;
+            console.log("tiktok_chunks", {
+              videoSize,
+              chunkSize: profile.chunkSize,
+              totalChunks: profile.totalChunks,
+              remainder: videoSize % profile.chunkSize
+            });
             initRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/video/init/`, {
               method: "POST",
               headers: { Authorization: `Bearer ${tiktokAccessToken}`, "Content-Type": "application/json; charset=UTF-8" },
-              body: buildInitBody(privacyStatus)
+              body: buildInitBody(attemptPrivacy, profile.chunkSize, profile.totalChunks)
             });
             initData = await safeJson(initRes);
-          }
-          let privacyDowngraded = false;
-          if (initData?.error?.code === "unaudited_client_can_only_post_to_private_accounts") {
-            privacyDowngraded = privacyStatus !== "SELF_ONLY";
-            privacyStatus = "SELF_ONLY";
-            const retryRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/video/init/`, {
-              method: "POST",
-              headers: { Authorization: `Bearer ${tiktokAccessToken}`, "Content-Type": "application/json; charset=UTF-8" },
-              body: buildInitBody("SELF_ONLY")
-            });
-            initData = await safeJson(retryRes);
-            if (!retryRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
-              throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
+            if (initData?.error?.code === "access_token_invalid" && tiktokRefreshToken && !refreshedBeforeInit) {
+              const refreshed = await refreshTikTokAccessToken(tiktokRefreshToken);
+              tiktokAccessToken = refreshed.accessToken;
+              tiktokRefreshToken = refreshed.refreshToken;
+              tiktokExpiresAt = refreshed.expiresAt;
+              tiktokAccountId = String(refreshed.accountId || tiktokAccountId || "").trim();
+              await persistTikTokTokens();
+              initRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/video/init/`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${tiktokAccessToken}`, "Content-Type": "application/json; charset=UTF-8" },
+                body: buildInitBody(attemptPrivacy, profile.chunkSize, profile.totalChunks)
+              });
+              initData = await safeJson(initRes);
             }
-          } else if (!initRes.ok || (initData?.error?.code && initData.error.code !== "ok")) {
+            if (initData?.error?.code === "unaudited_client_can_only_post_to_private_accounts") {
+              privacyDowngraded = attemptPrivacy !== "SELF_ONLY";
+              attemptPrivacy = "SELF_ONLY";
+              initRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/video/init/`, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${tiktokAccessToken}`, "Content-Type": "application/json; charset=UTF-8" },
+                body: buildInitBody("SELF_ONLY", profile.chunkSize, profile.totalChunks)
+              });
+              initData = await safeJson(initRes);
+            }
+            if (initRes.ok && (!initData?.error?.code || initData.error.code === "ok")) {
+              selectedChunkSize = profile.chunkSize;
+              selectedTotalChunks = profile.totalChunks;
+              privacyStatus = attemptPrivacy;
+              lastChunkErr = null;
+              break;
+            }
+            if (isChunkConfigError(initData)) {
+              lastChunkErr = initData?.error || initData;
+              continue;
+            }
             throw new Error(`TikTok init failed: ${JSON.stringify(initData?.error || initData)}`);
+          }
+          if (lastChunkErr) {
+            throw new Error(`TikTok init failed after chunk fallback attempts: ${JSON.stringify(lastChunkErr)}`);
           }
           const publishId = initData?.data?.publish_id;
           const uploadUrl = initData?.data?.upload_url;
@@ -2367,8 +2406,8 @@ Follow for daily trending content! \u{1F44F}
             success: true,
             sessionId,
             publishId,
-            chunkSize,
-            totalChunks,
+            chunkSize: selectedChunkSize,
+            totalChunks: selectedTotalChunks,
             videoSize,
             ...(privacyDowngraded ? { warning: "Your TikTok app is unaudited, so this post was automatically set to Private (SELF_ONLY). Submit your app for review at https://developers.tiktok.com/ to enable public posting." } : {})
           }), { headers: jsonHeaders });
