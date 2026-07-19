@@ -2,6 +2,32 @@ import { evaluateFacebookVideoReadiness } from "./facebook-video-readiness.mjs";
 
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+var hasSeoContent = /* @__PURE__ */ __name((data) => Boolean(
+  data?.youtube?.title ||
+  data?.youtube?.description ||
+  data?.youtube?.keywords ||
+  data?.tiktok?.allInOne ||
+  data?.facebook?.title ||
+  data?.facebook?.descriptionAndTags
+), "hasSeoContent");
+var makeDeterministicSeoFallback = /* @__PURE__ */ __name((promptText) => {
+  const idea = String(promptText || "viral short video").trim() || "viral short video";
+  const words = idea.toLowerCase().replace(/[^\w\s]/g, " ").split(/\s+/).filter(Boolean).filter((word) => word.length > 2);
+  const keywords = [...new Set([...words.slice(0, 10), "viral", "trending", "shorts", "reels", "fyp", "social media", "marketing"])].join(", ");
+  const titleBase = idea.length > 56 ? `${idea.slice(0, 56)}...` : idea;
+  return {
+    youtube: {
+      title: `${titleBase} | Must Watch`,
+      description: `Discover ${idea} with optimized copy crafted for reach and engagement. Share, comment and follow for more high-performing content ideas.`,
+      keywords
+    },
+    tiktok: { allInOne: `${idea} 🚀 #fyp #foryoupage #viral #trending #socialmedia` },
+    facebook: {
+      title: `${titleBase} | Growth Tips`,
+      descriptionAndTags: `Boost your reach with this ${idea} content strategy.\n\n#marketing #socialmedia #facebook #business #growth`
+    }
+  };
+}, "makeDeterministicSeoFallback");
 
 // worker.js
 var WORKER_VERSION = "2026-06-19-facebook-preview-secret-guard-video-offset-zero";
@@ -216,7 +242,7 @@ Generate trending, specific SEO \u2014 not generic content.` }
             console.error("Workers AI failed, using deterministic fallback...", aiErr?.message || aiErr);
           }
         }
-        if (!finalData) {
+        if (!hasSeoContent(finalData)) {
           finalData = makeLocalFallbackSeo(`${brandContext}${effectiveTopic}`);
         }
         const cleanData = finalData ? {
@@ -3581,6 +3607,9 @@ Generate trending, specific SEO \u2014 not generic content.`
           } catch (_) {
             parsed = null;
           }
+        }
+        if (!hasSeoContent(parsed)) {
+          parsed = makeDeterministicSeoFallback(`${brandContext}${textPrompt}`);
         }
         const cleanData = parsed ? {
           youtube: {
