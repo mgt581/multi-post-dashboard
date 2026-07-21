@@ -1452,7 +1452,7 @@ Follow for daily trending content! \u{1F44F}
         const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
         requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
         const state = encodeState({ folderId, platform: "facebook", userId });
-        const facebookPageLinkScope = "pages_show_list,public_profile";
+        const facebookPageLinkScope = "pages_show_list,pages_manage_posts,public_profile";
         const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${encodeURIComponent(
           fbClientId
         )}&redirect_uri=${encodeURIComponent(
@@ -1747,7 +1747,7 @@ Follow for daily trending content! \u{1F44F}
           accessToken,
           refreshToken: null,
           expiresAt: nowMs() + expiresIn * 1e3,
-          scope: "pages_show_list,public_profile"
+          scope: "pages_show_list,pages_manage_posts,public_profile"
         });
         return Response.redirect(
           `${frontendBaseUrl}/folder.html?id=${encodeURIComponent(folderId)}&facebook=pages`
