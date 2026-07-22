@@ -1,4 +1,5 @@
 import { evaluateFacebookVideoReadiness } from "./facebook-video-readiness.mjs";
+import { FACEBOOK_PAGE_LINK_SCOPE } from "./facebook-oauth.mjs";
 
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -1452,14 +1453,14 @@ Follow for daily trending content! \u{1F44F}
         const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
         requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
         const state = encodeState({ folderId, platform: "facebook", userId });
-        const facebookPageLinkScope = "pages_show_list,pages_manage_posts,public_profile";
-        const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${encodeURIComponent(
-          fbClientId
-        )}&redirect_uri=${encodeURIComponent(
-          fbRedirectUri
-        )}&scope=${encodeURIComponent(
-          facebookPageLinkScope
-        )}&response_type=code&state=${encodeURIComponent(state)}`;
+        const fbAuthParams = new URLSearchParams({
+          client_id: fbClientId,
+          redirect_uri: fbRedirectUri,
+          scope: FACEBOOK_PAGE_LINK_SCOPE,
+          response_type: "code",
+          state
+        });
+        const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?${fbAuthParams.toString()}`;
         return Response.redirect(fbAuthUrl);
       }
       if (url.pathname === "/api/auth/callback/youtube") {
@@ -1747,7 +1748,7 @@ Follow for daily trending content! \u{1F44F}
           accessToken,
           refreshToken: null,
           expiresAt: nowMs() + expiresIn * 1e3,
-          scope: "pages_show_list,pages_manage_posts,public_profile"
+          scope: FACEBOOK_PAGE_LINK_SCOPE
         });
         return Response.redirect(
           `${frontendBaseUrl}/folder.html?id=${encodeURIComponent(folderId)}&facebook=pages`
