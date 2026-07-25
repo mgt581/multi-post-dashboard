@@ -140,6 +140,8 @@
 
         .btn-tiktok { background: #0f172a; border-color: rgba(255, 255, 255, 0.16); }
 
+        .btn-facebook { background: #1877f2; border-color: #1877f2; }
+
         .btn:disabled {
             cursor: not-allowed;
             opacity: 0.72;
@@ -220,6 +222,11 @@
                 Continue with Google
             </button>
 
+            <button class="btn btn-social btn-facebook" onclick="handleFacebookSignIn()">
+                <i class="fa-brands fa-facebook-f" aria-hidden="true"></i>
+                Continue with Facebook
+            </button>
+
             <button class="btn btn-social btn-tiktok" onclick="handleTikTokSignIn()">
                 <i class="fa-brands fa-tiktok" aria-hidden="true"></i>
                 Log in with TikTok
@@ -245,6 +252,7 @@
             signInWithEmailAndPassword,
             GoogleAuthProvider,
             signInWithPopup,
+            FacebookAuthProvider,
             signInWithCustomToken,
             getRedirectResult,
             onAuthStateChanged,
@@ -266,11 +274,14 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const provider = new GoogleAuthProvider();
+        const facebookProvider = new FacebookAuthProvider();
         const apiBase = "https://multipostapp.co.uk/api";
 
         provider.addScope("email");
         provider.addScope("profile");
         provider.setCustomParameters({ prompt: "select_account" });
+        facebookProvider.addScope("public_profile");
+        facebookProvider.setCustomParameters({ display: "popup" });
         setPersistence(auth, browserLocalPersistence).catch((error) => {
             console.warn("Auth persistence setup failed:", error);
         });
@@ -428,6 +439,25 @@
                 console.error("Google Auth Error:", err);
                 alert(err?.message || "Google sign-in failed");
                 if (googleButton) googleButton.disabled = false;
+            }
+        };
+
+        window.handleFacebookSignIn = async () => {
+            const facebookButton = document.querySelector(".btn-facebook");
+            if (facebookButton) facebookButton.disabled = true;
+
+            try {
+                await setPersistence(auth, browserLocalPersistence);
+                const result = await signInWithPopup(auth, facebookProvider);
+                const signedInUser = result?.user || auth.currentUser;
+                if (!signedInUser) {
+                    throw new Error("Facebook sign-in completed but the session was not initialized. Please try again.");
+                }
+                openWorkspace(signedInUser);
+            } catch (err) {
+                console.error("Facebook Auth Error:", err);
+                alert(err?.message || "Facebook sign-in failed");
+                if (facebookButton) facebookButton.disabled = false;
             }
         };
 
