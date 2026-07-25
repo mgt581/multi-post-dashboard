@@ -60,6 +60,75 @@ var worker_default = {
         headers: jsonHeaders
       });
     }
+    if (url.pathname === "/api/auth/facebook/data-deletion" && request.method === "POST") {
+      try {
+        const body = await request.text();
+        const signedRequest = new URLSearchParams(body).get("signed_request") || "";
+        const [signaturePart, payloadPart] = signedRequest.split(".");
+        const appSecret = String(env.FB_CLIENT_SECRET || "").trim();
+        if (!signaturePart || !payloadPart || !appSecret) {
+          return new Response(JSON.stringify({ error: "Invalid Facebook data deletion request" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const decodeBase64Url = (value) => {
+          const base64 = String(value).replace(/-/g, "+").replace(/_/g, "/");
+          const padded = base64.padEnd(base64.length + (4 - base64.length % 4) % 4, "=");
+          const binary = atob(padded);
+          return new Uint8Array([...binary].map((character) => character.charCodeAt(0)));
+        };
+        const key = await crypto.subtle.importKey(
+          "raw",
+          new TextEncoder().encode(appSecret),
+          { name: "HMAC", hash: "SHA-256" },
+          false,
+          ["verify"]
+        );
+        const validSignature = await crypto.subtle.verify(
+          "HMAC",
+          key,
+          decodeBase64Url(signaturePart),
+          new TextEncoder().encode(`${signaturePart}.${payloadPart}`)
+        );
+        if (!validSignature) {
+          return new Response(JSON.stringify({ error: "Invalid Facebook data deletion signature" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const payload = JSON.parse(new TextDecoder().decode(decodeBase64Url(payloadPart)));
+        const facebookUserId = String(payload?.user_id || "").trim();
+        if (!facebookUserId) {
+          return new Response(JSON.stringify({ error: "Facebook user ID is missing" }), {
+            status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const confirmationCode = randomState();
+        await env.DB.batch([
+          env.DB.prepare(
+            "DELETE FROM tokens WHERE platform = 'facebook' AND account_id = ?"
+          ).bind(facebookUserId),
+          env.DB.prepare(
+            "DELETE FROM accounts WHERE platform = 'facebook_page' AND folder_id IN (SELECT folder_id FROM accounts WHERE platform = 'facebook' AND facebook_user_id = ?)"
+          ).bind(facebookUserId),
+          env.DB.prepare(
+            "DELETE FROM accounts WHERE platform = 'facebook' AND facebook_user_id = ?"
+          ).bind(facebookUserId)
+        ]);
+        return new Response(JSON.stringify({
+          url: `${frontendBaseUrl}/privacy.html#facebook-data-deletion`,
+          confirmation_code: confirmationCode
+        }), { headers: jsonHeaders });
+      } catch (error) {
+        console.error("Facebook data deletion callback failed:", error);
+        return new Response(JSON.stringify({ error: "Facebook data deletion request failed" }), {
+          status: 400,
+          headers: jsonHeaders
+        });
+      }
+    }
     if (url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
       try {
         const body = await request.json();

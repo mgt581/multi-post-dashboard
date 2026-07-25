@@ -138,6 +138,8 @@ tabs, personal notifications, or any secret values.
 
 - App icon, app name, domain, privacy policy, terms, and data-deletion
   instructions all use the same Multi Post identity.
+- Facebook data deletion callback:
+  `https://multipostapp.co.uk/api/auth/facebook/data-deletion`.
 - The Meta app has a Facebook Login/authentication use case configured with
    `public_profile` available for the workspace **Link Facebook** flow, so the
    app is not submitted with only Page permissions.
