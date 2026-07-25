@@ -195,6 +195,7 @@
     </style>
 </head>
 <body>
+    <div id="fb-root"></div>
     <div class="auth-card">
         <h1>Multipost</h1>
         <p id="form-hint">Access your multi-channel dashboard</p>
@@ -244,6 +245,21 @@
         <div>&copy; 2026 Bryant Group Holdings Ltd.</div>
     </footer>
 
+    <script>
+        window.facebookSdkReady = new Promise((resolve) => {
+            window.fbAsyncInit = () => {
+                FB.init({
+                    appId: "1596560914709231",
+                    cookie: true,
+                    xfbml: false,
+                    version: "v18.0"
+                });
+                resolve(window.FB);
+            };
+        });
+    </script>
+    <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js"></script>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import {
@@ -254,6 +270,7 @@
             signInWithPopup,
             FacebookAuthProvider,
             signInWithCustomToken,
+            signInWithCredential,
             getRedirectResult,
             onAuthStateChanged,
             setPersistence,
@@ -370,6 +387,36 @@
             });
         };
 
+        const statusChangeCallback = async (response) => {
+            if (response?.status !== "connected" || !response.authResponse?.accessToken) {
+                return false;
+            }
+            const credential = FacebookAuthProvider.credential(response.authResponse.accessToken);
+            const result = await signInWithCredential(auth, credential);
+            const signedInUser = result?.user || auth.currentUser;
+            if (!signedInUser) {
+                throw new Error("Facebook sign-in completed but the session was not initialized. Please try again.");
+            }
+            openWorkspace(signedInUser);
+            return true;
+        };
+
+        const getFacebookLoginStatus = async () => {
+            const facebookSdk = await window.facebookSdkReady;
+            return await new Promise((resolve) => {
+                facebookSdk.getLoginStatus((response) => resolve(response));
+            });
+        };
+
+        getFacebookLoginStatus().then((response) => {
+            if (response?.status === "connected" && !auth.currentUser) {
+                return statusChangeCallback(response);
+            }
+            return null;
+        }).catch((error) => {
+            console.warn("Facebook login status check failed:", error);
+        });
+
         getRedirectResult(auth).then((result) => {
             if (result?.user) {
                 openWorkspace(result.user);
@@ -448,12 +495,21 @@
 
             try {
                 await setPersistence(auth, browserLocalPersistence);
-                const result = await signInWithPopup(auth, facebookProvider);
-                const signedInUser = result?.user || auth.currentUser;
-                if (!signedInUser) {
-                    throw new Error("Facebook sign-in completed but the session was not initialized. Please try again.");
+                const status = await getFacebookLoginStatus();
+                if (status?.status === "connected") {
+                    await statusChangeCallback(status);
+                    return;
                 }
-                openWorkspace(signedInUser);
+                const facebookSdk = await window.facebookSdkReady;
+                await new Promise((resolve, reject) => {
+                    facebookSdk.login((response) => {
+                        if (response?.status !== "connected") {
+                            reject(new Error("Facebook sign-in was cancelled."));
+                            return;
+                        }
+                        statusChangeCallback(response).then(resolve).catch(reject);
+                    }, { scope: "public_profile" });
+                });
             } catch (err) {
                 console.error("Facebook Auth Error:", err);
                 alert(err?.message || "Facebook sign-in failed");
