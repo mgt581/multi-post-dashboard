@@ -139,6 +139,7 @@
         }
 
         .btn-tiktok { background: #0f172a; border-color: rgba(255, 255, 255, 0.16); }
+        .btn-facebook { background: #1877f2; color: #fff; border-color: rgba(24, 119, 242, 0.9); }
 
         .btn:disabled {
             cursor: not-allowed;
@@ -225,6 +226,11 @@
                 Log in with TikTok
             </button>
 
+            <button class="btn btn-social btn-facebook" onclick="handleFacebookSignIn()">
+                <i class="fa-brands fa-facebook-f" aria-hidden="true"></i>
+                Continue with Facebook
+            </button>
+
             <a href="#" class="forgot-link" onclick="handlePasswordReset()">Forgot your password?</a>
         </div>
     </div>
@@ -266,7 +272,11 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const provider = new GoogleAuthProvider();
-        const apiBase = "https://multipostapp.co.uk/api";
+        const host = window.location.hostname;
+        const isProdHost = host === "multipostapp.co.uk" || host === "www.multipostapp.co.uk";
+        const apiBase = isProdHost
+            ? "/api"
+            : "https://multipost-seo-worker.alexbryant.workers.dev/api";
 
         provider.addScope("email");
         provider.addScope("profile");
@@ -279,6 +289,7 @@
         const initialParams = new URLSearchParams(window.location.search);
         const hasProviderCallback =
             initialParams.get("tiktok_login") === "complete" ||
+            initialParams.get("facebook_login") === "complete" ||
             initialParams.has("auth_error");
         let suppressExistingSessionRedirect = hasProviderCallback;
 
@@ -352,10 +363,16 @@
         };
 
         const completePendingProviderSignIn = async () => {
-            return await completeCustomTokenSignIn({
+            const tiktokCompleted = await completeCustomTokenSignIn({
                 providerName: "TikTok",
                 queryKey: "tiktok_login",
                 endpoint: "/auth/tiktok/firebase-token"
+            });
+            if (tiktokCompleted) return true;
+            return await completeCustomTokenSignIn({
+                providerName: "Facebook",
+                queryKey: "facebook_login",
+                endpoint: "/auth/facebook/firebase-token"
             });
         };
 
@@ -442,6 +459,20 @@
                 console.error("TikTok Auth Error:", err);
                 alert(err?.message || "TikTok sign-in failed");
                 if (tiktokButton) tiktokButton.disabled = false;
+            }
+        };
+
+        window.handleFacebookSignIn = async () => {
+            const facebookButton = document.querySelector(".btn-facebook");
+            if (facebookButton) facebookButton.disabled = true;
+            try {
+                await setPersistence(auth, browserLocalPersistence);
+                await signOut(auth).catch(() => {});
+                window.location.assign(`${apiBase}/auth/login/facebook`);
+            } catch (err) {
+                console.error("Facebook Auth Error:", err);
+                alert(err?.message || "Facebook sign-in failed");
+                if (facebookButton) facebookButton.disabled = false;
             }
         };
 
