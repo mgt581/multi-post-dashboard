@@ -25,6 +25,7 @@ the selected Page, and manage publishing destinations from one dashboard.
 Request Advanced Access only for the Page permissions the product uses:
 
 - `pages_show_list`
+- `pages_read_engagement`
 - `pages_manage_posts`
 
 Use the standard `public_profile` permission only as the baseline Facebook Login
@@ -94,7 +95,8 @@ workspace is the app's primary function.
 3. Open an existing workspace or create a workspace.
 4. Select **Link** beside Facebook.
 5. Complete Facebook consent with the supplied Facebook test user. This
-   demonstrates `public_profile`, `pages_show_list`, and `pages_manage_posts`.
+   demonstrates `public_profile`, `pages_show_list`, `pages_read_engagement`,
+   and `pages_manage_posts`.
    The test user must have sufficient task access to the supplied test Page.
 6. Select the test Page in Multi Post's Page picker.
 7. Open **Create Post** and confirm the selected Page is shown as the Facebook
@@ -147,6 +149,7 @@ tabs, personal notifications, or any secret values.
 - The reviewer Facebook account can manage the supplied test Page.
 - The test Page is visible in the Page picker and accepts a real test post.
 - The app sign-in screen does not offer Facebook sign-in. The workspace **Link
-   Facebook** flow requests `public_profile`, `pages_show_list`, and
-   `pages_manage_posts`; no `pages_read_engagement` permission is requested.
+   Facebook** flow requests `public_profile`, `pages_show_list`,
+   `pages_read_engagement`, and `pages_manage_posts`. Meta requires
+   `pages_read_engagement` as a dependency of `pages_manage_posts`.
 - Each requested permission is demonstrated visibly in the recording.
