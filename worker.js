@@ -166,6 +166,7 @@ Return ONLY valid JSON with no markdown, no extra text, no explanations:
           };
         }, "makeLocalFallbackSeo");
         let finalData = null;
+        let seoProvider = "";
         if (apiKey) {
           try {
             const oaiMessages = (
@@ -188,15 +189,21 @@ Generate trending, specific SEO \u2014 not generic content.` });
               headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
               body: JSON.stringify({ model: "gpt-4o", messages: oaiMessages, response_format: { type: "json_object" } })
             });
+            if (!flagshipResponse.ok) {
+              const errorText = await flagshipResponse.text();
+              throw new Error(`OpenAI API ${flagshipResponse.status}: ${errorText.slice(0, 300)}`);
+            }
             const oaiData = await flagshipResponse.json();
             if (oaiData.choices?.[0]?.message?.content) {
-              try {
-                finalData = parseSeoText(oaiData.choices[0].message.content);
-              } catch {
-              }
+              finalData = parseSeoText(oaiData.choices[0].message.content);
+              if (!hasSeoContent(finalData)) throw new Error("OpenAI returned incomplete SEO content");
+              seoProvider = "openai";
+            } else {
+              throw new Error("OpenAI returned no SEO content");
             }
           } catch (e) {
             console.error("OpenAI failed, falling back...", e.message);
+            finalData = null;
           }
         }
         if (!finalData) {
@@ -235,16 +242,17 @@ Generate trending, specific SEO \u2014 not generic content.` }
             } else {
               rawText = JSON.stringify(aiResponse);
             }
-            try {
-              finalData = parseSeoText(rawText);
-            } catch {
-            }
+            finalData = parseSeoText(rawText);
+            if (!hasSeoContent(finalData)) throw new Error("Cloudflare AI returned incomplete SEO content");
+            seoProvider = "cloudflare";
           } catch (aiErr) {
             console.error("Workers AI failed, using deterministic fallback...", aiErr?.message || aiErr);
+            finalData = null;
           }
         }
         if (!hasSeoContent(finalData)) {
           finalData = makeLocalFallbackSeo(`${brandContext}${effectiveTopic}`);
+          seoProvider = "local";
         }
         const cleanData = finalData ? {
           youtube: {
@@ -259,7 +267,12 @@ Generate trending, specific SEO \u2014 not generic content.` }
           }
         } : null;
         if (!cleanData) throw new Error("AI returned no content. Please try again.");
-        return new Response(JSON.stringify({ success: true, data: cleanData }), {
+        return new Response(JSON.stringify({
+          success: true,
+          data: cleanData,
+          provider: seoProvider,
+          fallbackUsed: seoProvider !== "openai"
+        }), {
           status: 200,
           headers: jsonHeaders
         });
@@ -3524,6 +3537,7 @@ Return ONLY valid JSON with no markdown, no extra text, no explanations:
           return JSON.parse(rawText);
         }, "parseSeoText");
         let parsed = null;
+        let seoProvider = "";
         const apiKey = env.OPENAI_API_KEY;
         if (apiKey) {
           try {
@@ -3548,15 +3562,21 @@ Generate trending, specific SEO \u2014 not generic content.` });
               headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
               body: JSON.stringify({ model: "gpt-4o", messages: oaiMessages, response_format: { type: "json_object" } })
             });
+            if (!oaiResponse.ok) {
+              const errorText = await oaiResponse.text();
+              throw new Error(`OpenAI API ${oaiResponse.status}: ${errorText.slice(0, 300)}`);
+            }
             const oaiData = await oaiResponse.json();
             if (oaiData.choices?.[0]?.message?.content) {
-              try {
-                parsed = parseSeoText(oaiData.choices[0].message.content);
-              } catch {
-              }
+              parsed = parseSeoText(oaiData.choices[0].message.content);
+              if (!hasSeoContent(parsed)) throw new Error("OpenAI returned incomplete SEO content");
+              seoProvider = "openai";
+            } else {
+              throw new Error("OpenAI returned no SEO content");
             }
           } catch (e) {
             console.error("OpenAI failed, falling back to Cloudflare AI...", e.message);
+            parsed = null;
           }
         }
         if (!parsed) {
@@ -3602,16 +3622,16 @@ Generate trending, specific SEO \u2014 not generic content.`
             } else {
               rawText = JSON.stringify(aiResponse);
             }
-            try {
-              parsed = parseSeoText(rawText);
-            } catch {
-            }
+            parsed = parseSeoText(rawText);
+            if (!hasSeoContent(parsed)) throw new Error("Cloudflare AI returned incomplete SEO content");
+            seoProvider = "cloudflare";
           } catch (_) {
             parsed = null;
           }
         }
         if (!hasSeoContent(parsed)) {
           parsed = makeDeterministicSeoFallback(`${brandContext}${textPrompt}`);
+          seoProvider = "local";
         }
         const cleanData = parsed ? {
           youtube: {
@@ -3630,7 +3650,8 @@ Generate trending, specific SEO \u2014 not generic content.`
         return new Response(JSON.stringify({
           success: true,
           data: cleanData,
-          fallbackUsed: !parsed
+          provider: seoProvider,
+          fallbackUsed: seoProvider !== "openai"
         }), {
           status: 200,
           headers: jsonHeaders
