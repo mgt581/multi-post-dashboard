@@ -10,8 +10,11 @@ test("Facebook linking requests only supported page-link permissions", () => {
   assert.deepEqual(FACEBOOK_PAGE_LINK_SCOPES, [
     "public_profile",
     "pages_show_list",
+    "pages_read_engagement",
     "pages_manage_posts"
   ]);
-  assert.equal(FACEBOOK_PAGE_LINK_SCOPE, "public_profile,pages_show_list,pages_manage_posts");
-  assert.equal(FACEBOOK_PAGE_LINK_SCOPES.includes("pages_read_engagement"), false);
+  assert.equal(
+    FACEBOOK_PAGE_LINK_SCOPE,
+    "public_profile,pages_show_list,pages_read_engagement,pages_manage_posts"
+  );
 });
