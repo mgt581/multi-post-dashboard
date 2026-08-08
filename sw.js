@@ -1,4 +1,4 @@
-const SW_VERSION = "2026-08-08-direct-oauth-worker";
+const SW_VERSION = "2026-08-08-oauth-single-shot-nostore";
 const DIRECT_API_ORIGIN = "https://multipost-seo-worker.alexbryant.workers.dev";
 
 self.addEventListener("install", () => self.skipWaiting());
@@ -16,7 +16,8 @@ async function fetchDirectWorker(request, url) {
     method: request.method,
     headers: new Headers(request.headers),
     redirect: "follow",
-    credentials: "omit"
+    credentials: "omit",
+    cache: "no-store"
   };
 
   if (request.method !== "GET" && request.method !== "HEAD") {
@@ -34,11 +35,20 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // OAuth entry points and callbacks must be navigations. Route them directly
-  // to the Cloudflare Worker so a broken custom-domain /api route cannot stop
-  // YouTube, TikTok or Facebook account linking.
+  // OAuth entry points and callbacks are one-shot navigations. Send them
+  // directly to the Cloudflare Worker and explicitly prevent caching/replay.
+  // This is critical for TikTok because authorization codes can be exchanged
+  // only once and expire quickly.
   if (url.pathname.startsWith("/api/auth/")) {
-    event.respondWith(Response.redirect(directWorkerUrl(url), 302));
+    event.respondWith(new Response(null, {
+      status: 302,
+      headers: {
+        "Location": directWorkerUrl(url),
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0"
+      }
+    }));
     return;
   }
 
@@ -47,7 +57,7 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/api/")) {
     event.respondWith((async () => {
       try {
-        const primary = await fetch(event.request.clone());
+        const primary = await fetch(event.request.clone(), { cache: "no-store" });
         if (primary.status < 500) return primary;
 
         try {
@@ -63,7 +73,7 @@ self.addEventListener("fetch", (event) => {
             JSON.stringify({ error: "The API is temporarily unavailable. Please retry." }),
             {
               status: 503,
-              headers: { "Content-Type": "application/json" }
+              headers: { "Content-Type": "application/json", "Cache-Control": "no-store" }
             }
           );
         }
@@ -73,7 +83,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (event.request.mode === "navigate") {
-    event.respondWith(fetch(event.request).catch(() => caches.match("/")));
+    event.respondWith(fetch(event.request, { cache: "no-store" }).catch(() => caches.match("/")));
     return;
   }
 
