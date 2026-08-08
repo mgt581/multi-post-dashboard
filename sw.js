@@ -1,14 +1,17 @@
-const SW_VERSION = "2026-08-08-api-worker-fallback";
+const SW_VERSION = "2026-08-08-direct-oauth-worker";
 const DIRECT_API_ORIGIN = "https://multipost-seo-worker.alexbryant.workers.dev";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
-async function fetchDirectWorker(request, url) {
-  const fallbackUrl = new URL(DIRECT_API_ORIGIN);
-  fallbackUrl.pathname = url.pathname;
-  fallbackUrl.search = url.search;
+function directWorkerUrl(url) {
+  const target = new URL(DIRECT_API_ORIGIN);
+  target.pathname = url.pathname;
+  target.search = url.search;
+  return target.toString();
+}
 
+async function fetchDirectWorker(request, url) {
   const init = {
     method: request.method,
     headers: new Headers(request.headers),
@@ -20,7 +23,7 @@ async function fetchDirectWorker(request, url) {
     init.body = await request.clone().arrayBuffer();
   }
 
-  return fetch(fallbackUrl.toString(), init);
+  return fetch(directWorkerUrl(url), init);
 }
 
 self.addEventListener("fetch", (event) => {
@@ -31,8 +34,16 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // API requests prefer the custom-domain route, but automatically fall back
-  // to the direct Cloudflare Worker if that route is temporarily unavailable.
+  // OAuth entry points and callbacks must be navigations. Route them directly
+  // to the Cloudflare Worker so a broken custom-domain /api route cannot stop
+  // YouTube, TikTok or Facebook account linking.
+  if (url.pathname.startsWith("/api/auth/")) {
+    event.respondWith(Response.redirect(directWorkerUrl(url), 302));
+    return;
+  }
+
+  // Other API requests prefer the custom-domain route, but automatically fall
+  // back to the direct Worker if that route is temporarily unavailable.
   if (url.pathname.startsWith("/api/")) {
     event.respondWith((async () => {
       try {
