@@ -1,498 +1,200 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Multipost | Access Portal</title>
-    <meta name="theme-color" content="#0b1829">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Multipost">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <link rel="icon" href="logo.png?v=20260424">
-    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260424">
-    <link rel="manifest" href="manifest.webmanifest">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Multipost | Opening App</title>
+  <meta name="theme-color" content="#0b1829">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="logo.png?v=20260424">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=20260424">
+  <link rel="manifest" href="manifest.webmanifest">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
 
-        :root {
-            --bg: linear-gradient(135deg, #0f172a, #0b2f52 60%, #0ea5e9);
-            --card: #0b1829;
-            --border: rgba(255, 255, 255, 0.08);
-            --muted: #94a3b8;
-            --text: #e2e8f0;
-            --accent: #7c3aed;
-            --accent-2: #0ea5e9;
-            --shadow: 0 14px 40px rgba(15, 23, 42, 0.45);
-        }
+    :root {
+      --bg: linear-gradient(135deg, #0f172a, #0b2f52 60%, #0ea5e9);
+      --card: #0b1829;
+      --border: rgba(255, 255, 255, 0.08);
+      --muted: #94a3b8;
+      --text: #e2e8f0;
+      --accent: #7c3aed;
+      --accent-2: #0ea5e9;
+    }
 
-        * { box-sizing: border-box; }
+    * { box-sizing: border-box; }
 
-        body {
-            margin: 0;
-            background: var(--bg);
-            font-family: 'Manrope', sans-serif;
-            color: var(--text);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            flex-direction: column;
-        }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Manrope', sans-serif;
+    }
 
-        .auth-card {
-            width: 100%;
-            max-width: 420px;
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 28px;
-            padding: 40px 30px;
-            box-shadow: var(--shadow);
-            text-align: center;
-        }
+    .card {
+      width: 100%;
+      max-width: 420px;
+      padding: 38px 30px;
+      text-align: center;
+      border: 1px solid var(--border);
+      border-radius: 26px;
+      background: var(--card);
+      box-shadow: 0 14px 40px rgba(15, 23, 42, 0.45);
+    }
 
-        h1 { font-size: 28px; font-weight: 800; margin: 0; letter-spacing: -1px; }
-        p { color: var(--muted); font-size: 15px; margin: 8px 0 30px; }
+    h1 { margin: 0; font-size: 28px; font-weight: 800; }
+    p { margin: 10px 0 0; color: var(--muted); line-height: 1.5; }
 
-        .tabs {
-            display: flex;
-            background: rgba(255, 255, 255, 0.04);
-            padding: 4px;
-            border-radius: 14px;
-            margin-bottom: 24px;
-            border: 1px solid var(--border);
-        }
+    .spinner {
+      width: 38px;
+      height: 38px;
+      margin: 26px auto 18px;
+      border: 4px solid rgba(255,255,255,.12);
+      border-top-color: var(--accent-2);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+    }
 
-        .tab {
-            flex: 1;
-            padding: 10px;
-            border-radius: 10px;
-            border: none;
-            background: transparent;
-            color: var(--muted);
-            font-weight: 800;
-            font-size: 13px;
-            cursor: pointer;
-            text-transform: uppercase;
-            transition: all 0.2s;
-        }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-        .tab.active {
-            background: var(--accent);
-            color: white;
-            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.2);
-        }
+    .btn {
+      display: none;
+      width: 100%;
+      margin-top: 20px;
+      padding: 13px 16px;
+      border: 0;
+      border-radius: 12px;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
 
-        .form-group { text-align: left; margin-bottom: 16px; }
-
-        input {
-            width: 100%;
-            padding: 14px 16px;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            color: white;
-            font-size: 15px;
-            font-family: inherit;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        input:focus { border-color: var(--accent-2); }
-
-        .btn {
-            width: 100%;
-            padding: 14px;
-            border: none;
-            border-radius: 14px;
-            background: linear-gradient(135deg, var(--accent), var(--accent-2));
-            color: white;
-            font-weight: 800;
-            font-size: 16px;
-            cursor: pointer;
-            margin-top: 10px;
-            box-shadow: 0 10px 20px rgba(14, 165, 233, 0.2);
-        }
-
-        .btn-google {
-            background: white;
-            color: #0f172a;
-            margin-top: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-
-        .btn-social {
-            background: rgba(255, 255, 255, 0.06);
-            color: #f8fafc;
-            margin-top: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            border: 1px solid var(--border);
-            box-shadow: none;
-        }
-
-        .btn-tiktok { background: #0f172a; border-color: rgba(255, 255, 255, 0.16); }
-        .btn-facebook { background: #1877f2; color: #fff; border-color: rgba(24, 119, 242, 0.9); }
-
-        .btn:disabled {
-            cursor: not-allowed;
-            opacity: 0.72;
-        }
-
-        .forgot-link {
-            display: block;
-            margin-top: 16px;
-            font-size: 13px;
-            color: var(--muted);
-            text-decoration: none;
-            font-weight: 700;
-        }
-
-        .forgot-link:hover { color: var(--accent-2); }
-
-        .loader {
-            display: none;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255,255,255,0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        footer {
-            margin-top: 40px;
-            text-align: center;
-            font-size: 13px;
-            color: var(--muted);
-        }
-
-        .footer-links {
-            margin-bottom: 10px;
-        }
-
-        .footer-links a {
-            color: var(--muted);
-            text-decoration: none;
-            margin: 0 10px;
-            font-weight: 700;
-        }
-
-        .footer-links a:hover {
-            color: var(--accent-2);
-        }
-    </style>
+    .legal { margin-top: 24px; font-size: 12px; }
+    .legal a { color: var(--muted); text-decoration: none; margin: 0 8px; }
+  </style>
 </head>
 <body>
-    <div class="auth-card">
-        <h1>Multipost</h1>
-        <p id="form-hint">Access your multi-channel dashboard</p>
-
-        <div class="tabs">
-            <button id="tab-login" class="tab active" onclick="switchMode('login')">Sign In</button>
-            <button id="tab-signup" class="tab" onclick="switchMode('signup')">Sign Up</button>
-        </div>
-
-        <div id="auth-form">
-            <div class="form-group">
-                <input id="email" type="email" placeholder="Email Address">
-            </div>
-            <div class="form-group">
-                <input id="password" type="password" placeholder="Password">
-            </div>
-
-            <button class="btn" onclick="handleAuthSubmit()">
-                <span id="btn-text">Enter Workspace</span>
-                <div id="btn-loader" class="loader"></div>
-            </button>
-
-            <button class="btn btn-google" onclick="handleGoogleSignIn()">
-                <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" alt="">
-                Continue with Google
-            </button>
-
-            <button class="btn btn-social btn-tiktok" onclick="handleTikTokSignIn()">
-                <i class="fa-brands fa-tiktok" aria-hidden="true"></i>
-                Log in with TikTok
-            </button>
-
-            <button class="btn btn-social btn-facebook" onclick="handleFacebookSignIn()">
-                <i class="fa-brands fa-facebook-f" aria-hidden="true"></i>
-                Continue with Facebook
-            </button>
-
-            <a href="#" class="forgot-link" onclick="handlePasswordReset()">Forgot your password?</a>
-        </div>
+  <main class="card">
+    <h1>Multipost</h1>
+    <p id="status">Opening your workspace…</p>
+    <div id="spinner" class="spinner" aria-hidden="true"></div>
+    <button id="retry" class="btn" type="button">Try Again</button>
+    <div class="legal">
+      <a href="privacy.html">Privacy Policy</a>
+      <a href="terms.html">Terms of Service</a>
     </div>
+  </main>
 
-    <footer>
-        <div class="footer-links">
-            <a href="privacy.html">Privacy Policy</a>
-            <a href="terms.html">Terms of Service</a>
-        </div>
-        <div>&copy; 2026 Bryant Group Holdings Ltd.</div>
-    </footer>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import {
+      getAuth,
+      onAuthStateChanged,
+      setPersistence,
+      browserLocalPersistence,
+      signInWithEmailAndPassword,
+      createUserWithEmailAndPassword
+    } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import {
-            getAuth,
-            createUserWithEmailAndPassword,
-            signInWithEmailAndPassword,
-            GoogleAuthProvider,
-            signInWithPopup,
-            signInWithCustomToken,
-            getRedirectResult,
-            onAuthStateChanged,
-            setPersistence,
-            browserLocalPersistence,
-            signOut,
-            sendPasswordResetEmail
-        } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    const firebaseConfig = {
+      apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
+      authDomain: "multi-post-daefc.firebaseapp.com",
+      projectId: "multi-post-daefc",
+      storageBucket: "multi-post-daefc.appspot.com",
+      messagingSenderId: "1099160429576",
+      appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd"
+    };
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
-            authDomain: "multi-post-daefc.firebaseapp.com",
-            projectId: "multi-post-daefc",
-            storageBucket: "multi-post-daefc.appspot.com",
-            messagingSenderId: "1099160429576",
-            appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd"
-        };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const statusEl = document.getElementById("status");
+    const spinner = document.getElementById("spinner");
+    const retryBtn = document.getElementById("retry");
+    let redirecting = false;
 
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const provider = new GoogleAuthProvider();
-        const host = window.location.hostname;
-        const isProdHost = host === "multipostapp.co.uk" || host === "www.multipostapp.co.uk";
-        const apiBase = isProdHost
-            ? "/api"
-            : "https://multipost-seo-worker.alexbryant.workers.dev/api";
+    function randomHex(bytes = 18) {
+      const values = new Uint8Array(bytes);
+      crypto.getRandomValues(values);
+      return Array.from(values, value => value.toString(16).padStart(2, "0")).join("");
+    }
 
-        provider.addScope("email");
-        provider.addScope("profile");
-        provider.setCustomParameters({ prompt: "select_account" });
-        setPersistence(auth, browserLocalPersistence).catch((error) => {
-            console.warn("Auth persistence setup failed:", error);
-        });
+    function getWorkspaceCredentials() {
+      let email = localStorage.getItem("multipost_workspace_email") || "";
+      let password = localStorage.getItem("multipost_workspace_password") || "";
 
-        let currentMode = "login";
-        const initialParams = new URLSearchParams(window.location.search);
-        const hasProviderCallback =
-            initialParams.get("tiktok_login") === "complete" ||
-            initialParams.get("facebook_login") === "complete" ||
-            initialParams.has("auth_error");
-        let suppressExistingSessionRedirect = hasProviderCallback;
+      if (!email || !password) {
+        const id = (crypto.randomUUID?.() || randomHex(16)).replace(/[^a-zA-Z0-9-]/g, "");
+        email = `workspace-${id}@users.multipostapp.co.uk`;
+        password = `Mp!${randomHex(24)}aA1`;
+        localStorage.setItem("multipost_workspace_email", email);
+        localStorage.setItem("multipost_workspace_password", password);
+      }
 
-        const normalizeUserKey = (value) => String(value || "").trim().toLowerCase();
-        const ownerKeys = [
-            "alexbryant3234@gmail.com",
-            "alexbryantwork3234@outlook.com",
-            "Y98MCpY2VTQujHVwvhufxYE6Azh1",
-            "L6GV2I8v1IZ8ZsSJVlof9K559A43",
-            "XvLFswTmQ7YalJNYTC3vT7Y9OsB3"
-        ];
-        const isOwnerKey = (value) => ownerKeys.some((ownerKey) => normalizeUserKey(ownerKey) === normalizeUserKey(value));
-        const isSocialProviderKey = (value) => /^(facebook|tiktok):/.test(normalizeUserKey(value));
-        const getStoredOwnerKey = () => {
-            let known = [];
-            try {
-                known = JSON.parse(localStorage.getItem("knownUserKeys") || "[]");
-            } catch (_) {
-                known = [];
-            }
-            return [localStorage.getItem("currentUserKey"), ...known].find(isOwnerKey) || "";
-        };
+      return { email, password };
+    }
 
-        const rememberUserKey = (value) => {
-            const key = normalizeUserKey(value);
-            if (!key) return;
-            const previous = normalizeUserKey(localStorage.getItem("currentUserKey"));
-            const known = JSON.parse(localStorage.getItem("knownUserKeys") || "[]");
-            const next = [previous, key, ...known.map(normalizeUserKey)].filter(Boolean);
-            localStorage.setItem("knownUserKeys", JSON.stringify([...new Set(next)].slice(0, 8)));
-            const ownerKey = getStoredOwnerKey();
-            localStorage.setItem("currentUserKey", isSocialProviderKey(key) && ownerKey ? normalizeUserKey(ownerKey) : key);
-        };
+    function openWorkspace(user) {
+      if (!user || redirecting) return;
+      redirecting = true;
+      statusEl.textContent = "Workspace ready.";
+      window.location.replace("app.html");
+    }
 
-        const openWorkspace = (user) => {
-            if (!user) return;
-            rememberUserKey(user.email || user.uid);
-            window.location.replace("app.html");
-        };
+    function showError(error) {
+      console.error("Workspace bootstrap failed:", error);
+      statusEl.textContent = "Could not open the workspace automatically. Please try again.";
+      spinner.style.display = "none";
+      retryBtn.style.display = "block";
+    }
 
-        const showOauthError = () => {
-            const params = new URLSearchParams(window.location.search);
-            const error = params.get("auth_error");
-            if (!error) return;
-            alert(error);
-            params.delete("auth_error");
-            const nextUrl = `${window.location.pathname}${params.toString() ? `?${params}` : ""}${window.location.hash}`;
-            window.history.replaceState({}, document.title, nextUrl);
-        };
+    async function bootstrapWorkspace() {
+      retryBtn.style.display = "none";
+      spinner.style.display = "block";
+      statusEl.textContent = "Opening your workspace…";
 
-        const completeCustomTokenSignIn = async ({ providerName, queryKey, endpoint }) => {
-            const params = new URLSearchParams(window.location.search);
-            if (params.get(queryKey) !== "complete") return false;
-            const response = await fetch(`${apiBase}${endpoint}`, {
-                method: "POST",
-                credentials: "include"
-            });
-            const data = await response.json().catch(() => ({}));
-            if (!response.ok || !data?.custom_token) {
-                throw new Error(data?.error || `${providerName} sign-in could not be completed`);
-            }
-            await setPersistence(auth, browserLocalPersistence);
-            const result = await signInWithCustomToken(auth, data.custom_token);
-            const signedInUser = result?.user || auth.currentUser;
-            if (!signedInUser) {
-                throw new Error(`${providerName} sign-in completed but the session was not initialized. Please try again.`);
-            }
-            await signedInUser.getIdToken(true);
-            openWorkspace(signedInUser);
-            return true;
-        };
+      try {
+        await setPersistence(auth, browserLocalPersistence);
+        if (auth.currentUser) {
+          openWorkspace(auth.currentUser);
+          return;
+        }
 
-        const completePendingProviderSignIn = async () => {
-            const tiktokCompleted = await completeCustomTokenSignIn({
-                providerName: "TikTok",
-                queryKey: "tiktok_login",
-                endpoint: "/auth/tiktok/firebase-token"
-            });
-            if (tiktokCompleted) return true;
-            return await completeCustomTokenSignIn({
-                providerName: "Facebook",
-                queryKey: "facebook_login",
-                endpoint: "/auth/facebook/firebase-token"
-            });
-        };
+        const { email, password } = getWorkspaceCredentials();
 
-        getRedirectResult(auth).then((result) => {
-            if (result?.user) {
-                openWorkspace(result.user);
-            }
-        }).catch((error) => {
-            console.error("Google Auth Error:", error);
-            alert(error?.message || "Google sign-in failed");
-        });
+        try {
+          const result = await signInWithEmailAndPassword(auth, email, password);
+          openWorkspace(result.user);
+          return;
+        } catch (signInError) {
+          const code = String(signInError?.code || "");
+          const canCreate = [
+            "auth/user-not-found",
+            "auth/invalid-credential",
+            "auth/invalid-login-credentials"
+          ].includes(code);
 
-        showOauthError();
-        completePendingProviderSignIn().catch((error) => {
-            console.error("Provider Auth Error:", error);
-            alert(error?.message || "Social sign-in failed");
-        });
+          if (!canCreate) throw signInError;
+        }
 
-        window.switchMode = (mode) => {
-            currentMode = mode;
-            document.getElementById("tab-login").classList.toggle("active", mode === "login");
-            document.getElementById("tab-signup").classList.toggle("active", mode === "signup");
-            document.getElementById("btn-text").innerText = mode === "login" ? "Enter Workspace" : "Create Account";
-            document.getElementById("form-hint").innerText = mode === "login" ? "Access your multi-channel dashboard" : "Start your journey with us today";
-        };
+        const created = await createUserWithEmailAndPassword(auth, email, password);
+        openWorkspace(created.user);
+      } catch (error) {
+        showError(error);
+      }
+    }
 
-        window.handleAuthSubmit = async () => {
-            const email = document.getElementById("email").value;
-            const password = document.getElementById("password").value;
-            const btnText = document.getElementById("btn-text");
-            const loader = document.getElementById("btn-loader");
+    onAuthStateChanged(auth, user => {
+      if (user) openWorkspace(user);
+    });
 
-            if (!email || !password) return alert("Please fill in all fields");
-
-            btnText.style.display = "none";
-            loader.style.display = "block";
-
-            try {
-                let cred;
-                if (currentMode === "login") {
-                    cred = await signInWithEmailAndPassword(auth, email, password);
-                } else {
-                    cred = await createUserWithEmailAndPassword(auth, email, password);
-                }
-                const signedInUser = cred?.user || auth.currentUser;
-                if (!signedInUser) {
-                    throw new Error("Sign-in succeeded but session was not initialized. Please refresh and try again.");
-                }
-                openWorkspace(signedInUser);
-            } catch (err) {
-                alert(err.message);
-                btnText.style.display = "block";
-                loader.style.display = "none";
-            }
-        };
-
-        window.handleGoogleSignIn = async () => {
-            const googleButton = document.querySelector(".btn-google");
-            if (googleButton) googleButton.disabled = true;
-
-            try {
-                await setPersistence(auth, browserLocalPersistence);
-                const result = await signInWithPopup(auth, provider);
-                const signedInUser = result?.user || auth.currentUser;
-                if (!signedInUser) {
-                    throw new Error("Google sign-in completed but the session was not initialized. Please try again.");
-                }
-                openWorkspace(signedInUser);
-            } catch (err) {
-                console.error("Google Auth Error:", err);
-                alert(err?.message || "Google sign-in failed");
-                if (googleButton) googleButton.disabled = false;
-            }
-        };
-
-        window.handleTikTokSignIn = async () => {
-            const tiktokButton = document.querySelector(".btn-tiktok");
-            if (tiktokButton) tiktokButton.disabled = true;
-            try {
-                await setPersistence(auth, browserLocalPersistence);
-                await signOut(auth).catch(() => {});
-                window.location.assign(`${apiBase}/auth/login/tiktok`);
-            } catch (err) {
-                console.error("TikTok Auth Error:", err);
-                alert(err?.message || "TikTok sign-in failed");
-                if (tiktokButton) tiktokButton.disabled = false;
-            }
-        };
-
-        window.handleFacebookSignIn = async () => {
-            const facebookButton = document.querySelector(".btn-facebook");
-            if (facebookButton) facebookButton.disabled = true;
-            try {
-                await setPersistence(auth, browserLocalPersistence);
-                await signOut(auth).catch(() => {});
-                window.location.assign(`${apiBase}/auth/login/facebook`);
-            } catch (err) {
-                console.error("Facebook Auth Error:", err);
-                alert(err?.message || "Facebook sign-in failed");
-                if (facebookButton) facebookButton.disabled = false;
-            }
-        };
-
-        window.handlePasswordReset = async () => {
-            const email = document.getElementById("email").value;
-            if (!email) return alert("Enter your email first");
-            try {
-                await sendPasswordResetEmail(auth, email);
-                alert("Reset email sent!");
-            } catch (err) { alert(err.message); }
-        };
-
-        onAuthStateChanged(auth, (user) => {
-            if (suppressExistingSessionRedirect) return;
-            if (user) {
-                if (window.location.pathname.includes("signin.html")) {
-                    openWorkspace(user);
-                }
-            }
-        });
-    </script>
+    retryBtn.addEventListener("click", bootstrapWorkspace);
+    bootstrapWorkspace();
+  </script>
 </body>
 </html>
