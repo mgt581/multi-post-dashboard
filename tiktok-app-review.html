@@ -9,131 +9,7 @@
   <link rel="canonical" href="https://multipostapp.co.uk/tiktok-app-review.html">
   <link rel="icon" href="logo.png">
   <style>
-    :root {
-      --bg: #07111f;
-      --panel: #102039;
-      --panel-2: #152943;
-      --text: #f8fafc;
-      --muted: #cbd5e1;
-      --line: rgba(255,255,255,.13);
-      --blue: #38bdf8;
-      --purple: #a78bfa;
-    }
-    * { box-sizing: border-box; }
-    html { scroll-behavior: smooth; }
-    body {
-      margin: 0;
-      color: var(--text);
-      background:
-        radial-gradient(circle at 15% 0%, rgba(56,189,248,.18), transparent 35rem),
-        radial-gradient(circle at 95% 20%, rgba(167,139,250,.15), transparent 32rem),
-        var(--bg);
-      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      line-height: 1.65;
-    }
-    a { color: var(--blue); }
-    .wrap { width: min(1100px, calc(100% - 40px)); margin: 0 auto; }
-    header {
-      border-bottom: 1px solid var(--line);
-      background: rgba(7,17,31,.9);
-    }
-    nav {
-      min-height: 74px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 24px;
-    }
-    .brand { color: white; text-decoration: none; font-size: 1.25rem; font-weight: 800; }
-    .nav-links { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; }
-    .nav-links a { color: var(--muted); text-decoration: none; font-weight: 650; }
-    .nav-links a:hover { color: white; }
-    .button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 11px;
-      padding: 11px 17px;
-      color: #06111e !important;
-      background: linear-gradient(135deg, var(--blue), var(--purple));
-      text-decoration: none;
-      font-weight: 800;
-    }
-    .hero { padding: 84px 0 58px; max-width: 850px; }
-    .eyebrow {
-      margin: 0 0 14px;
-      color: var(--blue);
-      font-size: .84rem;
-      font-weight: 800;
-      letter-spacing: .12em;
-      text-transform: uppercase;
-    }
-    h1 { margin: 0; font-size: clamp(2.5rem, 7vw, 5.2rem); line-height: 1.02; letter-spacing: -.045em; }
-    .lead { color: var(--muted); font-size: clamp(1.08rem, 2.2vw, 1.35rem); max-width: 760px; margin: 24px 0 30px; }
-    .actions { display: flex; flex-wrap: wrap; gap: 12px; }
-    .secondary { color: white !important; background: transparent; border: 1px solid var(--line); }
-    section { padding: 28px 0 58px; }
-    h2 { font-size: clamp(1.75rem, 3.5vw, 2.55rem); margin: 0 0 12px; letter-spacing: -.025em; }
-    .intro { color: var(--muted); max-width: 760px; margin: 0 0 24px; }
-    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
-    .card {
-      padding: 24px;
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background: linear-gradient(145deg, rgba(21,41,67,.96), rgba(16,32,57,.88));
-    }
-    .card h3 { margin: 0 0 8px; font-size: 1.1rem; }
-    .card p { margin: 0; color: var(--muted); }
-    .steps { counter-reset: step; display: grid; gap: 14px; }
-    .step {
-      counter-increment: step;
-      display: grid;
-      grid-template-columns: 44px 1fr;
-      gap: 15px;
-      align-items: start;
-      padding: 20px;
-      border: 1px solid var(--line);
-      border-radius: 15px;
-      background: rgba(16,32,57,.76);
-    }
-    .step::before {
-      content: counter(step);
-      width: 36px;
-      height: 36px;
-      display: grid;
-      place-items: center;
-      border-radius: 50%;
-      background: var(--blue);
-      color: #06111e;
-      font-weight: 900;
-    }
-    .step strong { display: block; margin-bottom: 3px; }
-    .step span { color: var(--muted); }
-    .notice {
-      margin-top: 22px;
-      padding: 20px 22px;
-      border-left: 4px solid var(--blue);
-      border-radius: 10px;
-      color: var(--muted);
-      background: rgba(56,189,248,.09);
-    }
-    footer { margin-top: 30px; border-top: 1px solid var(--line); background: rgba(4,11,21,.8); }
-    .footer-inner {
-      padding: 34px 0;
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      flex-wrap: wrap;
-      gap: 24px;
-      color: var(--muted);
-    }
-    .legal { display: flex; flex-wrap: wrap; gap: 18px; }
-    .legal a { font-weight: 750; }
-    @media (max-width: 800px) {
-      nav { align-items: flex-start; flex-direction: column; padding: 18px 0; }
-      .grid { grid-template-columns: 1fr; }
-      .hero { padding-top: 58px; }
-    }
+    :root{--bg:#07111f;--panel:#102039;--panel2:#152943;--text:#f8fafc;--muted:#cbd5e1;--line:rgba(255,255,255,.13);--blue:#38bdf8;--purple:#a78bfa}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;color:var(--text);background:radial-gradient(circle at 15% 0%,rgba(56,189,248,.18),transparent 35rem),radial-gradient(circle at 95% 20%,rgba(167,139,250,.15),transparent 32rem),var(--bg);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.65}a{color:var(--blue)}.wrap{width:min(1100px,calc(100% - 40px));margin:0 auto}header{border-bottom:1px solid var(--line);background:rgba(7,17,31,.9)}nav{min-height:74px;display:flex;align-items:center;justify-content:space-between;gap:24px}.brand{color:white;text-decoration:none;font-size:1.25rem;font-weight:800}.nav-links{display:flex;flex-wrap:wrap;align-items:center;gap:18px}.nav-links a{color:var(--muted);text-decoration:none;font-weight:650}.nav-links a:hover{color:white}.button{display:inline-flex;align-items:center;justify-content:center;border-radius:11px;padding:11px 17px;color:#06111e!important;background:linear-gradient(135deg,var(--blue),var(--purple));text-decoration:none;font-weight:800}.hero{padding:84px 0 58px;max-width:850px}.eyebrow{margin:0 0 14px;color:var(--blue);font-size:.84rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}h1{margin:0;font-size:clamp(2.5rem,7vw,5.2rem);line-height:1.02;letter-spacing:-.045em}.lead{color:var(--muted);font-size:clamp(1.08rem,2.2vw,1.35rem);max-width:760px;margin:24px 0 30px}.actions{display:flex;flex-wrap:wrap;gap:12px}.secondary{color:white!important;background:transparent;border:1px solid var(--line)}section{padding:28px 0 58px}h2{font-size:clamp(1.75rem,3.5vw,2.55rem);margin:0 0 12px;letter-spacing:-.025em}.intro{color:var(--muted);max-width:760px;margin:0 0 24px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}.card{padding:24px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,rgba(21,41,67,.96),rgba(16,32,57,.88))}.card h3{margin:0 0 8px;font-size:1.1rem}.card p{margin:0;color:var(--muted)}.steps{counter-reset:step;display:grid;gap:14px}.step{counter-increment:step;display:grid;grid-template-columns:44px 1fr;gap:15px;align-items:start;padding:20px;border:1px solid var(--line);border-radius:15px;background:rgba(16,32,57,.76)}.step::before{content:counter(step);width:36px;height:36px;display:grid;place-items:center;border-radius:50%;background:var(--blue);color:#06111e;font-weight:900}.step strong{display:block;margin-bottom:3px}.step span{color:var(--muted)}.notice{margin-top:22px;padding:20px 22px;border-left:4px solid var(--blue);border-radius:10px;color:var(--muted);background:rgba(56,189,248,.09)}footer{margin-top:30px;border-top:1px solid var(--line);background:rgba(4,11,21,.8)}.footer-inner{padding:34px 0;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:24px;color:var(--muted)}.legal{display:flex;flex-wrap:wrap;gap:18px}.legal a{font-weight:750}@media(max-width:800px){nav{align-items:flex-start;flex-direction:column;padding:18px 0}.grid{grid-template-columns:1fr}.hero{padding-top:58px}}
   </style>
 </head>
 <body>
@@ -146,7 +22,7 @@
         <a href="#data">Data and user control</a>
         <a href="privacy.html">Privacy Policy</a>
         <a href="terms.html">Terms of Service</a>
-        <a class="button" href="signin.html">Sign in</a>
+        <a class="button" href="app.html">Open App</a>
       </div>
     </nav>
   </header>
@@ -155,108 +31,59 @@
     <div class="hero">
       <p class="eyebrow">Public service information</p>
       <h1>Manage social publishing from one organised workspace.</h1>
-      <p class="lead">
-        Multi Post is a web-based social media management service for agencies,
-        businesses and content teams. Users organise brands into workspaces,
-        connect their own social accounts, prepare platform-specific content and
-        explicitly choose when and where each post is published.
-      </p>
+      <p class="lead">Multi Post is a web-based social media management service for agencies, businesses and content teams. The workspace opens directly. Users then choose which social platform to connect, authorise access through that platform's official OAuth flow, prepare content and explicitly choose when and where each post is published.</p>
       <div class="actions">
-        <a class="button" href="#service">Learn how it works</a>
-        <a class="button secondary" href="mailto:alexbryant3234@gmail.com">Contact support</a>
+        <a class="button" href="app.html">Open Multipost</a>
+        <a class="button secondary" href="mailto:support@multipostapp.co.uk">Contact support</a>
       </div>
     </div>
 
     <section id="service">
       <h2>What Multi Post provides</h2>
-      <p class="intro">
-        Multi Post reduces repeated account switching while keeping every publishing
-        decision under the user’s control.
-      </p>
+      <p class="intro">Multi Post reduces repeated account switching while keeping every platform connection and publishing decision under the user's control.</p>
       <div class="grid">
-        <article class="card">
-          <h3>Brand workspaces</h3>
-          <p>Create a separate workspace for each brand or client and clearly identify every connected destination.</p>
-        </article>
-        <article class="card">
-          <h3>Content preparation</h3>
-          <p>Prepare titles, descriptions, captions, hashtags and keywords tailored to the selected social platform.</p>
-        </article>
-        <article class="card">
-          <h3>User-controlled publishing</h3>
-          <p>Select a local media file, review the post settings and use a dedicated publish button for the chosen account.</p>
-        </article>
+        <article class="card"><h3>Brand workspaces</h3><p>Create a separate workspace for each brand or client and clearly identify every connected destination.</p></article>
+        <article class="card"><h3>Content preparation</h3><p>Prepare titles, descriptions, captions, hashtags and keywords tailored to the selected social platform.</p></article>
+        <article class="card"><h3>User-controlled publishing</h3><p>Select a local media file, review the post settings and use a dedicated publish button for the chosen account.</p></article>
       </div>
     </section>
 
     <section id="tiktok">
       <h2>How the TikTok integration works</h2>
-      <p class="intro">
-        Multi Post uses TikTok Login Kit and the Content Posting API only after the
-        TikTok account owner authorises access.
-      </p>
+      <p class="intro">Multi Post uses TikTok's OAuth/Login Kit authorisation and Content Posting API only after the TikTok account owner chooses to connect TikTok and approves the requested permissions.</p>
       <div class="steps">
-        <div class="step">
-          <div><strong>Connect TikTok</strong><span>The user starts TikTok OAuth and reviews the requested permissions.</span></div>
-        </div>
-        <div class="step">
-          <div><strong>Identify the destination</strong><span>Multi Post displays the authorised TikTok profile name and avatar so the user can confirm the correct account.</span></div>
-        </div>
-        <div class="step">
-          <div><strong>Prepare the post</strong><span>The user selects a local video, writes or edits the caption and chooses the available privacy setting.</span></div>
-        </div>
-        <div class="step">
-          <div><strong>Publish with explicit consent</strong><span>Nothing is posted automatically. The transfer starts only when the user clicks “Publish to TikTok.”</span></div>
-        </div>
-        <div class="step">
-          <div><strong>Confirm completion</strong><span>Multi Post checks the publishing status and shows a completion message and TikTok profile link.</span></div>
-        </div>
+        <div class="step"><div><strong>Open a workspace</strong><span>No separate Multipost login is required before viewing the workspace.</span></div></div>
+        <div class="step"><div><strong>Connect TikTok</strong><span>The user clicks the TikTok connection control, is sent to TikTok's official authorisation screen and reviews the requested permissions.</span></div></div>
+        <div class="step"><div><strong>Identify the destination</strong><span>Multi Post displays the authorised TikTok profile so the user can confirm the correct account.</span></div></div>
+        <div class="step"><div><strong>Prepare the post</strong><span>The user selects a local video, writes or edits the caption and chooses an available privacy setting.</span></div></div>
+        <div class="step"><div><strong>Publish with explicit consent</strong><span>Nothing is posted automatically. The transfer begins only when the user clicks “Publish to TikTok.”</span></div></div>
+        <div class="step"><div><strong>Confirm completion</strong><span>Multi Post checks the publishing status and displays the result to the user.</span></div></div>
       </div>
-      <div class="notice">
-        TikTok permissions used by the service are limited to basic authorised profile
-        identification and user-initiated video upload/publishing. Multi Post does not
-        post in the background and does not sell TikTok account data.
-      </div>
+      <div class="notice">TikTok permissions used by the service are limited to the functionality requested for basic authorised profile identification and user-initiated video upload/publishing. Multi Post does not post in the background and does not sell TikTok account data.</div>
     </section>
 
     <section id="data">
       <h2>Privacy, security and user control</h2>
       <div class="grid">
-        <article class="card">
-          <h3>Clear consent</h3>
-          <p>Social accounts are connected through each platform’s official authorisation screen.</p>
-        </article>
-        <article class="card">
-          <h3>Reversible access</h3>
-          <p>Users can remove a connected social account from their Multi Post workspace.</p>
-        </article>
-        <article class="card">
-          <h3>Published policies</h3>
-          <p>Our public Privacy Policy and Terms of Service describe data handling, account use and deletion rights.</p>
-        </article>
+        <article class="card"><h3>Clear consent</h3><p>TikTok is connected only through TikTok's official authorisation screen after the user chooses to connect it.</p></article>
+        <article class="card"><h3>Reversible access</h3><p>Users can remove a connected TikTok account from their Multi Post workspace and can revoke permissions from TikTok.</p></article>
+        <article class="card"><h3>Published policies</h3><p>Our public Privacy Policy and Terms of Service describe data handling, platform access and deletion rights.</p></article>
       </div>
     </section>
 
     <section aria-labelledby="company-heading">
       <h2 id="company-heading">Company and support</h2>
-      <p class="intro">
-        Multi Post is operated by Bryant Group Holdings Ltd and developed by Bryant
-        Digital Solutions. For product, privacy or account questions, contact
-        <a href="mailto:alexbryant3234@gmail.com">alexbryant3234@gmail.com</a>.
-      </p>
+      <p class="intro">Multi Post is operated by Bryant Group Holdings Ltd and developed by Bryant Digital Solutions. For product, privacy or platform questions, contact <a href="mailto:support@multipostapp.co.uk">support@multipostapp.co.uk</a>.</p>
     </section>
   </main>
 
   <footer>
     <div class="wrap footer-inner">
-      <div>
-        <strong>Multi Post</strong><br>
-        © 2026 Bryant Group Holdings Ltd
-      </div>
+      <div><strong>Multi Post</strong><br>© 2026 Bryant Group Holdings Ltd</div>
       <div class="legal">
         <a href="https://multipostapp.co.uk/privacy.html">Privacy Policy</a>
         <a href="https://multipostapp.co.uk/terms.html">Terms of Service</a>
-        <a href="mailto:alexbryant3234@gmail.com">Contact</a>
+        <a href="mailto:support@multipostapp.co.uk">Contact</a>
         <a href="https://multipostapp.co.uk/">Main website</a>
       </div>
     </div>
