@@ -78,6 +78,7 @@
     }
     .plan-title { font-size: 14px; font-weight: 800; color: #f8fafc; }
     .plan-sub { font-size: 12px; color: var(--muted); font-weight: 700; }
+    .plan-features { margin: 4px 0 0; padding-left: 17px; color: #cbd5e1; font-size: 12px; line-height: 1.6; }
     .plan-sub.trial { color: #86efac; font-weight: 800; }
     .plan-cta { margin-top: 2px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #bae6fd; }
     .hint { color: var(--muted); font-size: 12px; }
@@ -89,50 +90,56 @@
     <div class="top">
       <div>
         <h1 class="title">Pricing</h1>
-        <p class="subtitle">Pick a plan to start checkout</p>
+        <p class="subtitle">Simple plans for one brand, growing teams and agencies</p>
       </div>
       <button class="btn" onclick="location.href='settings.html'">Back</button>
     </div>
 
     <div class="plans-wrap">
       <p class="plans-head">Choose Your Plan</p>
-      <p class="plans-subhead">Yearly options include better value. Pro Yearly includes a 7 day free trial.</p>
+      <p class="plans-subhead">Every plan includes AI-assisted, platform-specific copy and publishing across Facebook, TikTok and YouTube. Yearly Pro includes a 7 day free trial.</p>
       <div class="plans-grid">
         <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="monthly">
           <span class="plan-title">Pro Monthly £14.99</span>
-          <span class="plan-sub">Pay monthly</span>
+          <span class="plan-sub">For one creator or business</span>
+          <ul class="plan-features"><li>1 account on each platform</li><li>Up to 6 publishes per day</li><li>AI SEO copy and image posting</li></ul>
           <span class="plan-cta">Choose Pro Monthly</span>
         </a>
         <a class="plan-link yearly featured checkout-plan-link" href="#" data-plan="pro" data-interval="yearly">
           <span class="plan-badge">Best Value</span>
           <span class="plan-title">Pro Yearly £149</span>
           <span class="plan-sub trial">Includes 7 Day Free Trial</span>
+          <ul class="plan-features"><li>1 account on each platform</li><li>Up to 6 publishes per day</li><li>AI SEO copy and image posting</li></ul>
           <span class="plan-cta">Start 7 Day Free Trial</span>
         </a>
         <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="monthly">
           <span class="plan-title">Pro Plus Monthly £49</span>
-          <span class="plan-sub">Pay monthly</span>
+          <span class="plan-sub">For growing multi-brand work</span>
+          <ul class="plan-features"><li>Up to 3 accounts on each platform</li><li>Up to 27 publishes per day</li><li>AI SEO copy and image posting</li></ul>
           <span class="plan-cta">Choose Pro Plus Monthly</span>
         </a>
         <a class="plan-link yearly checkout-plan-link" href="#" data-plan="pro_plus" data-interval="yearly">
           <span class="plan-title">Pro Plus Yearly £529.99</span>
           <span class="plan-sub">Save with annual billing</span>
+          <ul class="plan-features"><li>Up to 3 accounts on each platform</li><li>Up to 27 publishes per day</li><li>AI SEO copy and image posting</li></ul>
           <span class="plan-cta">Choose Pro Plus Yearly</span>
         </a>
         <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="monthly">
           <span class="plan-title">Agency Monthly £249</span>
-          <span class="plan-sub">Pay monthly</span>
+          <span class="plan-sub">For teams managing client accounts</span>
+          <ul class="plan-features"><li>Up to 100 accounts on each platform</li><li>Up to 300 publishes per day</li><li>Organised client workspaces and AI SEO</li></ul>
           <span class="plan-cta">Choose Agency Monthly</span>
         </a>
         <a class="plan-link yearly checkout-plan-link" href="#" data-plan="agency" data-interval="yearly">
           <span class="plan-title">Agency Yearly £2,499</span>
           <span class="plan-sub">Save with annual billing</span>
+          <ul class="plan-features"><li>Up to 100 accounts on each platform</li><li>Up to 300 publishes per day</li><li>Organised client workspaces and AI SEO</li></ul>
           <span class="plan-cta">Choose Agency Yearly</span>
         </a>
       </div>
     </div>
 
-    <p class="hint">After successful checkout you will be redirected to the app workspace.</p>
+    <p class="hint">Account and publishing allowances are per plan. Platform availability and permissions can vary by the social network. After successful checkout you will be redirected to the app workspace.</p>
   </div>
 
   <script type="module">

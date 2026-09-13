@@ -4,6 +4,16 @@ on:
   push:
     branches:
       - main
+    # The website is served by GitHub Pages, while this workflow deploys the
+    # Cloudflare API Worker. Do not redeploy the Worker for static-page edits.
+    paths:
+      - 'worker.js'
+      - 'services/**'
+      - '*.mjs'
+      - 'wrangler.toml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'migrations/**'
   workflow_dispatch:
 
 permissions:

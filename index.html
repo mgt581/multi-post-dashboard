@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Multipost — Create once, post everywhere</title>
-  <meta name="description" content="Multipost is a social media management app for organising brands, connecting social accounts, generating AI-assisted SEO content and publishing media from one dashboard.">
+  <meta name="description" content="Create content once, let AI write platform-specific copy, and publish across your Facebook, TikTok and YouTube workspaces from one simple dashboard.">
   <meta name="robots" content="index, follow">
   <meta property="og:title" content="Multipost — Create once, post everywhere">
-  <meta property="og:description" content="Connect your social accounts, create content and publish from one organised workspace.">
+  <meta property="og:description" content="Upload once, get platform-specific copy, and publish across every brand workspace from one organised dashboard.">
   <meta property="og:image" content="https://multipostapp.co.uk/logo.png?v=20260424">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://multipostapp.co.uk/">
@@ -22,7 +22,7 @@
     .page{max-width:1040px;margin:0 auto}nav{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:6px 0 50px}.brand{font-size:23px;font-weight:800;color:white;text-decoration:none}.nav-links{display:flex;align-items:center;gap:14px;flex-wrap:wrap}.nav-links a{color:#dbeafe;text-decoration:none;font-weight:700;font-size:14px}
     .btn{display:inline-flex;align-items:center;justify-content:center;padding:13px 20px;border-radius:13px;text-decoration:none;font-weight:800;border:1px solid var(--border);transition:.15s ease}.btn:hover{transform:translateY(-1px)}.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:white;border:0;box-shadow:var(--shadow)}.btn-secondary{background:rgba(255,255,255,.06);color:white}
     .hero{text-align:center;max-width:760px;margin:44px auto 64px}.badge{display:inline-block;padding:8px 14px;border:1px solid rgba(14,165,233,.5);border-radius:999px;background:rgba(14,165,233,.1);color:#7dd3fc;font-weight:800;font-size:13px}.hero h1{font-size:54px;line-height:1.06;letter-spacing:-2.4px;margin:22px 0 18px}.hero p{max-width:650px;margin:0 auto 28px;color:var(--muted);font-size:18px;line-height:1.65}.hero-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
-    .section{margin:74px 0}.section-head{text-align:center;max-width:720px;margin:0 auto 28px}.section h2{font-size:34px;margin:0 0 10px}.section-head p{color:var(--muted);line-height:1.6}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}.card{background:rgba(11,24,41,.92);border:1px solid var(--border);border-radius:20px;padding:24px;box-shadow:var(--shadow)}.card h3{margin:0 0 8px;font-size:18px}.card p{margin:0;color:var(--muted);line-height:1.55;font-size:14px}
+    .section{margin:74px 0}.section-head{text-align:center;max-width:720px;margin:0 auto 28px}.section h2{font-size:34px;margin:0 0 10px}.section-head p{color:var(--muted);line-height:1.6}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px}.card{background:rgba(11,24,41,.92);border:1px solid var(--border);border-radius:20px;padding:24px;box-shadow:var(--shadow)}.card h3{margin:0 0 8px;font-size:18px}.card p{margin:0;color:var(--muted);line-height:1.55;font-size:14px}.audience-card{border-color:rgba(14,165,233,.28)}.status{font-size:12px;font-weight:800;color:#86efac;margin-top:12px}.status.pending{color:#fcd34d}
     .demo{overflow:hidden;padding:0}.demo video{display:block;width:100%;background:#07101c}.review-box{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}.review-box p{margin:4px 0 0;color:var(--muted);max-width:650px;line-height:1.55}
     footer{margin-top:86px;padding:28px 0 8px;border-top:1px solid var(--border);text-align:center;color:var(--muted);font-size:13px}.footer-links{display:flex;justify-content:center;gap:16px;flex-wrap:wrap;margin-bottom:14px}.footer-links a{color:white;text-decoration:none;font-weight:700}
     @media(max-width:680px){body{padding:20px 13px}nav{align-items:flex-start;flex-direction:column;padding-bottom:30px}.nav-links{width:100%}.hero{margin-top:28px}.hero h1{font-size:38px;letter-spacing:-1.5px}.hero p{font-size:16px}.section{margin:54px 0}.section h2{font-size:29px}.btn{width:100%}.hero-actions{display:grid}.review-box .btn{width:100%}}
@@ -42,32 +42,54 @@
 
     <main>
       <section class="hero">
-        <span class="badge">Social publishing workspace</span>
-        <h1>Create once.<br>Post everywhere.</h1>
-        <p>Multipost helps agencies, businesses and content teams organise brands, connect their social accounts and publish media from one dashboard. The app opens directly — platform accounts are connected only when the user chooses to authorise them.</p>
+        <span class="badge">Your content. Every brand. One workspace.</span>
+        <h1>Create once.<br>Write less. Post faster.</h1>
+        <p>Upload your video or image, let Multipost create platform-specific copy, then publish to the Facebook, TikTok and YouTube accounts stored in each brand workspace. Built for creators, businesses and agencies that are tired of repetitive posting.</p>
         <div class="hero-actions">
           <a class="btn btn-primary" href="app.html">Open Multipost</a>
-          <a class="btn btn-secondary" href="tiktok-app-review.html">View App Information</a>
+          <a class="btn btn-secondary" href="#workflow">See how it works</a>
+        </div>
+      </section>
+
+      <section class="section" id="workflow">
+        <div class="section-head">
+          <h2>How Multipost works</h2>
+          <p>One straightforward flow for every account you manage—without rewriting the same post or hunting for the right client login.</p>
+        </div>
+        <div class="grid">
+          <article class="card"><h3>1. Organise every brand</h3><p>Create a workspace for each client, business or personal channel and keep its connected accounts together.</p></article>
+          <article class="card"><h3>2. Upload, then let AI help</h3><p>Add a video thumbnail or image. Multipost can generate SEO-aware titles, descriptions, captions and hashtags—even when you do not know what to write.</p></article>
+          <article class="card"><h3>3. Get copy for each platform</h3><p>Review and edit distinct YouTube, TikTok and Facebook copy instead of sending the same generic wording everywhere.</p></article>
+          <article class="card"><h3>4. Publish with confidence</h3><p>Send media to the account stored in that workspace, with a clear fallback route whenever a platform needs manual completion.</p></article>
         </div>
       </section>
 
       <section class="section">
         <div class="section-head">
-          <h2>How Multipost works</h2>
-          <p>Create a workspace for a brand, connect supported social platforms using their official authorisation flow, prepare content and publish to the selected account.</p>
+          <h2>Useful whether you run one account or one hundred</h2>
+          <p>Multipost starts simple for a single creator, then stays organised as you add businesses and clients.</p>
         </div>
         <div class="grid">
-          <article class="card"><h3>1. Create a workspace</h3><p>Keep each brand or client organised in its own workspace.</p></article>
-          <article class="card"><h3>2. Connect platforms</h3><p>Authorise TikTok, Facebook or YouTube only when you choose to connect that platform.</p></article>
-          <article class="card"><h3>3. Prepare content</h3><p>Upload media and generate platform-specific titles, descriptions, captions and hashtags.</p></article>
-          <article class="card"><h3>4. Publish</h3><p>Review the content and send it to the connected social account using the platform integration.</p></article>
+          <article class="card audience-card"><h3>Creators</h3><p>Turn an image or video idea into ready-to-edit copy and avoid uploading the same content three times.</p></article>
+          <article class="card audience-card"><h3>Local businesses</h3><p>Save website links, phone numbers and email addresses once, then automatically include them in relevant Facebook image captions.</p></article>
+          <article class="card audience-card"><h3>Agencies &amp; freelancers</h3><p>Keep client accounts in separate workspaces, switch between brands quickly and choose a plan that fits the number of accounts you manage.</p></article>
         </div>
+      </section>
+
+      <section class="section card review-box">
+        <div>
+          <h3>Platform publishing status</h3>
+          <p>Facebook and YouTube connections are available from inside each workspace. TikTok direct publishing is being prepared through TikTok’s official review process; Multipost provides a copy-and-go fallback in the meantime.</p>
+          <p class="status">Facebook &amp; YouTube: available</p>
+          <p class="status pending">TikTok direct publishing: pending platform approval</p>
+        </div>
+        <a class="btn btn-primary" href="app.html">Open Multipost</a>
       </section>
 
       <section class="section">
         <div class="section-head">
           <h2>Watch the workflow</h2>
-          <p>A demonstration of the Multipost workspace and publishing experience.</p>
+          <p>See the real workspace, account organisation and publishing flow in action.</p>
         </div>
         <div class="card demo">
           <video controls playsinline preload="metadata">
