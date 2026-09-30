@@ -350,6 +350,19 @@
       line-height: 1.45;
     }
 
+    .tiktok-video-preview {
+      display: block;
+      width: 100%;
+      max-height: 420px;
+      margin: 0 0 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #000;
+      object-fit: contain;
+    }
+
+    .tiktok-video-preview[hidden] { display: none; }
+
     .paywall-banner {
       display: none;
       border: 1px solid rgba(14, 165, 233, 0.35);
@@ -576,6 +589,7 @@
           <label for="ttVideoFile">Video file <span class="small" style="color: var(--warning);">(≤500MB)</span></label>
           <input id="ttVideoFile" type="file" accept="video/*" style="margin-bottom: 12px;" />
           <div id="ttFileInfo" style="font-size: 12px; color: var(--muted); margin-bottom: 8px;"></div>
+          <video id="ttVideoPreview" class="tiktok-video-preview" controls playsinline preload="metadata" hidden></video>
 
           <div>
             <label for="ttPrivacy">Privacy</label>
@@ -624,7 +638,7 @@
 
             <label class="check-row">
               <input id="ttConsent" type="checkbox">
-              <span>By posting, you agree to TikTok's <a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noopener noreferrer">Music Usage Confirmation</a>.</span>
+              <span>By posting, you agree to TikTok's <a id="ttBrandedContentPolicy" href="https://www.tiktok.com/legal/page/global/bc-policy/en" target="_blank" rel="noopener noreferrer" hidden>Branded Content Policy</a><span id="ttConsentJoin" hidden> and </span><a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noopener noreferrer">Music Usage Confirmation</a>.</span>
             </label>
           </div>
 
@@ -637,7 +651,7 @@
         </div>
 
         <div class="controls">
-          <button class="btn" onclick="publishTikTok()">🎵 Publish to TikTok</button>
+          <button id="ttPublishBtn" class="btn" onclick="publishTikTok()">🎵 Publish to TikTok</button>
           <a
             id="tiktokPublishLink"
             class="btn secondary"
@@ -1002,6 +1016,7 @@
     publishButtons.forEach((btn) => {
       btn.disabled = !enabled;
     });
+    updateTikTokCommercialUI();
     if (enabled) {
       paywallBanner.classList.remove("show");
       paywallBanner.innerHTML = "";
@@ -1151,10 +1166,10 @@
     const notice = document.getElementById("ttCommercialNotice");
     const privacy = document.getElementById("ttPrivacy")?.value || "";
     const brandContent = document.getElementById("ttBrandContent");
+    const brandOrganic = document.getElementById("ttBrandOrganic");
     const brandContentRow = document.getElementById("ttBrandContentRow");
     if (options) options.hidden = !enabled;
     if (!enabled) {
-      const brandOrganic = document.getElementById("ttBrandOrganic");
       if (brandOrganic) brandOrganic.checked = false;
       if (brandContent) brandContent.checked = false;
     }
@@ -1164,6 +1179,19 @@
       if (brandedPrivate) brandContent.checked = false;
     }
     if (brandContentRow) brandContentRow.classList.toggle("disabled", brandedPrivate);
+    const brandedPolicy = document.getElementById("ttBrandedContentPolicy");
+    const consentJoin = document.getElementById("ttConsentJoin");
+    const brandedSelected = Boolean(enabled && brandContent?.checked);
+    if (brandedPolicy) brandedPolicy.hidden = !brandedSelected;
+    if (consentJoin) consentJoin.hidden = !brandedSelected;
+    const disclosureIncomplete = Boolean(enabled && !brandOrganic?.checked && !brandContent?.checked);
+    const publishButton = document.getElementById("ttPublishBtn");
+    if (publishButton) {
+      publishButton.disabled = !hasBillingAccess || disclosureIncomplete;
+      publishButton.title = disclosureIncomplete
+        ? "Indicate whether this promotes your brand, branded content, or both."
+        : "";
+    }
     if (!notice) return;
     if (!enabled) {
       notice.textContent = "";
@@ -1451,6 +1479,8 @@
 
       info.textContent = "";
 
+      if (inputId === "ttVideoFile") updateTikTokVideoPreview(file);
+
       if (!file) return;
 
       const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
@@ -1468,6 +1498,21 @@
       checkSpan.textContent = ok ? "✓" : "✕";
       info.appendChild(checkSpan);
     });
+  }
+
+  let tiktokVideoPreviewUrl = "";
+  function updateTikTokVideoPreview(file) {
+    const preview = document.getElementById("ttVideoPreview");
+    if (!(preview instanceof HTMLVideoElement)) return;
+    if (tiktokVideoPreviewUrl) URL.revokeObjectURL(tiktokVideoPreviewUrl);
+    tiktokVideoPreviewUrl = "";
+    preview.removeAttribute("src");
+    preview.load();
+    preview.hidden = true;
+    if (!file) return;
+    tiktokVideoPreviewUrl = URL.createObjectURL(file);
+    preview.src = tiktokVideoPreviewUrl;
+    preview.hidden = false;
   }
 
   async function publishYouTube() {
@@ -1711,7 +1756,7 @@
         throw new Error(initData.error || "TikTok init-upload failed");
       }
 
-      const { sessionId, publishId, chunkSize, totalChunks, warning } = initData;
+      const { sessionId, publishId, chunkSize, totalChunks } = initData;
 
       // Step 2: upload chunks
       for (let i = 0; i < totalChunks; i++) {
@@ -1745,9 +1790,6 @@
       btn.textContent = "✅ Uploaded";
       setTikTokViewButton({ label: "TikTok is processing…", disabled: true });
 
-      if (warning) {
-        alert(`⚠️ Note: ${warning}`);
-      }
       await waitForTikTokVideo(publishId, sessionId);
     } catch (err) {
       console.error(err);

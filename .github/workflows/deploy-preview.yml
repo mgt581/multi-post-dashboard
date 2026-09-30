@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - "codex/**"
-      - "feature/tiktok-direct-post-audit"
   workflow_dispatch:
 
 permissions:
