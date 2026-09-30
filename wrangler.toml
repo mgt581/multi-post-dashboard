@@ -51,8 +51,8 @@ preview_urls = true
 routes = []
 
 [env.preview.vars]
-BASE_URL = "https://multipostapp.co.uk"
-FRONTEND_URL = "https://multipostapp.co.uk"
+BASE_URL = "https://multipost-seo-worker-preview.alexbryant.workers.dev"
+FRONTEND_URL = "https://feature-tiktok-direct-post-a.multi-post-dashboard.pages.dev"
 GOOGLE_CLIENT_ID = "1099160429576-38kfvgqfgahc80oc11v1abl79n1gdspm.apps.googleusercontent.com"
 TIKTOK_CLIENT_KEY = "awfqyscbk5kl6pu8"
 TIKTOK_AUTH_BASE_URL = "https://www.tiktok.com"
