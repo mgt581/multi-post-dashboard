@@ -132,6 +132,60 @@
     .nav-item { text-decoration: none; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 10px; font-weight: 800; }
     .nav-item.active { color: var(--accent-2); }
     .nav-item i { font-size: 20px; }
+
+    .workspace-status {
+      margin: 0;
+      padding: 12px 14px;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 8px;
+      background: rgba(14, 165, 233, 0.12);
+      color: #bae6fd;
+      font-size: 14px;
+    }
+    .workspace-status.error {
+      border-color: rgba(248, 113, 113, 0.4);
+      background: rgba(248, 113, 113, 0.12);
+      color: #fecaca;
+    }
+
+    .brand-dialog {
+      width: min(420px, calc(100vw - 32px));
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0;
+      background: var(--card);
+      color: var(--text);
+      box-shadow: var(--shadow);
+    }
+    .brand-dialog::backdrop { background: rgba(2, 6, 23, 0.78); }
+    .brand-dialog form { padding: 22px; }
+    .brand-dialog h2 { margin: 0 0 18px; font-size: 20px; }
+    .brand-dialog label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 800; color: var(--muted); }
+    .brand-dialog input {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      font: inherit;
+      outline: none;
+    }
+    .brand-dialog input:focus { border-color: var(--accent-2); }
+    .brand-dialog p { margin: 0 0 18px; color: var(--muted); line-height: 1.5; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+    .dialog-button {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .dialog-button.primary { border-color: transparent; background: var(--accent-2); color: white; }
+    .dialog-button.danger { border-color: transparent; background: #dc2626; color: white; }
   </style>
 </head>
 <body>
@@ -152,6 +206,8 @@
       </button>
     </div>
 
+    <p id="workspaceStatus" class="workspace-status" role="status" hidden></p>
+
     <div>
       <div class="section-title">Active Brands</div>
       <div id="folderContainer" style="margin-top: 10px;">
@@ -162,6 +218,21 @@
     </div>
 
   </div>
+
+  <dialog id="brandDialog" class="brand-dialog">
+    <form id="brandDialogForm">
+      <h2 id="brandDialogTitle">Create brand</h2>
+      <p id="brandDialogMessage" hidden></p>
+      <div id="brandDialogInputGroup">
+        <label for="brandDialogInput">Brand or client name</label>
+        <input id="brandDialogInput" type="text" maxlength="80" autocomplete="organization" />
+      </div>
+      <div class="dialog-actions">
+        <button id="brandDialogCancel" class="dialog-button" type="button">Cancel</button>
+        <button id="brandDialogConfirm" class="dialog-button primary" type="submit">Create brand</button>
+      </div>
+    </form>
+  </dialog>
 
   <nav class="bottom-nav">
     <a href="app.html" class="nav-item active"><i class="fa-solid fa-house"></i><span>HOME</span></a>
@@ -182,7 +253,71 @@
 
     let userScope = null;
     let authUser = null;
+    let brandDialogResolve = null;
+    let brandDialogUsesInput = true;
     const scopedKey = name => `${name}:${userScope}`;
+
+    const brandDialog = document.getElementById("brandDialog");
+    const brandDialogForm = document.getElementById("brandDialogForm");
+    const brandDialogTitle = document.getElementById("brandDialogTitle");
+    const brandDialogMessage = document.getElementById("brandDialogMessage");
+    const brandDialogInputGroup = document.getElementById("brandDialogInputGroup");
+    const brandDialogInput = document.getElementById("brandDialogInput");
+    const brandDialogConfirm = document.getElementById("brandDialogConfirm");
+
+    function showWorkspaceStatus(message, isError = false) {
+      const status = document.getElementById("workspaceStatus");
+      status.textContent = message;
+      status.classList.toggle("error", isError);
+      status.hidden = !message;
+    }
+
+    function finishBrandDialog(value) {
+      const resolve = brandDialogResolve;
+      brandDialogResolve = null;
+      if (brandDialog.open) brandDialog.close();
+      if (resolve) resolve(value);
+    }
+
+    function openBrandDialog({ title, value = "", message = "", confirmLabel, usesInput = true, danger = false }) {
+      if (brandDialogResolve) finishBrandDialog(null);
+      brandDialogTitle.textContent = title;
+      brandDialogMessage.textContent = message;
+      brandDialogMessage.hidden = !message;
+      brandDialogInputGroup.hidden = !usesInput;
+      brandDialogInput.value = value;
+      brandDialogUsesInput = usesInput;
+      brandDialogConfirm.textContent = confirmLabel;
+      brandDialogConfirm.classList.toggle("danger", danger);
+      brandDialogConfirm.classList.toggle("primary", !danger);
+      brandDialog.showModal();
+      if (usesInput) {
+        requestAnimationFrame(() => {
+          brandDialogInput.focus();
+          brandDialogInput.select();
+        });
+      }
+      return new Promise(resolve => { brandDialogResolve = resolve; });
+    }
+
+    brandDialogForm.addEventListener("submit", event => {
+      event.preventDefault();
+      if (!brandDialogUsesInput) {
+        finishBrandDialog(true);
+        return;
+      }
+      const value = brandDialogInput.value.trim();
+      if (!value) {
+        brandDialogInput.focus();
+        return;
+      }
+      finishBrandDialog(value);
+    });
+    document.getElementById("brandDialogCancel").addEventListener("click", () => finishBrandDialog(null));
+    brandDialog.addEventListener("cancel", event => {
+      event.preventDefault();
+      finishBrandDialog(null);
+    });
 
     function normalizeEmail(value) {
       return String(value || "").trim().toLowerCase();
@@ -339,12 +474,16 @@
           btn.addEventListener('click', async (e) => {
             e.stopPropagation();
             const id = btn.dataset.id;
-            const newName = prompt("Rename Brand:", btn.dataset.name);
-            if (!newName?.trim()) return;
+            const newName = await openBrandDialog({
+              title: "Rename brand",
+              value: btn.dataset.name,
+              confirmLabel: "Save name"
+            });
+            if (!newName) return;
             await fetch(`${apiBase}/rename-folder`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id, name: newName.trim(), user_id: userScope })
+              body: JSON.stringify({ id, name: newName, user_id: userScope })
             });
             loadFolders();
           });
@@ -353,7 +492,14 @@
         container.querySelectorAll('.delete-btn').forEach(btn => {
           btn.addEventListener('click', async (e) => {
             e.stopPropagation();
-            if (!confirm("Delete this brand?")) return;
+            const confirmed = await openBrandDialog({
+              title: "Delete brand",
+              message: "Delete this brand and its linked account records?",
+              confirmLabel: "Delete brand",
+              usesInput: false,
+              danger: true
+            });
+            if (!confirmed) return;
             await fetch(`${apiBase}/delete-folder`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -369,15 +515,22 @@
     }
 
     async function createNewFolder() {
-      if (!userScope) return alert("You must be logged in to create a brand.");
-      const name = prompt("Enter Brand or Client Name:");
-      if (!name || !name.trim()) return;
+      if (!userScope) {
+        showWorkspaceStatus("You must be signed in to create a brand.", true);
+        return;
+      }
+      const name = await openBrandDialog({
+        title: "Create brand",
+        confirmLabel: "Create brand"
+      });
+      if (!name) return;
 
       try {
+        showWorkspaceStatus("");
         const res = await fetch(`${apiBase}/add-folder`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: name.trim(), user_id: userScope })
+          body: JSON.stringify({ name, user_id: userScope })
         });
 
         const data = await res.json();
@@ -385,10 +538,11 @@
            throw new Error(data.error || "Server rejected request");
         }
 
-        loadFolders();
+        await loadFolders();
+        showWorkspaceStatus("Brand created.");
       } catch (err) {
         console.error("Create Error:", err);
-        alert("Error creating brand: " + err.message);
+        showWorkspaceStatus("Error creating brand: " + err.message, true);
       }
     }
 
