@@ -301,6 +301,68 @@
       line-height: 1.5;
     }
 
+    .tiktok-audit-fields {
+      display: grid;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .checkbox-grid {
+      display: grid;
+      gap: 8px;
+    }
+
+    .check-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 0;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .check-row input {
+      width: auto;
+      min-height: auto;
+      margin-top: 2px;
+    }
+
+    .check-row.disabled {
+      color: var(--muted);
+      opacity: 0.75;
+    }
+
+    .check-row a {
+      color: #bae6fd;
+      font-weight: 800;
+    }
+
+    .field-note {
+      min-height: 18px;
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 700;
+      line-height: 1.45;
+    }
+
+    .tiktok-video-preview {
+      display: block;
+      width: 100%;
+      max-height: 420px;
+      margin: 0 0 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #000;
+      object-fit: contain;
+    }
+
+    .tiktok-video-preview[hidden] { display: none; }
+
     .paywall-banner {
       display: none;
       border: 1px solid rgba(14, 165, 233, 0.35);
@@ -527,14 +589,57 @@
           <label for="ttVideoFile">Video file <span class="small" style="color: var(--warning);">(≤500MB)</span></label>
           <input id="ttVideoFile" type="file" accept="video/*" style="margin-bottom: 12px;" />
           <div id="ttFileInfo" style="font-size: 12px; color: var(--muted); margin-bottom: 8px;"></div>
+          <video id="ttVideoPreview" class="tiktok-video-preview" controls playsinline preload="metadata" hidden></video>
 
           <div>
             <label for="ttPrivacy">Privacy</label>
-            <select id="ttPrivacy">
-              <option value="SELF_ONLY">🔒 Private</option>
-              <option value="MUTUAL_FOLLOW_FRIENDS">👥 Friends</option>
-              <option value="PUBLIC_TO_EVERYONE">🌐 Public</option>
+            <select id="ttPrivacy" disabled>
+              <option value="">Load TikTok account first</option>
             </select>
+            <div id="ttCreatorInfo" class="field-note">TikTok privacy options load from the connected creator account.</div>
+          </div>
+
+          <div class="tiktok-audit-fields">
+            <div>
+              <label>Interactions</label>
+              <div class="checkbox-grid">
+                <label id="ttAllowCommentRow" class="check-row">
+                  <input id="ttAllowComment" type="checkbox">
+                  <span>Allow comments</span>
+                </label>
+                <label id="ttAllowDuetRow" class="check-row">
+                  <input id="ttAllowDuet" type="checkbox">
+                  <span>Allow Duet</span>
+                </label>
+                <label id="ttAllowStitchRow" class="check-row">
+                  <input id="ttAllowStitch" type="checkbox">
+                  <span>Allow Stitch</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label id="ttCommercialRow" class="check-row">
+                <input id="ttCommercialContent" type="checkbox">
+                <span>This content promotes me, my business, a brand, product or service</span>
+              </label>
+              <div id="ttCommercialOptions" class="checkbox-grid" hidden style="margin-top: 8px;">
+                <label class="check-row">
+                  <input id="ttBrandOrganic" type="checkbox">
+                  <span>Your brand</span>
+                </label>
+                <label id="ttBrandContentRow" class="check-row">
+                  <input id="ttBrandContent" type="checkbox">
+                  <span>Branded content</span>
+                </label>
+              </div>
+              <div id="ttCommercialNotice" class="field-note"></div>
+            </div>
+
+            <label class="check-row">
+              <input id="ttConsent" type="checkbox">
+              <span>By posting, you agree to TikTok's <a id="ttBrandedContentPolicy" href="https://www.tiktok.com/legal/page/global/bc-policy/en" target="_blank" rel="noopener noreferrer" hidden>Branded Content Policy</a><span id="ttConsentJoin" hidden> and </span><a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank" rel="noopener noreferrer">Music Usage Confirmation</a>.</span>
+            </label>
           </div>
 
           <div class="upload-help" style="margin-top: 12px;">
@@ -546,7 +651,7 @@
         </div>
 
         <div class="controls">
-          <button class="btn" onclick="publishTikTok()">🎵 Publish to TikTok</button>
+          <button id="ttPublishBtn" class="btn" onclick="publishTikTok()">🎵 Publish to TikTok</button>
           <a
             id="tiktokPublishLink"
             class="btn secondary"
@@ -620,10 +725,10 @@
   const isPreviewHost = host.endsWith(".pages.dev");
   const apiBase = isProdHost
     ? "/api"
-    : "https://multipost-seo-worker.alexbryant.workers.dev/api";
-  const uploadApiBase = isPreviewHost
-    ? "https://multipost-seo-worker-preview.alexbryant.workers.dev/api"
-    : apiBase;
+    : isPreviewHost
+      ? "https://multipost-seo-worker-preview.alexbryant.workers.dev/api"
+      : "https://multipost-seo-worker.alexbryant.workers.dev/api";
+  const uploadApiBase = apiBase;
 
   const statusEl = document.getElementById("status");
   const generateBtn = document.getElementById("generateBtn");
@@ -642,6 +747,14 @@
   let activeYouTubeName = "Not linked";
   let activeFacebookName = "Not linked";
   let activeTikTokName = "Not linked";
+  let tiktokCreatorInfo = null;
+  let tiktokCreatorInfoReady = false;
+  const TIKTOK_PRIVACY_LABELS = {
+    PUBLIC_TO_EVERYONE: "Public",
+    MUTUAL_FOLLOW_FRIENDS: "Friends",
+    FOLLOWER_OF_CREATOR: "Followers",
+    SELF_ONLY: "Private"
+  };
   const OWNER_KEYS = ["alexbryant3234@gmail.com", "alexbryantwork3234@outlook.com", "Y98MCpY2VTQujHVwvhufxYE6Azh1", "L6GV2I8v1IZ8ZsSJVlof9K559A43", "XvLFswTmQ7YalJNYTC3vT7Y9OsB3"];
   let signedInUserEmail = "";
   const normalizeUserKey = value => String(value || "").trim().toLowerCase();
@@ -903,6 +1016,7 @@
     publishButtons.forEach((btn) => {
       btn.disabled = !enabled;
     });
+    updateTikTokCommercialUI();
     if (enabled) {
       paywallBanner.classList.remove("show");
       paywallBanner.innerHTML = "";
@@ -964,6 +1078,153 @@
     el.style.color = isConnected ? "var(--success)" : "var(--muted)";
   }
 
+  function setCheckboxLocked(inputId, rowId, locked, label) {
+    const input = document.getElementById(inputId);
+    const row = document.getElementById(rowId);
+    if (!input) return;
+    input.checked = false;
+    input.disabled = Boolean(locked);
+    if (row) row.classList.toggle("disabled", Boolean(locked));
+    const text = row?.querySelector("span");
+    if (text && label) text.textContent = label;
+  }
+
+  function resetTikTokCreatorInfo(message = "TikTok privacy options load from the connected creator account.") {
+    tiktokCreatorInfo = null;
+    tiktokCreatorInfoReady = false;
+    const privacy = document.getElementById("ttPrivacy");
+    const note = document.getElementById("ttCreatorInfo");
+    if (privacy) {
+      privacy.innerHTML = `<option value="">${message}</option>`;
+      privacy.value = "";
+      privacy.disabled = true;
+    }
+    if (note) note.textContent = message;
+    setCheckboxLocked("ttAllowComment", "ttAllowCommentRow", true, "Allow comments");
+    setCheckboxLocked("ttAllowDuet", "ttAllowDuetRow", true, "Allow Duet");
+    setCheckboxLocked("ttAllowStitch", "ttAllowStitchRow", true, "Allow Stitch");
+  }
+
+  function renderTikTokCreatorInfo(info) {
+    tiktokCreatorInfo = info || null;
+    tiktokCreatorInfoReady = Boolean(info);
+    const privacy = document.getElementById("ttPrivacy");
+    const note = document.getElementById("ttCreatorInfo");
+    const options = Array.isArray(info?.privacy_level_options) ? info.privacy_level_options : [];
+    if (privacy) {
+      privacy.innerHTML = '<option value="">Select privacy</option>';
+      options.forEach((value) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = TIKTOK_PRIVACY_LABELS[value] || value;
+        privacy.appendChild(option);
+      });
+      privacy.value = "";
+      privacy.disabled = !options.length;
+    }
+    if (note) {
+      const name = info?.creator_nickname || info?.creator_username || activeTikTokName;
+      const maxDuration = Number(info?.max_video_post_duration_sec || 0);
+      note.textContent = maxDuration
+        ? `Posting as ${name}. Max video length: ${Math.floor(maxDuration / 60)}m ${maxDuration % 60}s.`
+        : `Posting as ${name}. Choose a privacy setting before publishing.`;
+    }
+    setCheckboxLocked("ttAllowComment", "ttAllowCommentRow", Boolean(info?.comment_disabled), info?.comment_disabled ? "Comments unavailable for this account" : "Allow comments");
+    setCheckboxLocked("ttAllowDuet", "ttAllowDuetRow", Boolean(info?.duet_disabled), info?.duet_disabled ? "Duet unavailable for this account" : "Allow Duet");
+    setCheckboxLocked("ttAllowStitch", "ttAllowStitchRow", Boolean(info?.stitch_disabled), info?.stitch_disabled ? "Stitch unavailable for this account" : "Allow Stitch");
+    updateTikTokCommercialUI();
+  }
+
+  async function refreshTikTokCreatorInfo() {
+    if (!activeFolderId || !userScope || !isLinked(activeTikTokName)) {
+      resetTikTokCreatorInfo();
+      return;
+    }
+    const note = document.getElementById("ttCreatorInfo");
+    if (note) note.textContent = "Loading TikTok creator settings...";
+    try {
+      const response = await fetch(`${uploadApiBase}/tiktok/creator-info`, {
+        headers: {
+          folder_id: activeFolderId,
+          user_id: userScope,
+          client_platform: getClientPlatform()
+        }
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Could not load TikTok creator info");
+      }
+      renderTikTokCreatorInfo(data.creator || {});
+    } catch (error) {
+      resetTikTokCreatorInfo(error?.message || "Could not load TikTok creator info");
+    }
+  }
+
+  function updateTikTokCommercialUI() {
+    const enabled = document.getElementById("ttCommercialContent")?.checked;
+    const options = document.getElementById("ttCommercialOptions");
+    const notice = document.getElementById("ttCommercialNotice");
+    const privacy = document.getElementById("ttPrivacy")?.value || "";
+    const brandContent = document.getElementById("ttBrandContent");
+    const brandOrganic = document.getElementById("ttBrandOrganic");
+    const brandContentRow = document.getElementById("ttBrandContentRow");
+    if (options) options.hidden = !enabled;
+    if (!enabled) {
+      if (brandOrganic) brandOrganic.checked = false;
+      if (brandContent) brandContent.checked = false;
+    }
+    const brandedPrivate = enabled && privacy === "SELF_ONLY";
+    if (brandContent) {
+      brandContent.disabled = brandedPrivate;
+      if (brandedPrivate) brandContent.checked = false;
+    }
+    if (brandContentRow) brandContentRow.classList.toggle("disabled", brandedPrivate);
+    const brandedPolicy = document.getElementById("ttBrandedContentPolicy");
+    const consentJoin = document.getElementById("ttConsentJoin");
+    const brandedSelected = Boolean(enabled && brandContent?.checked);
+    if (brandedPolicy) brandedPolicy.hidden = !brandedSelected;
+    if (consentJoin) consentJoin.hidden = !brandedSelected;
+    const disclosureIncomplete = Boolean(enabled && !brandOrganic?.checked && !brandContent?.checked);
+    const publishButton = document.getElementById("ttPublishBtn");
+    if (publishButton) {
+      publishButton.disabled = !hasBillingAccess || disclosureIncomplete;
+      publishButton.title = disclosureIncomplete
+        ? "Indicate whether this promotes your brand, branded content, or both."
+        : "";
+    }
+    if (!notice) return;
+    if (!enabled) {
+      notice.textContent = "";
+    } else if (brandedPrivate) {
+      notice.textContent = "Branded content cannot use Private visibility.";
+    } else if (document.getElementById("ttBrandContent")?.checked) {
+      notice.textContent = "Your video will be labelled as Paid partnership.";
+    } else if (document.getElementById("ttBrandOrganic")?.checked) {
+      notice.textContent = "Your video will be labelled as Promotional content.";
+    } else {
+      notice.textContent = "Choose Your brand, Branded content, or both before publishing.";
+    }
+  }
+
+  function getVideoDurationSeconds(file) {
+    return new Promise((resolve, reject) => {
+      const video = document.createElement("video");
+      const objectUrl = URL.createObjectURL(file);
+      const cleanup = () => URL.revokeObjectURL(objectUrl);
+      video.preload = "metadata";
+      video.onloadedmetadata = () => {
+        const duration = Number(video.duration || 0);
+        cleanup();
+        resolve(duration);
+      };
+      video.onerror = () => {
+        cleanup();
+        reject(new Error("Could not read video duration"));
+      };
+      video.src = objectUrl;
+    });
+  }
+
   function updateContextUI() {
     document.getElementById("workspaceName").textContent = activeFolderName || "Workspace";
     document.getElementById("workspaceId").textContent = activeFolderId
@@ -1018,6 +1279,7 @@
       activeYouTubeName = "No folder selected";
       activeFacebookName = "No folder selected";
       activeTikTokName = "No folder selected";
+      resetTikTokCreatorInfo("Select a workspace with a connected TikTok account.");
       updateContextUI();
       return;
     }
@@ -1052,10 +1314,12 @@
         : pickAccountName(fbUser);
       activeTikTokName   = pickAccountName(tt);
       updateContextUI();
+      await refreshTikTokCreatorInfo();
     } catch {
       activeYouTubeName = "Error loading account";
       activeFacebookName = "Error loading account";
       activeTikTokName = "Error loading account";
+      resetTikTokCreatorInfo("Could not load TikTok account settings.");
       updateContextUI();
     }
   }
@@ -1215,6 +1479,8 @@
 
       info.textContent = "";
 
+      if (inputId === "ttVideoFile") updateTikTokVideoPreview(file);
+
       if (!file) return;
 
       const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
@@ -1232,6 +1498,21 @@
       checkSpan.textContent = ok ? "✓" : "✕";
       info.appendChild(checkSpan);
     });
+  }
+
+  let tiktokVideoPreviewUrl = "";
+  function updateTikTokVideoPreview(file) {
+    const preview = document.getElementById("ttVideoPreview");
+    if (!(preview instanceof HTMLVideoElement)) return;
+    if (tiktokVideoPreviewUrl) URL.revokeObjectURL(tiktokVideoPreviewUrl);
+    tiktokVideoPreviewUrl = "";
+    preview.removeAttribute("src");
+    preview.load();
+    preview.hidden = true;
+    if (!file) return;
+    tiktokVideoPreviewUrl = URL.createObjectURL(file);
+    preview.src = tiktokVideoPreviewUrl;
+    preview.hidden = false;
   }
 
   async function publishYouTube() {
@@ -1387,10 +1668,57 @@
 
     const caption = document.getElementById("ttAllInOne").value.trim();
     const privacyStatus = document.getElementById("ttPrivacy").value;
+    const allowComment = Boolean(document.getElementById("ttAllowComment")?.checked);
+    const allowDuet = Boolean(document.getElementById("ttAllowDuet")?.checked);
+    const allowStitch = Boolean(document.getElementById("ttAllowStitch")?.checked);
+    const commercialDisclosure = Boolean(document.getElementById("ttCommercialContent")?.checked);
+    const brandOrganic = Boolean(document.getElementById("ttBrandOrganic")?.checked);
+    const brandContent = Boolean(document.getElementById("ttBrandContent")?.checked);
+    const consentConfirmed = Boolean(document.getElementById("ttConsent")?.checked);
 
     if (!caption) {
       alert("Please enter a TikTok caption.");
       return;
+    }
+
+    if (!tiktokCreatorInfoReady) {
+      alert("TikTok creator settings must load before publishing. Reconnect TikTok if they do not load.");
+      return;
+    }
+
+    if (!privacyStatus) {
+      alert("Please select a TikTok privacy setting.");
+      return;
+    }
+
+    if (commercialDisclosure && !brandOrganic && !brandContent) {
+      alert("Please indicate whether the commercial content promotes your brand, branded content, or both.");
+      return;
+    }
+
+    if (commercialDisclosure && brandContent && privacyStatus === "SELF_ONLY") {
+      alert("Branded content cannot be posted with Private visibility. Choose a different privacy setting or turn off Branded content.");
+      return;
+    }
+
+    if (!consentConfirmed) {
+      alert("Please confirm TikTok's Music Usage Confirmation before publishing.");
+      return;
+    }
+
+    const maxTikTokDuration = Number(tiktokCreatorInfo?.max_video_post_duration_sec || 0);
+    let videoDurationSec = 0;
+    if (maxTikTokDuration > 0) {
+      try {
+        videoDurationSec = await getVideoDurationSeconds(file);
+      } catch (durationErr) {
+        alert(durationErr?.message || "Could not read video duration.");
+        return;
+      }
+      if (videoDurationSec > maxTikTokDuration + 0.5) {
+        alert(`This TikTok account can post videos up to ${maxTikTokDuration} seconds. Choose a shorter video.`);
+        return;
+      }
     }
 
     try {
@@ -1410,8 +1738,16 @@
         },
         body: JSON.stringify({
           caption,
-          privacyStatus: String(privacyStatus || "SELF_ONLY").toUpperCase(),
-          videoSize: file.size
+          privacyStatus: String(privacyStatus).toUpperCase(),
+          videoSize: file.size,
+          videoDurationSec,
+          allowComment,
+          allowDuet,
+          allowStitch,
+          commercialDisclosure,
+          brandOrganic,
+          brandContent,
+          consentConfirmed
         })
       });
 
@@ -1420,7 +1756,7 @@
         throw new Error(initData.error || "TikTok init-upload failed");
       }
 
-      const { sessionId, publishId, chunkSize, totalChunks, warning } = initData;
+      const { sessionId, publishId, chunkSize, totalChunks } = initData;
 
       // Step 2: upload chunks
       for (let i = 0; i < totalChunks; i++) {
@@ -1454,9 +1790,6 @@
       btn.textContent = "✅ Uploaded";
       setTikTokViewButton({ label: "TikTok is processing…", disabled: true });
 
-      if (warning) {
-        alert(`⚠️ Note: ${warning}`);
-      }
       await waitForTikTokVideo(publishId, sessionId);
     } catch (err) {
       console.error(err);
@@ -1624,6 +1957,10 @@
   bindVideoFileInfo("ytVideoFile", "fileInfo");
   bindVideoFileInfo("ttVideoFile", "ttFileInfo");
   bindVideoFileInfo("fbVideoFile", "fbFileInfo");
+  document.getElementById("ttPrivacy")?.addEventListener("change", updateTikTokCommercialUI);
+  document.getElementById("ttCommercialContent")?.addEventListener("change", updateTikTokCommercialUI);
+  document.getElementById("ttBrandOrganic")?.addEventListener("change", updateTikTokCommercialUI);
+  document.getElementById("ttBrandContent")?.addEventListener("change", updateTikTokCommercialUI);
 
   window.generateSEO = generateSEO;
   window.publishYouTube = publishYouTube;

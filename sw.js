@@ -1,5 +1,8 @@
-const SW_VERSION = "2026-08-08-oauth-single-shot-nostore";
-const DIRECT_API_ORIGIN = "https://multipost-seo-worker.alexbryant.workers.dev";
+const SW_VERSION = "2026-09-30-preview-worker-routing";
+const IS_PREVIEW_HOST = self.location.hostname.endsWith(".pages.dev");
+const DIRECT_API_ORIGIN = IS_PREVIEW_HOST
+  ? "https://multipost-seo-worker-preview.alexbryant.workers.dev"
+  : "https://multipost-seo-worker.alexbryant.workers.dev";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));

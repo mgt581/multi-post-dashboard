@@ -105,6 +105,7 @@
     .btn {
       border: none; border-radius: 999px; padding: 8px 16px;
       font-weight: 800; font-size: 13px; cursor: pointer; white-space: nowrap;
+      display: inline-flex; align-items: center; justify-content: center; text-decoration: none;
     }
     .btn-link  { background: var(--accent); color: white; }
     .btn-pick  { background: rgba(245,158,11,0.15); color: var(--warn); border: 1px solid var(--warn); font-size: 12px; padding: 6px 12px; }
@@ -216,9 +217,12 @@
   <script>
     const host = window.location.hostname;
     const isProdHost = host === "multipostapp.co.uk" || host === "www.multipostapp.co.uk";
+    const isPreviewHost = host.endsWith(".pages.dev");
     const apiBase = isProdHost
       ? "/api"
-      : "https://multipost-seo-worker.alexbryant.workers.dev/api";
+      : isPreviewHost
+        ? "https://multipost-seo-worker-preview.alexbryant.workers.dev/api"
+        : "https://multipost-seo-worker.alexbryant.workers.dev/api";
 
     let userScope = null;
     let signedInUserEmail = "";
@@ -261,6 +265,12 @@
       );
     }
 
+    function getAccountAuthUrl(platform) {
+      const fId = getUrlParam("id") || getLS("activeFolderId");
+      if (!fId || !userScope || !allPlatforms[platform]) return "#";
+      return `${apiBase}/auth/${platform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
+    }
+
     /* ── Platform card builders ── */
 
     function buildGenericCard(meta, key, linked) {
@@ -296,7 +306,7 @@
             <span style="color:var(--muted);">Not Linked</span>
           </div>
           <div class="platform-actions">
-            <button class="btn btn-link" onclick="addAccount('${key}')">Link</button>
+            <a class="btn btn-link" href="${escapeHTML(getAccountAuthUrl(key))}">Link</a>
           </div>
         </div>`;
     }
@@ -318,7 +328,7 @@
               <span style="color:var(--muted);">Not Linked</span>
             </div>
             <div class="platform-actions">
-              <button class="btn btn-link" onclick="addAccount('facebook')">Link</button>
+              <a class="btn btn-link" href="${escapeHTML(getAccountAuthUrl('facebook'))}">Link</a>
             </div>
           </div>`;
       }
@@ -396,9 +406,9 @@
     /* ── Account actions ── */
 
     function addAccount(platform) {
-      const fId = getUrlParam("id") || getLS("activeFolderId");
-      if (!fId || !userScope) return alert("Session expired.");
-      window.location.href = `${apiBase}/auth/${platform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
+      const authUrl = getAccountAuthUrl(platform);
+      if (authUrl === "#") return;
+      window.location.assign(authUrl);
     }
 
     async function removeAccount(accountId) {
