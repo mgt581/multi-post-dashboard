@@ -711,10 +711,10 @@
   const isPreviewHost = host.endsWith(".pages.dev");
   const apiBase = isProdHost
     ? "/api"
-    : "https://multipost-seo-worker.alexbryant.workers.dev/api";
-  const uploadApiBase = isPreviewHost
-    ? "https://multipost-seo-worker-preview.alexbryant.workers.dev/api"
-    : apiBase;
+    : isPreviewHost
+      ? "https://multipost-seo-worker-preview.alexbryant.workers.dev/api"
+      : "https://multipost-seo-worker.alexbryant.workers.dev/api";
+  const uploadApiBase = apiBase;
 
   const statusEl = document.getElementById("status");
   const generateBtn = document.getElementById("generateBtn");
