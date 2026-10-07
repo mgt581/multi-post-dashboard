@@ -1,3 +1,4 @@
+import { schedule, storeSeo, observe, safeCategory } from "./analytics/tracking.mjs";
 import { evaluateFacebookVideoReadiness } from "./facebook-video-readiness.mjs";
 import { FACEBOOK_PAGE_LINK_SCOPE } from "./facebook-oauth.mjs";
 
@@ -33,7 +34,7 @@ var makeDeterministicSeoFallback = /* @__PURE__ */ __name((promptText) => {
 // worker.js
 var WORKER_VERSION = "2026-06-19-facebook-preview-secret-guard-video-offset-zero";
 var worker_default = {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -61,8 +62,11 @@ var worker_default = {
       });
     }
     if (url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
+      const telemetry = { started: Date.now(), attempted: [], success: false };
       try {
         const body = await request.json();
+        telemetry.folderId = body.folder_id;
+        telemetry.image = Boolean(body.image_url);
         const apiKey = env.OPENAI_API_KEY;
         const topic = body.topic || "";
         const imageUrl = body.image_url || "";
@@ -135,6 +139,7 @@ Return ONLY valid JSON with no markdown, no extra text, no explanations:
           }
         }
         const hasImage = !!imageBase64;
+        telemetry.image = hasImage;
         const hasText = !!topic.trim();
         const parseSeoText = /* @__PURE__ */ __name((rawText) => {
           rawText = rawText.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
@@ -168,6 +173,8 @@ Return ONLY valid JSON with no markdown, no extra text, no explanations:
         let finalData = null;
         let seoProvider = "";
         if (apiKey) {
+          telemetry.attempted.push("openai");
+          let openaiStatus;
           try {
             const oaiMessages = (
               /** @type {{ role: string, content: string | Array<{type: string, text?: string, image_url?: {url: string}}>}[]} */
@@ -189,24 +196,31 @@ Generate trending, specific SEO \u2014 not generic content.` });
               headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
               body: JSON.stringify({ model: "gpt-4o", messages: oaiMessages, response_format: { type: "json_object" } })
             });
+            openaiStatus = flagshipResponse.status;
             if (!flagshipResponse.ok) {
               const errorText = await flagshipResponse.text();
               throw new Error(`OpenAI API ${flagshipResponse.status}: ${errorText.slice(0, 300)}`);
             }
             const oaiData = await flagshipResponse.json();
+            telemetry.usage = oaiData.usage;
             if (oaiData.choices?.[0]?.message?.content) {
               finalData = parseSeoText(oaiData.choices[0].message.content);
               if (!hasSeoContent(finalData)) throw new Error("OpenAI returned incomplete SEO content");
               seoProvider = "openai";
+              telemetry.openaiSuccess = 1;
+              telemetry.model = "gpt-4o";
             } else {
               throw new Error("OpenAI returned no SEO content");
             }
           } catch (e) {
-            console.error("OpenAI failed, falling back...", e.message);
+            telemetry.openaiSuccess = 0;
+            telemetry.openaiError = safeCategory(e, openaiStatus);
+            console.error("OpenAI failed, falling back...", telemetry.openaiError);
             finalData = null;
           }
         }
         if (!finalData) {
+          telemetry.attempted.push("cloudflare");
           try {
             let aiResponse;
             if (hasImage) {
@@ -245,14 +259,20 @@ Generate trending, specific SEO \u2014 not generic content.` }
             finalData = parseSeoText(rawText);
             if (!hasSeoContent(finalData)) throw new Error("Cloudflare AI returned incomplete SEO content");
             seoProvider = "cloudflare";
+            telemetry.cloudflareSuccess = 1;
+            telemetry.model = hasImage ? "@cf/meta/llama-3.2-11b-vision-instruct" : "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
           } catch (aiErr) {
-            console.error("Workers AI failed, using deterministic fallback...", aiErr?.message || aiErr);
+            telemetry.cloudflareSuccess = 0;
+            telemetry.cloudflareError = safeCategory(aiErr);
+            console.error("Workers AI failed, using deterministic fallback...", telemetry.cloudflareError);
             finalData = null;
           }
         }
         if (!hasSeoContent(finalData)) {
           finalData = makeLocalFallbackSeo(`${brandContext}${effectiveTopic}`);
           seoProvider = "local";
+          telemetry.attempted.push("local");
+          telemetry.model = "deterministic-v1";
         }
         const cleanData = finalData ? {
           youtube: {
@@ -267,6 +287,8 @@ Generate trending, specific SEO \u2014 not generic content.` }
           }
         } : null;
         if (!cleanData) throw new Error("AI returned no content. Please try again.");
+        telemetry.provider = seoProvider;
+        telemetry.success = true;
         return new Response(JSON.stringify({
           success: true,
           data: cleanData,
@@ -278,6 +300,9 @@ Generate trending, specific SEO \u2014 not generic content.` }
         });
       } catch (err) {
         return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: jsonHeaders });
+      } finally {
+        telemetry.duration = Date.now() - telemetry.started;
+        schedule(ctx, () => storeSeo(env, telemetry));
       }
     }
     if (url.pathname === "/" || url.pathname === "") {
@@ -3840,7 +3865,14 @@ Generate trending, specific SEO \u2014 not generic content.`
     }
   }
 };
+const instrumented_worker = {
+  async fetch(request, env, ctx) {
+    const response = await worker_default.fetch(request, env, ctx);
+    schedule(ctx, () => observe(request, response, env));
+    return response;
+  }
+};
 export {
-  worker_default as default
+  instrumented_worker as default
 };
 //# sourceMappingURL=worker.js.map

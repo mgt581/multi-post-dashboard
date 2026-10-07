@@ -1,0 +1,17 @@
+name = "multipost-analytics-review-20261007"
+main = "worker.js"
+compatibility_date = "2026-10-07"
+workers_dev = true
+routes = []
+[vars]
+ANALYTICS_ENABLED = "true"
+BASE_URL = "https://multipostapp.co.uk"
+FRONTEND_URL = "https://multipostapp.co.uk"
+# GPT-4o standard uncached USD rates, verified 2026-10-07. Estimates exclude discounts.
+ANALYTICS_MODEL_PRICING = '{"gpt-4o":{"input_per_million":2.5,"output_per_million":10}}'
+[[d1_databases]]
+binding = "DB"
+database_name = "multipost-analytics-preview-20261007"
+database_id = "32bc5623-7df0-47e6-8954-144db86d3f6f"
+[ai]
+binding = "AI"
