@@ -9,11 +9,11 @@ Separate Cloudflare Pages project, separate preview Worker and isolated preview 
 - Database: multipost-analytics-preview-20261007 (`32bc5623-7df0-47e6-8954-144db86d3f6f`)
 - Branch: feat/private-admin-analytics-20261007
 
-Access environment settings are deliberately blank. All pages, assets, APIs and CSV exports deny requests until validated Access JWT settings and an admin email allowlist are configured. A Pages URL does not imply that an Access edge application/policy has been provisioned.
+Cloudflare Access is configured for `*.multipost-private-admin.pages.dev` using the existing `mrwhite.cloudflareaccess.com` team. The sole allowed email is `alexbryantwork3234@outlook.com`; login uses the existing One-time PIN identity provider, with a 24-hour application session. Application ID: `cd1354ce-0994-434e-8be3-d4eebd5d447a`; dedicated policy ID: `62c0f3f2-738a-4e2f-ab33-f6a7713c14c6`. All pages, assets, APIs and CSV exports require a validated Access JWT and the admin allowlist. The root production Pages hostname is not deployed; the middleware also denies unauthenticated direct requests.
 
-## Finish Access configuration
+## Access configuration
 
-An account administrator must create a Cloudflare Access self-hosted application covering both the branch alias and deployment preview hosts (and any future custom hostname). Set an allow policy limited to intended admin emails, no public/bypass policy. Enable Pages preview Access protection where available. Configure preview-only `ACCESS_TEAM_DOMAIN` (hostname, no scheme), `ACCESS_AUD` (that application's audience), and `ADMIN_EMAILS` (comma-separated emails) in admin/wrangler.toml and redeploy the branch preview. If hosts use different Access application audiences, deploy separate configurations or use a single application covering them. Never commit service tokens or other secrets. The current Wrangler OAuth scope list has no Access policy write permission.
+The saved self-hosted application covers both the branch alias and all immutable preview deployment hosts. Its dedicated Allow policy includes only the exact owner email, and accepts only One-time PIN. No public/bypass policy was added. Preview-only `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` and `ADMIN_EMAILS` are set in admin/wrangler.toml. Future custom hostnames need equivalent Access protection before deployment. Never commit service tokens or other secrets. Access was provisioned through the signed-in Cloudflare dashboard because Wrangler OAuth lacks Access policy write scope. The user confirmed the exact email-only grant before application creation.
 
 The middleware independently validates RS256 signature, key ID, issuer, audience, expiration, issue time, not-before and allowlisted email. Missing config/JWT, invalid claims/signatures, certificate fetch failure and unknown admins fail closed. There is no development bypass in deployed code.
 

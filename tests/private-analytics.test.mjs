@@ -45,5 +45,5 @@ test('protected auth, billing, linking and publishing implementation is unchange
  const start='    const requireUser =';const end='export {';
  assert.equal(current.slice(current.indexOf(start),current.indexOf('const instrumented_worker =')),baseline.slice(baseline.indexOf(start),baseline.indexOf(end)));
  const changed=execFileSync('git',['diff','origin/main','--name-only'],{encoding:'utf8'}).trim().split('\n');
- assert.ok(!changed.some(f=>/\.(html|css)$/.test(f) || ['app.js','facebook-oauth.mjs','facebook-video-readiness.mjs','youtube-auth.js','wrangler.toml'].includes(f)));
+ assert.ok(!changed.some(f=>(!f.startsWith('admin/') && /\.(html|css)$/.test(f)) || ['app.js','facebook-oauth.mjs','facebook-video-readiness.mjs','youtube-auth.js','wrangler.toml'].includes(f)));
 });

@@ -4,9 +4,9 @@ compatibility_date = "2026-10-07"
 
 [vars]
 ACCESS_TEAM_DOMAIN = "mrwhite.cloudflareaccess.com"
-ACCESS_AUD = ""
+ACCESS_AUD = "326c515b7b3e4fbad415727763746592c92a467ed153c64fadadc17b00ddd434"
 ADMIN_EMAILS = "alexbryantwork3234@outlook.com"
-# Requests fail closed until the preview Access application audience is configured.
+# Preview only: Access JWT plus the sole-owner email allowlist are required.
 
 [[d1_databases]]
 binding = "DB"
