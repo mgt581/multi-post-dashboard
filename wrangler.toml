@@ -16,6 +16,8 @@ routes = [
 ]
 
 [vars]
+ANALYTICS_ENABLED = "true"
+ANALYTICS_MODEL_PRICING = '{"gpt-4o":{"input_per_million":2.5,"output_per_million":10}}'
 BASE_URL = "https://multipostapp.co.uk"
 FRONTEND_URL = "https://multipostapp.co.uk"
 GOOGLE_CLIENT_ID = "1099160429576-38kfvgqfgahc80oc11v1abl79n1gdspm.apps.googleusercontent.com"
