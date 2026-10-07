@@ -3,10 +3,10 @@ pages_build_output_dir = "public"
 compatibility_date = "2026-10-07"
 
 [vars]
-ACCESS_TEAM_DOMAIN = ""
+ACCESS_TEAM_DOMAIN = "mrwhite.cloudflareaccess.com"
 ACCESS_AUD = ""
-ADMIN_EMAILS = ""
-# All requests fail closed until Access is configured.
+ADMIN_EMAILS = "alexbryantwork3234@outlook.com"
+# Requests fail closed until the preview Access application audience is configured.
 
 [[d1_databases]]
 binding = "DB"
