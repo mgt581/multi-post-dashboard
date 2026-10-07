@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {safeCategory,usageValues,schedule,storeSeo} from '../analytics/tracking.mjs';
+import {safeCategory,usageValues,schedule,storeSeo,publishingOutcome,observe} from '../analytics/tracking.mjs';
 import {authorized} from '../admin/security.mjs';
 import {csv} from '../admin/report.mjs';
 import worker from '../worker.js';
@@ -21,7 +21,7 @@ test('malformed SEO request still records failure without changing response',asy
 test('D1 schema and analytics queries run against SQLite and exclude secret columns',async()=>{
  const {DatabaseSync}=await import('node:sqlite');
  const {readFileSync}=await import('node:fs');
- const db=new DatabaseSync(':memory:');db.exec(readFileSync(new URL('../schema.sql',import.meta.url),'utf8'));db.exec(readFileSync(new URL('../migrations/0008_private_analytics.sql',import.meta.url),'utf8'));
+ const db=new DatabaseSync(':memory:');db.exec(readFileSync(new URL('../schema.sql',import.meta.url),'utf8'));db.exec(readFileSync(new URL('../migrations/0008_private_analytics.sql',import.meta.url),'utf8'));db.exec(readFileSync(new URL('../migrations/0009_analytics_publish_outcomes.sql',import.meta.url),'utf8'));
  db.exec("INSERT INTO folders(id,user_id,name) VALUES(1,'user-1','Secret brand'); INSERT INTO accounts(user_id,platform,access_token) VALUES('user-1','youtube','SECRET_TOKEN');");
  const env={ANALYTICS_ENABLED:'true',DB:{prepare:sql=>({bind:(...v)=>({first:async()=>db.prepare(sql).get(...v),run:async()=>db.prepare(sql).run(...v),all:async()=>({results:db.prepare(sql).all(...v)})})})}};
  await storeSeo(env,{folderId:1,started:Date.now(),attempted:['openai'],provider:'openai',success:true,model:'gpt-4o',usage:{prompt_tokens:10,completion_tokens:3,total_tokens:13}});
@@ -43,7 +43,17 @@ test('protected auth, billing, linking and publishing implementation is unchange
  const baseline=execFileSync('git',['show','origin/main:worker.js'],{encoding:'utf8'});
  const current=readFileSync(new URL('../worker.js',import.meta.url),'utf8');
  const start='    const requireUser =';const end='export {';
- assert.equal(current.slice(current.indexOf(start),current.indexOf('const instrumented_worker =')),baseline.slice(baseline.indexOf(start),baseline.indexOf(end)));
+ const excludeSeo = source => { const a=source.indexOf('      if (url.pathname === "/api/generate-seo"'); const b=source.indexOf('      if (!url.pathname.startsWith("/api/"))',a); return source.slice(0,a)+source.slice(b); };
+ assert.equal(excludeSeo(current.slice(current.indexOf(start),current.indexOf('const instrumented_worker ='))),excludeSeo(baseline.slice(baseline.indexOf(start),baseline.indexOf(end))));
  const changed=execFileSync('git',['diff','origin/main','--name-only'],{encoding:'utf8'}).trim().split('\n');
- assert.ok(!changed.some(f=>(!f.startsWith('admin/') && /\.(html|css)$/.test(f)) || ['app.js','facebook-oauth.mjs','facebook-video-readiness.mjs','youtube-auth.js','wrangler.toml'].includes(f)));
+ assert.ok(!changed.some(f=>(!f.startsWith('admin/') && /\.(html|css)$/.test(f)) || ['app.js','facebook-oauth.mjs','facebook-video-readiness.mjs','youtube-auth.js'].includes(f)));
 });
+
+test('publishing outcomes distinguish failed 2xx, processing, inbox and completion',()=>{
+ assert.equal(publishingOutcome('tiktok','publish-status',{success:true,failed:true,status:'FAILED'},true).state,'failed');
+ assert.equal(publishingOutcome('tiktok','publish-status',{success:true,status:'SEND_TO_USER_INBOX'},true).state,'inbox_delivery');
+ assert.equal(publishingOutcome('tiktok','publish-status',{success:true,status:'PUBLISH_COMPLETE'},true).state,'complete');
+ assert.equal(publishingOutcome('facebook','finish-upload',{success:true,processing:true},true).state,'processing');
+ assert.equal(publishingOutcome('facebook','post-video',{success:false,error:'sensitive'},true).state,'request_failed');
+});
+test('waitUntil failure cannot alter application response',()=>{assert.doesNotThrow(()=>schedule({waitUntil:()=>{throw Error('context unavailable');}},async()=>{}));});

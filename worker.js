@@ -1,4 +1,4 @@
-import { schedule, storeSeo, observe, safeCategory } from "./analytics/tracking.mjs";
+import { schedule, storeSeo, observe, safeCategory, observationCopies, requestCopy } from "./analytics/tracking.mjs";
 import { evaluateFacebookVideoReadiness } from "./facebook-video-readiness.mjs";
 import { FACEBOOK_PAGE_LINK_SCOPE } from "./facebook-oauth.mjs";
 
@@ -3498,7 +3498,10 @@ Follow for daily trending content! \u{1F44F}
         });
       }
       if (url.pathname === "/api/generate-seo" && request.method === "POST") {
+        const telemetry = { started: Date.now(), attempted: [], success: false };
+        try {
         const payload = await request.json();
+        telemetry.folderId = payload.folder_id;
         const imageBase64 = payload.image_base64 || "";
         const imageFilename = payload.image_filename || "";
         const textPrompt = payload.prompt || "";
@@ -3508,6 +3511,7 @@ Follow for daily trending content! \u{1F44F}
         const fbAccount = payload.facebook_account || "";
         const ttAccount = payload.tiktok_account || "";
         const hasImage = !!(imageBase64 && imageFilename);
+        telemetry.image = hasImage;
         const hasText = !!textPrompt.trim();
         if (!hasImage && !hasText) {
           return new Response(
@@ -3565,6 +3569,8 @@ Return ONLY valid JSON with no markdown, no extra text, no explanations:
         let seoProvider = "";
         const apiKey = env.OPENAI_API_KEY;
         if (apiKey) {
+          telemetry.attempted.push("openai");
+          let openaiStatus;
           try {
             const oaiMessages = (
               /** @type {{ role: string, content: string | Array<{type: string, text?: string, image_url?: {url: string}}>}[]} */
@@ -3587,24 +3593,31 @@ Generate trending, specific SEO \u2014 not generic content.` });
               headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
               body: JSON.stringify({ model: "gpt-4o", messages: oaiMessages, response_format: { type: "json_object" } })
             });
+            openaiStatus = oaiResponse.status;
             if (!oaiResponse.ok) {
               const errorText = await oaiResponse.text();
               throw new Error(`OpenAI API ${oaiResponse.status}: ${errorText.slice(0, 300)}`);
             }
             const oaiData = await oaiResponse.json();
+            telemetry.usage = oaiData.usage;
             if (oaiData.choices?.[0]?.message?.content) {
               parsed = parseSeoText(oaiData.choices[0].message.content);
               if (!hasSeoContent(parsed)) throw new Error("OpenAI returned incomplete SEO content");
               seoProvider = "openai";
+              telemetry.openaiSuccess = 1;
+              telemetry.model = "gpt-4o";
             } else {
               throw new Error("OpenAI returned no SEO content");
             }
           } catch (e) {
-            console.error("OpenAI failed, falling back to Cloudflare AI...", e.message);
+            telemetry.openaiSuccess = 0;
+            telemetry.openaiError = safeCategory(e, openaiStatus);
+            console.error("OpenAI failed, falling back to Cloudflare AI...", telemetry.openaiError);
             parsed = null;
           }
         }
         if (!parsed) {
+          telemetry.attempted.push("cloudflare");
           try {
             let aiResponse = null;
             if (hasImage) {
@@ -3650,13 +3663,19 @@ Generate trending, specific SEO \u2014 not generic content.`
             parsed = parseSeoText(rawText);
             if (!hasSeoContent(parsed)) throw new Error("Cloudflare AI returned incomplete SEO content");
             seoProvider = "cloudflare";
-          } catch (_) {
+            telemetry.cloudflareSuccess = 1;
+            telemetry.model = hasImage ? "@cf/meta/llama-3.2-11b-vision-instruct" : "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+          } catch (aiErr) {
+            telemetry.cloudflareSuccess = 0;
+            telemetry.cloudflareError = safeCategory(aiErr);
             parsed = null;
           }
         }
         if (!hasSeoContent(parsed)) {
           parsed = makeDeterministicSeoFallback(`${brandContext}${textPrompt}`);
           seoProvider = "local";
+          telemetry.attempted.push("local");
+          telemetry.model = "deterministic-v1";
         }
         const cleanData = parsed ? {
           youtube: {
@@ -3672,6 +3691,8 @@ Generate trending, specific SEO \u2014 not generic content.`
             descriptionAndTags: String(parsed?.facebook?.descriptionAndTags || "")
           }
         } : typeof fallbackSeo === "function" ? fallbackSeo(textPrompt) : {};
+        telemetry.provider = seoProvider;
+        telemetry.success = true;
         return new Response(JSON.stringify({
           success: true,
           data: cleanData,
@@ -3681,6 +3702,10 @@ Generate trending, specific SEO \u2014 not generic content.`
           status: 200,
           headers: jsonHeaders
         });
+        } finally {
+          telemetry.duration = Date.now() - telemetry.started;
+          schedule(ctx, () => storeSeo(env, telemetry));
+        }
       }
       if (!url.pathname.startsWith("/api/")) {
         return Response.redirect(frontendBaseUrl, 302);
@@ -3867,8 +3892,11 @@ Generate trending, specific SEO \u2014 not generic content.`
 };
 const instrumented_worker = {
   async fetch(request, env, ctx) {
+    const req = requestCopy(request, env.ANALYTICS_ENABLED === "true");
     const response = await worker_default.fetch(request, env, ctx);
-    schedule(ctx, () => observe(request, response, env));
+    const copies = observationCopies(request, response, env.ANALYTICS_ENABLED === "true");
+    copies.req = req;
+    schedule(ctx, () => observe(request, response, env, copies));
     return response;
   }
 };

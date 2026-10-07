@@ -6,9 +6,9 @@ compatibility_date = "2026-10-07"
 ACCESS_TEAM_DOMAIN = "mrwhite.cloudflareaccess.com"
 ACCESS_AUD = "326c515b7b3e4fbad415727763746592c92a467ed153c64fadadc17b00ddd434"
 ADMIN_EMAILS = "alexbryantwork3234@outlook.com"
-# Preview only: Access JWT plus the sole-owner email allowlist are required.
+# Admin hostname: Access JWT plus the sole-owner email allowlist are required.
 
 [[d1_databases]]
 binding = "DB"
-database_name = "multipost-analytics-preview-20261007"
-database_id = "32bc5623-7df0-47e6-8954-144db86d3f6f"
+database_name = "accountsmultipostapp"
+database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
