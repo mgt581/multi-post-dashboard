@@ -5,7 +5,7 @@ workers_dev = true
 preview_urls = true
 
 [vars]
-OPENAI_BASELINE_URL = "https://multipost-seo-worker.alexbryant.workers.dev/api/generate-premium-seo"
+OPENAI_BASELINE_URL = "https://multipostapp.co.uk/api/generate-premium-seo"
 
 [ai]
 binding = "AI"

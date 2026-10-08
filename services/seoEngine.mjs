@@ -104,6 +104,22 @@ function cleanSeo(value) {
   };
 }
 
+function fillRelevantHashtags(value) {
+  const copy = structuredClone(value);
+  const keywordTags = String(copy?.youtube?.keywords || "").split(",").map(text).filter(Boolean)
+    .map((keyword) => `#${keyword.replace(/[^\p{L}\p{N}]/gu, "")}`).filter((tag) => tag.length > 2);
+  for (const [platform, field, minimum] of [["tiktok", "allInOne", 3], ["facebook", "descriptionAndTags", 3]]) {
+    let current = String(copy?.[platform]?.[field] || "").trim();
+    const existing = new Set((current.match(/#[\p{L}\p{N}_]+/gu) || []).map((tag) => tag.toLowerCase()));
+    for (const tag of keywordTags) {
+      if (hashtagCount(current) >= minimum) break;
+      if (!existing.has(tag.toLowerCase())) current += ` ${tag}`;
+    }
+    copy[platform][field] = current;
+  }
+  return copy;
+}
+
 function parseModelOutput(result) {
   if (result && typeof result === "object" && result.youtube) return result;
   const raw = typeof result === "string"
@@ -193,9 +209,10 @@ async function generateValidated(provider, env, input, options = {}) {
   let attempts = 0;
   const data = await retry(async () => {
     attempts += 1;
-    const candidate = provider === "openai"
+    const rawCandidate = provider === "openai"
       ? await callOpenAI(env, input, validationErrors)
       : await callCloudflare(env, input, validationErrors, options.cloudflareModel);
+    const candidate = fillRelevantHashtags(rawCandidate);
     validationErrors = validateSeo(candidate);
     if (validationErrors.length) throw new Error(`Invalid SEO output: ${validationErrors.join("; ")}`);
     return cleanSeo(candidate);
