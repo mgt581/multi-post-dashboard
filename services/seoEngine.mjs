@@ -13,7 +13,7 @@ export const SEO_SCHEMA = {
       required: ["title", "description", "keywords"],
       properties: {
         title: { type: "string", minLength: 20, maxLength: 70 },
-        description: { type: "string", minLength: 80, maxLength: 500 },
+        description: { type: "string", minLength: 80, maxLength: 300 },
         keywords: { type: "string", minLength: 20, maxLength: 500 }
       }
     },
@@ -29,7 +29,7 @@ export const SEO_SCHEMA = {
       required: ["title", "descriptionAndTags"],
       properties: {
         title: { type: "string", minLength: 15, maxLength: 70 },
-        descriptionAndTags: { type: "string", minLength: 50, maxLength: 500 }
+        descriptionAndTags: { type: "string", minLength: 50, maxLength: 240 }
       }
     }
   }
@@ -40,7 +40,7 @@ const SYSTEM_PROMPT = `You create accurate social metadata from only the facts s
 Write distinct copy for each platform:
 - YouTube title: lead with the exact searchable subject, 45-65 characters where natural. Description: 2 concise sentences, 100-300 characters. Keywords: 8-15 comma-separated phrases ordered from precise to broader discovery terms.
 - TikTok allInOne: a natural hook plus 3-5 specific hashtags, maximum 150 characters. Do not force #fyp, #viral, or #trending unless those terms are genuinely relevant.
-- Facebook title: clear and shareable, 30-60 characters where natural. descriptionAndTags: useful context followed by a blank line and 3-6 specific hashtags.
+- Facebook title: clear and shareable, 30-60 characters where natural. descriptionAndTags: 80-180 characters of factual context followed by a blank line and 3-6 specific hashtags.
 
 Adapt to the content category. Gaming copy should name the game, platform, mode or moment supplied. Local-business copy should name the service and location supplied. Product copy should focus on stated features and use cases. Tutorials should state the outcome and method.
 
@@ -70,11 +70,11 @@ function validateSeo(value) {
   if (!yt || !tt || !fb) errors.push("all platform objects are required");
   const fields = [
     ["youtube.title", yt?.title, 20, 70],
-    ["youtube.description", yt?.description, 80, 500],
+    ["youtube.description", yt?.description, 80, 300],
     ["youtube.keywords", yt?.keywords, 20, 500],
     ["tiktok.allInOne", tt?.allInOne, 20, 150],
     ["facebook.title", fb?.title, 15, 70],
-    ["facebook.descriptionAndTags", fb?.descriptionAndTags, 50, 500]
+    ["facebook.descriptionAndTags", fb?.descriptionAndTags, 50, 240]
   ];
   for (const [name, raw, min, max] of fields) {
     const valueText = text(raw);
@@ -108,11 +108,11 @@ function fillRelevantHashtags(value, input) {
   const copy = structuredClone(value);
   const topic = text(input.topic);
   if (text(copy?.youtube?.title).length < 20) copy.youtube.title = topic.slice(0, 70);
-  if (text(copy?.youtube?.description).length < 80) copy.youtube.description = `${text(copy.youtube.description)} ${topic}.`.trim().slice(0, 500);
+  if (text(copy?.youtube?.description).length < 80) copy.youtube.description = `${text(copy.youtube.description)} ${topic}.`.trim().slice(0, 300);
   if (text(copy?.facebook?.title).length < 15) copy.facebook.title = text(copy.youtube.title).slice(0, 70);
   const keywordTags = String(copy?.youtube?.keywords || "").split(",").map(text).filter(Boolean)
     .map((keyword) => `#${keyword.replace(/[^\p{L}\p{N}]/gu, "")}`).filter((tag) => tag.length > 2);
-  for (const [platform, field, minimum, maximum, maxLength, separator] of [["tiktok", "allInOne", 3, 5, 150, " "], ["facebook", "descriptionAndTags", 3, 6, 500, "\n\n"]]) {
+  for (const [platform, field, minimum, maximum, maxLength, separator] of [["tiktok", "allInOne", 3, 5, 150, " "], ["facebook", "descriptionAndTags", 3, 6, 240, "\n\n"]]) {
     let current = String(copy?.[platform]?.[field] || "").trim();
     const tagMap = new Map((current.match(/#[\p{L}\p{N}_]+/gu) || []).map((tag) => [tag.toLowerCase(), tag]));
     for (const tag of keywordTags) {
