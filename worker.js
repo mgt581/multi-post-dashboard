@@ -1,5 +1,6 @@
 import { evaluateFacebookVideoReadiness } from "./facebook-video-readiness.mjs";
 import { FACEBOOK_PAGE_LINK_SCOPE } from "./facebook-oauth.mjs";
+import { generateSeo, normalizeSeoInput } from "./services/seoEngine.mjs";
 
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -63,6 +64,12 @@ var worker_default = {
     if (url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
       try {
         const body = await request.json();
+        const input = await normalizeSeoInput(body);
+        if (!input.topic.trim() && !input.imageBase64) {
+          return new Response(JSON.stringify({ error: "Provide an image, a text prompt, or both" }), { status: 400, headers: jsonHeaders });
+        }
+        const result = await generateSeo(env, input);
+        return new Response(JSON.stringify(result), { status: 200, headers: jsonHeaders });
         const apiKey = env.OPENAI_API_KEY;
         const topic = body.topic || "";
         const imageUrl = body.image_url || "";
@@ -3474,6 +3481,12 @@ Follow for daily trending content! \u{1F44F}
       }
       if (url.pathname === "/api/generate-seo" && request.method === "POST") {
         const payload = await request.json();
+        const sharedInput = await normalizeSeoInput(payload);
+        if (!sharedInput.topic.trim() && !sharedInput.imageBase64) {
+          return new Response(JSON.stringify({ success: false, error: "Provide an image, a text prompt, or both" }), { status: 400, headers: jsonHeaders });
+        }
+        const sharedResult = await generateSeo(env, sharedInput);
+        return new Response(JSON.stringify(sharedResult), { status: 200, headers: jsonHeaders });
         const imageBase64 = payload.image_base64 || "";
         const imageFilename = payload.image_filename || "";
         const textPrompt = payload.prompt || "";
