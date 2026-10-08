@@ -53,3 +53,11 @@ test("owner bypass requires a verified Firebase identity", async () => {
     assert.match(source, /headers\.set\("Authorization", `Bearer \$\{token\}`\)/);
   }
 });
+
+test("the signed-in owner can generate SEO without waiting on billing lookup", async () => {
+  const pages = ["create-post.html", "uploadimages.html", "settings.html"];
+  for (const page of pages) {
+    const source = await readFile(new URL(`../${page}`, import.meta.url), "utf8");
+    assert.match(source, /normalizeUserKey\((?:auth\.currentUser|user)\?\.email\) === "alexbryant3234@gmail\.com"/);
+  }
+});
