@@ -349,6 +349,11 @@
     async function loadBillingStatus(user) {
       billingUser = user;
       const manageBtn = document.getElementById("manageBillingBtn");
+      if (normalizeUserKey(user?.email) === "alexbryant3234@gmail.com") {
+        setBillingUi("Owner bypass active", "Owner mode is enabled for this account. Billing gates are bypassed.", "ok");
+        manageBtn.disabled = true;
+        return;
+      }
       const platform = getClientPlatform();
       if (platform === "android") {
         setBillingUi("Android app mode", "Billing is managed via app store purchase flow for Android builds.", "warn");
