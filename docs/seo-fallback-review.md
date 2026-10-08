@@ -23,6 +23,21 @@ Safeguards in this change: output is capped at 850 tokens, only one validation r
 
 The prompt now separates YouTube, TikTok, and Facebook requirements. It removes mandatory generic tags such as `#fyp`, prohibits unsupported claims and invented details, and gives category-specific guidance for gaming, local businesses, products, tutorials, and other factual content. Validation requires all six output fields, platform length limits, 8-15 YouTube keyword phrases, 3-5 TikTok hashtags, and 3-6 Facebook hashtags.
 
+## Test results
+
+Thirteen automated tests pass. They cover provider ordering, strict OpenAI and Cloudflare schemas, transient failure fallback, validation retry, deterministic final fallback, image normalization, structural repair, and generic-filler rejection. Both production and isolated-preview Worker bundles pass dry-run builds.
+
+The final live comparison ran on 8 October 2026 against six scenarios: FIFA Street 2 on PS2, a Leeds bakery, a rechargeable desk fan, a bicycle inner-tube tutorial, an autumn woodland walk, and handmade-jewellery phone photography.
+
+| Provider | Complete responses | Mean latency | Bounded relevance/format score |
+| --- | ---: | ---: | ---: |
+| Current production OpenAI baseline | 6/6 | 2.39 s | 70.0/100 |
+| Improved Llama 3.3 70B fallback | 6/6 | 6.35 s | 89.3/100 |
+
+The bounded score checks whether supplied topic terms survive, whether titles are distinct by platform, and whether banned filler such as `#fyp`, `#viral`, `must watch`, and unsupported clickbait appears. It is a regression signal, not a general measure of writing quality. OpenAI was faster and more expressive; the improved Cloudflare output was more literal, consistently formatted, and avoided the generic mandatory hashtags present in the current production OpenAI prompt.
+
+A separate single-run model comparison found that Llama 3.1 8B was faster but sometimes invented claims such as a bakery being “famous” or labelled a product demo as a “review.” DeepSeek R1 32B was much slower and introduced details such as editing steps that were not supplied. Llama 3.3 70B was the most conservative option; deterministic structural repair now handles its occasional short or malformed hashtag sections.
+
 ## Preview isolation
 
 `wrangler.preview.toml` deploys a dedicated comparison Worker whose only binding is Workers AI. It has no D1 database, production route, publishing endpoint, OAuth setting, billing setting, or live frontend. Access requires the separately stored `SEO_PREVIEW_ACCESS_TOKEN`. The existing OpenAI key is injected from GitHub Actions secrets and is never printed or committed.
