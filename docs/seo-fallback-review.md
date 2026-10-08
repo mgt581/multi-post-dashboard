@@ -26,3 +26,5 @@ The prompt now separates YouTube, TikTok, and Facebook requirements. It removes 
 ## Preview isolation
 
 `wrangler.preview.toml` deploys a dedicated comparison Worker whose only binding is Workers AI. It has no D1 database, production route, publishing endpoint, OAuth setting, billing setting, or live frontend. Access requires the separately stored `SEO_PREVIEW_ACCESS_TOKEN`. The existing OpenAI key is injected from GitHub Actions secrets and is never printed or committed.
+
+If GitHub Actions cannot inject that secret, the preview obtains the OpenAI comparison from the existing production generation-only endpoint. It rejects any response whose reported provider is not `openai`. This path does not call publishing, OAuth, billing, or database routes and cannot read or write user data.

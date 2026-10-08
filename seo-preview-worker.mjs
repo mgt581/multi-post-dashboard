@@ -36,6 +36,22 @@ function page() {
   </script></body></html>`;
 }
 
+async function openAiBaseline(env, input) {
+  if (env.OPENAI_API_KEY) return generateSeo(env, input, { provider: "openai" });
+  const endpoint = env.OPENAI_BASELINE_URL;
+  if (!endpoint) throw new Error("OpenAI preview access is not configured");
+  const startedAt = Date.now();
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-seo-preview": "isolated-comparison" },
+    body: JSON.stringify({ topic: input.topic })
+  });
+  const result = await response.json();
+  if (!response.ok || !result?.data) throw new Error(result?.error || `OpenAI baseline failed with ${response.status}`);
+  if (result.provider !== "openai") throw new Error(`OpenAI baseline used ${result.provider || "an unknown provider"}`);
+  return { ...result, telemetry: { provider: "openai", model: "gpt-4o-production-baseline", attempts: 1, durationMs: Date.now() - startedAt, failures: [] } };
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -49,7 +65,7 @@ export default {
         const input = await normalizeSeoInput(await request.json());
         if (!input.topic.trim()) return new Response(JSON.stringify({ error: "Enter a content description" }), { status: 400, headers });
         const [openai, cloudflare] = await Promise.allSettled([
-          generateSeo(env, input, { provider: "openai" }),
+          openAiBaseline(env, input),
           generateSeo(env, input, { provider: "cloudflare" })
         ]);
         const normalize = (result) => result.status === "fulfilled" ? result.value : { error: String(result.reason?.message || result.reason) };
