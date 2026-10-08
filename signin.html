@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Multipost | Opening App</title>
+  <title>Multipost | Sign In</title>
   <meta name="theme-color" content="#0b1829">
   <meta name="robots" content="noindex, nofollow">
   <link rel="icon" href="logo.png?v=20260424">
@@ -47,24 +47,18 @@
     }
 
     h1 { margin: 0; font-size: 28px; font-weight: 800; }
-    p { margin: 10px 0 0; color: var(--muted); line-height: 1.5; }
-
-    .spinner {
-      width: 38px;
-      height: 38px;
-      margin: 26px auto 18px;
-      border: 4px solid rgba(255,255,255,.12);
-      border-top-color: var(--accent-2);
-      border-radius: 50%;
-      animation: spin .8s linear infinite;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
+    p { margin: 10px 0 24px; color: var(--muted); line-height: 1.5; }
+    .tabs { display: flex; gap: 6px; padding: 4px; margin-bottom: 20px; border: 1px solid var(--border); border-radius: 14px; background: rgba(255,255,255,.04); }
+    .tab { flex: 1; padding: 10px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 800; cursor: pointer; }
+    .tab.active { background: var(--accent); color: #fff; }
+    .field { margin-bottom: 14px; text-align: left; }
+    label { display: block; margin: 0 0 6px 2px; color: var(--muted); font-size: 12px; font-weight: 800; text-transform: uppercase; }
+    input { width: 100%; padding: 14px 15px; border: 1px solid var(--border); border-radius: 13px; outline: 0; background: rgba(255,255,255,.04); color: #fff; font: inherit; }
+    input:focus { border-color: var(--accent-2); }
 
     .btn {
-      display: none;
       width: 100%;
-      margin-top: 20px;
+      margin-top: 8px;
       padding: 13px 16px;
       border: 0;
       border-radius: 12px;
@@ -74,6 +68,11 @@
       font-weight: 800;
       cursor: pointer;
     }
+    .btn:disabled { cursor: wait; opacity: .7; }
+    .google { margin-top: 12px; background: #fff; color: #0f172a; }
+    .forgot { display: inline-block; margin-top: 15px; color: var(--muted); font-size: 13px; font-weight: 700; text-decoration: none; }
+    .message { min-height: 22px; margin: 14px 0 0; color: #fca5a5; font-size: 13px; }
+    .message.success { color: #86efac; }
 
     .legal { margin-top: 24px; font-size: 12px; }
     .legal a { color: var(--muted); text-decoration: none; margin: 0 8px; }
@@ -82,9 +81,25 @@
 <body>
   <main class="card">
     <h1>Multipost</h1>
-    <p id="status">Opening your workspace…</p>
-    <div id="spinner" class="spinner" aria-hidden="true"></div>
-    <button id="retry" class="btn" type="button">Try Again</button>
+    <p id="status">Sign in to your workspace</p>
+    <div class="tabs" role="tablist" aria-label="Account access">
+      <button id="loginTab" class="tab active" type="button">Sign In</button>
+      <button id="signupTab" class="tab" type="button">Sign Up</button>
+    </div>
+    <form id="authForm">
+      <div class="field">
+        <label for="email">Email address</label>
+        <input id="email" type="email" autocomplete="email" required>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" type="password" autocomplete="current-password" minlength="6" required>
+      </div>
+      <button id="submitButton" class="btn" type="submit">Enter Workspace</button>
+    </form>
+    <button id="googleButton" class="btn google" type="button">Continue with Google</button>
+    <a id="forgotPassword" class="forgot" href="#">Forgot your password?</a>
+    <div id="message" class="message" role="status" aria-live="polite"></div>
     <div class="legal">
       <a href="privacy.html">Privacy Policy</a>
       <a href="terms.html">Terms of Service</a>
@@ -99,7 +114,10 @@
       setPersistence,
       browserLocalPersistence,
       signInWithEmailAndPassword,
-      createUserWithEmailAndPassword
+      createUserWithEmailAndPassword,
+      GoogleAuthProvider,
+      signInWithPopup,
+      sendPasswordResetEmail
     } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
@@ -114,87 +132,98 @@
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const statusEl = document.getElementById("status");
-    const spinner = document.getElementById("spinner");
-    const retryBtn = document.getElementById("retry");
+    const authForm = document.getElementById("authForm");
+    const emailInput = document.getElementById("email");
+    const passwordInput = document.getElementById("password");
+    const submitButton = document.getElementById("submitButton");
+    const googleButton = document.getElementById("googleButton");
+    const messageEl = document.getElementById("message");
+    const loginTab = document.getElementById("loginTab");
+    const signupTab = document.getElementById("signupTab");
+    const googleProvider = new GoogleAuthProvider();
+    googleProvider.setCustomParameters({ prompt: "select_account" });
+    let mode = "login";
     let redirecting = false;
 
-    function randomHex(bytes = 18) {
-      const values = new Uint8Array(bytes);
-      crypto.getRandomValues(values);
-      return Array.from(values, value => value.toString(16).padStart(2, "0")).join("");
+    function setMessage(message, success = false) {
+      messageEl.textContent = message || "";
+      messageEl.classList.toggle("success", success);
     }
 
-    function getWorkspaceCredentials() {
-      let email = localStorage.getItem("multipost_workspace_email") || "";
-      let password = localStorage.getItem("multipost_workspace_password") || "";
+    function setBusy(busy) {
+      submitButton.disabled = busy;
+      googleButton.disabled = busy;
+      submitButton.textContent = busy ? "Please wait…" : mode === "login" ? "Enter Workspace" : "Create Account";
+    }
 
-      if (!email || !password) {
-        const id = (crypto.randomUUID?.() || randomHex(16)).replace(/[^a-zA-Z0-9-]/g, "");
-        email = `workspace-${id}@users.multipostapp.co.uk`;
-        password = `Mp!${randomHex(24)}aA1`;
-        localStorage.setItem("multipost_workspace_email", email);
-        localStorage.setItem("multipost_workspace_password", password);
-      }
-
-      return { email, password };
+    function setMode(nextMode) {
+      mode = nextMode;
+      loginTab.classList.toggle("active", mode === "login");
+      signupTab.classList.toggle("active", mode === "signup");
+      statusEl.textContent = mode === "login" ? "Sign in to your workspace" : "Create your Multipost account";
+      passwordInput.autocomplete = mode === "login" ? "current-password" : "new-password";
+      document.getElementById("forgotPassword").style.display = mode === "login" ? "inline-block" : "none";
+      setMessage("");
+      setBusy(false);
     }
 
     function openWorkspace(user) {
       if (!user || redirecting) return;
       redirecting = true;
-      statusEl.textContent = "Workspace ready.";
+      localStorage.removeItem("multipost_workspace_email");
+      localStorage.removeItem("multipost_workspace_password");
+      localStorage.setItem("currentUserKey", String(user.email || user.uid || "").trim().toLowerCase());
       window.location.replace("app.html");
     }
 
-    function showError(error) {
-      console.error("Workspace bootstrap failed:", error);
-      statusEl.textContent = "Could not open the workspace automatically. Please try again.";
-      spinner.style.display = "none";
-      retryBtn.style.display = "block";
-    }
-
-    async function bootstrapWorkspace() {
-      retryBtn.style.display = "none";
-      spinner.style.display = "block";
-      statusEl.textContent = "Opening your workspace…";
-
+    authForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      setBusy(true);
+      setMessage("");
       try {
         await setPersistence(auth, browserLocalPersistence);
-        if (auth.currentUser) {
-          openWorkspace(auth.currentUser);
-          return;
-        }
-
-        const { email, password } = getWorkspaceCredentials();
-
-        try {
-          const result = await signInWithEmailAndPassword(auth, email, password);
-          openWorkspace(result.user);
-          return;
-        } catch (signInError) {
-          const code = String(signInError?.code || "");
-          const canCreate = [
-            "auth/user-not-found",
-            "auth/invalid-credential",
-            "auth/invalid-login-credentials"
-          ].includes(code);
-
-          if (!canCreate) throw signInError;
-        }
-
-        const created = await createUserWithEmailAndPassword(auth, email, password);
-        openWorkspace(created.user);
+        const action = mode === "login" ? signInWithEmailAndPassword : createUserWithEmailAndPassword;
+        const result = await action(auth, emailInput.value.trim(), passwordInput.value);
+        openWorkspace(result.user);
       } catch (error) {
-        showError(error);
+        setMessage(error?.message || "Sign-in failed. Please try again.");
+        setBusy(false);
       }
-    }
+    });
+
+    googleButton.addEventListener("click", async () => {
+      setBusy(true);
+      setMessage("");
+      try {
+        await setPersistence(auth, browserLocalPersistence);
+        const result = await signInWithPopup(auth, googleProvider);
+        openWorkspace(result.user);
+      } catch (error) {
+        setMessage(error?.message || "Google sign-in failed. Please try again.");
+        setBusy(false);
+      }
+    });
+
+    document.getElementById("forgotPassword").addEventListener("click", async event => {
+      event.preventDefault();
+      const email = emailInput.value.trim();
+      if (!email) return setMessage("Enter your email address first.");
+      try {
+        await sendPasswordResetEmail(auth, email);
+        setMessage("Password reset email sent.", true);
+      } catch (error) {
+        setMessage(error?.message || "Could not send the reset email.");
+      }
+    });
+
+    loginTab.addEventListener("click", () => setMode("login"));
+    signupTab.addEventListener("click", () => setMode("signup"));
 
     onAuthStateChanged(auth, user => {
       if (user) openWorkspace(user);
     });
 
-    retryBtn.addEventListener("click", bootstrapWorkspace);
-    bootstrapWorkspace();
+    setPersistence(auth, browserLocalPersistence).catch(() => {});
   </script>
 </body>
 </html>
