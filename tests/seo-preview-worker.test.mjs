@@ -19,6 +19,9 @@ test("private preview presents two independent provider buttons", async () => {
   assert.match(html, /Generate with OpenAI GPT-4o/);
   assert.match(html, /Generate with Cloudflare Llama 3\.3 70B/);
   assert.doesNotMatch(html, /Generate with local/);
+  const script = html.match(/<script>([\s\S]+)<\/script>/)?.[1];
+  assert.ok(script);
+  assert.doesNotThrow(() => new Function(script));
 });
 
 test("Cloudflare comparison request is pinned and never falls back", async () => {
