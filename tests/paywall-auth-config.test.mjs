@@ -37,3 +37,19 @@ test("signin requires an explicit account and landing links use it", async () =>
   assert.doesNotMatch(signin, /workspace-\$\{id\}@users\.multipostapp\.co\.uk/);
   assert.equal((landing.match(/href="signin\.html"/g) || []).length, 2);
 });
+
+test("owner bypass requires a verified Firebase identity", async () => {
+  const [worker, createPost, uploadImages, settings] = await Promise.all([
+    readFile(new URL("../worker.js", import.meta.url), "utf8"),
+    readFile(new URL("../create-post.html", import.meta.url), "utf8"),
+    readFile(new URL("../uploadimages.html", import.meta.url), "utf8"),
+    readFile(new URL("../settings.html", import.meta.url), "utf8")
+  ]);
+  assert.match(worker, /accounts:lookup/);
+  assert.match(worker, /isConfiguredOwner && \(requestedMatchesIdentity \|\| rowMatchesIdentity\)/);
+  assert.doesNotMatch(worker, /requestedEmail && ownerEmails\.has\(requestedEmail\)/);
+  for (const source of [createPost, uploadImages, settings]) {
+    assert.match(source, /auth\.currentUser\?\.getIdToken\(\)/);
+    assert.match(source, /headers\.set\("Authorization", `Bearer \$\{token\}`\)/);
+  }
+});

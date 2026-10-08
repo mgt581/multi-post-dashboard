@@ -614,6 +614,12 @@
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
+  async function authenticatedFetch(input, init = {}) {
+    const headers = new Headers(init.headers || {});
+    const token = await auth.currentUser?.getIdToken();
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    return fetch(input, { ...init, headers });
+  }
 
   const host = window.location.hostname;
   const isProdHost = host === "multipostapp.co.uk" || host === "www.multipostapp.co.uk";
@@ -929,7 +935,7 @@
       return;
     }
     try {
-      const res = await fetch(
+      const res = await authenticatedFetch(
         `${apiBase}/billing/status?user_id=${encodeURIComponent(userScope)}&user_email=${encodeURIComponent(signedInUserEmail)}&client_platform=${encodeURIComponent(platform)}`
       );
       const out = await res.json();
@@ -1085,7 +1091,7 @@
     setStatus(statusMsg, "working");
 
     try {
-      const res = await fetch(`${apiBase}/generate-premium-seo`, {
+      const res = await authenticatedFetch(`${apiBase}/generate-premium-seo`, {
         method: "POST",
         headers: { "Content-Type": "application/json", client_platform: getClientPlatform() },
         body: JSON.stringify({
@@ -1274,7 +1280,7 @@
 
       setStatus(`Uploading to "${activeYouTubeName}"…`, "working");
 
-      const initRes = await fetch(`${uploadApiBase}/youtube/init-upload`, {
+      const initRes = await authenticatedFetch(`${uploadApiBase}/youtube/init-upload`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1315,7 +1321,7 @@
         fd.append("fileType", file.type || "video/mp4");
         fd.append("chunk", chunkBlob, file.name);
 
-        const upRes = await fetch(`${uploadApiBase}/youtube/upload-chunk`, {
+        const upRes = await authenticatedFetch(`${uploadApiBase}/youtube/upload-chunk`, {
           method: "POST",
           headers: {
             folder_id: activeFolderId,
@@ -1400,7 +1406,7 @@
       setStatus(`Uploading to "${activeTikTokName}"…`, "working");
 
       // Step 1: initialise upload session
-      const initRes = await fetch(`${uploadApiBase}/tiktok/init-upload`, {
+      const initRes = await authenticatedFetch(`${uploadApiBase}/tiktok/init-upload`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1434,7 +1440,7 @@
         fd.append("offset", String(offset));
         fd.append("chunk", chunkBlob, file.name);
 
-        const upRes = await fetch(`${uploadApiBase}/tiktok/upload-chunk`, {
+        const upRes = await authenticatedFetch(`${uploadApiBase}/tiktok/upload-chunk`, {
           method: "POST",
           headers: {
             folder_id: activeFolderId,
@@ -1513,7 +1519,7 @@
 
       setStatus(`Uploading to "${activeFacebookName}"…`, "working");
 
-      const initRes = await fetch(`${uploadApiBase}/facebook/init-upload`, {
+      const initRes = await authenticatedFetch(`${uploadApiBase}/facebook/init-upload`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1541,7 +1547,7 @@
       fd.append("offset", "0");
       fd.append("chunk", file, file.name);
 
-      const upRes = await fetch(`${uploadApiBase}/facebook/upload-chunk`, {
+      const upRes = await authenticatedFetch(`${uploadApiBase}/facebook/upload-chunk`, {
         method: "POST",
         headers: {
           folder_id: activeFolderId,
@@ -1557,7 +1563,7 @@
       }
 
       btn.textContent = "Finishing upload...";
-      const finishRes = await fetch(`${uploadApiBase}/facebook/finish-upload`, {
+      const finishRes = await authenticatedFetch(`${uploadApiBase}/facebook/finish-upload`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
