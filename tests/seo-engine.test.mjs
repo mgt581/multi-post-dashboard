@@ -71,6 +71,15 @@ test("retries output that fails complete-field validation", async () => {
   assert.equal(result.telemetry.attempts, 2);
 });
 
+test("repairs a short Facebook caption from supplied facts", async () => {
+  const shortFacebook = structuredClone(validSeo);
+  shortFacebook.facebook.descriptionAndTags = "#FIFAStreet2 #PS2Gaming";
+  const result = await generateSeo({ AI: { run: async () => ({ response: JSON.stringify(shortFacebook) }) } }, { topic: "FIFA Street 2 PS2 gameplay featuring street football skills and matches" }, { provider: "cloudflare" });
+  assert.equal(result.telemetry.attempts, 1);
+  assert.match(result.data.facebook.descriptionAndTags, /FIFA Street 2 PS2 gameplay/);
+  assert.ok((result.data.facebook.descriptionAndTags.match(/#/g) || []).length >= 3);
+});
+
 test("uses deterministic local output only after both providers fail", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => openAiResponse({}, 500);
