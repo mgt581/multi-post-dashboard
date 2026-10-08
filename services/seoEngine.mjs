@@ -112,16 +112,16 @@ function fillRelevantHashtags(value, input) {
   if (text(copy?.facebook?.title).length < 15) copy.facebook.title = text(copy.youtube.title).slice(0, 70);
   const keywordTags = String(copy?.youtube?.keywords || "").split(",").map(text).filter(Boolean)
     .map((keyword) => `#${keyword.replace(/[^\p{L}\p{N}]/gu, "")}`).filter((tag) => tag.length > 2);
-  for (const [platform, field, minimum, maximum, maxLength, separator] of [["tiktok", "allInOne", 3, 5, 150, " "], ["facebook", "descriptionAndTags", 3, 6, 240, "\n\n"]]) {
+  for (const [platform, field, maximum, maxLength, separator] of [["tiktok", "allInOne", 5, 150, " "], ["facebook", "descriptionAndTags", 6, 240, "\n\n"]]) {
     let current = String(copy?.[platform]?.[field] || "").trim();
-    const tagMap = new Map((current.match(/#[\p{L}\p{N}_]+/gu) || []).map((tag) => [tag.toLowerCase(), tag]));
+    const tagMap = new Map();
     for (const tag of keywordTags) {
-      if (tagMap.size >= minimum) break;
+      if (tagMap.size >= maximum) break;
       if (!tagMap.has(tag.toLowerCase())) tagMap.set(tag.toLowerCase(), tag);
     }
     const tags = [...tagMap.values()].slice(0, maximum).join(" ");
     let body = text(current.replace(/#[\p{L}\p{N}_]+/gu, ""));
-    if ((`${body}${separator}${tags}`).length < (platform === "tiktok" ? 20 : 50)) body = `${topic}. ${body}`.trim();
+    if (body.length < (platform === "tiktok" ? 10 : 30)) body = `${topic}. ${body}`.trim();
     const bodyLimit = Math.max(1, maxLength - separator.length - tags.length);
     copy[platform][field] = `${body.slice(0, bodyLimit).trim()}${separator}${tags}`.trim();
   }
