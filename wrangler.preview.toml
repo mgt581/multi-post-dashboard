@@ -1,0 +1,14 @@
+name = "multipost-seo-fallback-preview"
+main = "seo-preview-worker.mjs"
+compatibility_date = "2024-01-01"
+workers_dev = true
+preview_urls = true
+
+[vars]
+OPENAI_BASELINE_URL = "https://multipostapp.co.uk/api/generate-premium-seo"
+
+[ai]
+binding = "AI"
+
+[observability.logs]
+enabled = true

@@ -29,33 +29,34 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --env preview
+          command: deploy --config wrangler.preview.toml
 
-      - name: Restore Facebook app secret in preview
+      - name: Configure isolated preview secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          FB_CLIENT_SECRET: ${{ secrets.FB_CLIENT_SECRET }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PREVIEW_ACCESS_TOKEN: ${{ secrets.SEO_PREVIEW_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -z "${FB_CLIENT_SECRET:-}" ]; then
-            echo "FB_CLIENT_SECRET is required for Facebook appsecret_proof"
+          if [ -z "${OPENAI_API_KEY:-}" ] || [ -z "${PREVIEW_ACCESS_TOKEN:-}" ]; then
+            echo "OPENAI_API_KEY and SEO_PREVIEW_ACCESS_TOKEN are required"
             exit 1
           fi
-          printf '%s' "$FB_CLIENT_SECRET" | npx wrangler secret put FB_CLIENT_SECRET --env preview
+          printf '%s' "$OPENAI_API_KEY" | npx wrangler secret put OPENAI_API_KEY --config wrangler.preview.toml
+          printf '%s' "$PREVIEW_ACCESS_TOKEN" | npx wrangler secret put PREVIEW_ACCESS_TOKEN --config wrangler.preview.toml
 
       - name: Verify preview health
         run: |
           set -euo pipefail
-          preview_url="https://multipost-seo-worker-preview.alexbryant.workers.dev/api/health"
+          preview_url="https://multipost-seo-fallback-preview.alexbryant.workers.dev"
           for attempt in 1 2 3 4 5; do
-            response="$(curl -fsS -H "Accept: application/json" "$preview_url" || true)"
-            if printf '%s' "$response" | grep -q 'facebook-preview-secret-guard' \
-              && printf '%s' "$response" | grep -q '"facebookAppSecret":true'; then
-              printf '%s\n' "$response"
+            status="$(curl -sS -o /dev/null -w '%{http_code}' "$preview_url" || true)"
+            if [ "$status" = "401" ]; then
+              echo "Private isolated preview is responding"
               exit 0
             fi
             sleep 5
           done
-          echo "Preview health check did not confirm the expected worker version and Facebook secret"
+          echo "Private isolated preview did not respond as expected"
           exit 1
