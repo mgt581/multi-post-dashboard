@@ -294,6 +294,12 @@
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
+    async function authenticatedFetch(input, init = {}) {
+      const headers = new Headers(init.headers || {});
+      const token = await auth.currentUser?.getIdToken();
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+      return fetch(input, { ...init, headers });
+    }
     const host = window.location.hostname;
     const isProdHost = host === "multipostapp.co.uk" || host === "www.multipostapp.co.uk";
     const apiBase = isProdHost
@@ -351,7 +357,7 @@
       }
       manageBtn.disabled = false;
       try {
-        const res = await fetch(`${apiBase}/billing/status?user_id=${encodeURIComponent(resolveBillingUserId(user))}&user_email=${encodeURIComponent(user.email || "")}&client_platform=${encodeURIComponent(platform)}`);
+        const res = await authenticatedFetch(`${apiBase}/billing/status?user_id=${encodeURIComponent(resolveBillingUserId(user))}&user_email=${encodeURIComponent(user.email || "")}&client_platform=${encodeURIComponent(platform)}`);
         const out = await res.json();
         if (!res.ok || !out?.success) throw new Error(out?.error || "Failed to load billing");
         const billing = out.billing || {};
@@ -383,7 +389,7 @@
       btn.disabled = true;
       btn.textContent = "Opening portal...";
       try {
-        const res = await fetch(`${apiBase}/billing/create-portal-session`, {
+        const res = await authenticatedFetch(`${apiBase}/billing/create-portal-session`, {
           method: "POST",
           headers: { "Content-Type": "application/json", client_platform: platform },
           body: JSON.stringify({

@@ -726,6 +726,29 @@ Follow for daily trending content! \u{1F44F}
     const webBillingEnabled = String(env.WEB_BILLING_ENABLED || "false").toLowerCase() === "true";
     const ownerUserIds = parseCsvSet(env.BILLING_OWNER_USER_IDS || "");
     const ownerEmails = parseCsvSet(env.BILLING_OWNER_EMAILS || "");
+    const getFirebaseIdentity = /* @__PURE__ */ __name(async (request2) => {
+      const authorization = String(request2.headers.get("Authorization") || "");
+      const match = authorization.match(/^Bearer\s+(.+)$/i);
+      if (!match) return null;
+      try {
+        const firebaseApiKey = String(env.FIREBASE_WEB_API_KEY || "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM");
+        const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(firebaseApiKey)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken: match[1] })
+        });
+        if (!response.ok) return null;
+        const payload = await safeJson(response);
+        const user = payload?.users?.[0];
+        if (!user?.localId) return null;
+        return {
+          userId: String(user.localId).trim(),
+          email: String(user.email || "").trim().toLowerCase()
+        };
+      } catch (_) {
+        return null;
+      }
+    }, "getFirebaseIdentity");
     const ownerAdminToken = env.OWNER_ADMIN_TOKEN ? String(env.OWNER_ADMIN_TOKEN).trim() : "";
     const stripeSecretKey = env.STRIPE_SECRET_KEY ? String(env.STRIPE_SECRET_KEY).trim() : "";
     const stripeWebhookSecret = env.STRIPE_WEBHOOK_SECRET ? String(env.STRIPE_WEBHOOK_SECRET).trim() : "";
@@ -908,14 +931,16 @@ Follow for daily trending content! \u{1F44F}
         derivedTrialUsed
       ).run();
     }, "persistBillingFromSubscription");
-    const evaluateBillingAccess = /* @__PURE__ */ __name((row, platform, requestedUserId = "", requestedUserEmail = "") => {
+    const evaluateBillingAccess = /* @__PURE__ */ __name((row, platform, requestedUserId = "", authenticatedIdentity = null) => {
       const userId = String(row?.user_id || "").trim();
       const userEmail = String(row?.user_email || "").trim().toLowerCase();
       const requested = String(requestedUserId || "").trim().toLowerCase();
-      const requestedEmail = String(requestedUserEmail || "").trim().toLowerCase();
-      const ownerByDbFlag = Number(row?.is_owner || 0) === 1;
-      const ownerByConfig = ownerUserIds.has(userId.toLowerCase()) || (userEmail && ownerEmails.has(userEmail)) || (requested && (ownerUserIds.has(requested) || ownerEmails.has(requested))) || (requestedEmail && ownerEmails.has(requestedEmail));
-      if (ownerByDbFlag || ownerByConfig) {
+      const authenticatedUserId = String(authenticatedIdentity?.userId || "").trim().toLowerCase();
+      const authenticatedEmail = String(authenticatedIdentity?.email || "").trim().toLowerCase();
+      const isConfiguredOwner = ownerUserIds.has(authenticatedUserId) || ownerEmails.has(authenticatedEmail);
+      const requestedMatchesIdentity = requested && (requested === authenticatedUserId || requested === authenticatedEmail);
+      const rowMatchesIdentity = (userId && (userId.toLowerCase() === authenticatedUserId || userId.toLowerCase() === authenticatedEmail)) || (userEmail && userEmail === authenticatedEmail);
+      if (isConfiguredOwner && (requestedMatchesIdentity || rowMatchesIdentity)) {
         return {
           enabled: true,
           access: true,
@@ -1025,12 +1050,13 @@ Follow for daily trending content! \u{1F44F}
       }
       return { ok: true };
     }, "ensureLinkingQuota");
-    const ensureBillingAccess = /* @__PURE__ */ __name(async (userId, platform) => {
+    const ensureBillingAccess = /* @__PURE__ */ __name(async (userId, platform, request2) => {
       if (!userId) {
         return { ok: false, statusCode: 400, body: { success: false, error: "Missing user_id" } };
       }
       const row = await getBillingRow(userId);
-      const evaluated = evaluateBillingAccess(row, platform, userId);
+      const authenticatedIdentity = await getFirebaseIdentity(request2);
+      const evaluated = evaluateBillingAccess(row, platform, userId, authenticatedIdentity);
       if (evaluated.access) {
         return { ok: true, row, evaluated };
       }
@@ -1191,13 +1217,13 @@ Follow for daily trending content! \u{1F44F}
       }
       if (url.pathname === "/api/billing/status" && request.method === "GET") {
         const userId = requireUser(url.searchParams.get("user_id"));
-        const userEmail = String(url.searchParams.get("user_email") || "").trim();
         if (!userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
         }
         const platform = getClientPlatform(request, null, url.searchParams.get("client_platform"));
         const row = await getBillingRow(userId);
-        const evaluated = evaluateBillingAccess(row, platform, userId, userEmail);
+        const authenticatedIdentity = await getFirebaseIdentity(request);
+        const evaluated = evaluateBillingAccess(row, platform, userId, authenticatedIdentity);
         const effPlan = getEffectivePlan(row);
         const usageYt = await countDailyPosts(userId, "youtube");
         const usageTt = await countDailyPosts(userId, "tiktok");
@@ -1394,7 +1420,7 @@ Follow for daily trending content! \u{1F44F}
         if (!folderId || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), { status: 400, headers: jsonHeaders });
         }
-        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, null, url.searchParams.get("client_platform")));
+        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, null, url.searchParams.get("client_platform")), request);
         if (billingSnapshot.ok) {
           const linkGate = await ensureLinkingQuota({ userId, platform: "youtube", folderId, evaluated: billingSnapshot.evaluated });
           if (!linkGate.ok) {
@@ -1485,7 +1511,7 @@ Follow for daily trending content! \u{1F44F}
         if (!folderId || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), { status: 400, headers: jsonHeaders });
         }
-        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, null, url.searchParams.get("client_platform")));
+        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, null, url.searchParams.get("client_platform")), request);
         if (billingSnapshot.ok) {
           const linkGate = await ensureLinkingQuota({ userId, platform: "tiktok", folderId, evaluated: billingSnapshot.evaluated });
           if (!linkGate.ok) {
@@ -1926,7 +1952,7 @@ Follow for daily trending content! \u{1F44F}
             { status: 400, headers: jsonHeaders }
           );
         }
-        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, body?.client_platform, null));
+        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, body?.client_platform, null), request);
         if (billingSnapshot.ok) {
           const linkGate = await ensureLinkingQuota({ userId, platform: "facebook_page", folderId: folder_id, evaluated: billingSnapshot.evaluated });
           if (!linkGate.ok) {
@@ -1974,7 +2000,7 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
-        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request));
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
@@ -2267,7 +2293,7 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
-        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request));
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
@@ -2673,7 +2699,7 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
-        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request));
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
@@ -2960,7 +2986,7 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
-        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request));
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
@@ -3055,7 +3081,7 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
-        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request));
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
@@ -3251,7 +3277,7 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
-        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request));
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
@@ -3365,7 +3391,7 @@ Follow for daily trending content! \u{1F44F}
         const { account_id, video_url, image_url, media_type, title, platform, description, page_id, folder_id, user_id, client_platform } = await request.json();
         const account = account_id ? await env.DB.prepare("SELECT * FROM accounts WHERE id = ?").bind(account_id).first() : null;
         const billingUserId = requireUser(user_id) || requireUser(account?.user_id);
-        const billingGate = await ensureBillingAccess(billingUserId, getClientPlatform(request, client_platform));
+        const billingGate = await ensureBillingAccess(billingUserId, getClientPlatform(request, client_platform), request);
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }

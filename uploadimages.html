@@ -374,6 +374,12 @@
 
     initializeApp(firebaseConfig);
     const auth = getAuth();
+    async function authenticatedFetch(input, init = {}) {
+      const headers = new Headers(init.headers || {});
+      const token = await auth.currentUser?.getIdToken();
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+      return fetch(input, { ...init, headers });
+    }
 
     const host = window.location.hostname;
     const isProdHost = host === "multipostapp.co.uk" || host === "www.multipostapp.co.uk";
@@ -499,7 +505,7 @@
         return;
       }
       try {
-        const res = await fetch(`${apiBase}/billing/status?user_id=${encodeURIComponent(userScope)}&user_email=${encodeURIComponent(signedInUserEmail)}&client_platform=${encodeURIComponent(platform)}`);
+        const res = await authenticatedFetch(`${apiBase}/billing/status?user_id=${encodeURIComponent(userScope)}&user_email=${encodeURIComponent(signedInUserEmail)}&client_platform=${encodeURIComponent(platform)}`);
         const out = await res.json();
         if (!res.ok || !out?.success) throw new Error(out?.error || "Failed to load billing status");
         const billing = out.billing || {};
@@ -769,7 +775,7 @@
           activeFacebookName ? `Account: ${activeFacebookName}` : ""
         ].filter(Boolean);
 
-        const res = await fetch(`${apiBase}/generate-premium-seo`, {
+        const res = await authenticatedFetch(`${apiBase}/generate-premium-seo`, {
           method: "POST",
           headers: { "Content-Type": "application/json", client_platform: getClientPlatform() },
           body: JSON.stringify({
@@ -871,7 +877,7 @@
       setStatus(`Uploading image post to "${activeFacebookName}"...`, "working");
 
       try {
-        const res = await fetch(`${apiBase}/facebook/upload-image`, {
+        const res = await authenticatedFetch(`${apiBase}/facebook/upload-image`, {
           method: "POST",
           headers: {
             folder_id: activeFolderId,
