@@ -110,18 +110,20 @@ function fillRelevantHashtags(value, input) {
   if (text(copy?.youtube?.title).length < 20) copy.youtube.title = topic.slice(0, 70);
   if (text(copy?.youtube?.description).length < 80) copy.youtube.description = `${text(copy.youtube.description)} ${topic}.`.trim().slice(0, 500);
   if (text(copy?.facebook?.title).length < 15) copy.facebook.title = text(copy.youtube.title).slice(0, 70);
-  if (text(copy?.facebook?.descriptionAndTags).length < 50) copy.facebook.descriptionAndTags = `${topic}.\n\n${String(copy.facebook.descriptionAndTags || "").trim()}`.slice(0, 500);
-  if (text(copy?.tiktok?.allInOne).length < 20) copy.tiktok.allInOne = `${text(copy.youtube.title)} ${String(copy.tiktok.allInOne || "")}`.trim().slice(0, 150);
   const keywordTags = String(copy?.youtube?.keywords || "").split(",").map(text).filter(Boolean)
     .map((keyword) => `#${keyword.replace(/[^\p{L}\p{N}]/gu, "")}`).filter((tag) => tag.length > 2);
-  for (const [platform, field, minimum] of [["tiktok", "allInOne", 3], ["facebook", "descriptionAndTags", 3]]) {
+  for (const [platform, field, minimum, maximum, maxLength, separator] of [["tiktok", "allInOne", 3, 5, 150, " "], ["facebook", "descriptionAndTags", 3, 6, 500, "\n\n"]]) {
     let current = String(copy?.[platform]?.[field] || "").trim();
-    const existing = new Set((current.match(/#[\p{L}\p{N}_]+/gu) || []).map((tag) => tag.toLowerCase()));
+    const tagMap = new Map((current.match(/#[\p{L}\p{N}_]+/gu) || []).map((tag) => [tag.toLowerCase(), tag]));
     for (const tag of keywordTags) {
-      if (hashtagCount(current) >= minimum) break;
-      if (!existing.has(tag.toLowerCase())) current += ` ${tag}`;
+      if (tagMap.size >= minimum) break;
+      if (!tagMap.has(tag.toLowerCase())) tagMap.set(tag.toLowerCase(), tag);
     }
-    copy[platform][field] = current;
+    const tags = [...tagMap.values()].slice(0, maximum).join(" ");
+    let body = text(current.replace(/#[\p{L}\p{N}_]+/gu, ""));
+    if ((`${body}${separator}${tags}`).length < (platform === "tiktok" ? 20 : 50)) body = `${topic}. ${body}`.trim();
+    const bodyLimit = Math.max(1, maxLength - separator.length - tags.length);
+    copy[platform][field] = `${body.slice(0, bodyLimit).trim()}${separator}${tags}`.trim();
   }
   return copy;
 }
