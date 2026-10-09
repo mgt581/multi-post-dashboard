@@ -756,7 +756,7 @@ Follow for daily trending content! \u{1F44F}
     const PLAN_LIMITS = {
       pro: {
         key: "pro",
-        label: "Pro",
+        label: "Creator",
         account_caps: { youtube: 1, tiktok: 1, facebook_page: 1 },
         daily_total_posts: 6,
         daily_per_platform_posts: { youtube: 2, tiktok: 2, facebook: 2 }
@@ -799,6 +799,13 @@ Follow for daily trending content! \u{1F44F}
             return { planKey, interval };
           }
         }
+      }
+      const legacyPrices = [
+        [env.STRIPE_LEGACY_PRICE_PRO_MONTHLY, "pro", "monthly"],
+        [env.STRIPE_LEGACY_PRICE_PRO_YEARLY, "pro", "yearly"]
+      ];
+      for (const [legacyPriceId, planKey, interval] of legacyPrices) {
+        if (legacyPriceId && String(legacyPriceId).trim() === String(priceId)) return { planKey, interval };
       }
       return { planKey: null, interval: null };
     }, "lookupPlanByPriceId");
@@ -1333,7 +1340,7 @@ Follow for daily trending content! \u{1F44F}
           "subscription_data[metadata][plan_key]": requestedPlan,
           "subscription_data[metadata][billing_interval]": requestedInterval
         };
-        if (requestedInterval === "yearly" && trialEligible && stripeTrialDays > 0) {
+        if (requestedPlan === "pro" && trialEligible && stripeTrialDays > 0) {
           payload["subscription_data[trial_period_days]"] = String(Math.floor(stripeTrialDays));
         }
         let session;
