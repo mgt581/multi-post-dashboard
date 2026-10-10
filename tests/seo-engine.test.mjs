@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { generateSeo, makeLocalFallback, normalizeSeoInput, SEO_MODELS, SEO_SCHEMA, MAX_SEO_IMAGE_BYTES } from "../services/seoEngine.mjs";
 
 const validSeo = {
@@ -149,6 +150,12 @@ test("isolated preview can use the production OpenAI baseline without a copied A
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("production configuration does not enable provider overrides", async () => {
+  const config = fs.readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+  const productionSection = config.split("[env.preview]")[0];
+  assert.doesNotMatch(productionSection, /ALLOW_SEO_PROVIDER_OVERRIDE/);
 });
 
 test("rejects oversized, malformed and HEIC image payloads before calling AI", async () => {

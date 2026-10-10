@@ -68,7 +68,10 @@ var worker_default = {
         if (!input.topic.trim() && !input.imageBase64) {
           return new Response(JSON.stringify({ error: "Provide an image, a text prompt, or both" }), { status: 400, headers: jsonHeaders });
         }
-        const result = await generateSeo(env, input);
+        const requestedProvider = env.ALLOW_SEO_PROVIDER_OVERRIDE === "true" && ["openai", "cloudflare"].includes(body.provider)
+          ? body.provider
+          : undefined;
+        const result = await generateSeo(env, input, requestedProvider ? { provider: requestedProvider } : {});
         return new Response(JSON.stringify(result), { status: 200, headers: jsonHeaders });
         const apiKey = env.OPENAI_API_KEY;
         const topic = body.topic || "";
