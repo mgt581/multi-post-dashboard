@@ -17,6 +17,8 @@ test("Creator retains legacy Pro price mappings and offers the trial monthly or 
   ]);
   assert.match(worker, /label: "Creator"/);
   assert.match(worker, /requestedPlan === "pro" && trialEligible/);
+  assert.doesNotMatch(worker, /label: "Pro"/);
+  assert.match(worker, /yearly_only: false/);
   assert.equal((config.match(/STRIPE_PRICE_PRO_MONTHLY = "price_1UOgWFPpTMFHe2pexZosSHKx"/g) || []).length, 2);
   assert.equal((config.match(/STRIPE_PRICE_PRO_YEARLY = "price_1UOgWUPpTMFHe2pe51LbDRt2"/g) || []).length, 2);
   assert.equal((config.match(/STRIPE_LEGACY_PRICE_PRO_MONTHLY/g) || []).length, 2);
