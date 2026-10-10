@@ -136,6 +136,27 @@ test("rejects oversized, malformed and HEIC image payloads before calling AI", a
   await assert.rejects(normalizeSeoInput({ image_url: "data:image/jpeg,not-base64" }), /invalid/i);
 });
 
+test("stops downloading a linked image when streaming exceeds the SEO limit", async () => {
+  const originalFetch = globalThis.fetch;
+  let cancelled = false;
+  globalThis.fetch = async () => new Response(new ReadableStream({
+    pull(controller) {
+      controller.enqueue(new Uint8Array(1024 * 1024));
+    },
+    cancel() { cancelled = true; }
+  }), { headers: { "content-type": "image/jpeg" } });
+  try {
+    await assert.rejects(normalizeSeoInput({ image_url: "https://images.example/photo.jpg" }), /too large/i);
+    assert.equal(cancelled, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("rejects linked-image URL schemes that cannot be safely fetched", async () => {
+  await assert.rejects(normalizeSeoInput({ image_url: "file:///private/photo.jpg" }), /HTTP or HTTPS/);
+});
+
 test("local fallback avoids generic viral and engagement filler", () => {
   const output = JSON.stringify(makeLocalFallback("Handmade jewellery phone photography tutorial")).toLowerCase();
   for (const phrase of ["must watch", "viral", "trending", "fyp", "like and follow"]) assert.equal(output.includes(phrase), false);

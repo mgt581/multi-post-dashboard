@@ -25,6 +25,34 @@ function validateAiImage(mime, base64) {
   }
 }
 
+async function readImageBytes(response) {
+  if (!response.body?.getReader) {
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > MAX_SEO_IMAGE_BYTES) throw imageInputError("The linked image is too large for AI analysis.");
+    return bytes;
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_SEO_IMAGE_BYTES) {
+      await reader.cancel();
+      throw imageInputError("The linked image is too large for AI analysis.");
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+}
+
 export const SEO_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -310,14 +338,20 @@ export async function normalizeSeoInput(payload = {}) {
     imageDataUrl: payload.image_url || (imageBase64 ? `data:${imageMimeType};base64,${imageBase64}` : "")
   };
   if (!normalized.imageBase64 && normalized.imageDataUrl && !normalized.imageDataUrl.startsWith("data:")) {
+    let remoteUrl;
+    try {
+      remoteUrl = new URL(normalized.imageDataUrl);
+    } catch (_) {
+      throw imageInputError("The linked image URL is invalid.");
+    }
+    if (!['http:', 'https:'].includes(remoteUrl.protocol)) throw imageInputError("The linked image URL must use HTTP or HTTPS.");
     const response = await fetch(normalized.imageDataUrl);
     if (!response.ok) throw new Error(`Image download failed with status ${response.status}`);
     const mime = (response.headers.get("content-type") || "image/jpeg").split(";")[0];
     const declaredSize = Number(response.headers.get("content-length") || 0);
     if (declaredSize > MAX_SEO_IMAGE_BYTES) throw imageInputError("The linked image is too large for AI analysis.");
     if (!AI_IMAGE_MIME_TYPES.has(mime.toLowerCase())) throw imageInputError("The linked image must be JPEG, PNG or WebP.");
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength > MAX_SEO_IMAGE_BYTES) throw imageInputError("The linked image is too large for AI analysis.");
+    const bytes = await readImageBytes(response);
     let binary = "";
     for (let offset = 0; offset < bytes.length; offset += 8192) {
       binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
