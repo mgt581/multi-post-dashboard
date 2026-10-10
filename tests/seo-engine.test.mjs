@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateSeo, makeLocalFallback, normalizeSeoInput, SEO_MODELS, SEO_SCHEMA } from "../services/seoEngine.mjs";
+import fs from "node:fs";
+import { generateSeo, makeLocalFallback, normalizeSeoInput, SEO_MODELS, SEO_SCHEMA, MAX_SEO_IMAGE_BYTES } from "../services/seoEngine.mjs";
 
 const validSeo = {
   youtube: {
@@ -97,6 +98,94 @@ test("normalizes uploaded image input without exposing credentials", async () =>
   assert.equal(input.topic, "Product demo");
   assert.equal(input.imageMimeType, "image/png");
   assert.equal(input.imageDataUrl, "data:image/png;base64,YWJj");
+});
+
+test("passes an AI-compatible image to both OpenAI and Cloudflare vision", async () => {
+  const dataUrl = "data:image/jpeg;base64,/9j/2Q==";
+  const input = await normalizeSeoInput({ topic: "Phone photo", image_url: dataUrl });
+  const originalFetch = globalThis.fetch;
+  let openAiImage;
+  globalThis.fetch = async (_url, init) => {
+    openAiImage = JSON.parse(init.body).messages[1].content[0].image_url.url;
+    return openAiResponse();
+  };
+  try {
+    const openAi = await generateSeo({ OPENAI_API_KEY: "test" }, input, { provider: "openai" });
+    assert.equal(openAi.provider, "openai");
+    assert.equal(openAiImage, dataUrl);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  let cloudflareModel;
+  let cloudflareImage;
+  const cloudflare = await generateSeo({ AI: { run: async (model, request) => {
+    cloudflareModel = model;
+    cloudflareImage = request.images[0];
+    return { response: JSON.stringify(validSeo) };
+  } } }, input, { provider: "cloudflare" });
+  assert.equal(cloudflare.provider, "cloudflare");
+  assert.equal(cloudflareModel, SEO_MODELS.cloudflareVision);
+  assert.deepEqual(cloudflareImage, { data: "/9j/2Q==", mimeType: "image/jpeg" });
+});
+
+test("isolated preview can use the production OpenAI baseline without a copied API key", async () => {
+  const originalFetch = globalThis.fetch;
+  let forwarded;
+  globalThis.fetch = async (url, init) => {
+    forwarded = { url, body: JSON.parse(init.body) };
+    return new Response(JSON.stringify({ success: true, provider: "openai", data: validSeo }), {
+      headers: { "content-type": "application/json" }
+    });
+  };
+  try {
+    const result = await generateSeo({ OPENAI_BASELINE_URL: "https://example.test/api/generate-premium-seo" }, {
+      topic: "Phone photo",
+      imageDataUrl: "data:image/jpeg;base64,/9j/2Q==",
+      imageBase64: "/9j/2Q==",
+      imageMimeType: "image/jpeg"
+    }, { provider: "openai" });
+    assert.equal(result.provider, "openai");
+    assert.equal(forwarded.url, "https://example.test/api/generate-premium-seo");
+    assert.equal(forwarded.body.image_url, "data:image/jpeg;base64,/9j/2Q==");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("production configuration does not enable provider overrides", async () => {
+  const config = fs.readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
+  const productionSection = config.split("[env.preview]")[0];
+  assert.doesNotMatch(productionSection, /ALLOW_SEO_PROVIDER_OVERRIDE/);
+});
+
+test("rejects oversized, malformed and HEIC image payloads before calling AI", async () => {
+  await assert.rejects(
+    normalizeSeoInput({ image_url: `data:image/jpeg;base64,${"A".repeat(Math.ceil((MAX_SEO_IMAGE_BYTES + 1) * 4 / 3))}` }),
+    /too large/i
+  );
+  await assert.rejects(normalizeSeoInput({ image_url: "data:image/heic;base64,YWJj" }), /converted in the browser/i);
+  await assert.rejects(normalizeSeoInput({ image_url: "data:image/jpeg,not-base64" }), /invalid/i);
+});
+
+test("stops downloading a linked image when streaming exceeds the SEO limit", async () => {
+  const originalFetch = globalThis.fetch;
+  let cancelled = false;
+  globalThis.fetch = async () => new Response(new ReadableStream({
+    pull(controller) {
+      controller.enqueue(new Uint8Array(1024 * 1024));
+    },
+    cancel() { cancelled = true; }
+  }), { headers: { "content-type": "image/jpeg" } });
+  try {
+    await assert.rejects(normalizeSeoInput({ image_url: "https://images.example/photo.jpg" }), /too large/i);
+    assert.equal(cancelled, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("rejects linked-image URL schemes that cannot be safely fetched", async () => {
+  await assert.rejects(normalizeSeoInput({ image_url: "file:///private/photo.jpg" }), /HTTP or HTTPS/);
 });
 
 test("local fallback avoids generic viral and engagement filler", () => {
