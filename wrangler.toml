@@ -79,8 +79,8 @@ STRIPE_PRICE_AGENCY_YEARLY = "price_1TPOJQPpTMFHe2peKGbz36WJ"
 
 [[env.preview.d1_databases]]
 binding = "DB"
-database_name = "accountsmultipostapp"
-database_id = "19dfae46-a6cb-4e88-ab7c-2ab2fea3279a"
+database_name = "accountsmultipostapp-uploader-preview-20261010"
+database_id = "cca11c9f-7908-4df7-9d8c-21542919af9d"
 migrations_dir = "migrations"
 
 [env.preview.ai]
