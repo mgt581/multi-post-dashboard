@@ -431,6 +431,7 @@
       const seoImageInput = document.getElementById('seoImage');
       const imagePreview = document.getElementById('imagePreview');
       window.seoImageDataUrl = null;
+      window.seoImageError = null;
       window.seoImageProcessing = Promise.resolve();
 
       function showImageMessage(message, isError = false) {
@@ -443,15 +444,19 @@
         const file = e.target.files[0];
         if (!file) {
           window.seoImageDataUrl = null;
+          window.seoImageError = null;
           showImageMessage('Select a JPEG, PNG, WebP or HEIC/HEIF photo (up to 25MB) — it will be optimised privately in your browser');
           return;
         }
 
         showImageMessage(`Optimising ${file.name} on this device…`);
+        window.seoImageDataUrl = null;
+        window.seoImageError = null;
         const selectedFile = file;
         window.seoImageProcessing = preprocessImageFile(file).then((result) => {
           if (seoImageInput.files?.[0] !== selectedFile) return;
           window.seoImageDataUrl = result.dataUrl;
+          window.seoImageError = null;
           const image = document.createElement('img');
           image.src = result.dataUrl;
           image.alt = 'Selected image preview';
@@ -465,7 +470,10 @@
           imagePreview.style.color = 'var(--muted)';
         }).catch((error) => {
           window.seoImageDataUrl = null;
-          if (seoImageInput.files?.[0] === selectedFile) showImageMessage(error.message || 'This image could not be processed.', true);
+          if (seoImageInput.files?.[0] === selectedFile) {
+            window.seoImageError = error.message || 'This image could not be processed.';
+            showImageMessage(window.seoImageError, true);
+          }
         });
       });
     </script>
@@ -1101,6 +1109,11 @@
     }
     const prompt = document.getElementById("videoPrompt").value.trim();
     const imageUrl = (document.getElementById("seoImageUrl")?.value || "").trim();
+    if (!imageUrl && window.seoImageError) {
+      setStatus(window.seoImageError, "error");
+      alert(window.seoImageError);
+      return;
+    }
     const resolvedImageUrl = imageUrl || window.seoImageDataUrl || "";
 
     if (!resolvedImageUrl && !prompt) {

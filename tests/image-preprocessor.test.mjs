@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import {
   MAX_SEO_IMAGE_BYTES,
   MAX_SOURCE_IMAGE_BYTES,
@@ -28,4 +29,11 @@ test("uses a 25MB source allowance and a smaller AI-safe encoded target", () => 
   assert.equal(MAX_SOURCE_IMAGE_BYTES, 25 * 1024 * 1024);
   assert.ok(MAX_SEO_IMAGE_BYTES < 5 * 1024 * 1024);
   assert.equal(formatBytes(8 * 1024 * 1024), "8.0 MB");
+});
+
+test("does not silently generate text-only SEO after photo processing fails", () => {
+  const page = fs.readFileSync(new URL("../create-post.html", import.meta.url), "utf8");
+  assert.match(page, /window\.seoImageError = error\.message/);
+  assert.match(page, /if \(!imageUrl && window\.seoImageError\)/);
+  assert.match(page, /setStatus\(window\.seoImageError, "error"\)/);
 });
