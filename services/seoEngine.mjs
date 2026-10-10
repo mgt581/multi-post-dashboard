@@ -224,7 +224,26 @@ async function retry(operation, { attempts = 2 } = {}) {
 }
 
 async function callOpenAI(env, input, repairErrors) {
-  if (!env.OPENAI_API_KEY) throw new Error("OpenAI is not configured");
+  if (!env.OPENAI_API_KEY) {
+    if (!env.OPENAI_BASELINE_URL) throw new Error("OpenAI is not configured");
+    const response = await fetch(env.OPENAI_BASELINE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-seo-preview": "isolated-uploader-preview" },
+      body: JSON.stringify({
+        topic: input.topic,
+        image_url: input.imageDataUrl || "",
+        folder_name: input.folderName,
+        youtube_channel: input.youtubeChannel,
+        facebook_account: input.facebookAccount,
+        tiktok_account: input.tiktokAccount
+      })
+    });
+    const result = await response.json();
+    if (!response.ok || result?.provider !== "openai" || !result?.data) {
+      throw new Error(result?.error || `OpenAI preview baseline returned ${result?.provider || response.status}`);
+    }
+    return result.data;
+  }
   const content = [{ type: "text", text: userPrompt(input, repairErrors) }];
   if (input.imageDataUrl) content.unshift({ type: "image_url", image_url: { url: input.imageDataUrl } });
   const response = await fetch("https://api.openai.com/v1/chat/completions", {

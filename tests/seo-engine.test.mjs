@@ -127,6 +127,30 @@ test("passes an AI-compatible image to both OpenAI and Cloudflare vision", async
   assert.deepEqual(cloudflareImage, { data: "/9j/2Q==", mimeType: "image/jpeg" });
 });
 
+test("isolated preview can use the production OpenAI baseline without a copied API key", async () => {
+  const originalFetch = globalThis.fetch;
+  let forwarded;
+  globalThis.fetch = async (url, init) => {
+    forwarded = { url, body: JSON.parse(init.body) };
+    return new Response(JSON.stringify({ success: true, provider: "openai", data: validSeo }), {
+      headers: { "content-type": "application/json" }
+    });
+  };
+  try {
+    const result = await generateSeo({ OPENAI_BASELINE_URL: "https://example.test/api/generate-premium-seo" }, {
+      topic: "Phone photo",
+      imageDataUrl: "data:image/jpeg;base64,/9j/2Q==",
+      imageBase64: "/9j/2Q==",
+      imageMimeType: "image/jpeg"
+    }, { provider: "openai" });
+    assert.equal(result.provider, "openai");
+    assert.equal(forwarded.url, "https://example.test/api/generate-premium-seo");
+    assert.equal(forwarded.body.image_url, "data:image/jpeg;base64,/9j/2Q==");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("rejects oversized, malformed and HEIC image payloads before calling AI", async () => {
   await assert.rejects(
     normalizeSeoInput({ image_url: `data:image/jpeg;base64,${"A".repeat(Math.ceil((MAX_SEO_IMAGE_BYTES + 1) * 4 / 3))}` }),
