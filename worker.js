@@ -284,7 +284,7 @@ Generate trending, specific SEO \u2014 not generic content.` }
           headers: jsonHeaders
         });
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: jsonHeaders });
+        return new Response(JSON.stringify({ error: err.message }), { status: err.statusCode || 500, headers: jsonHeaders });
       }
     }
     if (url.pathname === "/" || url.pathname === "") {

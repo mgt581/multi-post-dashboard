@@ -1,6 +1,29 @@
 const OPENAI_MODEL = "gpt-4o-2024-08-06";
 const CLOUDFLARE_TEXT_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const CLOUDFLARE_VISION_MODEL = "@cf/meta/llama-3.2-11b-vision-instruct";
+export const MAX_SEO_IMAGE_BYTES = Math.floor(3.5 * 1024 * 1024);
+const AI_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+function imageInputError(message) {
+  const error = new Error(message);
+  error.statusCode = 400;
+  return error;
+}
+
+function base64ByteLength(value) {
+  const clean = String(value || "").replace(/\s/g, "");
+  return Math.floor((clean.length * 3) / 4) - (clean.endsWith("==") ? 2 : clean.endsWith("=") ? 1 : 0);
+}
+
+function validateAiImage(mime, base64) {
+  const normalizedMime = String(mime || "").toLowerCase();
+  if (!AI_IMAGE_MIME_TYPES.has(normalizedMime)) {
+    throw imageInputError("The AI image must be JPEG, PNG or WebP. HEIC/HEIF photos must be converted in the browser first.");
+  }
+  if (base64ByteLength(base64) > MAX_SEO_IMAGE_BYTES) {
+    throw imageInputError("The processed image is too large for AI analysis. Re-select it so the browser can optimise it.");
+  }
+}
 
 export const SEO_SCHEMA = {
   type: "object",
@@ -275,7 +298,7 @@ export async function generateSeo(env, input, options = {}) {
 export async function normalizeSeoInput(payload = {}) {
   const imageBase64 = payload.image_base64 || "";
   const extension = String(payload.image_filename || "").toLowerCase().split(".").pop();
-  const imageMimeType = extension === "png" ? "image/png" : "image/jpeg";
+  const imageMimeType = extension === "png" ? "image/png" : extension === "webp" ? "image/webp" : "image/jpeg";
   const normalized = {
     topic: payload.topic ?? payload.prompt ?? "",
     folderName: payload.folder_name || "",
@@ -290,7 +313,11 @@ export async function normalizeSeoInput(payload = {}) {
     const response = await fetch(normalized.imageDataUrl);
     if (!response.ok) throw new Error(`Image download failed with status ${response.status}`);
     const mime = (response.headers.get("content-type") || "image/jpeg").split(";")[0];
+    const declaredSize = Number(response.headers.get("content-length") || 0);
+    if (declaredSize > MAX_SEO_IMAGE_BYTES) throw imageInputError("The linked image is too large for AI analysis.");
+    if (!AI_IMAGE_MIME_TYPES.has(mime.toLowerCase())) throw imageInputError("The linked image must be JPEG, PNG or WebP.");
     const bytes = new Uint8Array(await response.arrayBuffer());
+    if (bytes.byteLength > MAX_SEO_IMAGE_BYTES) throw imageInputError("The linked image is too large for AI analysis.");
     let binary = "";
     for (let offset = 0; offset < bytes.length; offset += 8192) {
       binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
@@ -300,11 +327,11 @@ export async function normalizeSeoInput(payload = {}) {
     normalized.imageDataUrl = `data:${mime};base64,${normalized.imageBase64}`;
   } else if (normalized.imageDataUrl.startsWith("data:") && !normalized.imageBase64) {
     const match = normalized.imageDataUrl.match(/^data:([^;]+);base64,(.+)$/);
-    if (match) {
-      normalized.imageMimeType = match[1];
-      normalized.imageBase64 = match[2];
-    }
+    if (!match) throw imageInputError("The processed image data is invalid. Re-select the photo and try again.");
+    normalized.imageMimeType = match[1];
+    normalized.imageBase64 = match[2];
   }
+  if (normalized.imageBase64) validateAiImage(normalized.imageMimeType, normalized.imageBase64);
   return normalized;
 }
 
