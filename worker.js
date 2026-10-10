@@ -763,7 +763,7 @@ Follow for daily trending content! \u{1F44F}
       },
       pro_plus: {
         key: "pro_plus",
-        label: "Pro Plus",
+        label: "Pro",
         account_caps: { youtube: 3, tiktok: 3, facebook_page: 3 },
         daily_total_posts: 27,
         daily_per_platform_posts: { youtube: 9, tiktok: 9, facebook: 9 }
@@ -802,7 +802,9 @@ Follow for daily trending content! \u{1F44F}
       }
       const legacyPrices = [
         [env.STRIPE_LEGACY_PRICE_PRO_MONTHLY, "pro", "monthly"],
-        [env.STRIPE_LEGACY_PRICE_PRO_YEARLY, "pro", "yearly"]
+        [env.STRIPE_LEGACY_PRICE_PRO_YEARLY, "pro", "yearly"],
+        [env.STRIPE_LEGACY_PRICE_PRO_PLUS_MONTHLY, "pro_plus", "monthly"],
+        [env.STRIPE_LEGACY_PRICE_PRO_PLUS_YEARLY, "pro_plus", "yearly"]
       ];
       for (const [legacyPriceId, planKey, interval] of legacyPrices) {
         if (legacyPriceId && String(legacyPriceId).trim() === String(priceId)) return { planKey, interval };
@@ -1205,7 +1207,7 @@ Follow for daily trending content! \u{1F44F}
             },
             pro_plus: {
               key: "pro_plus",
-              label: "Pro Plus",
+              label: "Pro",
               prices: priceCatalog.pro_plus,
               limits: PLAN_LIMITS.pro_plus
             },
@@ -1340,7 +1342,7 @@ Follow for daily trending content! \u{1F44F}
           "subscription_data[metadata][plan_key]": requestedPlan,
           "subscription_data[metadata][billing_interval]": requestedInterval
         };
-        if (requestedPlan === "pro" && trialEligible && stripeTrialDays > 0) {
+        if (["pro", "pro_plus"].includes(requestedPlan) && trialEligible && stripeTrialDays > 0) {
           payload["subscription_data[trial_period_days]"] = String(Math.floor(stripeTrialDays));
         }
         let session;
