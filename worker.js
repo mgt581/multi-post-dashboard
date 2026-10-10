@@ -1199,7 +1199,7 @@ Follow for daily trending content! \u{1F44F}
           plans: {
             pro: {
               key: "pro",
-              label: "Pro",
+              label: "Creator",
               prices: priceCatalog.pro,
               limits: PLAN_LIMITS.pro
             },
@@ -1218,7 +1218,7 @@ Follow for daily trending content! \u{1F44F}
           },
           trial: {
             days: stripeTrialDays,
-            yearly_only: true
+            yearly_only: false
           }
         }), { headers: jsonHeaders });
       }
