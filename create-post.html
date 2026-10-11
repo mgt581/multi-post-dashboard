@@ -184,6 +184,26 @@
     .btn:active { transform: translateY(1px); }
     .btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
+    .trial-cta {
+      color: #fff;
+      background: linear-gradient(135deg, #7c3aed, #0ea5e9);
+      box-shadow: 0 12px 30px rgba(124, 58, 237, 0.38);
+      text-decoration: none;
+      letter-spacing: 0.2px;
+    }
+
+    .billing-entitlement {
+      width: 100%;
+      color: #cbd5e1;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .billing-entitlement[data-state="trial"] { color: #86efac; }
+    .billing-entitlement[data-state="active"],
+    .billing-entitlement[data-state="owner"] { color: var(--success); }
+    .billing-entitlement[data-state="inactive"] { color: #fbbf24; }
+
     .status {
       font-weight: 700;
       color: var(--muted);
@@ -416,8 +436,10 @@
       </div>
 
       <div class="controls">
-        <button id="generateBtn" class="btn" onclick="generateSEO()">✨ Generate Trending SEO</button>
+        <button id="generateBtn" class="btn" onclick="generateSEO()" disabled>✨ Generate Trending SEO</button>
+        <a id="trialCta" class="btn trial-cta" href="pricing.html" hidden>🚀 START 7-DAY FREE TRIAL</a>
         <span id="status" class="status">Upload an image, enter a description, or both</span>
+        <div id="billingStatusText" class="billing-entitlement" aria-live="polite">Checking subscription…</div>
       </div>
       <div id="facebookPublishSuccess" class="publish-success" role="status">
         <strong id="facebookPublishSuccessMessage">Video submitted successfully.</strong>
@@ -629,6 +651,7 @@
        <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
   import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  import { renderBillingControls } from "./billing-ui.mjs";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
@@ -662,6 +685,8 @@
 
   const statusEl = document.getElementById("status");
   const generateBtn = document.getElementById("generateBtn");
+  const trialCta = document.getElementById("trialCta");
+  const billingStatusText = document.getElementById("billingStatusText");
   const paywallBanner = document.getElementById("paywallBanner");
   const publishButtons = [
     document.querySelector('button[onclick="publishYouTube()"]'),
@@ -669,7 +694,9 @@
     document.querySelector('button[onclick="publishFacebook()"]')
   ].filter(Boolean);
   let billingReady = false;
-  let hasBillingAccess = true;
+  let hasBillingAccess = false;
+  let currentBilling = null;
+  let billingRefreshTimer = null;
 
   let userScope = null;
   let activeFolderId = null;
@@ -907,7 +934,7 @@
   }
 
   function setLoading(isLoading) {
-    generateBtn.disabled = isLoading;
+    generateBtn.disabled = isLoading || !hasBillingAccess;
     generateBtn.textContent = isLoading
       ? "Generating trending SEO…"
       : "✨ Generate Trending SEO";
@@ -955,19 +982,19 @@
     `;
   }
 
+  function renderCurrentBilling() {
+    if (!currentBilling) return;
+    renderBillingControls({
+      billing: currentBilling,
+      generateButton: generateBtn,
+      trialButton: trialCta,
+      statusElement: billingStatusText
+    });
+  }
+
   async function loadBillingStatus() {
     if (!userScope) return;
-    if (normalizeUserKey(auth.currentUser?.email) === "alexbryant3234@gmail.com") {
-      billingReady = true;
-      setPublishingEnabled(true);
-      return;
-    }
     const platform = getClientPlatform();
-    if (platform === "android") {
-      billingReady = true;
-      setPublishingEnabled(true);
-      return;
-    }
     try {
       const res = await authenticatedFetch(
         `${apiBase}/billing/status?user_id=${encodeURIComponent(userScope)}&user_email=${encodeURIComponent(signedInUserEmail)}&client_platform=${encodeURIComponent(platform)}`
@@ -975,22 +1002,38 @@
       const out = await res.json();
       if (!res.ok || !out?.success) throw new Error(out?.error || "Failed to load billing status");
       const billing = out.billing || {};
+      currentBilling = billing;
       if (!billing.enabled) {
         billingReady = true;
         setPublishingEnabled(true);
+        trialCta.hidden = true;
+        billingStatusText.textContent = "AI SEO generation available";
+        billingStatusText.dataset.state = "active";
         return;
       }
       if (billing.access) {
         billingReady = true;
         setPublishingEnabled(true);
+        renderCurrentBilling();
         return;
       }
       billingReady = true;
-      setPublishingEnabled(false, "Start your 7 day free trial or upgrade in the Pricing page.");
+      setPublishingEnabled(false, "Unlock AI SEO generation with your 7-day free trial.");
+      renderCurrentBilling();
     } catch (err) {
       billingReady = true;
       setPublishingEnabled(false, err?.message || "We could not verify billing right now. Please retry in the Pricing page.");
+      currentBilling = { access: false, status: "inactive" };
+      renderCurrentBilling();
     }
+  }
+
+  function startBillingRefresh() {
+    if (billingRefreshTimer) clearInterval(billingRefreshTimer);
+    billingRefreshTimer = setInterval(() => {
+      renderCurrentBilling();
+      loadBillingStatus();
+    }, 60 * 1000);
   }
 
   function isLinked(name) {
@@ -1135,6 +1178,7 @@
         method: "POST",
         headers: { "Content-Type": "application/json", client_platform: getClientPlatform() },
         body: JSON.stringify({
+          user_id: userScope,
           topic: prompt || "",
           image_url: resolvedImageUrl,
           folder_id: activeFolderId,
@@ -1690,6 +1734,7 @@
     localStorage.setItem("currentUserKey", userScope);
     await loadFolderContext();
     await loadBillingStatus();
+    startBillingRefresh();
 
     const youtubeConnected = getUrlParam("youtube_connected");
     const facebookConnected = getUrlParam("facebook_connected");
@@ -1728,6 +1773,13 @@
     if (tiktokError) {
       setStatus(`TikTok connection failed: ${tiktokError}`, "error");
     }
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && userScope) loadBillingStatus();
+  });
+  window.addEventListener("focus", () => {
+    if (userScope) loadBillingStatus();
   });
 </script>
 </body>

@@ -153,12 +153,21 @@
     };
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
+    async function authenticatedFetch(input, init = {}) {
+      const headers = new Headers(init.headers || {});
+      const token = await auth.currentUser?.getIdToken();
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+      return fetch(input, { ...init, headers });
+    }
 
     const host = window.location.hostname;
     const isProdHost = host === "multipostapp.co.uk" || host === "www.multipostapp.co.uk";
+    const isPreviewHost = host.endsWith(".pages.dev");
     const apiBase = isProdHost
       ? "/api"
-      : "https://multipost-seo-worker.alexbryant.workers.dev/api";
+      : isPreviewHost
+        ? "https://multipost-seo-worker-preview.alexbryant.workers.dev/api"
+        : "https://multipost-seo-worker.alexbryant.workers.dev/api";
     let userScope = null;
     let billingUserEmail = "";
     const OWNER_KEYS = ["alexbryant3234@gmail.com"];
@@ -208,7 +217,7 @@
       triggerEl.textContent = "Opening...";
       triggerEl.style.pointerEvents = "none";
       try {
-        const res = await fetch(`${apiBase}/billing/create-checkout-session`, {
+        const res = await authenticatedFetch(`${apiBase}/billing/create-checkout-session`, {
           method: "POST",
           headers: { "Content-Type": "application/json", client_platform: platform },
           body: JSON.stringify({
@@ -217,8 +226,8 @@
             plan_key: planKey,
             billing_interval: billingInterval,
             client_platform: platform,
-            success_url: "https://multipostapp.co.uk/app.html",
-            cancel_url: "https://multipostapp.co.uk/pricing.html?billing=cancelled"
+            success_url: `${window.location.origin}/app.html?billing=success`,
+            cancel_url: `${window.location.origin}/pricing.html?billing=cancelled`
           })
         });
         const out = await res.json();

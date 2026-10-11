@@ -54,10 +54,30 @@ test("owner bypass requires a verified Firebase identity", async () => {
   }
 });
 
-test("the signed-in owner can generate SEO without waiting on billing lookup", async () => {
-  const pages = ["create-post.html", "uploadimages.html", "settings.html"];
+test("publishing pages use the authenticated server entitlement for owner mode", async () => {
+  const pages = ["create-post.html", "uploadimages.html"];
   for (const page of pages) {
     const source = await readFile(new URL(`../${page}`, import.meta.url), "utf8");
-    assert.match(source, /normalizeUserKey\((?:auth\.currentUser|user)\?\.email\) === "alexbryant3234@gmail\.com"/);
+    assert.match(source, /authenticatedFetch\([\s\S]{0,80}`\$\{apiBase\}\/billing\/status/);
+    assert.match(source, /user_id: userScope/);
+    assert.doesNotMatch(source, /normalizeUserKey\(auth\.currentUser\?\.email\) === "alexbryant3234@gmail\.com"/);
   }
+  const worker = await readFile(new URL("../worker.js", import.meta.url), "utf8");
+  assert.match(worker, /ensureBillingAccess\(userId, "web", request, true\)/);
+  assert.match(worker, /identityMatchesBillingUser/);
+});
+
+test("pricing checkout uses the signed-in Firebase identity", async () => {
+  const source = await readFile(new URL("../pricing.html", import.meta.url), "utf8");
+  assert.match(source, /auth\.currentUser\?\.getIdToken\(\)/);
+  assert.match(source, /authenticatedFetch\(`\$\{apiBase\}\/billing\/create-checkout-session/);
+  assert.match(source, /success_url: `\$\{window\.location\.origin\}\/app\.html\?billing=success`/);
+});
+
+test("profile uses the isolated preview billing service and shared Stripe countdown", async () => {
+  const source = await readFile(new URL("../settings.html", import.meta.url), "utf8");
+  assert.match(source, /multipost-seo-worker-preview\.alexbryant\.workers\.dev\/api/);
+  assert.match(source, /import \{ getBillingDisplay \} from "\.\/billing-ui\.mjs"/);
+  assert.match(source, /setInterval\([\s\S]{0,180}60 \* 1000/);
+  assert.match(source, /visibilitychange/);
 });

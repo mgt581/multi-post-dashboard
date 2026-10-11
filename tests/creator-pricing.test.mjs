@@ -21,8 +21,9 @@ test("Pro presents lower prices while preserving its existing limits and subscri
   assert.doesNotMatch(pricing, /Pro Plus Monthly £49|Pro Plus Yearly £529\.99/);
   assert.match(worker, /key: "pro_plus",\s+label: "Pro"/);
   assert.match(worker, /\["pro", "pro_plus"\]\.includes\(requestedPlan\)/);
-  assert.equal((config.match(/STRIPE_PRICE_PRO_PLUS_MONTHLY = "price_1UP25bPpTMFHe2pei04QVcwj"/g) || []).length, 2);
-  assert.equal((config.match(/STRIPE_PRICE_PRO_PLUS_YEARLY = "price_1UP25oPpTMFHe2peQVLOAiXP"/g) || []).length, 2);
+  assert.equal((config.match(/STRIPE_PRICE_PRO_PLUS_MONTHLY = "price_1UP25bPpTMFHe2pei04QVcwj"/g) || []).length, 1);
+  assert.equal((config.match(/STRIPE_PRICE_PRO_PLUS_YEARLY = "price_1UP25oPpTMFHe2peQVLOAiXP"/g) || []).length, 1);
+  assert.match(config.split("[env.preview.vars]")[1], /STRIPE_PRICE_PRO_PLUS_MONTHLY = "price_[^"]+"/);
   assert.equal((config.match(/STRIPE_LEGACY_PRICE_PRO_PLUS_MONTHLY/g) || []).length, 2);
   assert.equal((config.match(/STRIPE_LEGACY_PRICE_PRO_PLUS_YEARLY/g) || []).length, 2);
 });
@@ -35,8 +36,9 @@ test("Creator retains legacy Pro price mappings and offers the trial monthly or 
   assert.match(worker, /label: "Creator"/);
   assert.match(worker, /\["pro", "pro_plus"\]\.includes\(requestedPlan\) && trialEligible/);
   assert.match(worker, /yearly_only: false/);
-  assert.equal((config.match(/STRIPE_PRICE_PRO_MONTHLY = "price_1UOgWFPpTMFHe2pexZosSHKx"/g) || []).length, 2);
-  assert.equal((config.match(/STRIPE_PRICE_PRO_YEARLY = "price_1UOgWUPpTMFHe2pe51LbDRt2"/g) || []).length, 2);
+  assert.equal((config.match(/STRIPE_PRICE_PRO_MONTHLY = "price_1UOgWFPpTMFHe2pexZosSHKx"/g) || []).length, 1);
+  assert.equal((config.match(/STRIPE_PRICE_PRO_YEARLY = "price_1UOgWUPpTMFHe2pe51LbDRt2"/g) || []).length, 1);
+  assert.match(config.split("[env.preview.vars]")[1], /STRIPE_PRICE_PRO_MONTHLY = "price_[^"]+"/);
   assert.equal((config.match(/STRIPE_LEGACY_PRICE_PRO_MONTHLY/g) || []).length, 2);
   assert.equal((config.match(/STRIPE_LEGACY_PRICE_PRO_YEARLY/g) || []).length, 2);
 });

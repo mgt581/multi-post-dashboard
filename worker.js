@@ -32,7 +32,7 @@ var makeDeterministicSeoFallback = /* @__PURE__ */ __name((promptText) => {
 }, "makeDeterministicSeoFallback");
 
 // worker.js
-var WORKER_VERSION = "2026-06-19-facebook-preview-secret-guard-video-offset-zero";
+var WORKER_VERSION = "2026-10-11-trial-entitlement-countdown";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -60,235 +60,6 @@ var worker_default = {
         status: 200,
         headers: jsonHeaders
       });
-    }
-    if (url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
-      try {
-        const body = await request.json();
-        const input = await normalizeSeoInput(body);
-        if (!input.topic.trim() && !input.imageBase64) {
-          return new Response(JSON.stringify({ error: "Provide an image, a text prompt, or both" }), { status: 400, headers: jsonHeaders });
-        }
-        const requestedProvider = env.ALLOW_SEO_PROVIDER_OVERRIDE === "true" && ["openai", "cloudflare"].includes(body.provider)
-          ? body.provider
-          : undefined;
-        const result = await generateSeo(env, input, requestedProvider ? { provider: requestedProvider } : {});
-        return new Response(JSON.stringify(result), { status: 200, headers: jsonHeaders });
-        const apiKey = env.OPENAI_API_KEY;
-        const topic = body.topic || "";
-        const imageUrl = body.image_url || "";
-        const folderName = body.folder_name || "";
-        const ytChannel = body.youtube_channel || "";
-        const fbAccount = body.facebook_account || "";
-        const ttAccount = body.tiktok_account || "";
-        const brandParts = [];
-        if (folderName) brandParts.push(`Brand/Channel: ${folderName}`);
-        if (ytChannel) brandParts.push(`YouTube: ${ytChannel}`);
-        if (fbAccount) brandParts.push(`Facebook: ${fbAccount}`);
-        if (ttAccount) brandParts.push(`TikTok: ${ttAccount}`);
-        const brandContext = brandParts.length ? brandParts.join(". ") + ". " : "";
-        const effectiveTopic = topic || "viral video";
-        const seoSystemPrompt = `You are an expert social media SEO strategist with deep knowledge of YouTube, TikTok, and Facebook algorithms. Your goal is to generate high-quality, trending, platform-optimized SEO content that maximises discoverability and engagement.
-
-Platform requirements:
-- YouTube: Titles must be 50-60 characters, keyword-rich, and compelling. Descriptions must be 150-300 characters with a strong hook and relevant keywords naturally embedded. Keywords must be 15-20 specific, trending, high-volume search terms separated by commas (mix broad + niche terms). Optimize for YouTube search and suggested videos.
-- TikTok: Caption must be under 150 characters with 3-5 highly relevant trending hashtags including #fyp and #foryoupage. Use conversational tone, emojis, and hooks that drive shares. Optimize for the TikTok For You Page algorithm.
-- Facebook: Title must be 40-60 characters. Description must be 100-200 characters followed by 5-8 relevant hashtags. Optimize for Facebook Reels discovery and shares.
-
-Quality rules:
-- Generate SPECIFIC, NICHE content \u2014 never generic filler text
-- Use currently trending keywords and hashtags for maximum reach
-- Match the exact content topic/mood \u2014 be precise, not vague
-- Each platform\u2019s content must be uniquely optimised, not copy-pasted
-- Titles must be clickable and curiosity-driving
-- Keywords must include a mix of high-volume broad terms and specific niche terms
-
-Return ONLY valid JSON with no markdown, no extra text, no explanations:
-{
-  "youtube": {
-    "title": "Engaging title 50-60 chars",
-    "description": "Compelling description 150-300 chars with keywords embedded naturally",
-    "keywords": "15-20 trending comma-separated keywords, mix of broad and niche"
-  },
-  "tiktok": {
-    "allInOne": "Hook caption under 150 chars with emojis and 3-5 trending hashtags #fyp #foryoupage"
-  },
-  "facebook": {
-    "title": "Reels title 40-60 chars",
-    "descriptionAndTags": "Engaging description 100-200 chars\\n\\n#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5"
-  }
-}`;
-        let imageBase64 = "";
-        let imageMimeType = "image/jpeg";
-        if (imageUrl) {
-          if (imageUrl.startsWith("data:")) {
-            const match = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
-            if (match) {
-              imageMimeType = match[1];
-              imageBase64 = match[2];
-            }
-          } else {
-            try {
-              const imgRes = await fetch(imageUrl);
-              if (imgRes.ok) {
-                imageMimeType = (imgRes.headers.get("content-type") || "image/jpeg").split(";")[0].trim();
-                const buf = await imgRes.arrayBuffer();
-                const bytes = new Uint8Array(buf);
-                const chunks = [];
-                for (let i = 0; i < bytes.length; i += 8192) {
-                  chunks.push(String.fromCharCode.apply(null, bytes.subarray(i, i + 8192)));
-                }
-                imageBase64 = btoa(chunks.join(""));
-              }
-            } catch (imgErr) {
-              console.error("Image fetch failed:", imgErr.message);
-            }
-          }
-        }
-        const hasImage = !!imageBase64;
-        const hasText = !!topic.trim();
-        const parseSeoText = /* @__PURE__ */ __name((rawText) => {
-          rawText = rawText.trim().replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
-          const firstBrace = rawText.indexOf("{");
-          const lastBrace = rawText.lastIndexOf("}");
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) rawText = rawText.slice(firstBrace, lastBrace + 1).trim();
-          return JSON.parse(rawText);
-        }, "parseSeoText");
-        const makeLocalFallbackSeo = /* @__PURE__ */ __name((promptText) => {
-          const idea = String(promptText || "viral short video").trim() || "viral short video";
-          const words = idea.toLowerCase().replace(/[^\w\s]/g, " ").split(/\s+/).filter(Boolean).filter((w) => w.length > 2);
-          const keywordSeed = [...new Set(words)].slice(0, 10);
-          const extraKeywords = ["viral", "trending", "shorts", "reels", "fyp", "social media", "marketing"];
-          const keywordText = [...new Set([...keywordSeed, ...extraKeywords])].join(", ");
-          const titleBase = idea.length > 56 ? `${idea.slice(0, 56)}...` : idea;
-          return {
-            youtube: {
-              title: `${titleBase} | Must Watch`,
-              description: `Discover ${idea} with optimized copy crafted for reach and engagement. Share, comment and follow for more high-performing content ideas.`,
-              keywords: keywordText
-            },
-            tiktok: {
-              allInOne: `${idea} 🚀 #fyp #foryoupage #viral #trending #socialmedia`
-            },
-            facebook: {
-              title: `${titleBase} | Growth Tips`,
-              descriptionAndTags: `Boost your reach with this ${idea} content strategy.\n\n#marketing #socialmedia #facebook #business #growth`
-            }
-          };
-        }, "makeLocalFallbackSeo");
-        let finalData = null;
-        let seoProvider = "";
-        if (apiKey) {
-          try {
-            const oaiMessages = (
-              /** @type {{ role: string, content: string | Array<{type: string, text?: string, image_url?: {url: string}}>}[]} */
-              [{ role: "system", content: seoSystemPrompt }]
-            );
-            if (hasImage) {
-              oaiMessages.push({ role: "user", content: [
-                { type: "image_url", image_url: { url: `data:${imageMimeType};base64,${imageBase64}` } },
-                { type: "text", text: `${brandContext}${hasText ? `Analyze this image and description to generate SEO: ${topic}` : "Analyze this image carefully and generate platform-optimized SEO content."}` }
-              ] });
-            } else {
-              oaiMessages.push({ role: "user", content: `${brandContext}Generate platform-optimized SEO content for the following:
-${effectiveTopic}
-
-Generate trending, specific SEO \u2014 not generic content.` });
-            }
-            const flagshipResponse = await fetch("https://api.openai.com/v1/chat/completions", {
-              method: "POST",
-              headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ model: "gpt-4o", messages: oaiMessages, response_format: { type: "json_object" } })
-            });
-            if (!flagshipResponse.ok) {
-              const errorText = await flagshipResponse.text();
-              throw new Error(`OpenAI API ${flagshipResponse.status}: ${errorText.slice(0, 300)}`);
-            }
-            const oaiData = await flagshipResponse.json();
-            if (oaiData.choices?.[0]?.message?.content) {
-              finalData = parseSeoText(oaiData.choices[0].message.content);
-              if (!hasSeoContent(finalData)) throw new Error("OpenAI returned incomplete SEO content");
-              seoProvider = "openai";
-            } else {
-              throw new Error("OpenAI returned no SEO content");
-            }
-          } catch (e) {
-            console.error("OpenAI failed, falling back...", e.message);
-            finalData = null;
-          }
-        }
-        if (!finalData) {
-          try {
-            let aiResponse;
-            if (hasImage) {
-              const userContent = hasText ? `${brandContext}Analyze this image and the following context to generate platform-optimized SEO content.
-
-Context: ${topic}
-
-Generate trending, specific SEO \u2014 not generic content.` : `${brandContext}Analyze this image carefully and generate platform-optimized SEO content based on what you see.
-
-Generate trending, specific SEO \u2014 not generic content.`;
-              aiResponse = await env.AI.run("@cf/meta/llama-3.2-11b-vision-instruct", {
-                messages: [{ role: "system", content: seoSystemPrompt }, { role: "user", content: userContent }],
-                images: [{ data: imageBase64, mimeType: imageMimeType }]
-              });
-            } else {
-              aiResponse = await env.AI.run("@cf/meta/llama-3.3-70b-instruct-fp8-fast", {
-                messages: [
-                  { role: "system", content: seoSystemPrompt },
-                  { role: "user", content: `${brandContext}Generate platform-optimized SEO content for the following:
-${effectiveTopic}
-
-Generate trending, specific SEO \u2014 not generic content.` }
-                ]
-              });
-            }
-            let rawText;
-            if (typeof aiResponse === "string") {
-              rawText = aiResponse;
-            } else if (typeof aiResponse?.response === "string") {
-              rawText = aiResponse.response;
-            } else if (typeof aiResponse?.result?.response === "string") {
-              rawText = aiResponse.result.response;
-            } else {
-              rawText = JSON.stringify(aiResponse);
-            }
-            finalData = parseSeoText(rawText);
-            if (!hasSeoContent(finalData)) throw new Error("Cloudflare AI returned incomplete SEO content");
-            seoProvider = "cloudflare";
-          } catch (aiErr) {
-            console.error("Workers AI failed, using deterministic fallback...", aiErr?.message || aiErr);
-            finalData = null;
-          }
-        }
-        if (!hasSeoContent(finalData)) {
-          finalData = makeLocalFallbackSeo(`${brandContext}${effectiveTopic}`);
-          seoProvider = "local";
-        }
-        const cleanData = finalData ? {
-          youtube: {
-            title: String(finalData?.youtube?.title || ""),
-            description: String(finalData?.youtube?.description || ""),
-            keywords: String(finalData?.youtube?.keywords || "")
-          },
-          tiktok: { allInOne: String(finalData?.tiktok?.allInOne || "") },
-          facebook: {
-            title: String(finalData?.facebook?.title || ""),
-            descriptionAndTags: String(finalData?.facebook?.descriptionAndTags || "")
-          }
-        } : null;
-        if (!cleanData) throw new Error("AI returned no content. Please try again.");
-        return new Response(JSON.stringify({
-          success: true,
-          data: cleanData,
-          provider: seoProvider,
-          fallbackUsed: seoProvider !== "openai"
-        }), {
-          status: 200,
-          headers: jsonHeaders
-        });
-      } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), { status: err.statusCode || 500, headers: jsonHeaders });
-      }
     }
     if (url.pathname === "/" || url.pathname === "") {
       return new Response(JSON.stringify({ ok: true, service: "multipost-worker", version: WORKER_VERSION }), {
@@ -735,9 +506,13 @@ Follow for daily trending content! \u{1F44F}
       if (!match) return null;
       try {
         const firebaseApiKey = String(env.FIREBASE_WEB_API_KEY || "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM");
+        const firebaseAllowedOrigin = new URL(frontendBaseUrl).origin;
         const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(firebaseApiKey)}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Referer": `${firebaseAllowedOrigin}/`
+          },
           body: JSON.stringify({ idToken: match[1] })
         });
         if (!response.ok) return null;
@@ -857,6 +632,13 @@ Follow for daily trending content! \u{1F44F}
         LIMIT 1
       `).bind(String(userId)).first();
     }, "getBillingRow");
+    const identityMatchesBillingUser = /* @__PURE__ */ __name((row, requestedUserId, identity) => {
+      if (!identity) return false;
+      const requested = String(requestedUserId || "").trim().toLowerCase();
+      const identityKeys = [identity.userId, identity.email].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
+      const rowKeys = [row?.user_id, row?.user_email].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
+      return identityKeys.includes(requested) || rowKeys.some((value) => identityKeys.includes(value));
+    }, "identityMatchesBillingUser");
     const ensureBillingRow = /* @__PURE__ */ __name(async (userId, userEmail) => {
       await env.DB.prepare(`
         INSERT INTO billing_subscriptions (user_id, user_email, created_at, updated_at)
@@ -943,6 +725,32 @@ Follow for daily trending content! \u{1F44F}
         derivedTrialUsed
       ).run();
     }, "persistBillingFromSubscription");
+    const persistStripeSubscription = /* @__PURE__ */ __name(async (subscription, fallbackUserId = null) => {
+      if (!subscription || subscription.deleted) return;
+      const firstItem = subscription?.items?.data?.[0] || null;
+      await persistBillingFromSubscription({
+        userId: subscription?.metadata?.user_id || fallbackUserId,
+        stripeCustomerId: subscription?.customer || null,
+        stripeSubscriptionId: subscription?.id || null,
+        stripePriceId: firstItem?.price?.id || null,
+        planKey: subscription?.metadata?.plan_key || null,
+        billingInterval: subscription?.metadata?.billing_interval || firstItem?.price?.recurring?.interval || null,
+        status: subscription?.status || null,
+        currentPeriodEnd: subscription?.current_period_end || firstItem?.current_period_end || null,
+        trialEnd: subscription?.trial_end || null
+      });
+    }, "persistStripeSubscription");
+    const refreshBillingFromStripe = /* @__PURE__ */ __name(async (row) => {
+      if (!row?.stripe_subscription_id || !stripeSecretKey) return row;
+      try {
+        const subscription = await stripeApi(`/v1/subscriptions/${encodeURIComponent(row.stripe_subscription_id)}`, "GET");
+        await persistStripeSubscription(subscription, row.user_id);
+        return await getBillingRow(row.user_id);
+      } catch (error) {
+        console.warn("Stripe subscription refresh failed", error?.message || error);
+        return row;
+      }
+    }, "refreshBillingFromStripe");
     const evaluateBillingAccess = /* @__PURE__ */ __name((row, platform, requestedUserId = "", authenticatedIdentity = null) => {
       const userId = String(row?.user_id || "").trim();
       const userEmail = String(row?.user_email || "").trim().toLowerCase();
@@ -981,12 +789,14 @@ Follow for daily trending content! \u{1F44F}
       const status = String(row?.subscription_status || "").toLowerCase();
       const trialEnd = toUnix(row?.trial_end);
       const currentPeriodEnd = toUnix(row?.current_period_end);
-      const isStatusActive = ["active", "trialing"].includes(status);
-      const hasActiveTime = (trialEnd && trialEnd > now) || (currentPeriodEnd && currentPeriodEnd > now);
+      const trialAccess = status === "trialing" && Boolean(trialEnd && trialEnd > now);
+      const paidAccess = status === "active" && Boolean(!currentPeriodEnd || currentPeriodEnd > now);
+      const canceledAccess = status === "canceled" && Boolean(currentPeriodEnd && currentPeriodEnd > now);
+      const hasAccess = trialAccess || paidAccess || canceledAccess;
       return {
         enabled: true,
-        access: !!(isStatusActive || hasActiveTime),
-        reason: isStatusActive || hasActiveTime ? "ok" : "subscription_required",
+        access: hasAccess,
+        reason: hasAccess ? "ok" : "subscription_required",
         status: status || "inactive",
         owner: false,
         plan: getEffectivePlan(row)
@@ -1062,12 +872,15 @@ Follow for daily trending content! \u{1F44F}
       }
       return { ok: true };
     }, "ensureLinkingQuota");
-    const ensureBillingAccess = /* @__PURE__ */ __name(async (userId, platform, request2) => {
+    const ensureBillingAccess = /* @__PURE__ */ __name(async (userId, platform, request2, requireAuthentication = false) => {
       if (!userId) {
         return { ok: false, statusCode: 400, body: { success: false, error: "Missing user_id" } };
       }
       const row = await getBillingRow(userId);
       const authenticatedIdentity = await getFirebaseIdentity(request2);
+      if (requireAuthentication && !identityMatchesBillingUser(row, userId, authenticatedIdentity)) {
+        return { ok: false, statusCode: 401, body: { success: false, error: "Authenticated account does not match this billing account" } };
+      }
       const evaluated = evaluateBillingAccess(row, platform, userId, authenticatedIdentity);
       if (evaluated.access) {
         return { ok: true, row, evaluated };
@@ -1087,6 +900,31 @@ Follow for daily trending content! \u{1F44F}
         }
       };
     }, "ensureBillingAccess");
+    if (url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
+      try {
+        const body = await request.json();
+        const userId = requireUser(body?.user_id);
+        if (!userId) {
+          return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
+        }
+        // SEO is a web entitlement even if a caller spoofs the client_platform header.
+        const billingGate = await ensureBillingAccess(userId, "web", request, true);
+        if (!billingGate.ok) {
+          return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
+        }
+        const input = await normalizeSeoInput(body);
+        if (!input.topic.trim() && !input.imageBase64) {
+          return new Response(JSON.stringify({ error: "Provide an image, a text prompt, or both" }), { status: 400, headers: jsonHeaders });
+        }
+        const requestedProvider = env.ALLOW_SEO_PROVIDER_OVERRIDE === "true" && ["openai", "cloudflare"].includes(body.provider)
+          ? body.provider
+          : undefined;
+        const result = await generateSeo(env, input, requestedProvider ? { provider: requestedProvider } : {});
+        return new Response(JSON.stringify(result), { status: 200, headers: jsonHeaders });
+      } catch (err) {
+        return new Response(JSON.stringify({ success: false, error: err?.message || "SEO generation failed" }), { status: 500, headers: jsonHeaders });
+      }
+    }
     const timingSafeEqual = /* @__PURE__ */ __name((a, b) => {
       if (a.length !== b.length) return false;
       let out = 0;
@@ -1233,8 +1071,12 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
         }
         const platform = getClientPlatform(request, null, url.searchParams.get("client_platform"));
-        const row = await getBillingRow(userId);
+        let row = await getBillingRow(userId);
         const authenticatedIdentity = await getFirebaseIdentity(request);
+        if (!identityMatchesBillingUser(row, userId, authenticatedIdentity)) {
+          return new Response(JSON.stringify({ success: false, error: "Authenticated account does not match this billing account" }), { status: 401, headers: jsonHeaders });
+        }
+        row = await refreshBillingFromStripe(row);
         const evaluated = evaluateBillingAccess(row, platform, userId, authenticatedIdentity);
         const effPlan = getEffectivePlan(row);
         const usageYt = await countDailyPosts(userId, "youtube");
@@ -1297,7 +1139,11 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/billing/create-checkout-session" && request.method === "POST") {
         const body = await request.json().catch(() => ({}));
         const userId = requireUser(body?.user_id);
-        const userEmail = body?.user_email ? String(body.user_email).trim() : null;
+        const authenticatedIdentity = await getFirebaseIdentity(request);
+        if (!identityMatchesBillingUser(null, userId, authenticatedIdentity)) {
+          return new Response(JSON.stringify({ success: false, error: "Authenticated account does not match this billing account" }), { status: 401, headers: jsonHeaders });
+        }
+        const userEmail = authenticatedIdentity?.email || null;
         const platform = getClientPlatform(request, body?.client_platform, null);
         if (!userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
@@ -1362,7 +1208,11 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/billing/create-portal-session" && request.method === "POST") {
         const body = await request.json().catch(() => ({}));
         const userId = requireUser(body?.user_id);
-        const userEmail = body?.user_email ? String(body.user_email).trim() : null;
+        const authenticatedIdentity = await getFirebaseIdentity(request);
+        if (!identityMatchesBillingUser(null, userId, authenticatedIdentity)) {
+          return new Response(JSON.stringify({ success: false, error: "Authenticated account does not match this billing account" }), { status: 401, headers: jsonHeaders });
+        }
+        const userEmail = authenticatedIdentity?.email || null;
         if (!userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
         }
@@ -1385,32 +1235,22 @@ Follow for daily trending content! \u{1F44F}
           await verifyStripeSignature(rawBody, request.headers.get("stripe-signature"));
           const event = JSON.parse(rawBody || "{}");
           const eventType = String(event?.type || "");
-          if (eventType === "checkout.session.completed") {
+          if (eventType === "checkout.session.completed" || eventType === "checkout.session.async_payment_succeeded") {
             const obj = event?.data?.object || {};
             const userId = obj?.client_reference_id || obj?.metadata?.user_id || null;
-            await persistBillingFromSubscription({
-              userId,
-              stripeCustomerId: obj?.customer || null,
-              stripeSubscriptionId: obj?.subscription || null,
-              planKey: obj?.metadata?.plan_key || null,
-              billingInterval: obj?.metadata?.billing_interval || null,
-              status: "active"
-            });
+            if (obj?.subscription) {
+              const subscription = await stripeApi(`/v1/subscriptions/${encodeURIComponent(obj.subscription)}`, "GET");
+              await persistStripeSubscription(subscription, userId);
+            }
           } else if (eventType === "customer.subscription.created" || eventType === "customer.subscription.updated" || eventType === "customer.subscription.deleted") {
             const sub = event?.data?.object || {};
-            const userId = sub?.metadata?.user_id || null;
-            const firstItem = sub?.items?.data?.[0] || null;
-            await persistBillingFromSubscription({
-              userId,
-              stripeCustomerId: sub?.customer || null,
-              stripeSubscriptionId: sub?.id || null,
-              stripePriceId: firstItem?.price?.id || null,
-              planKey: sub?.metadata?.plan_key || null,
-              billingInterval: sub?.metadata?.billing_interval || firstItem?.price?.recurring?.interval || null,
-              status: sub?.status || null,
-              currentPeriodEnd: sub?.current_period_end || null,
-              trialEnd: sub?.trial_end || null
-            });
+            await persistStripeSubscription(sub);
+          } else if (eventType === "invoice.paid") {
+            const invoice = event?.data?.object || {};
+            if (invoice?.subscription) {
+              const subscription = await stripeApi(`/v1/subscriptions/${encodeURIComponent(invoice.subscription)}`, "GET");
+              await persistStripeSubscription(subscription);
+            }
           } else if (eventType === "invoice.payment_failed") {
             const invoice = event?.data?.object || {};
             await persistBillingFromSubscription({

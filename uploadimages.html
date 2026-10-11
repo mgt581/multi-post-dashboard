@@ -141,6 +141,25 @@
     .btn:disabled { opacity: 0.6; cursor: not-allowed; }
     .btn:active { transform: translateY(1px); }
 
+    .trial-cta {
+      color: #fff;
+      background: linear-gradient(135deg, #7c3aed, #0ea5e9);
+      box-shadow: 0 12px 30px rgba(124, 58, 237, 0.38);
+      letter-spacing: 0.2px;
+    }
+
+    .billing-entitlement {
+      width: 100%;
+      color: #cbd5e1;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .billing-entitlement[data-state="trial"] { color: #86efac; }
+    .billing-entitlement[data-state="active"],
+    .billing-entitlement[data-state="owner"] { color: var(--success); }
+    .billing-entitlement[data-state="inactive"] { color: #fbbf24; }
+
     label {
       display: block;
       font-weight: 700;
@@ -329,8 +348,10 @@
       <div id="dropzone" class="dropzone">Drop JPG/PNG here or use the file picker (max 20MB)</div>
 
       <div class="controls">
-        <button id="generateBtn" type="button" class="btn" onclick="generateImageSEO()">Generate Image SEO</button>
+        <button id="generateBtn" type="button" class="btn" onclick="generateImageSEO()" disabled>Generate Image SEO</button>
+        <a id="trialCta" class="btn trial-cta" href="pricing.html" hidden>🚀 START 7-DAY FREE TRIAL</a>
       </div>
+      <div id="billingStatusText" class="billing-entitlement" aria-live="polite">Checking subscription…</div>
       <div id="status" class="status">Ready when you are.</div>
     </section>
 
@@ -362,6 +383,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { renderBillingControls } from "./billing-ui.mjs";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
@@ -383,9 +405,12 @@
 
     const host = window.location.hostname;
     const isProdHost = host === "multipostapp.co.uk" || host === "www.multipostapp.co.uk";
+    const isPreviewHost = host.endsWith(".pages.dev");
     const apiBase = isProdHost
       ? "/api"
-      : "https://multipost-seo-worker.alexbryant.workers.dev/api";
+      : isPreviewHost
+        ? "https://multipost-seo-worker-preview.alexbryant.workers.dev/api"
+        : "https://multipost-seo-worker.alexbryant.workers.dev/api";
 
     let userScope = null;
     let activeFolderId = null;
@@ -398,8 +423,12 @@
     const statusEl = document.getElementById("status");
     const dropzone = document.getElementById("dropzone");
     const paywallBanner = document.getElementById("paywallBanner");
+    const trialCta = document.getElementById("trialCta");
+    const billingStatusText = document.getElementById("billingStatusText");
     let billingReady = false;
-    let hasBillingAccess = true;
+    let hasBillingAccess = false;
+    let currentBilling = null;
+    let billingRefreshTimer = null;
     let signedInUserEmail = "";
     const OWNER_KEYS = ["alexbryant3234@gmail.com"];
     const normalizeUserKey = value => String(value || "").trim().toLowerCase();
@@ -434,7 +463,7 @@
     function setLoading(btnId, isLoading, loadingText, normalText) {
       const btn = document.getElementById(btnId);
       if (!btn) return;
-      btn.disabled = isLoading;
+      btn.disabled = isLoading || (btnId === "generateBtn" && !hasBillingAccess);
       btn.textContent = isLoading ? loadingText : normalText;
     }
 
@@ -496,35 +525,56 @@
       `;
     }
 
+    function renderCurrentBilling() {
+      if (!currentBilling) return;
+      renderBillingControls({
+        billing: currentBilling,
+        generateButton: document.getElementById("generateBtn"),
+        trialButton: trialCta,
+        statusElement: billingStatusText
+      });
+    }
+
     async function loadBillingStatus() {
       if (!userScope) return;
-      if (normalizeUserKey(auth.currentUser?.email) === "alexbryant3234@gmail.com") {
-        billingReady = true;
-        setPublishingEnabled(true);
-        return;
-      }
       const platform = getClientPlatform();
-      if (platform === "android") {
-        billingReady = true;
-        setPublishingEnabled(true);
-        return;
-      }
       try {
         const res = await authenticatedFetch(`${apiBase}/billing/status?user_id=${encodeURIComponent(userScope)}&user_email=${encodeURIComponent(signedInUserEmail)}&client_platform=${encodeURIComponent(platform)}`);
         const out = await res.json();
         if (!res.ok || !out?.success) throw new Error(out?.error || "Failed to load billing status");
         const billing = out.billing || {};
-        if (!billing.enabled || billing.access) {
+        currentBilling = billing;
+        if (!billing.enabled) {
           billingReady = true;
           setPublishingEnabled(true);
+          trialCta.hidden = true;
+          billingStatusText.textContent = "AI SEO generation available";
+          billingStatusText.dataset.state = "active";
+          return;
+        }
+        if (billing.access) {
+          billingReady = true;
+          setPublishingEnabled(true);
+          renderCurrentBilling();
           return;
         }
         billingReady = true;
-        setPublishingEnabled(false, "Start your 7 day free trial or upgrade in the Pricing page.");
+        setPublishingEnabled(false, "Unlock AI SEO generation with your 7-day free trial.");
+        renderCurrentBilling();
       } catch (err) {
         billingReady = true;
         setPublishingEnabled(false, err?.message || "We could not verify billing right now. Please retry in the Pricing page.");
+        currentBilling = { access: false, status: "inactive" };
+        renderCurrentBilling();
       }
+    }
+
+    function startBillingRefresh() {
+      if (billingRefreshTimer) clearInterval(billingRefreshTimer);
+      billingRefreshTimer = setInterval(() => {
+        renderCurrentBilling();
+        loadBillingStatus();
+      }, 60 * 1000);
     }
 
     function getUrlParam(name) {
@@ -784,6 +834,7 @@
           method: "POST",
           headers: { "Content-Type": "application/json", client_platform: getClientPlatform() },
           body: JSON.stringify({
+            user_id: userScope,
             topic: topicParts.join("\n"),
             image_url: selectedImageDataUrl,
             folder_id: activeFolderId,
@@ -974,7 +1025,15 @@
       localStorage.setItem("currentUserKey", userScope);
       await loadFolderContext();
       await loadBillingStatus();
+      startBillingRefresh();
       setStatus("Ready to generate and publish image content.");
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && userScope) loadBillingStatus();
+    });
+    window.addEventListener("focus", () => {
+      if (userScope) loadBillingStatus();
     });
 
     window.generateImageSEO = generateImageSEO;
