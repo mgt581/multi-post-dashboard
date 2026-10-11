@@ -282,6 +282,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, onAuthStateChanged, signOut, deleteUser } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getBillingDisplay } from "./billing-ui.mjs";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
@@ -304,8 +305,10 @@
     const isProdHost = host === "multipostapp.co.uk" || host === "www.multipostapp.co.uk";
     const apiBase = isProdHost
       ? "/api"
-      : "https://multipost-seo-worker.alexbryant.workers.dev/api";
+      : "https://multipost-seo-worker-preview.alexbryant.workers.dev/api";
     let billingUser = null;
+    let currentBilling = null;
+    let billingRefreshTimer = null;
     const OWNER_KEYS = ["alexbryant3234@gmail.com"];
     const normalizeUserKey = value => String(value || "").trim().toLowerCase();
     const isOwnerKey = value => OWNER_KEYS.some(ownerKey => normalizeUserKey(ownerKey) === normalizeUserKey(value));
@@ -346,11 +349,33 @@
       note.textContent = noteText;
     }
 
+    function renderCurrentBilling() {
+      if (!currentBilling) return;
+      const display = getBillingDisplay(currentBilling);
+      const note = display.kind === "trial"
+        ? "Your trial countdown is based on Stripe's confirmed trial end time and refreshes automatically."
+        : display.kind === "owner"
+          ? "Owner mode is enabled for this authenticated account. Billing gates are bypassed."
+          : display.access
+            ? "Your account currently has premium posting access."
+            : display.message;
+      setBillingUi(display.message, note, display.access ? "ok" : "warn");
+    }
+
+    function startBillingRefresh() {
+      if (billingRefreshTimer) clearInterval(billingRefreshTimer);
+      billingRefreshTimer = setInterval(() => {
+        renderCurrentBilling();
+        if (billingUser) loadBillingStatus(billingUser);
+      }, 60 * 1000);
+    }
+
     async function loadBillingStatus(user) {
       billingUser = user;
       const manageBtn = document.getElementById("manageBillingBtn");
       if (normalizeUserKey(user?.email) === "alexbryant3234@gmail.com") {
-        setBillingUi("Owner bypass active", "Owner mode is enabled for this account. Billing gates are bypassed.", "ok");
+        currentBilling = { access: true, owner_mode: true, status: "active" };
+        renderCurrentBilling();
         manageBtn.disabled = true;
         return;
       }
@@ -366,20 +391,12 @@
         const out = await res.json();
         if (!res.ok || !out?.success) throw new Error(out?.error || "Failed to load billing");
         const billing = out.billing || {};
+        currentBilling = billing;
         if (!billing.enabled) {
           setBillingUi("Billing disabled", "Paywall is currently off. Enable WEB_BILLING_ENABLED in worker vars to enforce web billing.", "warn");
           return;
         }
-        if (billing.access) {
-          if (billing.owner_mode) {
-            setBillingUi("Owner bypass active", "Owner/admin mode is enabled for this account. Billing gates are bypassed for testing.", "ok");
-          } else {
-          const status = billing.status || "active";
-          setBillingUi(`Access: ${status}`, "Your account currently has premium posting access.", "ok");
-          }
-          return;
-        }
-        setBillingUi("Subscription required", "Start your trial or subscribe to unlock posting and publishing routes.", "warn");
+        renderCurrentBilling();
       } catch (err) {
         setBillingUi("Billing unavailable", err?.message || "Could not load billing status.", "warn");
       }
@@ -428,6 +445,14 @@
       document.getElementById("userName").innerText = user.displayName || "Multipost User";
       document.getElementById("userEmail").innerText = user.email;
       loadBillingStatus(user);
+      startBillingRefresh();
+    });
+
+    window.addEventListener("focus", () => {
+      if (billingUser) loadBillingStatus(billingUser);
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && billingUser) loadBillingStatus(billingUser);
     });
 
     window.handleSignOut = async () => {

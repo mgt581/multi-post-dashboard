@@ -73,3 +73,11 @@ test("pricing checkout uses the signed-in Firebase identity", async () => {
   assert.match(source, /authenticatedFetch\(`\$\{apiBase\}\/billing\/create-checkout-session/);
   assert.match(source, /success_url: `\$\{window\.location\.origin\}\/app\.html\?billing=success`/);
 });
+
+test("profile uses the isolated preview billing service and shared Stripe countdown", async () => {
+  const source = await readFile(new URL("../settings.html", import.meta.url), "utf8");
+  assert.match(source, /multipost-seo-worker-preview\.alexbryant\.workers\.dev\/api/);
+  assert.match(source, /import \{ getBillingDisplay \} from "\.\/billing-ui\.mjs"/);
+  assert.match(source, /setInterval\([\s\S]{0,180}60 \* 1000/);
+  assert.match(source, /visibilitychange/);
+});
