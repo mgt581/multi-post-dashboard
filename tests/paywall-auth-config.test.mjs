@@ -66,3 +66,10 @@ test("publishing pages use the authenticated server entitlement for owner mode",
   assert.match(worker, /ensureBillingAccess\(userId, "web", request, true\)/);
   assert.match(worker, /identityMatchesBillingUser/);
 });
+
+test("pricing checkout uses the signed-in Firebase identity", async () => {
+  const source = await readFile(new URL("../pricing.html", import.meta.url), "utf8");
+  assert.match(source, /auth\.currentUser\?\.getIdToken\(\)/);
+  assert.match(source, /authenticatedFetch\(`\$\{apiBase\}\/billing\/create-checkout-session/);
+  assert.match(source, /success_url: `\$\{window\.location\.origin\}\/app\.html\?billing=success`/);
+});
