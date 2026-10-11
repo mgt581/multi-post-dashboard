@@ -506,9 +506,13 @@ Follow for daily trending content! \u{1F44F}
       if (!match) return null;
       try {
         const firebaseApiKey = String(env.FIREBASE_WEB_API_KEY || "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM");
+        const firebaseAllowedOrigin = new URL(frontendBaseUrl).origin;
         const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(firebaseApiKey)}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Referer": `${firebaseAllowedOrigin}/`
+          },
           body: JSON.stringify({ idToken: match[1] })
         });
         if (!response.ok) return null;

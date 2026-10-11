@@ -65,3 +65,21 @@ test("an authenticated active subscriber can generate SEO", async () => {
     globalThis.fetch = originalFetch;
   }
 });
+
+test("the configured owner keeps a verified server-side SEO bypass", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ users: [{ localId: "owner-uid", email: "alexbryant3234@gmail.com" }] }), { status: 200 });
+  try {
+    const env = {
+      WEB_BILLING_ENABLED: "true",
+      BILLING_OWNER_EMAILS: "alexbryant3234@gmail.com",
+      DB: makeDb({ user_id: "alexbryant3234@gmail.com", user_email: "alexbryant3234@gmail.com", subscription_status: "inactive" })
+    };
+    const response = await worker.fetch(seoRequest("alexbryant3234@gmail.com", "Bearer valid-owner-token"), env);
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.success, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
