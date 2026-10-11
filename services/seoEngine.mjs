@@ -276,7 +276,7 @@ async function callCloudflare(env, input, repairErrors, model = CLOUDFLARE_TEXT_
     temperature: 0.35,
     max_tokens: 850
   };
-  if (hasImage) request.images = [{ data: input.imageBase64, mimeType: input.imageMimeType || "image/jpeg" }];
+  if (hasImage) request.image = input.imageDataUrl || `data:${input.imageMimeType || "image/jpeg"};base64,${input.imageBase64}`;
   if (!hasImage) request.response_format = { type: "json_schema", json_schema: SEO_SCHEMA };
   return parseModelOutput(await env.AI.run(hasImage ? CLOUDFLARE_VISION_MODEL : model, request));
 }
