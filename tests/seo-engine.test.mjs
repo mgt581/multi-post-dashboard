@@ -118,14 +118,21 @@ test("passes an AI-compatible image to both OpenAI and Cloudflare vision", async
   }
   let cloudflareModel;
   let cloudflareImage;
+  let cloudflareCalls = 0;
   const cloudflare = await generateSeo({ AI: { run: async (model, request) => {
+    cloudflareCalls += 1;
     cloudflareModel = model;
-    cloudflareImage = request.image;
+    if (request.image) {
+      cloudflareImage = request.image;
+      return { response: "A colourful abstract landscape with diagonal textured lines." };
+    }
     return { response: JSON.stringify(validSeo) };
   } } }, input, { provider: "cloudflare" });
   assert.equal(cloudflare.provider, "cloudflare");
-  assert.equal(cloudflareModel, SEO_MODELS.cloudflareVision);
+  assert.equal(cloudflareCalls, 2);
+  assert.equal(cloudflareModel, SEO_MODELS.cloudflareText);
   assert.equal(cloudflareImage, dataUrl);
+  assert.match(cloudflare.telemetry.model, /llama-3\.2-11b-vision-instruct.*llama-3\.3-70b/s);
 });
 
 test("isolated preview can use the production OpenAI baseline without a copied API key", async () => {

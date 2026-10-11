@@ -192,6 +192,12 @@ function parseModelOutput(result) {
   return JSON.parse(source.slice(start, end + 1));
 }
 
+function modelText(result) {
+  if (typeof result === "string") return result.trim();
+  const value = result?.response ?? result?.result?.response ?? result?.choices?.[0]?.message?.content;
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function brandContext(input) {
   const parts = [
     input.folderName && `Brand/channel: ${input.folderName}`,
@@ -271,14 +277,28 @@ async function callOpenAI(env, input, repairErrors) {
 async function callCloudflare(env, input, repairErrors, model = CLOUDFLARE_TEXT_MODEL) {
   if (!env.AI?.run) throw new Error("Cloudflare Workers AI is not configured");
   const hasImage = Boolean(input.imageBase64);
+  let effectiveInput = input;
+  if (hasImage) {
+    const visionResult = await env.AI.run(CLOUDFLARE_VISION_MODEL, {
+      messages: [
+        { role: "system", content: "Describe only facts visibly present in the image. Do not infer names, places, brands, events, or claims that cannot be seen." },
+        { role: "user", content: "Give a concise factual description for a social SEO writer, including visible subjects, setting, colours, composition, and any readable text." }
+      ],
+      image: input.imageDataUrl || `data:${input.imageMimeType || "image/jpeg"};base64,${input.imageBase64}`,
+      temperature: 0.1,
+      max_tokens: 350
+    });
+    const description = modelText(visionResult);
+    if (!description) throw new Error("Cloudflare vision returned no image description");
+    effectiveInput = { ...input, topic: `${text(input.topic)}\nVisible image content: ${description}`.trim() };
+  }
   const request = {
-    messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: userPrompt(input, repairErrors) }],
+    messages: [{ role: "system", content: SYSTEM_PROMPT }, { role: "user", content: userPrompt(effectiveInput, repairErrors) }],
     temperature: 0.35,
-    max_tokens: 850
+    max_tokens: 850,
+    response_format: { type: "json_schema", json_schema: SEO_SCHEMA }
   };
-  if (hasImage) request.image = input.imageDataUrl || `data:${input.imageMimeType || "image/jpeg"};base64,${input.imageBase64}`;
-  if (!hasImage) request.response_format = { type: "json_schema", json_schema: SEO_SCHEMA };
-  return parseModelOutput(await env.AI.run(hasImage ? CLOUDFLARE_VISION_MODEL : model, request));
+  return parseModelOutput(await env.AI.run(model, request));
 }
 
 async function generateValidated(provider, env, input, options = {}) {
@@ -325,7 +345,7 @@ export async function generateSeo(env, input, options = {}) {
         data: result.data,
         provider,
         fallbackUsed: provider !== "openai",
-        telemetry: { provider, model: provider === "openai" ? OPENAI_MODEL : (input.imageBase64 ? CLOUDFLARE_VISION_MODEL : (options.cloudflareModel || CLOUDFLARE_TEXT_MODEL)), attempts: result.attempts, durationMs: result.durationMs, failures }
+        telemetry: { provider, model: provider === "openai" ? OPENAI_MODEL : (input.imageBase64 ? `${CLOUDFLARE_VISION_MODEL} + ${options.cloudflareModel || CLOUDFLARE_TEXT_MODEL}` : (options.cloudflareModel || CLOUDFLARE_TEXT_MODEL)), attempts: result.attempts, durationMs: result.durationMs, failures }
       };
     } catch (error) {
       failures.push({ provider, reason: String(error?.message || error).slice(0, 240) });
