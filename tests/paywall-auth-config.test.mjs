@@ -54,10 +54,15 @@ test("owner bypass requires a verified Firebase identity", async () => {
   }
 });
 
-test("the signed-in owner can generate SEO without waiting on billing lookup", async () => {
-  const pages = ["create-post.html", "uploadimages.html", "settings.html"];
+test("publishing pages use the authenticated server entitlement for owner mode", async () => {
+  const pages = ["create-post.html", "uploadimages.html"];
   for (const page of pages) {
     const source = await readFile(new URL(`../${page}`, import.meta.url), "utf8");
-    assert.match(source, /normalizeUserKey\((?:auth\.currentUser|user)\?\.email\) === "alexbryant3234@gmail\.com"/);
+    assert.match(source, /authenticatedFetch\([\s\S]{0,80}`\$\{apiBase\}\/billing\/status/);
+    assert.match(source, /user_id: userScope/);
+    assert.doesNotMatch(source, /normalizeUserKey\(auth\.currentUser\?\.email\) === "alexbryant3234@gmail\.com"/);
   }
+  const worker = await readFile(new URL("../worker.js", import.meta.url), "utf8");
+  assert.match(worker, /ensureBillingAccess\(userId, "web", request, true\)/);
+  assert.match(worker, /identityMatchesBillingUser/);
 });
