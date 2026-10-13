@@ -20,3 +20,6 @@ dist/
 
 # Logs
 firebase-debug.log
+
+# Generated preview assets
+work/

@@ -187,6 +187,15 @@
     </div>
   </div>
 
+  <dialog id="tiktokSwitchDialog" style="max-width:480px;background:#171b2b;color:white;border:1px solid #555;border-radius:16px;padding:24px;">
+    <h2>Choose your TikTok account</h2>
+    <p>TikTok uses the account signed in to this browser. To connect a different account, open TikTok, log out or switch accounts, then return here and continue.</p>
+    <p><a href="https://www.tiktok.com/" target="_blank" rel="noopener noreferrer">Open TikTok to switch accounts</a></p>
+    <p>Check the account shown on TikTok before authorizing. Continuing replaces only this workspace’s TikTok connection. Other workspaces stay linked.</p>
+    <p id="tiktokConnectError" role="alert"></p>
+    <button class="btn btn-link" id="tiktokContinue" onclick="continueTikTokConnection()">Continue to TikTok</button>
+    <button class="btn" onclick="document.getElementById('tiktokSwitchDialog').close()">Cancel</button>
+  </dialog>
   <div class="page">
     <header>
       <a href="app.html" class="header-btn"><i class="fa-solid fa-arrow-left"></i></a>
@@ -221,6 +230,11 @@
       : "https://multipost-seo-worker.alexbryant.workers.dev/api";
 
     let userScope = null;
+    let signedInAuthUser = null;
+    async function accountHeaders() {
+      const token = await signedInAuthUser?.getIdToken();
+      return { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
+    }
     let signedInUserEmail = "";
 
     const scopedKey = name => `${name}:${userScope}`;
@@ -281,6 +295,7 @@
               <span style="color:var(--success);">Connected</span>
             </div>
             <div class="platform-actions">
+              ${key === 'tiktok' ? `<button class="btn btn-link" onclick="addAccount('tiktok')">Connect another TikTok account</button>` : ''}
               <button class="btn btn-remove" onclick="removeAccount(${linked.id})">Remove</button>
             </div>
           </div>`;
@@ -296,7 +311,7 @@
             <span style="color:var(--muted);">Not Linked</span>
           </div>
           <div class="platform-actions">
-            <button class="btn btn-link" onclick="addAccount('${key}')">Link</button>
+            <button class="btn btn-link" onclick="addAccount('${key}')">${key === 'tiktok' ? 'Connect TikTok account' : 'Link'}</button>
           </div>
         </div>`;
     }
@@ -379,7 +394,7 @@
       listEl.innerHTML = `<p style="text-align:center;color:var(--muted);">Fetching platforms…</p>`;
       try {
         const emailParam = signedInUserEmail ? `&user_email=${encodeURIComponent(signedInUserEmail)}` : "";
-        const res = await fetch(`${apiBase}/get-accounts?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}${emailParam}`);
+        const res = await fetch(`${apiBase}/get-accounts?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}${emailParam}`, { headers: await accountHeaders() });
         if (!res.ok) throw new Error("Server error");
         const accounts = await res.json();
         document.getElementById("count").innerText = `${accounts.length} total accounts connected`;
@@ -395,20 +410,40 @@
 
     /* ── Account actions ── */
 
-    function addAccount(platform) {
+    async function addAccount(platform) {
       const fId = getUrlParam("id") || getLS("activeFolderId");
       if (!fId || !userScope) return alert("Session expired.");
+      if (platform === "tiktok") {
+        document.getElementById("tiktokSwitchDialog").showModal();
+        return;
+      }
       window.location.href = `${apiBase}/auth/${platform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
+    }
+
+    async function continueTikTokConnection() {
+      const button = document.getElementById("tiktokContinue");
+      button.disabled = true;
+      try {
+        const response = await fetch(`${apiBase}/auth/tiktok`, {
+          method: "POST", credentials: "same-origin", headers: await accountHeaders(),
+          body: JSON.stringify({ folder_id: getUrlParam("id") || getLS("activeFolderId"), user_id: userScope })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.url) throw new Error(result.error || "Could not start TikTok connection.");
+        window.location.assign(result.url);
+      } catch (error) { document.getElementById("tiktokConnectError").textContent = error.message; }
+      finally { button.disabled = false; }
     }
 
     async function removeAccount(accountId) {
       if (!confirm("Remove this account?")) return;
       try {
-        await fetch(`${apiBase}/delete-folder`, {
+        const response = await fetch(`${apiBase}/delete-folder`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await accountHeaders(),
           body: JSON.stringify({ id: accountId, user_id: userScope, type: "account_only" })
         });
+        if (!response.ok) throw new Error("Remove failed");
         render();
       } catch (_) { alert("Error removing account"); }
     }
@@ -530,11 +565,15 @@
 
     onAuthStateChanged(auth, async (user) => {
       if (!user) { window.location.href = "signin.html"; return; }
+      signedInAuthUser = user;
       userScope = resolveUserScope(user);
       signedInUserEmail = user.email || "";
       localStorage.setItem("currentUserKey", userScope);
       initUI();
       await render();
+      const params = new URLSearchParams(window.location.search);
+      if (params.has("tiktok_error")) alert(params.get("tiktok_error"));
+      if (params.has("tiktok_connected")) document.getElementById("count").textContent += " · TikTok connected. Check the account name below before posting.";
       // After Facebook OAuth the callback redirects here with ?facebook=pages
       if (new URLSearchParams(window.location.search).get("facebook") === "pages") {
         openFbModal();

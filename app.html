@@ -347,7 +347,7 @@
             if (!confirm("Delete this brand?")) return;
             await fetch(`${apiBase}/delete-folder`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${await authUser.getIdToken()}` },
               body: JSON.stringify({ id: btn.dataset.id, user_id: userScope })
             });
             loadFolders();

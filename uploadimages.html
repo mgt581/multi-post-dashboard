@@ -743,7 +743,7 @@
       }
 
       try {
-        const res = await fetch(`${apiBase}/get-accounts?folder_id=${encodeURIComponent(activeFolderId)}&user_id=${encodeURIComponent(userScope)}&user_email=${encodeURIComponent(signedInUserEmail)}`);
+        const res = await authenticatedFetch(`${apiBase}/get-accounts?folder_id=${encodeURIComponent(activeFolderId)}&user_id=${encodeURIComponent(userScope)}&user_email=${encodeURIComponent(signedInUserEmail)}`);
         if (!res.ok) throw new Error("Failed to load accounts");
         const accounts = await res.json();
 
