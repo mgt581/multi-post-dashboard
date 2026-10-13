@@ -32,7 +32,9 @@ This is a source-level and synthetic-provider reproduction. Two real TikTok brow
 
 ## Validation
 
-`npm test`: 53 passing tests, including nine new SQLite/Worker regressions covering two accounts/two folders, reconnect/disconnect, target tokens sent to the publishing provider, duplicate provider identity, stale login cookie, cancellation, exchange/network errors, malformed/expired/replayed/browser-mismatched state, ownership, token redaction, wrong account-ID target, rollback, migration preservation, refresh identity mismatch and late refresh after disconnect.
+`npm test` on Node 26 and Node 24: 53 passing tests, including nine new SQLite/Worker regressions covering two accounts/two folders, reconnect/disconnect, target tokens sent to the publishing provider, duplicate provider identity, stale login cookie, cancellation, exchange/network errors, malformed/expired/replayed/browser-mismatched state, ownership, token redaction, wrong account-ID target, rollback, migration preservation, refresh identity mismatch and late refresh after disconnect.
+
+GitHub Actions did not start the regression or CodeQL jobs: GitHub reports “your account is locked due to a billing issue.” This is an account-level CI blocker, not a test failure. Local Node 24 and 26 runs both pass. Restore GitHub Actions billing before treating CI as green.
 
 Production Worker dry-run build and browser-script syntax checks pass. The PR workflow runs the full suite on Node 24 and dry-run builds both production and preview entries without deploying.
 
