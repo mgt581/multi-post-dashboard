@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS accounts (
   facebook_page_name TEXT,
   facebook_page_access_token TEXT,
   facebook_page_picture TEXT,
-  profile_picture TEXT
+  profile_picture TEXT,
+  tiktok_open_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS tokens (
@@ -59,4 +60,9 @@ CREATE TABLE IF NOT EXISTS billing_usage_events (
   event_type TEXT NOT NULL,
   platform TEXT,
   created_at INTEGER DEFAULT (strftime('%s','now'))
+);
+
+CREATE TABLE IF NOT EXISTS tiktok_oauth_states (
+  state TEXT PRIMARY KEY, browser_nonce TEXT NOT NULL, folder_id TEXT NOT NULL,
+  user_id TEXT NOT NULL, expires_at INTEGER NOT NULL
 );

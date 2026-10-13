@@ -854,7 +854,7 @@
       try {
         const params = new URLSearchParams({ publishId });
         if (sessionId) params.set("sessionId", sessionId);
-        const response = await fetch(`${uploadApiBase}/tiktok/publish-status?${params.toString()}`, {
+        const response = await authenticatedFetch(`${uploadApiBase}/tiktok/publish-status?${params.toString()}`, {
           headers: {
             folder_id: activeFolderId,
             user_id: userScope,
@@ -1106,7 +1106,7 @@
     }
 
     try {
-      const res = await fetch(
+      const res = await authenticatedFetch(
         `${apiBase}/get-accounts?folder_id=${encodeURIComponent(activeFolderId)}&user_id=${encodeURIComponent(userScope)}&user_email=${encodeURIComponent(signedInUserEmail)}`
       );
 

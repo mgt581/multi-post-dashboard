@@ -1,0 +1,21 @@
+name = "multipost-tiktok-folder-preview"
+main = "tiktok-preview-worker.mjs"
+compatibility_date = "2026-10-13"
+workers_dev = true
+preview_urls = true
+routes = []
+
+[assets]
+directory = "./work/tiktok-preview-assets"
+binding = "ASSETS"
+run_worker_first = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "multipost-tiktok-isolated-preview-20261013"
+database_id = "e8d81af5-b46f-4dad-9710-c1b26ed03b20"
+
+[vars]
+WEB_BILLING_ENABLED = "false"
+TIKTOK_CLIENT_KEY = "synthetic-preview-only"
+TIKTOK_CLIENT_SECRET = "synthetic-preview-only"

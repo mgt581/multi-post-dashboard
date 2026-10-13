@@ -1,3 +1,4 @@
+import { beginTikTokLink, consumeTikTokLink, saveTikTokConnection, tikTokPublishingAccount, disconnectTikTok, matchesIdentity, ownedFolder } from "./tiktok-connections.mjs";
 import { evaluateFacebookVideoReadiness } from "./facebook-video-readiness.mjs";
 import { FACEBOOK_PAGE_LINK_SCOPE } from "./facebook-oauth.mjs";
 import { generateSeo, normalizeSeoInput } from "./services/seoEngine.mjs";
@@ -32,7 +33,7 @@ var makeDeterministicSeoFallback = /* @__PURE__ */ __name((promptText) => {
 }, "makeDeterministicSeoFallback");
 
 // worker.js
-var WORKER_VERSION = "2026-10-11-trial-entitlement-countdown";
+var WORKER_VERSION = "2026-10-13-tiktok-folder-link";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -521,6 +522,7 @@ Follow for daily trending content! \u{1F44F}
         if (!user?.localId) return null;
         return {
           userId: String(user.localId).trim(),
+          emailVerified: user.emailVerified === true,
           email: String(user.email || "").trim().toLowerCase()
         };
       } catch (_) {
@@ -999,6 +1001,11 @@ Follow for daily trending content! \u{1F44F}
           const acct = await env.DB.prepare(
             "SELECT platform, folder_id FROM accounts WHERE id = ? AND user_id = ?"
           ).bind(id, userId).first();
+          if (acct?.platform === "tiktok") {
+            if (!matchesIdentity(userId, await getFirebaseIdentity(request))) return new Response(JSON.stringify({ error: "Sign in again" }), { status: 401, headers: jsonHeaders });
+            await disconnectTikTok(env.DB, id, userId);
+            return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
+          }
           if (acct && (acct.platform === "facebook" || acct.platform === "facebook_page")) {
             await env.DB.prepare(
               "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform IN ('facebook', 'facebook_page')"
@@ -1010,6 +1017,12 @@ Follow for daily trending content! \u{1F44F}
           }
           return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
         }
+        if (!matchesIdentity(userId, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, id, userId)) return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        await env.DB.batch([
+          env.DB.prepare("DELETE FROM tokens WHERE folder_id = ? AND platform = 'tiktok'").bind(id),
+          env.DB.prepare("DELETE FROM upload_sessions WHERE folder_id = ? AND user_id = ? AND platform = 'tiktok'").bind(String(id), userId),
+          env.DB.prepare("DELETE FROM tiktok_oauth_states WHERE folder_id = ? AND user_id = ?").bind(String(id), userId)
+        ]);
         await env.DB.prepare(
           "DELETE FROM accounts WHERE folder_id = ? AND user_id = ?"
         ).bind(id, userId).run();
@@ -1029,11 +1042,17 @@ Follow for daily trending content! \u{1F44F}
         if (!folder_id || !userId) {
           return new Response(JSON.stringify([]), { headers: jsonHeaders });
         }
-        const userAliases = await getUserAliases(userId, userEmail);
+        const identity = await getFirebaseIdentity(request);
+        if (!matchesIdentity(userId, identity) || !await ownedFolder(env.DB, folder_id, userId)) return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        const userAliases = [userId];
         const { results } = await env.DB.prepare(
           `SELECT * FROM accounts WHERE folder_id = ? AND user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY id DESC`
         ).bind(folder_id, ...userAliases).all();
-        return new Response(JSON.stringify(results), { headers: jsonHeaders });
+        return new Response(JSON.stringify(results.map(account => {
+          if (account.platform !== "tiktok") return account;
+          const { access_token, refresh_token, ...publicAccount } = account;
+          return publicAccount;
+        })), { headers: { ...jsonHeaders, "Cache-Control": "no-store" } });
       }
       if (url.pathname === "/api/billing/plans" && request.method === "GET") {
         const priceCatalog = getPriceCatalog();
@@ -1358,23 +1377,19 @@ Follow for daily trending content! \u{1F44F}
         });
       }
       if (url.pathname === "/api/auth/tiktok") {
-        const folderId = url.searchParams.get("folder_id");
-        const userId = requireUser(url.searchParams.get("user_id"));
-        if (!folderId || !userId) {
-          return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), { status: 400, headers: jsonHeaders });
-        }
-        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, null, url.searchParams.get("client_platform")), request);
-        if (billingSnapshot.ok) {
-          const linkGate = await ensureLinkingQuota({ userId, platform: "tiktok", folderId, evaluated: billingSnapshot.evaluated });
-          if (!linkGate.ok) {
-            return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
-          }
-        }
-        const tiktokRedirectUri = `${siteBaseUrl}/api/auth/callback/tiktok`;
-        const scopes = "video.upload,video.publish,user.info.basic";
-        const state = encodeState({ folderId, platform: "tiktok", userId });
-        const tiktokAuthUrl = `${tiktokAuthBaseUrl}/v2/auth/authorize/?client_key=${encodeURIComponent(getTikTokPublishClientKey())}&scope=${encodeURIComponent(scopes)}&response_type=code&redirect_uri=${encodeURIComponent(tiktokRedirectUri)}&state=${encodeURIComponent(state)}`;
-        return Response.redirect(tiktokAuthUrl);
+        if (request.method !== "POST") return new Response("Connect TikTok from your workspace while signed in.", { status: 405, headers: { ...jsonHeaders, Allow: "POST" } });
+        const { folder_id: folderId, user_id: userId } = await request.json();
+        const identity = await getFirebaseIdentity(request);
+        if (!folderId || !userId || !matchesIdentity(userId, identity)) return new Response(JSON.stringify({ error: "Sign in again before connecting TikTok." }), { status: 401, headers: jsonHeaders });
+        if (!await ownedFolder(env.DB, folderId, userId)) return new Response(JSON.stringify({ error: "Workspace not found" }), { status: 404, headers: jsonHeaders });
+        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request), request, true);
+        if (!billingSnapshot.ok) return new Response(JSON.stringify(billingSnapshot.body), { status: billingSnapshot.statusCode, headers: jsonHeaders });
+        const linkGate = await ensureLinkingQuota({ userId, platform: "tiktok", folderId, evaluated: billingSnapshot.evaluated });
+        if (!linkGate.ok) return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
+        const link = await beginTikTokLink(env.DB, { folderId, userId, identity, authBase: tiktokAuthBaseUrl,
+          clientKey: getTikTokPublishClientKey(), redirectUri: tiktokLoginRedirectUri });
+        return new Response(JSON.stringify({ url: link.url }), { headers: { ...jsonHeaders,
+          "Cache-Control": "no-store", "Set-Cookie": authCookie("mp_tiktok_link_nonce", link.browserNonce, 600) } });
       }
       if (url.pathname === "/api/auth/facebook") {
         const legacyState = url.searchParams.get("state");
@@ -1466,7 +1481,7 @@ Follow for daily trending content! \u{1F44F}
         const code = url.searchParams.get("code");
         const rawState = url.searchParams.get("state") || "";
         const cookies = parseCookies(request.headers.get("Cookie"));
-        if (cookies.mp_tiktok_login_state) {
+        if (!rawState.startsWith("ttlink_") && cookies.mp_tiktok_login_state) {
           const expectedState = cookies.mp_tiktok_login_state || "";
           const returnedState = rawState;
           const error = url.searchParams.get("error") || "";
@@ -1534,84 +1549,74 @@ Follow for daily trending content! \u{1F44F}
             return redirectWithError(err?.message || "TikTok sign-in failed");
           }
         }
-        const stateObj = decodeState(rawState);
-        const folderId = stateObj.folderId;
-        const userId = requireUser(stateObj.userId);
-        if (!folderId || !userId) {
-          return new Response(JSON.stringify({ success: false, error: "Missing state" }), { status: 400, headers: jsonHeaders });
-        }
-        if (!code) {
-          const err = url.searchParams.get("error") || "missing_code";
-          return new Response(JSON.stringify({ success: false, error: `TikTok OAuth failed: ${err}` }), { status: 400, headers: jsonHeaders });
-        }
-        const tokenRes = await fetch(`${tiktokApiBaseUrl}/v2/oauth/token/`, {
-          method: "POST",
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          body: new URLSearchParams({
-            client_key: getTikTokPublishClientKey(),
-            client_secret: getTikTokPublishClientSecret(),
-            code,
-            grant_type: "authorization_code",
-            redirect_uri: `${siteBaseUrl}/api/auth/callback/tiktok`
-          })
-        });
-        const tokenJson = await safeJson(tokenRes);
-        const tData = tokenJson.data || tokenJson;
-        if (tokenJson.error || tData.error) {
-          throw new Error(tokenJson.error_description || tData.error_description || "TikTok Exchange Failed");
-        }
-        const accessToken = tData.access_token || tokenJson.access_token;
-        const refreshToken = tData.refresh_token || tokenJson.refresh_token;
-        const expiresIn = tData.expires_in || tokenJson.expires_in || 0;
-        const openId = tData.open_id || tData.openid || "";
-        const scope = tData.scope || "video.upload,video.publish,user.info.basic";
-        let tiktokNickname = "Linked TikTok";
-        let tiktokAvatar = null;
+        let link;
+        try { link = await consumeTikTokLink(env.DB, rawState, cookies.mp_tiktok_link_nonce || ""); }
+        catch (_) { return new Response(JSON.stringify({ error: "Invalid or expired TikTok state. Start again from your workspace." }), { status: 400, headers: jsonHeaders }); }
+        const folderId = link.folder_id;
+        const userId = link.user_id;
+        const linkError = (message) => new Response(null, { status: 302, headers: {
+          Location: `${frontendBaseUrl}/folder.html?id=${encodeURIComponent(folderId)}&tiktok_error=${encodeURIComponent(message)}`,
+          "Set-Cookie": clearAuthCookie("mp_tiktok_link_nonce"), "Cache-Control": "no-store"
+        } });
+        if (!code || url.searchParams.get("error")) return linkError("TikTok authorization cancelled. Your existing connection is unchanged.");
         try {
-          const userInfoRes = await fetch(
-            `${tiktokApiBaseUrl}/v2/user/info/?fields=display_name,avatar_url`,
-            {
-              headers: { "Authorization": `Bearer ${accessToken}` }
-            }
-          );
-          const userInfo = await safeJson(userInfoRes);
-          const user = userInfo?.data?.user;
-          if (user) {
-            tiktokNickname = user.display_name?.trim() || "TikTok User";
-            tiktokAvatar = user.avatar_url ? String(user.avatar_url) : null;
+          const tokenRes = await fetch(`${tiktokApiBaseUrl}/v2/oauth/token/`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              client_key: getTikTokPublishClientKey(),
+              client_secret: getTikTokPublishClientSecret(),
+              code,
+              grant_type: "authorization_code",
+              redirect_uri: `${siteBaseUrl}/api/auth/callback/tiktok`
+            })
+          });
+          const tokenJson = await safeJson(tokenRes);
+          const tData = tokenJson.data || tokenJson;
+          if (!tokenRes.ok || tokenJson.error || tData.error || !tData.access_token || !tData.open_id) {
+            return linkError("TikTok could not complete the connection. Please try again. Your existing connection is unchanged.");
           }
-        } catch (e) {
-          console.error("TikTok Profile Fetch Error:", e);
+          const accessToken = tData.access_token || tokenJson.access_token;
+          const refreshToken = tData.refresh_token || tokenJson.refresh_token;
+          const expiresIn = tData.expires_in || tokenJson.expires_in || 0;
+          const openId = tData.open_id || tData.openid || "";
+          const scope = tData.scope || "video.upload,video.publish,user.info.basic";
+          let tiktokNickname = "Linked TikTok";
+          let tiktokAvatar = null;
+          try {
+            const userInfoRes = await fetch(
+              `${tiktokApiBaseUrl}/v2/user/info/?fields=display_name,avatar_url`,
+              {
+                headers: { "Authorization": `Bearer ${accessToken}` }
+              }
+            );
+            const userInfo = await safeJson(userInfoRes);
+            const user = userInfo?.data?.user;
+            if (user) {
+              tiktokNickname = user.display_name?.trim() || "TikTok User";
+              tiktokAvatar = user.avatar_url ? String(user.avatar_url) : null;
+            }
+          } catch (e) {
+            console.error("TikTok Profile Fetch Error:", e);
+          }
+          const duplicate = await env.DB.prepare("SELECT a.folder_id FROM accounts a WHERE a.user_id = ? AND a.platform = 'tiktok' AND (a.tiktok_open_id = ? OR EXISTS (SELECT 1 FROM tokens t WHERE t.folder_id = a.folder_id AND t.platform = 'tiktok' AND t.account_id = ? AND t.access_token = a.access_token)) AND a.folder_id != ? LIMIT 1")
+            .bind(userId, String(openId), String(openId), folderId).first();
+          if (duplicate) return linkError("TikTok returned an account already linked to another workspace. Switch accounts on tiktok.com, then connect again. Your existing connection is unchanged.");
+          await saveTikTokConnection(env.DB, {
+            folderId: String(folderId), userId: String(userId), openId: String(openId),
+            nickname: tiktokNickname, avatar: tiktokAvatar, accessToken: String(accessToken),
+            refreshToken: refreshToken ? String(refreshToken) : null,
+            expiresAt: nowMs() + Number(expiresIn) * 1e3, scope: String(scope)
+          });
+          return new Response(null, { status: 302, headers: {
+            Location: `${frontendBaseUrl}/folder.html?id=${encodeURIComponent(folderId)}&tiktok_connected=1`,
+            "Set-Cookie": clearAuthCookie("mp_tiktok_link_nonce"), "Cache-Control": "no-store"
+          } });
+        } catch (_) {
+          return linkError("TikTok connection failed. Please try again. Your existing connection is unchanged.");
         }
-        await env.DB.batch([
-          env.DB.prepare(
-            "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'tiktok'"
-          ).bind(String(folderId), String(userId)),
-          env.DB.prepare(
-            "INSERT INTO accounts (folder_id, user_id, platform, nickname, access_token, refresh_token, expires_at, profile_picture) VALUES (?, ?, 'tiktok', ?, ?, ?, ?, ?)"
-          ).bind(
-            String(folderId),
-            String(userId),
-            String(tiktokNickname),
-            String(accessToken),
-            refreshToken ? String(refreshToken) : null,
-            nowMs() + Number(expiresIn) * 1e3,
-            tiktokAvatar
-          )
-        ]);
-        await upsertToken({
-          folderId: String(folderId),
-          platform: "tiktok",
-          accountId: String(openId),
-          accessToken: String(accessToken),
-          refreshToken: refreshToken ? String(refreshToken) : null,
-          expiresAt: nowMs() + Number(expiresIn) * 1e3,
-          scope: String(scope)
-        });
-        return Response.redirect(
-          `${frontendBaseUrl}/create-post.html?tiktok_connected=1&account_name=${encodeURIComponent(tiktokNickname)}&folder_id=${encodeURIComponent(folderId)}`
-        );
       }
+
       if (url.pathname === "/api/auth/callback/facebook") {
         const code = url.searchParams.get("code");
         const rawState = url.searchParams.get("state") || "";
@@ -2139,6 +2144,10 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/tiktok/init-upload" && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
+        if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
+          return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        }
+
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
             status: 400,
@@ -2179,18 +2188,12 @@ Follow for daily trending content! \u{1F44F}
         if (!validPrivacyLevels.includes(privacyStatus)) {
           privacyStatus = "SELF_ONLY";
         }
-        const tiktokAccount = await env.DB.prepare(
-          "SELECT id, access_token, refresh_token, expires_at FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'tiktok' LIMIT 1"
-        ).bind(folder_id, user_id).first();
-        const tokenSnapshot = await env.DB.prepare(`
-          SELECT * FROM tokens
-          WHERE folder_id = ? AND platform = 'tiktok'
-          ORDER BY updated_at DESC LIMIT 1
-        `).bind(folder_id).first();
-        let tiktokAccessToken = String(tiktokAccount?.access_token || tokenSnapshot?.access_token || "").trim();
-        let tiktokRefreshToken = String(tiktokAccount?.refresh_token || tokenSnapshot?.refresh_token || "").trim();
-        let tiktokExpiresAt = Number(tiktokAccount?.expires_at || tokenSnapshot?.expires_at || 0);
-        let tiktokAccountId = String(tokenSnapshot?.account_id || "").trim();
+        const tiktokAccount = await tikTokPublishingAccount(env.DB, folder_id, user_id);
+        let tiktokAccessToken = String(tiktokAccount?.access_token || "").trim();
+        let tiktokRefreshToken = String(tiktokAccount?.refresh_token || "").trim();
+        let tiktokExpiresAt = Number(tiktokAccount?.expires_at || 0);
+        let tiktokAccountId = String(tiktokAccount?.tiktok_open_id || "").trim();
+        let persistedAccessToken = tiktokAccessToken;
         let refreshedBeforeInit = false;
         if (!tiktokAccessToken) {
           return new Response(JSON.stringify({ success: false, error: "No TikTok token found. Link account first." }), {
@@ -2200,21 +2203,25 @@ Follow for daily trending content! \u{1F44F}
         }
         try {
           const persistTikTokTokens = /* @__PURE__ */ __name(async () => {
-            await env.DB.prepare(
-              "UPDATE accounts SET access_token = ?, refresh_token = ?, expires_at = ? WHERE folder_id = ? AND user_id = ? AND platform = 'tiktok'"
-            ).bind(tiktokAccessToken, tiktokRefreshToken || null, tiktokExpiresAt || null, folder_id, user_id).run();
-            await upsertToken({
-              folderId: String(folder_id),
-              platform: "tiktok",
-              accountId: String(tiktokAccountId || user_id),
-              accessToken: tiktokAccessToken,
-              refreshToken: tiktokRefreshToken || null,
-              expiresAt: tiktokExpiresAt || null,
-              scope: String(tokenSnapshot?.scope || "")
-            });
+            const updated = await env.DB.prepare(
+              "UPDATE accounts SET access_token = ?, refresh_token = ?, expires_at = ?, tiktok_open_id = COALESCE(tiktok_open_id, ?) WHERE id = ? AND folder_id = ? AND user_id = ? AND platform = 'tiktok' AND access_token = ?"
+            ).bind(tiktokAccessToken, tiktokRefreshToken || null, tiktokExpiresAt || null, tiktokAccountId || null, tiktokAccount.id, folder_id, user_id, persistedAccessToken).run();
+            if (!updated.meta?.changes && !updated.changes) throw new Error("TikTok connection changed while uploading. Start again from this workspace.");
+            persistedAccessToken = tiktokAccessToken;
+            // A late refresh cannot recreate credentials after disconnect/reconnect.
+            if (tiktokAccountId) await env.DB.prepare(`
+              INSERT INTO tokens (folder_id, platform, account_id, access_token, refresh_token, expires_at, scope, updated_at)
+              SELECT ?, 'tiktok', ?, ?, ?, ?, ?, strftime('%s','now')
+              FROM accounts WHERE id = ? AND folder_id = ? AND user_id = ? AND access_token = ?
+              ON CONFLICT(folder_id, platform, account_id) DO UPDATE SET
+              access_token = excluded.access_token, refresh_token = excluded.refresh_token,
+              expires_at = excluded.expires_at, updated_at = excluded.updated_at
+            `).bind(folder_id, tiktokAccountId, tiktokAccessToken, tiktokRefreshToken || null, tiktokExpiresAt || null,
+              "video.upload,video.publish,user.info.basic", tiktokAccount.id, folder_id, user_id, tiktokAccessToken).run();
           }, "persistTikTokTokens");
           if (tiktokRefreshToken && (!tiktokExpiresAt || tiktokExpiresAt - nowMs() < TOKEN_REFRESH_WINDOW_MS)) {
             const refreshed = await refreshTikTokAccessToken(tiktokRefreshToken);
+            if (tiktokAccountId && refreshed.accountId && refreshed.accountId !== tiktokAccountId) throw new Error("TikTok refresh returned a different account. Reconnect this workspace.");
             tiktokAccessToken = refreshed.accessToken;
             tiktokRefreshToken = refreshed.refreshToken;
             tiktokExpiresAt = refreshed.expiresAt;
@@ -2291,6 +2298,7 @@ Follow for daily trending content! \u{1F44F}
             initData = await safeJson(initRes);
             if (initData?.error?.code === "access_token_invalid" && tiktokRefreshToken && !refreshedBeforeInit) {
               const refreshed = await refreshTikTokAccessToken(tiktokRefreshToken);
+              if (tiktokAccountId && refreshed.accountId && refreshed.accountId !== tiktokAccountId) throw new Error("TikTok refresh returned a different account. Reconnect this workspace.");
               tiktokAccessToken = refreshed.accessToken;
               tiktokRefreshToken = refreshed.refreshToken;
               tiktokExpiresAt = refreshed.expiresAt;
@@ -2340,8 +2348,8 @@ Follow for daily trending content! \u{1F44F}
           const sessionId = crypto.randomUUID();
           const expiresAt = Math.floor(Date.now() / 1e3) + SESSION_EXPIRY_SECONDS;
           await env.DB.prepare(
-            "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, file_size, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-          ).bind(sessionId, "tiktok", uploadUrl, tiktokAccessToken, publishId, videoSize, expiresAt).run();
+            "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, file_size, expires_at, folder_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          ).bind(sessionId, "tiktok", uploadUrl, tiktokAccessToken, publishId, videoSize, expiresAt, folder_id, user_id).run();
           await recordPublishUsage(user_id, "tiktok");
           return new Response(JSON.stringify({
             success: true,
@@ -2363,6 +2371,10 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/tiktok/upload-chunk" && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
+        if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
+          return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        }
+
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
             status: 400,
@@ -2386,8 +2398,8 @@ Follow for daily trending content! \u{1F44F}
           });
         }
         const session = await env.DB.prepare(
-          "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'tiktok' LIMIT 1"
-        ).bind(sessionId).first();
+          "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'tiktok' AND folder_id = ? AND user_id = ? LIMIT 1"
+        ).bind(sessionId, folder_id, user_id).first();
         if (!session) {
           return new Response(JSON.stringify({ success: false, error: "Upload session not found or expired" }), {
             status: 404,
@@ -2433,6 +2445,10 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/tiktok/publish-status" && request.method === "GET") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
+        if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
+          return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        }
+
         const publishId = String(url.searchParams.get("publishId") || "").trim();
         const sessionId = String(url.searchParams.get("sessionId") || "").trim();
         if (!folder_id || !user_id || !publishId) {
@@ -2444,13 +2460,13 @@ Follow for daily trending content! \u{1F44F}
         let session = null;
         if (sessionId) {
           session = await env.DB.prepare(
-            "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'tiktok' LIMIT 1"
-          ).bind(sessionId).first();
+            "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'tiktok' AND folder_id = ? AND user_id = ? LIMIT 1"
+          ).bind(sessionId, folder_id, user_id).first();
         }
         if (!session) {
           session = await env.DB.prepare(
-            "SELECT * FROM upload_sessions WHERE video_id = ? AND platform = 'tiktok' ORDER BY expires_at DESC LIMIT 1"
-          ).bind(publishId).first();
+            "SELECT * FROM upload_sessions WHERE video_id = ? AND platform = 'tiktok' AND folder_id = ? AND user_id = ? ORDER BY expires_at DESC LIMIT 1"
+          ).bind(publishId, folder_id, user_id).first();
         }
         if (!session?.access_token || String(session.video_id || "") !== publishId) {
           return new Response(JSON.stringify({ success: false, error: "TikTok publish session not found" }), {
@@ -3242,6 +3258,11 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/post-video" && request.method === "POST") {
         const { account_id, video_url, image_url, media_type, title, platform, description, page_id, folder_id, user_id, client_platform } = await request.json();
         const account = account_id ? await env.DB.prepare("SELECT * FROM accounts WHERE id = ?").bind(account_id).first() : null;
+        if (platform === "tiktok" && (!matchesIdentity(user_id || "", await getFirebaseIdentity(request)) ||
+          !await ownedFolder(env.DB, folder_id, user_id) || !account || account.platform !== "tiktok" ||
+          String(account.folder_id) !== String(folder_id) || account.user_id !== user_id)) {
+          return new Response(JSON.stringify({ error: "TikTok account does not belong to this workspace" }), { status: 403, headers: jsonHeaders });
+        }
         const billingUserId = requireUser(user_id) || requireUser(account?.user_id);
         const billingGate = await ensureBillingAccess(billingUserId, getClientPlatform(request, client_platform), request);
         if (!billingGate.ok) {

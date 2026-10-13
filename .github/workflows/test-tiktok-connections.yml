@@ -1,0 +1,26 @@
+name: Test TikTok folder connections
+on:
+  pull_request:
+    paths:
+      - 'worker.js'
+      - 'tiktok-*.mjs'
+      - '*.html'
+      - 'migrations/0008_tiktok_folder_oauth.sql'
+      - 'tests/**'
+      - '.github/workflows/test-tiktok-connections.yml'
+permissions:
+  contents: read
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npx wrangler deploy --dry-run --env=""
+      - run: node scripts/build-tiktok-preview.mjs
+      - run: npx wrangler deploy --dry-run --config wrangler.tiktok-preview.toml
