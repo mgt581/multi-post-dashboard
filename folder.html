@@ -220,6 +220,10 @@
     </div>
 
     <div id="accountList"></div>
+    <div id="workspaceAccessHelp" hidden style="padding:16px;">
+      <button class="btn btn-link" onclick="retryWorkspaceAccounts()">Retry account loading</button>
+      <p><a href="signin.html">Sign in with the Gmail account that owns this workspace</a></p>
+    </div>
 
     <a id="createPostLink" href="publish-choice.html" class="btn-create-post">
       <i class="fa-solid fa-wand-magic-sparkles"></i> Create / Generate SEO
@@ -398,16 +402,47 @@
 
     /* ── Render ── */
 
+    async function fetchWorkspaceAccounts(folderId) {
+      if (!signedInAuthUser) throw new Error("Sign in again to load this workspace.");
+      const email = String(signedInAuthUser.email || "");
+      const uid = String(signedInAuthUser.uid || "");
+      // Stored owner aliases cannot replace proof of identity. Only try scopes
+      // derived from the signed-in Firebase user; the server verifies each one.
+      const preferred = userScope === uid || (email && String(userScope).toLowerCase() === email.toLowerCase()) ? userScope : "";
+      const candidates = [...new Set([preferred, uid, email, email.toLowerCase()].filter(Boolean))];
+      let failure;
+      let refreshed = false;
+      for (const scope of candidates) {
+        const address = `${apiBase}/get-accounts?folder_id=${encodeURIComponent(folderId)}&user_id=${encodeURIComponent(scope)}`;
+        let response = await fetch(address, { headers: await accountHeaders() });
+        if (response.status === 401 && !refreshed) {
+          await signedInAuthUser.getIdToken(true);
+          refreshed = true;
+          response = await fetch(address, { headers: await accountHeaders() });
+        }
+        const result = await response.json();
+        if (response.ok) {
+          if (!Array.isArray(result)) throw new Error("The workspace returned an invalid account list. Please retry.");
+          userScope = scope;
+          localStorage.setItem("currentUserKey", scope);
+          return result;
+        }
+        const error = new Error(result.error || `Could not load accounts (HTTP ${response.status}).`);
+        error.code = result.code;
+        if (response.status === 401 || ![403,404].includes(response.status)) throw error;
+        if (!failure || error.code === "EMAIL_VERIFICATION_REQUIRED") failure = error;
+      }
+      throw failure || new Error("Sign in again to load this workspace.");
+    }
+
     async function render() {
       const fId = getUrlParam("id") || getLS("activeFolderId");
       if (!fId || !userScope) return;
       const listEl = document.getElementById("accountList");
       listEl.innerHTML = `<p style="text-align:center;color:var(--muted);">Fetching platforms…</p>`;
       try {
-        const emailParam = signedInUserEmail ? `&user_email=${encodeURIComponent(signedInUserEmail)}` : "";
-        const res = await fetch(`${apiBase}/get-accounts?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}${emailParam}`, { headers: await accountHeaders() });
-        if (!res.ok) throw new Error("Server error");
-        const accounts = await res.json();
+        const accounts = await fetchWorkspaceAccounts(fId);
+        document.getElementById("workspaceAccessHelp").hidden = true;
         currentTikTokName = accounts.find(a => a.platform === "tiktok")?.nickname || "";
         document.getElementById("count").innerText = `${accounts.length} total accounts connected`;
         listEl.innerHTML = Object.keys(allPlatforms).map(key => {
@@ -415,8 +450,11 @@
           if (key === "facebook") return buildFacebookCard(meta, accounts);
           return buildGenericCard(meta, key, accounts.find(a => a.platform === key));
         }).join("");
-      } catch (_) {
-        listEl.innerHTML = `<p style="color:var(--error);text-align:center;">Failed to load accounts.</p>`;
+      } catch (error) {
+        document.getElementById("count").textContent = "Accounts unavailable";
+        listEl.innerHTML = `<p id="workspaceLoadError" role="alert" style="color:var(--error);text-align:center;"></p>`;
+        document.getElementById("workspaceLoadError").textContent = error.message || "Could not load accounts. Please retry.";
+        document.getElementById("workspaceAccessHelp").hidden = false;
       }
     }
 
@@ -545,6 +583,10 @@
       }
     }
 
+    window.retryWorkspaceAccounts = async () => {
+      try { await signedInAuthUser?.getIdToken(true); await render(); }
+      catch (_) { document.getElementById("count").textContent = "Sign in again to load accounts."; }
+    };
     window.addAccount    = addAccount;
     window.removeAccount = removeAccount;
     window.openFbModal   = openFbModal;

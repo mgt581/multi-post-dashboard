@@ -58,8 +58,8 @@ export default {
         // Fixture bootstrap replaces Firebase only in this isolated preview route.
         // Production folder markup and connection functions are otherwise used intact.
         html=html.replace(/<script type="module">[\s\S]*?<\/script>/, `<script>
-          userScope=${JSON.stringify(userId)};
-          signedInAuthUser={getIdToken:async()=>"synthetic-preview"};
+          userScope=${JSON.stringify(url.searchParams.has('stale_scope')?'stale-saved-owner@example.com':userId)};
+          signedInAuthUser={uid:${JSON.stringify(userId)},email:"",getIdToken:async()=>"synthetic-preview"};
           initUI(); render().then(async()=>{
             const error=new URLSearchParams(location.search).get('tiktok_error');
             if(error){await addAccount('tiktok');document.getElementById('tiktokConnectError').textContent=error;}
@@ -70,6 +70,7 @@ export default {
         return new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
       }
       if(url.pathname==='/api/get-accounts') {
+        if(url.searchParams.get('user_id')!==userId) return Response.json({error:'Saved identity mismatch',code:'IDENTITY_MISMATCH'},{status:403});
         const folder=folders.find(f=>String(f.id)===url.searchParams.get('folder_id'));
         if(!folder) return Response.json({error:'Workspace not found'},{status:404});
         const account=await tikTokPublishingAccount(env.DB,String(folder.id),userId);

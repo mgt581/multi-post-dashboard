@@ -1043,7 +1043,14 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify([]), { headers: jsonHeaders });
         }
         const identity = await getFirebaseIdentity(request);
-        if (!matchesIdentity(userId, identity) || !await ownedFolder(env.DB, folder_id, userId)) return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        if (!identity) return new Response(JSON.stringify({ code: "SIGN_IN_REQUIRED", error: "Your sign-in expired. Sign in again to load this workspace." }), { status: 401, headers: jsonHeaders });
+        if (!matchesIdentity(userId, identity)) {
+          const unverified = !identity.emailVerified && String(userId).toLowerCase() === identity.email;
+          return new Response(JSON.stringify({ code: unverified ? "EMAIL_VERIFICATION_REQUIRED" : "IDENTITY_MISMATCH",
+            error: unverified ? "Verify your Multi Post email address before opening email-owned workspaces, then retry."
+              : "This saved account identity does not match your current sign-in." }), { status: 403, headers: jsonHeaders });
+        }
+        if (!await ownedFolder(env.DB, folder_id, userId)) return new Response(JSON.stringify({ code: "WORKSPACE_ACCESS_DENIED", error: "This workspace belongs to a different Multi Post account. Sign in with the Gmail account used to create it." }), { status: 403, headers: jsonHeaders });
         const userAliases = [userId];
         const { results } = await env.DB.prepare(
           `SELECT * FROM accounts WHERE folder_id = ? AND user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY id DESC`
