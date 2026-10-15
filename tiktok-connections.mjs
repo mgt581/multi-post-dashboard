@@ -58,3 +58,12 @@ export async function disconnectTikTok(db, accountId, userId) {
   ]);
   return true;
 }
+
+// Only the two supported production hosts share the linking nonce. Preview and
+// workers.dev cookies remain host-only; never derive Domain from arbitrary input.
+export function tikTokLinkCookie(value, maxAge, requestUrl) {
+  const host = new URL(requestUrl).hostname;
+  const domain = ['multipostapp.co.uk', 'www.multipostapp.co.uk'].includes(host)
+    ? '; Domain=multipostapp.co.uk' : '';
+  return `mp_tiktok_link_nonce=${encodeURIComponent(value)}; Max-Age=${maxAge}; Path=/api/auth; HttpOnly; Secure; SameSite=Lax${domain}`;
+}

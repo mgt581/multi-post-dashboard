@@ -188,12 +188,22 @@
   </div>
 
   <dialog id="tiktokSwitchDialog" style="max-width:480px;background:#171b2b;color:white;border:1px solid #555;border-radius:16px;padding:24px;">
-    <h2>Choose your TikTok account</h2>
-    <p>TikTok uses the account signed in to this browser. To connect a different account, open TikTok, log out or switch accounts, then return here and continue.</p>
-    <p><a href="https://www.tiktok.com/" target="_blank" rel="noopener noreferrer">Open TikTok to switch accounts</a></p>
-    <p>Check the account shown on TikTok before authorizing. Continuing replaces only this workspace’s TikTok connection. Other workspaces stay linked.</p>
+    <h2>Connect TikTok to this workspace</h2>
+    <p>TikTok uses the account signed in to this browser. Showing its authorization screen does not switch accounts.</p>
+    <p id="tiktokCurrentAccount"></p>
+    <label><input type="radio" name="tiktokAccountMode" value="switch" checked onchange="updateTikTokSwitch()"> Connect a different TikTok account</label><br>
+    <label><input type="radio" name="tiktokAccountMode" value="current" onchange="updateTikTokSwitch()"> Use the TikTok account already signed in to this browser</label>
+    <div id="tiktokSwitchSteps">
+      <ol>
+        <li><a href="https://www.tiktok.com/" target="_blank" rel="noopener noreferrer">Open TikTok in a new tab</a>. Open your profile menu and log out or switch accounts.</li>
+        <li>Sign in to the TikTok account you want for this workspace, then return here. Switching in the phone app alone may not change this browser.</li>
+        <li>Tick the confirmation below and continue. Check the account on TikTok before authorizing.</li>
+      </ol>
+      <label><input id="tiktokSwitched" type="checkbox" onchange="updateTikTokSwitch()"> I switched to the TikTok account I want in this browser</label>
+    </div>
+    <p>Your other workspaces stay connected when you switch TikTok in the browser. A successful connection replaces only this workspace’s TikTok link.</p>
     <p id="tiktokConnectError" role="alert"></p>
-    <button class="btn btn-link" id="tiktokContinue" onclick="continueTikTokConnection()">Continue to TikTok</button>
+    <button class="btn btn-link" id="tiktokContinue" onclick="continueTikTokConnection()" disabled>Continue to TikTok authorization</button>
     <button class="btn" onclick="document.getElementById('tiktokSwitchDialog').close()">Cancel</button>
   </dialog>
   <div class="page">
@@ -231,6 +241,7 @@
 
     let userScope = null;
     let signedInAuthUser = null;
+    let currentTikTokName = "";
     async function accountHeaders() {
       const token = await signedInAuthUser?.getIdToken();
       return { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) };
@@ -397,6 +408,7 @@
         const res = await fetch(`${apiBase}/get-accounts?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}${emailParam}`, { headers: await accountHeaders() });
         if (!res.ok) throw new Error("Server error");
         const accounts = await res.json();
+        currentTikTokName = accounts.find(a => a.platform === "tiktok")?.nickname || "";
         document.getElementById("count").innerText = `${accounts.length} total accounts connected`;
         listEl.innerHTML = Object.keys(allPlatforms).map(key => {
           const meta = allPlatforms[key];
@@ -414,13 +426,27 @@
       const fId = getUrlParam("id") || getLS("activeFolderId");
       if (!fId || !userScope) return alert("Session expired.");
       if (platform === "tiktok") {
+        document.querySelector('input[name="tiktokAccountMode"][value="switch"]').checked = true;
+        document.getElementById("tiktokSwitched").checked = false;
+        document.getElementById("tiktokConnectError").textContent = "";
+        document.getElementById("tiktokCurrentAccount").textContent = currentTikTokName
+          ? `Currently connected here: ${currentTikTokName}` : "No TikTok account connected here yet.";
+        updateTikTokSwitch();
         document.getElementById("tiktokSwitchDialog").showModal();
         return;
       }
       window.location.href = `${apiBase}/auth/${platform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
     }
 
+    function updateTikTokSwitch() {
+      const switching = document.querySelector('input[name="tiktokAccountMode"]:checked').value === "switch";
+      document.getElementById("tiktokSwitchSteps").hidden = !switching;
+      document.getElementById("tiktokContinue").disabled = switching && !document.getElementById("tiktokSwitched").checked;
+    }
+
     async function continueTikTokConnection() {
+      updateTikTokSwitch();
+      if (document.getElementById("tiktokContinue").disabled) return;
       const button = document.getElementById("tiktokContinue");
       button.disabled = true;
       try {
@@ -432,7 +458,7 @@
         if (!response.ok || !result.url) throw new Error(result.error || "Could not start TikTok connection.");
         window.location.assign(result.url);
       } catch (error) { document.getElementById("tiktokConnectError").textContent = error.message; }
-      finally { button.disabled = false; }
+      finally { updateTikTokSwitch(); }
     }
 
     async function removeAccount(accountId) {
@@ -572,7 +598,11 @@
       initUI();
       await render();
       const params = new URLSearchParams(window.location.search);
-      if (params.has("tiktok_error")) alert(params.get("tiktok_error"));
+      if (params.has("tiktok_error")) {
+        await addAccount("tiktok");
+        document.getElementById("tiktokConnectError").textContent = params.get("tiktok_error");
+        history.replaceState(null, "", `folder.html?id=${encodeURIComponent(getUrlParam("id") || getLS("activeFolderId"))}`);
+      }
       if (params.has("tiktok_connected")) document.getElementById("count").textContent += " · TikTok connected. Check the account name below before posting.";
       // After Facebook OAuth the callback redirects here with ?facebook=pages
       if (new URLSearchParams(window.location.search).get("facebook") === "pages") {

@@ -1,5 +1,7 @@
 # TikTok folder connection fix — review and release notes
 
+**Follow-up:** PR #163 did not complete browser-flow acceptance. See [15 October browser routing findings and remaining real-account checks](tiktok-browser-flow-followup.md). The historical validation below did not exercise the live service worker.
+
 Branch: `fix/tiktok-folder-account-switch`.
 Baseline: `3e207add27f4f6e3d13b213028bd5a0a54c825fe` (main on 13 October 2026).
 Preview: https://multipost-tiktok-folder-preview.alexbryant.workers.dev/

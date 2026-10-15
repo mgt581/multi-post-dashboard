@@ -5,6 +5,7 @@ on:
       - 'worker.js'
       - 'tiktok-*.mjs'
       - '*.html'
+      - 'sw.js'
       - 'migrations/0008_tiktok_folder_oauth.sql'
       - 'tests/**'
       - '.github/workflows/test-tiktok-connections.yml'

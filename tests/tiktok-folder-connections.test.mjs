@@ -232,3 +232,26 @@ test('refresh retains the folder identity and cannot resurrect a concurrently di
     assert.equal(sqlite.prepare('SELECT count(*) n FROM tokens').get().n,0);
   }finally{globalThis.fetch=original;sqlite.close();}
 });
+
+test('www initiation cookie is shared with registered apex callback and duplicate retry preserves both links', async () => {
+  const {db,sqlite}=database();
+  const env={DB:db,BASE_URL:'https://multipostapp.co.uk',TIKTOK_CLIENT_KEY:'test',TIKTOK_CLIENT_SECRET:'test',WEB_BILLING_ENABLED:'false'};
+  const original=globalThis.fetch; globalThis.fetch=fixtureFetch([]);
+  try {
+    await saveTikTokConnection(db,connection(1,'alice'));
+    await saveTikTokConnection(db,connection(2,'bob'));
+    const response=await worker.fetch(new Request('https://www.multipostapp.co.uk/api/auth/tiktok',{method:'POST',headers:{Authorization:'Bearer test','Content-Type':'application/json'},body:JSON.stringify({folder_id:'2',user_id:'uid-1'})}),env);
+    assert.equal(response.status,200);
+    const provider=new URL((await response.json()).url);
+    assert.equal(provider.searchParams.get('redirect_uri'),'https://multipostapp.co.uk/api/auth/callback/tiktok');
+    const cookie=response.headers.get('Set-Cookie');
+    assert.match(cookie,/Domain=multipostapp.co.uk/);
+    const result=await worker.fetch(new Request(`https://multipostapp.co.uk/api/auth/callback/tiktok?state=${provider.searchParams.get('state')}&code=alice`,{headers:{Cookie:cookie.split(';')[0]}}),env);
+    assert.equal(result.status,302);
+    assert.match(result.headers.get('Location'),/tiktok_error=.*already%20linked/);
+    assert.match(result.headers.get('Set-Cookie'),/Max-Age=0.*Domain=multipostapp.co.uk/);
+    assert.equal((await tikTokPublishingAccount(db,'1','uid-1')).access_token,'token-alice');
+    assert.equal((await tikTokPublishingAccount(db,'2','uid-1')).access_token,'token-bob');
+    assert.equal(sqlite.prepare('SELECT count(*) n FROM accounts').get().n,2);
+  } finally {globalThis.fetch=original;sqlite.close();}
+});
