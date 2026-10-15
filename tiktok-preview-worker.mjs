@@ -27,7 +27,7 @@ export default {
     }
 
     // Public, per-browser fixture demo using the same connection persistence and state helpers.
-    if(url.pathname==='/' || url.pathname.startsWith('/demo') || (c.fixture_session && ['/api/auth/tiktok','/api/get-accounts'].includes(url.pathname))) {
+    if(url.pathname==='/' || url.pathname.startsWith('/demo') || (c.fixture_session && ['/api/auth/tiktok','/api/get-accounts','/api/get-folders','/api/add-folder'].includes(url.pathname))) {
       if(!c.fixture_session) {
         const session=crypto.randomUUID();
         await env.DB.batch(['Workspace A','Workspace B'].map(name=>env.DB.prepare('INSERT INTO folders (user_id,name) VALUES (?,?)').bind('fixture:'+session,name)));
@@ -35,6 +35,22 @@ export default {
       }
       const userId='fixture:'+c.fixture_session;
       const folders=(await env.DB.prepare('SELECT id,name FROM folders WHERE user_id = ? ORDER BY id').bind(userId).all()).results;
+      if(url.pathname==='/demo/brands') {
+        const asset=await env.ASSETS.fetch(new Request(origin+'/app.html'));
+        const html=(await asset.text()).replace(/<script type="module">[\s\S]*?<\/script>/, `<script>
+          authUser={uid:${JSON.stringify(userId)},email:"",displayName:"Preview"};
+          userScope=${JSON.stringify(userId)};
+          loadFolders();
+        </script>`).replace('const isProdHost = host === "multipostapp.co.uk" || host === "www.multipostapp.co.uk";', 'const isProdHost = true;')
+          .replace('<body>', '<body><p style="color:white;padding:12px">ISOLATED BRAND PREVIEW · synthetic data only</p>');
+        return new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
+      }
+      if(url.pathname==='/api/get-folders') return Response.json(folders.map(folder=>({...folder,user_id:userId})));
+      if(url.pathname==='/api/add-folder' && request.method==='POST') {
+        const body=await request.clone().json();
+        if(body.user_id!==userId) return Response.json({error:'Wrong fixture session'},{status:403});
+        return worker.fetch(request,isolated);
+      }
       if(url.pathname==='/demo/workspace') {
         const selected=folders.find(f=>String(f.id)===url.searchParams.get('id')) || folders[0];
         const asset=await env.ASSETS.fetch(new Request(origin+'/folder.html'));
@@ -42,8 +58,8 @@ export default {
         // Fixture bootstrap replaces Firebase only in this isolated preview route.
         // Production folder markup and connection functions are otherwise used intact.
         html=html.replace(/<script type="module">[\s\S]*?<\/script>/, `<script>
-          userScope=${JSON.stringify(userId)};
-          signedInAuthUser={getIdToken:async()=>"synthetic-preview"};
+          userScope=${JSON.stringify(url.searchParams.has('stale_scope')?'stale-saved-owner@example.com':userId)};
+          signedInAuthUser={uid:${JSON.stringify(userId)},email:"",getIdToken:async()=>"synthetic-preview"};
           initUI(); render().then(async()=>{
             const error=new URLSearchParams(location.search).get('tiktok_error');
             if(error){await addAccount('tiktok');document.getElementById('tiktokConnectError').textContent=error;}
@@ -54,6 +70,7 @@ export default {
         return new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'}});
       }
       if(url.pathname==='/api/get-accounts') {
+        if(url.searchParams.get('user_id')!==userId) return Response.json({error:'Saved identity mismatch',code:'IDENTITY_MISMATCH'},{status:403});
         const folder=folders.find(f=>String(f.id)===url.searchParams.get('folder_id'));
         if(!folder) return Response.json({error:'Workspace not found'},{status:404});
         const account=await tikTokPublishingAccount(env.DB,String(folder.id),userId);

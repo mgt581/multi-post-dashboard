@@ -134,7 +134,7 @@ test('real Worker callbacks distinguish session reuse from folder mapping; publi
     const list=await worker.fetch(new Request('https://example.test/api/get-accounts?folder_id=1&user_id=uid-1',{headers:{Authorization:'Bearer test'}}),env);
     assert.equal((await list.json())[0].access_token,undefined);
     const deny=await worker.fetch(new Request('https://example.test/api/get-accounts?folder_id=1&user_id=uid-1'),env);
-    assert.equal(deny.status,403);
+    assert.equal(deny.status,401);
     const session=sqlite.prepare("SELECT id,video_id FROM upload_sessions WHERE folder_id='1'").get();
     const status=await worker.fetch(new Request(`https://example.test/api/tiktok/publish-status?sessionId=${session.id}&publishId=${session.video_id}`,{headers:{Authorization:'Bearer test',folder_id:'2',user_id:'uid-1'}}),env);
     assert.equal(status.status,404);
@@ -253,5 +253,19 @@ test('www initiation cookie is shared with registered apex callback and duplicat
     assert.equal((await tikTokPublishingAccount(db,'1','uid-1')).access_token,'token-alice');
     assert.equal((await tikTokPublishingAccount(db,'2','uid-1')).access_token,'token-bob');
     assert.equal(sqlite.prepare('SELECT count(*) n FROM accounts').get().n,2);
+  } finally {globalThis.fetch=original;sqlite.close();}
+});
+
+test('account loading explains authentication, unverified email and ownership failures without disclosing tokens', async () => {
+  const {db,sqlite}=database();
+  const env={DB:db,BASE_URL:'https://example.test'};
+  const original=globalThis.fetch;
+  globalThis.fetch=async()=>Response.json({users:[{localId:'uid-1',email:'one@example.com',emailVerified:false}]});
+  try {
+    const fetchAccounts=(scope,auth=true)=>worker.fetch(new Request(`https://example.test/api/get-accounts?folder_id=1&user_id=${encodeURIComponent(scope)}`,{headers:auth?{Authorization:'Bearer test'}:{}}),env);
+    const expired=await fetchAccounts('uid-1',false);assert.equal(expired.status,401);assert.equal((await expired.json()).code,'SIGN_IN_REQUIRED');
+    const email=await fetchAccounts('one@example.com');assert.equal(email.status,403);assert.equal((await email.json()).code,'EMAIL_VERIFICATION_REQUIRED');
+    const other=await fetchAccounts('someone-else');assert.equal(other.status,403);assert.equal((await other.json()).code,'IDENTITY_MISMATCH');
+    const ownUid=await fetchAccounts('uid-1');assert.equal(ownUid.status,200);assert.deepEqual(await ownUid.json(),[]);
   } finally {globalThis.fetch=original;sqlite.close();}
 });
