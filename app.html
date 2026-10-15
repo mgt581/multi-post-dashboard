@@ -135,6 +135,16 @@
   </style>
 </head>
 <body>
+  <dialog id="createBrandDialog" aria-labelledby="createBrandTitle" style="max-width:440px;width:calc(100% - 32px);background:#0b1829;color:#e2e8f0;border:1px solid #334155;border-radius:16px;padding:24px;">
+    <form onsubmit="submitNewFolder(event)">
+      <h2 id="createBrandTitle">Create New Brand</h2>
+      <label for="brandName">Brand or client name</label>
+      <input id="brandName" name="brandName" required maxlength="120" autocomplete="off" style="display:block;width:100%;box-sizing:border-box;margin:12px 0;padding:12px;border:1px solid #64748b;border-radius:8px;font:inherit;" autofocus>
+      <p id="createBrandError" role="alert" style="color:#fda4af;"></p>
+      <button id="saveBrandButton" type="submit" class="btn">Create Brand</button>
+      <button id="cancelBrandButton" type="button" class="btn" style="margin-top:12px;background:#334155;" onclick="document.getElementById('createBrandDialog').close()">Cancel</button>
+    </form>
+  </dialog>
   <div class="page">
     <header>
       <div class="greeting">
@@ -359,29 +369,47 @@
       }
     }
 
-    async function createNewFolder() {
-      if (!userScope) return alert("You must be logged in to create a brand.");
-      const name = prompt("Enter Brand or Client Name:");
-      if (!name || !name.trim()) return;
+    function createNewFolder() {
+      const dialog = document.getElementById("createBrandDialog");
+      document.getElementById("brandName").value = "";
+      document.getElementById("createBrandError").textContent = "";
+      dialog.showModal();
+    }
 
+    async function submitNewFolder(event) {
+      event.preventDefault();
+      const button = document.getElementById("saveBrandButton");
+      const cancel = document.getElementById("cancelBrandButton");
+      const error = document.getElementById("createBrandError");
+      if (button.disabled) return;
+      const name = document.getElementById("brandName").value.trim();
+      error.textContent = "";
+      if (!name) { error.textContent = "Enter a brand or client name."; return; }
+      if (!userScope) { error.textContent = "Sign in again before creating a brand."; return; }
+      button.disabled = true;
+      cancel.disabled = true;
+      button.textContent = "Creating…";
       try {
         const res = await fetch(`${apiBase}/add-folder`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: name.trim(), user_id: userScope })
+          body: JSON.stringify({ name, user_id: userScope })
         });
-
         const data = await res.json();
-        if (!res.ok || data.success === false) {
-           throw new Error(data.error || "Server rejected request");
-        }
-
-        loadFolders();
+        if (!res.ok || data.success === false) throw new Error(data.error || "Could not create this brand. Please try again.");
+        document.getElementById("createBrandDialog").close();
+        await loadFolders();
       } catch (err) {
-        console.error("Create Error:", err);
-        alert("Error creating brand: " + err.message);
+        error.textContent = err.message || "Could not create this brand. Please try again.";
+      } finally {
+        button.disabled = false;
+        cancel.disabled = false;
+        button.textContent = "Create Brand";
       }
     }
+    document.getElementById("createBrandDialog").addEventListener("cancel", event => {
+      if (document.getElementById("saveBrandButton").disabled) event.preventDefault();
+    });
 
     function openFolder(id, name) {
       localStorage.setItem(scopedKey("activeFolderId"), id);
