@@ -39,29 +39,28 @@ test('link nonce follows www to the registered apex callback, while isolated hos
     assert.doesNotMatch(tikTokLinkCookie('nonce',600,`https://${host}/`),/Domain=/);
   }
 });
-test('different-account path cannot authorize until switching is acknowledged; reopening resets confirmation', async () => {
+test('TikTok connect starts immediately and shows a useful error instead of blocking behind a switch dialog', async () => {
   const html = readFileSync(new URL('../folder.html',import.meta.url),'utf8');
   const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
-  const elements = Object.fromEntries(['tiktokContinue','tiktokSwitchSteps','tiktokSwitched','tiktokConnectError','tiktokCurrentAccount','tiktokSwitchDialog'].map(id=>[id,{disabled:false,checked:false,showModal(){this.open=true;}}]));
-  const radio = {value:'switch',checked:true};
-  const document = {getElementById:id=>elements[id],querySelector:()=>radio};
-  let calls=0;
-  const context = vm.createContext({document,window:{location:{hostname:'multipostapp.co.uk',search:'?id=B'}},URLSearchParams,localStorage:{getItem:()=>null},fetch:async()=>{calls++;throw new Error('network failed');}});
+  const elements = { tiktokLinkStatus: { hidden: true, textContent: '' } };
+  const document = {getElementById:id=>elements[id]};
+  let requestOptions;
+  let redirectedTo;
+  const location = {hostname:'multipostapp.co.uk',search:'?id=B',assign:url=>redirectedTo=url};
+  const context = vm.createContext({document,window:{location},URLSearchParams,localStorage:{getItem:()=>null},fetch:async(_url, options)=>{
+    requestOptions=options;
+    return {ok:true,json:async()=>({url:'https://www.tiktok.com/v2/auth/authorize/'})};
+  }});
   vm.runInContext(script,context);
   vm.runInContext('userScope="owner"',context);
   await vm.runInContext('addAccount("tiktok")',context);
-  assert.equal(elements.tiktokContinue.disabled,true);
-  await vm.runInContext('continueTikTokConnection()',context);
-  assert.equal(calls,0);
-  elements.tiktokSwitched.checked=true;
-  await vm.runInContext('continueTikTokConnection()',context);
-  assert.equal(calls,1);
-  assert.equal(elements.tiktokConnectError.textContent,'network failed');
+  assert.equal(requestOptions.method,'POST');
+  assert.match(requestOptions.body,/"folder_id":"B"/);
+  assert.equal(redirectedTo,'https://www.tiktok.com/v2/auth/authorize/');
+
+  context.fetch = async()=>{ throw new Error('network failed'); };
   await vm.runInContext('addAccount("tiktok")',context);
-  assert.equal(elements.tiktokSwitched.checked,false);
-  assert.equal(elements.tiktokContinue.disabled,true);
-  radio.value='current';
-  vm.runInContext('updateTikTokSwitch()',context);
-  assert.equal(elements.tiktokContinue.disabled,false);
-  assert.equal(elements.tiktokSwitchSteps.hidden,true);
+  assert.equal(elements.tiktokLinkStatus.hidden,false);
+  assert.equal(elements.tiktokLinkStatus.textContent,'network failed');
+  assert.doesNotMatch(html,/tiktokSwitchDialog/);
 });
