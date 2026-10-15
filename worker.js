@@ -1,4 +1,4 @@
-import { beginTikTokLink, consumeTikTokLink, saveTikTokConnection, tikTokPublishingAccount, disconnectTikTok, matchesIdentity, ownedFolder } from "./tiktok-connections.mjs";
+import { beginTikTokLink, consumeTikTokLink, saveTikTokConnection, tikTokPublishingAccount, disconnectTikTok, tikTokLinkCookie, matchesIdentity, ownedFolder } from "./tiktok-connections.mjs";
 import { evaluateFacebookVideoReadiness } from "./facebook-video-readiness.mjs";
 import { FACEBOOK_PAGE_LINK_SCOPE } from "./facebook-oauth.mjs";
 import { generateSeo, normalizeSeoInput } from "./services/seoEngine.mjs";
@@ -1389,7 +1389,7 @@ Follow for daily trending content! \u{1F44F}
         const link = await beginTikTokLink(env.DB, { folderId, userId, identity, authBase: tiktokAuthBaseUrl,
           clientKey: getTikTokPublishClientKey(), redirectUri: tiktokLoginRedirectUri });
         return new Response(JSON.stringify({ url: link.url }), { headers: { ...jsonHeaders,
-          "Cache-Control": "no-store", "Set-Cookie": authCookie("mp_tiktok_link_nonce", link.browserNonce, 600) } });
+          "Cache-Control": "no-store", "Set-Cookie": tikTokLinkCookie(link.browserNonce, 600, request.url) } });
       }
       if (url.pathname === "/api/auth/facebook") {
         const legacyState = url.searchParams.get("state");
@@ -1556,7 +1556,7 @@ Follow for daily trending content! \u{1F44F}
         const userId = link.user_id;
         const linkError = (message) => new Response(null, { status: 302, headers: {
           Location: `${frontendBaseUrl}/folder.html?id=${encodeURIComponent(folderId)}&tiktok_error=${encodeURIComponent(message)}`,
-          "Set-Cookie": clearAuthCookie("mp_tiktok_link_nonce"), "Cache-Control": "no-store"
+          "Set-Cookie": tikTokLinkCookie("", 0, request.url), "Cache-Control": "no-store"
         } });
         if (!code || url.searchParams.get("error")) return linkError("TikTok authorization cancelled. Your existing connection is unchanged.");
         try {
@@ -1610,7 +1610,7 @@ Follow for daily trending content! \u{1F44F}
           });
           return new Response(null, { status: 302, headers: {
             Location: `${frontendBaseUrl}/folder.html?id=${encodeURIComponent(folderId)}&tiktok_connected=1`,
-            "Set-Cookie": clearAuthCookie("mp_tiktok_link_nonce"), "Cache-Control": "no-store"
+            "Set-Cookie": tikTokLinkCookie("", 0, request.url), "Cache-Control": "no-store"
           } });
         } catch (_) {
           return linkError("TikTok connection failed. Please try again. Your existing connection is unchanged.");

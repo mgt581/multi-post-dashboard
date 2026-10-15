@@ -1,4 +1,4 @@
-const SW_VERSION = "2026-08-08-oauth-single-shot-nostore";
+const SW_VERSION = "2026-10-15-oauth-same-origin";
 const DIRECT_API_ORIGIN = "https://multipost-seo-worker.alexbryant.workers.dev";
 
 self.addEventListener("install", () => self.skipWaiting());
@@ -35,22 +35,10 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // OAuth entry points and callbacks are one-shot navigations. Send them
-  // directly to the Cloudflare Worker and explicitly prevent caching/replay.
-  // This is critical for TikTok because authorization codes can be exchanged
-  // only once and expire quickly.
-  if (url.pathname.startsWith("/api/auth/")) {
-    event.respondWith(new Response(null, {
-      status: 302,
-      headers: {
-        "Location": directWorkerUrl(url),
-        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-        "Pragma": "no-cache",
-        "Expires": "0"
-      }
-    }));
-    return;
-  }
+  // OAuth state cookies belong to this origin. Never redirect/proxy these
+  // requests: a 302 converts POST to GET and cross-host routing loses cookies.
+  // Let the browser perform the original request, including Set-Cookie handling.
+  if (url.pathname.startsWith("/api/auth/")) return;
 
   // Other API requests prefer the custom-domain route, but automatically fall
   // back to the direct Worker if that route is temporarily unavailable.

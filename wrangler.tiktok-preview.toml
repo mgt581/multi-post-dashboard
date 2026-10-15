@@ -1,4 +1,4 @@
-name = "multipost-tiktok-folder-preview"
+name = "multipost-tiktok-browser-preview"
 main = "tiktok-preview-worker.mjs"
 compatibility_date = "2026-10-13"
 workers_dev = true
