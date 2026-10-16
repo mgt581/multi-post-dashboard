@@ -986,6 +986,15 @@ Follow for daily trending content! \u{1F44F}
         if (!id || !name || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing id, name or user_id" }), { status: 400, headers: jsonHeaders });
         }
+        const renameIdentity = await getFirebaseIdentity(request);
+        const requestedOwnerIsConfigured = ownerUserIds.has(normalizeUserId(userId)) || ownerEmails.has(normalizeUserId(userId));
+        const authenticatedOwnerIsConfigured = renameIdentity && (
+          ownerUserIds.has(normalizeUserId(renameIdentity.userId)) || ownerEmails.has(normalizeUserId(renameIdentity.email))
+        );
+        const mayRenameWorkspace = Boolean(renameIdentity) && (
+          matchesIdentity(userId, renameIdentity) || (requestedOwnerIsConfigured && authenticatedOwnerIsConfigured)
+        );
+        if (!mayRenameWorkspace || !await ownedFolder(env.DB, id, userId)) return new Response(JSON.stringify({ success: false, error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
         await env.DB.prepare(
           "UPDATE folders SET name = ? WHERE id = ? AND user_id = ?"
         ).bind(name, id, userId).run();

@@ -189,6 +189,7 @@
 
     let userScope = null;
     let authUser = null;
+    let nameDialogAction = null;
     const scopedKey = name => `${name}:${userScope}`;
 
     function normalizeEmail(value) {
@@ -339,15 +340,7 @@
         container.querySelectorAll('.rename-btn').forEach(btn => {
           btn.addEventListener('click', async (e) => {
             e.stopPropagation();
-            const id = btn.dataset.id;
-            const newName = prompt("Rename Brand:", btn.dataset.name);
-            if (!newName?.trim()) return;
-            await fetch(`${apiBase}/rename-folder`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id, name: newName.trim(), user_id: btn.dataset.owner || userScope })
-            });
-            loadFolders();
+            openRenameFolder(btn.dataset.id, btn.dataset.owner || userScope, btn.dataset.name);
           });
         });
 
@@ -375,8 +368,21 @@
     }
 
     function createNewFolder() {
+      nameDialogAction = null;
       const dialog = document.getElementById("createBrandDialog");
+      document.getElementById("createBrandTitle").textContent = "Create New Brand";
+      document.getElementById("saveBrandButton").textContent = "Create Brand";
       document.getElementById("brandName").value = "";
+      document.getElementById("createBrandError").textContent = "";
+      dialog.showModal();
+    }
+
+    function openRenameFolder(id, owner, name) {
+      nameDialogAction = { id, owner };
+      const dialog = document.getElementById("createBrandDialog");
+      document.getElementById("createBrandTitle").textContent = "Rename Brand";
+      document.getElementById("saveBrandButton").textContent = "Save Name";
+      document.getElementById("brandName").value = name || "";
       document.getElementById("createBrandError").textContent = "";
       dialog.showModal();
     }
@@ -393,23 +399,28 @@
       if (!userScope) { error.textContent = "Sign in again before creating a brand."; return; }
       button.disabled = true;
       cancel.disabled = true;
-      button.textContent = "Creating…";
+      button.textContent = nameDialogAction ? "Saving…" : "Creating…";
       try {
-        const res = await fetch(`${apiBase}/add-folder`, {
+        const endpoint = nameDialogAction ? "/rename-folder" : "/add-folder";
+        const payload = nameDialogAction
+          ? { id: nameDialogAction.id, name, user_id: nameDialogAction.owner }
+          : { name, user_id: userScope };
+        const res = await fetch(`${apiBase}${endpoint}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, user_id: userScope })
+          headers: { "Content-Type": "application/json", ...(nameDialogAction ? { Authorization: `Bearer ${await authUser.getIdToken()}` } : {}) },
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
-        if (!res.ok || data.success === false) throw new Error(data.error || "Could not create this brand. Please try again.");
+        if (!res.ok || data.success === false) throw new Error(data.error || "Could not save this brand name. Please try again.");
         document.getElementById("createBrandDialog").close();
+        nameDialogAction = null;
         await loadFolders();
       } catch (err) {
-        error.textContent = err.message || "Could not create this brand. Please try again.";
+        error.textContent = err.message || "Could not save this brand name. Please try again.";
       } finally {
         button.disabled = false;
         cancel.disabled = false;
-        button.textContent = "Create Brand";
+        button.textContent = nameDialogAction ? "Save Name" : "Create Brand";
       }
     }
     document.getElementById("createBrandDialog").addEventListener("cancel", event => {
