@@ -1017,7 +1017,15 @@ Follow for daily trending content! \u{1F44F}
           }
           return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
         }
-        if (!matchesIdentity(userId, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, id, userId)) return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        const deleteIdentity = await getFirebaseIdentity(request);
+        const requestedOwnerIsConfigured = ownerUserIds.has(normalizeUserId(userId)) || ownerEmails.has(normalizeUserId(userId));
+        const authenticatedOwnerIsConfigured = deleteIdentity && (
+          ownerUserIds.has(normalizeUserId(deleteIdentity.userId)) || ownerEmails.has(normalizeUserId(deleteIdentity.email))
+        );
+        const mayDeleteWorkspace = Boolean(deleteIdentity) && (
+          matchesIdentity(userId, deleteIdentity) || (requestedOwnerIsConfigured && authenticatedOwnerIsConfigured)
+        );
+        if (!mayDeleteWorkspace || !await ownedFolder(env.DB, id, userId)) return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
         await env.DB.batch([
           env.DB.prepare("DELETE FROM tokens WHERE folder_id = ? AND platform = 'tiktok'").bind(id),
           env.DB.prepare("DELETE FROM upload_sessions WHERE folder_id = ? AND user_id = ? AND platform = 'tiktok'").bind(String(id), userId),
