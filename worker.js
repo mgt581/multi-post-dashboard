@@ -1815,14 +1815,12 @@ Follow for daily trending content! \u{1F44F}
           // time. Reuse only this Multi Post user's existing connections for
           // the same Facebook profile, so an older full Page grant remains
           // available without mixing in another Facebook account.
-          const userAliases = getStaticUserAliases(userId);
           const sameProfileRows = fbAccount.facebook_user_id ? await env.DB.prepare(
             `SELECT COALESCE(facebook_user_access_token, access_token) AS facebook_user_access_token
              FROM accounts
-             WHERE user_id IN (${sqlPlaceholders(userAliases)})
-               AND platform = 'facebook' AND facebook_user_id = ?
+             WHERE platform = 'facebook' AND facebook_user_id = ?
              ORDER BY id DESC LIMIT 20`
-          ).bind(...userAliases, String(fbAccount.facebook_user_id)).all() : { results: [] };
+          ).bind(String(fbAccount.facebook_user_id)).all() : { results: [] };
           const userTokens = [...new Set([
             String(fbAccount.facebook_user_access_token),
             ...(sameProfileRows.results || []).map((row) => String(row.facebook_user_access_token || ""))
