@@ -60,7 +60,7 @@ test("Facebook page picker requests every Graph page and removes duplicates", as
   }
 });
 
-test("Facebook page picker recovers Pages from an earlier owner connection for the same Facebook profile", async () => {
+test("Facebook page picker recovers Pages from an earlier workspace connection for the same Facebook profile", async () => {
   const { db, sqlite } = database();
   sqlite.exec("INSERT INTO folders (id,user_id,name) VALUES (2,'legacy@example.com','Older workspace'); INSERT INTO accounts (folder_id,user_id,platform,facebook_user_id,facebook_user_access_token) VALUES (2,'legacy@example.com','facebook','fb-user-1','older-token');");
   const originalFetch = globalThis.fetch;
@@ -72,9 +72,7 @@ test("Facebook page picker recovers Pages from an earlier owner connection for t
     throw new Error(`Unexpected request ${href}`);
   };
   try {
-    const response = await worker.fetch(new Request("https://example.test/api/facebook/pages?folder_id=1&user_id=uid-1", { headers: { Authorization: "Bearer test" } }), {
-      DB: db, FB_APP_SECRET: "test", BILLING_OWNER_USER_IDS: "uid-1", BILLING_OWNER_EMAILS: "legacy@example.com"
-    });
+    const response = await worker.fetch(new Request("https://example.test/api/facebook/pages?folder_id=1&user_id=uid-1", { headers: { Authorization: "Bearer test" } }), { DB: db, FB_APP_SECRET: "test" });
     assert.equal(response.status, 200);
     assert.deepEqual((await response.json()).pages.map(page => page.name), ["Current Page", "Earlier Page"]);
   } finally {
