@@ -1,7 +1,6 @@
 export const FACEBOOK_PAGE_LINK_SCOPES = [
   "public_profile",
   "pages_show_list",
-  "pages_manage_metadata",
   "pages_read_engagement",
   "pages_manage_posts"
 ];
