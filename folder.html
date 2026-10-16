@@ -109,6 +109,7 @@
     .btn-link  { background: var(--accent); color: white; }
     .btn-pick  { background: rgba(245,158,11,0.15); color: var(--warn); border: 1px solid var(--warn); font-size: 12px; padding: 6px 12px; }
     .btn-change { background: rgba(14,165,233,0.12); color: var(--accent-2); border: 1px solid var(--accent-2); font-size: 12px; padding: 6px 12px; }
+    .btn-reconnect { background: rgba(14,165,233,0.12); color: var(--accent-2); border: 1px solid var(--accent-2); font-size: 12px; padding: 6px 12px; }
     .btn-remove { background: rgba(244, 63, 94, 0.1); color: var(--error); border: 1px solid var(--error); }
 
     .btn-create-post {
@@ -353,6 +354,7 @@
             </div>
             <div class="platform-actions">
               <button class="btn btn-change" onclick="openFbModal()">Change Page</button>
+              <button class="btn btn-reconnect" onclick="reconnectFacebook()">Reconnect Facebook</button>
               <button class="btn btn-remove" onclick="removeAccount(${fbPage.id})">Remove</button>
             </div>
           </div>`;
@@ -447,6 +449,12 @@
         return startTikTokConnection(fId);
       }
       window.location.href = `${apiBase}/auth/${platform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
+    }
+
+    function reconnectFacebook() {
+      const fId = getUrlParam("id") || getLS("activeFolderId");
+      if (!fId || !userScope) return alert("Session expired.");
+      window.location.href = `${apiBase}/auth/facebook?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}&refresh=1`;
     }
 
     async function startTikTokConnection(folderId) {
@@ -555,6 +563,7 @@
       catch (_) { document.getElementById("count").textContent = "Sign in again to load accounts."; }
     };
     window.addAccount    = addAccount;
+    window.reconnectFacebook = reconnectFacebook;
     window.removeAccount = removeAccount;
     window.openFbModal   = openFbModal;
     window.closeFbModal  = closeFbModal;
