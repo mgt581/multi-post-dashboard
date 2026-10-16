@@ -1788,6 +1788,13 @@ Follow for daily trending content! \u{1F44F}
             { status: 400, headers: jsonHeaders }
           );
         }
+        const identity = await getFirebaseIdentity(request);
+        if (!matchesIdentity(userId, identity) || !await ownedFolder(env.DB, folder_id, userId)) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Sign in again to view this workspace's Facebook Pages." }),
+            { status: 403, headers: jsonHeaders }
+          );
+        }
         const fbAccount = await env.DB.prepare(
           "SELECT COALESCE(facebook_user_access_token, access_token) AS facebook_user_access_token FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook' LIMIT 1"
         ).bind(folder_id, userId).first();
@@ -1800,14 +1807,37 @@ Follow for daily trending content! \u{1F44F}
         try {
           const userToken = String(fbAccount.facebook_user_access_token);
           const pagesProof = await appsecretProof(userToken);
-          const fbUrl = `${fbGraph}/me/accounts?fields=id,name,access_token,picture&access_token=${encodeURIComponent(userToken)}${pagesProof ? `&appsecret_proof=${encodeURIComponent(pagesProof)}` : ""}`;
-          const out = await fetchFbJson(fbUrl);
-          const pages = Array.isArray(out?.data) ? out.data.map((p) => ({
-            id: String(p.id || ""),
-            name: String(p.name || ""),
-            access_token: String(p.access_token || ""),
-            picture: p.picture?.data?.url || `https://graph.facebook.com/${p.id}/picture?type=square`
-          })) : [];
+          const firstPageUrl = new URL(`${fbGraph}/me/accounts`);
+          firstPageUrl.search = new URLSearchParams({
+            fields: "id,name,access_token,picture",
+            limit: "100",
+            access_token: userToken,
+            ...(pagesProof ? { appsecret_proof: pagesProof } : {})
+          }).toString();
+          const pagesById = new Map();
+          let nextPageUrl = firstPageUrl.href;
+          const graphOrigin = new URL(fbGraph).origin;
+          for (let pageRequest = 0; nextPageUrl && pageRequest < 10; pageRequest += 1) {
+            const out = await fetchFbJson(nextPageUrl);
+            for (const page of Array.isArray(out?.data) ? out.data : []) {
+              const id = String(page.id || "");
+              if (!id || pagesById.has(id)) continue;
+              pagesById.set(id, {
+                id,
+                name: String(page.name || ""),
+                access_token: String(page.access_token || ""),
+                picture: page.picture?.data?.url || `https://graph.facebook.com/${id}/picture?type=square`
+              });
+            }
+            const pagingUrl = String(out?.paging?.next || "");
+            if (!pagingUrl) break;
+            const parsedPagingUrl = new URL(pagingUrl);
+            if (parsedPagingUrl.origin !== graphOrigin) break;
+            parsedPagingUrl.searchParams.set("access_token", userToken);
+            if (pagesProof) parsedPagingUrl.searchParams.set("appsecret_proof", pagesProof);
+            nextPageUrl = parsedPagingUrl.href;
+          }
+          const pages = [...pagesById.values()];
           return new Response(
             JSON.stringify({ success: true, pages }),
             { headers: jsonHeaders }
@@ -1831,6 +1861,13 @@ Follow for daily trending content! \u{1F44F}
           return new Response(
             JSON.stringify({ success: false, error: "Missing required fields" }),
             { status: 400, headers: jsonHeaders }
+          );
+        }
+        const identity = await getFirebaseIdentity(request);
+        if (!matchesIdentity(userId, identity) || !await ownedFolder(env.DB, folder_id, userId)) {
+          return new Response(
+            JSON.stringify({ success: false, error: "Sign in again to choose a Facebook Page for this workspace." }),
+            { status: 403, headers: jsonHeaders }
           );
         }
         const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, body?.client_platform, null), request);
