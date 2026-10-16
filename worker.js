@@ -1841,6 +1841,47 @@ Follow for daily trending content! \u{1F44F}
             if (pagesProof) parsedPagingUrl.searchParams.set("appsecret_proof", pagesProof);
             nextPageUrl = parsedPagingUrl.href;
           }
+          // Meta can keep Pages inside a Business portfolio instead of returning them
+          // from /me/accounts. Include those assets when the person granted business
+          // access, but only expose pages with a publishable Page access token.
+          try {
+            const businessesUrl = new URL(`${fbGraph}/me/businesses`);
+            businessesUrl.search = new URLSearchParams({
+              fields: "id",
+              limit: "100",
+              access_token: userToken,
+              ...(pagesProof ? { appsecret_proof: pagesProof } : {})
+            }).toString();
+            const businesses = await fetchFbJson(businessesUrl.href);
+            for (const business of Array.isArray(businesses?.data) ? businesses.data : []) {
+              const businessId = String(business?.id || "");
+              if (!businessId) continue;
+              for (const edge of ["owned_pages", "client_pages"]) {
+                const assetsUrl = new URL(`${fbGraph}/${encodeURIComponent(businessId)}/${edge}`);
+                assetsUrl.search = new URLSearchParams({
+                  fields: "id,name,access_token,picture",
+                  limit: "100",
+                  access_token: userToken,
+                  ...(pagesProof ? { appsecret_proof: pagesProof } : {})
+                }).toString();
+                const assets = await fetchFbJson(assetsUrl.href);
+                for (const page of Array.isArray(assets?.data) ? assets.data : []) {
+                  const id = String(page.id || "");
+                  const accessToken = String(page.access_token || "");
+                  if (!id || !accessToken || pagesById.has(id)) continue;
+                  pagesById.set(id, {
+                    id,
+                    name: String(page.name || ""),
+                    access_token: accessToken,
+                    picture: page.picture?.data?.url || `https://graph.facebook.com/${id}/picture?type=square`
+                  });
+                }
+              }
+            }
+          } catch (_) {
+            // Business access is optional. The normal Page list remains usable when
+            // a Facebook account has no Business portfolio or has not granted it.
+          }
           const pages = [...pagesById.values()];
           return new Response(
             JSON.stringify({ success: true, pages }),

@@ -73,3 +73,27 @@ test("Facebook page picker requires the signed-in workspace owner", async () => 
     sqlite.close();
   }
 });
+
+
+test("Facebook page picker adds publishable Pages from linked Business portfolios", async () => {
+  const { db, sqlite } = database();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const href = String(url);
+    if (href.includes("identitytoolkit")) return Response.json({ users: [{ localId: "uid-1", email: "one@example.com", emailVerified: true }] });
+    if (href.includes("/me/accounts")) return Response.json({ data: [{ id: "1", name: "Direct Page", access_token: "page-1" }] });
+    if (href.includes("/me/businesses")) return Response.json({ data: [{ id: "business-1" }] });
+    if (href.includes("/business-1/owned_pages")) return Response.json({ data: [{ id: "2", name: "Portfolio Page", access_token: "page-2" }] });
+    if (href.includes("/business-1/client_pages")) return Response.json({ data: [{ id: "3", name: "Client Page", access_token: "page-3" }, { id: "4", name: "No Publish Token" }] });
+    throw new Error(`Unexpected request ${href}`);
+  };
+  try {
+    const response = await worker.fetch(new Request("https://example.test/api/facebook/pages?folder_id=1&user_id=uid-1", { headers: { Authorization: "Bearer test" } }), { DB: db, FB_APP_SECRET: "test" });
+    assert.equal(response.status, 200);
+    const body = await response.json();
+    assert.deepEqual(body.pages.map(page => page.name), ["Direct Page", "Portfolio Page", "Client Page"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    sqlite.close();
+  }
+});

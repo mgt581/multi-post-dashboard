@@ -12,11 +12,12 @@ test("Facebook linking requests only supported page-link permissions", () => {
     "public_profile",
     "pages_show_list",
     "pages_read_engagement",
-    "pages_manage_posts"
+    "pages_manage_posts",
+    "business_management"
   ]);
   assert.equal(
     FACEBOOK_PAGE_LINK_SCOPE,
-    "public_profile,pages_show_list,pages_read_engagement,pages_manage_posts"
+    "public_profile,pages_show_list,pages_read_engagement,pages_manage_posts,business_management"
   );
 });
 
