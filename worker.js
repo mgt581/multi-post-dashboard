@@ -1430,6 +1430,10 @@ Follow for daily trending content! \u{1F44F}
           response_type: "code",
           state
         });
+        // Ask Facebook to re-check the granted Page permissions when the user
+        // explicitly refreshes a connection. The provider still controls which
+        // Facebook profile is signed in and which Pages it returns.
+        if (url.searchParams.get("refresh") === "1") fbAuthParams.set("auth_type", "rerequest");
         const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?${fbAuthParams.toString()}`;
         return Response.redirect(fbAuthUrl);
       }
