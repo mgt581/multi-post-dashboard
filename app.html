@@ -310,17 +310,17 @@
             ? `<i class="fa-brands fa-youtube" style="color:#ef4444;margin-right:4px;"></i>${f.youtube_channel}`
             : 'Manage assets &amp; accounts';
           return `
-          <div class="card folder-card" data-folder-id="${f.id}" data-folder-name="${f.name}">
+          <div class="card folder-card" data-folder-id="${f.id}" data-folder-name="${f.name}" data-folder-owner="${f.user_id}">
             ${iconBox}
             <div class="card-content">
               <span class="card-title">${f.name}</span>
               <span class="card-sub">${subText}</span>
             </div>
             <div class="folder-actions">
-              <button class="action-btn rename-btn" data-id="${f.id}" data-name="${f.name}">
+              <button class="action-btn rename-btn" data-id="${f.id}" data-name="${f.name}" data-owner="${f.user_id}">
                 <i class="fa-solid fa-pen"></i>
               </button>
-              <button class="action-btn delete delete-btn" data-id="${f.id}">
+              <button class="action-btn delete delete-btn" data-id="${f.id}" data-owner="${f.user_id}">
                 <i class="fa-solid fa-trash"></i>
               </button>
             </div>
@@ -345,7 +345,7 @@
             await fetch(`${apiBase}/rename-folder`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id, name: newName.trim(), user_id: userScope })
+              body: JSON.stringify({ id, name: newName.trim(), user_id: btn.dataset.owner || userScope })
             });
             loadFolders();
           });
@@ -355,12 +355,17 @@
           btn.addEventListener('click', async (e) => {
             e.stopPropagation();
             if (!confirm("Delete this brand?")) return;
-            await fetch(`${apiBase}/delete-folder`, {
+            try {
+              const response = await fetch(`${apiBase}/delete-folder`, {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${await authUser.getIdToken()}` },
-              body: JSON.stringify({ id: btn.dataset.id, user_id: userScope })
-            });
-            loadFolders();
+              body: JSON.stringify({ id: btn.dataset.id, user_id: btn.dataset.owner || userScope })
+              });
+              if (!response.ok) throw new Error((await response.json()).error || "Could not delete this brand.");
+              loadFolders();
+          } catch (error) {
+            alert(error.message || "Could not delete this brand.");
+            }
           });
         });
 
