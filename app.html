@@ -463,8 +463,12 @@
     });
   </script>
   <script>
+    // The API is already routed through Cloudflare. Remove the retired proxy
+    // worker so it cannot turn a healthy API response into a browser error.
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+      navigator.serviceWorker.getRegistrations()
+        .then(registrations => Promise.all(registrations.map(registration => registration.unregister())))
+        .catch(() => {});
     }
   </script>
 </body>
