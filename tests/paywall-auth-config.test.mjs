@@ -3,17 +3,17 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const OWNER_EMAIL = "alexbryant3234@gmail.com";
+const OWNER_UID = "XvLFswTmQ7YalJNYTC3vT7Y9OsB3";
 const REMOVED_OWNER_ALIASES = [
   "alexbryantwork3234@outlook.com",
   "Y98MCpY2VTQujHVwvhufxYE6Azh1",
-  "L6GV2I8v1IZ8ZsSJVlof9K559A43",
-  "XvLFswTmQ7YalJNYTC3vT7Y9OsB3"
+  "L6GV2I8v1IZ8ZsSJVlof9K559A43"
 ];
 
-test("web billing is enabled and only the requested owner email is configured", async () => {
+test("web billing recognizes the requested owner email and its Firebase account", async () => {
   const config = await readFile(new URL("../wrangler.toml", import.meta.url), "utf8");
   assert.equal((config.match(/WEB_BILLING_ENABLED = "true"/g) || []).length, 2);
-  assert.equal((config.match(/BILLING_OWNER_USER_IDS = ""/g) || []).length, 2);
+  assert.equal((config.match(new RegExp(`BILLING_OWNER_USER_IDS = "${OWNER_UID}"`, "g")) || []).length, 2);
   assert.equal((config.match(new RegExp(`BILLING_OWNER_EMAILS = "${OWNER_EMAIL}"`, "g")) || []).length, 2);
   for (const alias of REMOVED_OWNER_ALIASES) assert.doesNotMatch(config, new RegExp(alias));
 });
