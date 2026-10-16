@@ -1800,7 +1800,7 @@ Follow for daily trending content! \u{1F44F}
           );
         }
         const fbAccount = await env.DB.prepare(
-          "SELECT COALESCE(facebook_user_access_token, access_token) AS facebook_user_access_token, facebook_user_id FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook' LIMIT 1"
+          "SELECT COALESCE(facebook_user_access_token, access_token) AS facebook_user_access_token FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook' LIMIT 1"
         ).bind(folder_id, userId).first();
         if (!fbAccount?.facebook_user_access_token) {
           return new Response(
@@ -1809,61 +1809,38 @@ Follow for daily trending content! \u{1F44F}
           );
         }
         try {
+          const userToken = String(fbAccount.facebook_user_access_token);
+          const pagesProof = await appsecretProof(userToken);
+          const firstPageUrl = new URL(`${fbGraph}/me/accounts`);
+          firstPageUrl.search = new URLSearchParams({
+            fields: "id,name,access_token,picture",
+            limit: "100",
+            access_token: userToken,
+            ...(pagesProof ? { appsecret_proof: pagesProof } : {})
+          }).toString();
           const pagesById = new Map();
+          let nextPageUrl = firstPageUrl.href;
           const graphOrigin = new URL(fbGraph).origin;
-          // A Facebook login can issue different still-valid user tokens over
-          // time. Reuse only this Multi Post user's existing connections for
-          // the same Facebook profile, so an older full Page grant remains
-          // available without mixing in another Facebook account.
-          const sameProfileRows = fbAccount.facebook_user_id ? await env.DB.prepare(
-            `SELECT COALESCE(facebook_user_access_token, access_token) AS facebook_user_access_token
-             FROM accounts
-             WHERE platform = 'facebook' AND facebook_user_id = ?
-             ORDER BY id DESC LIMIT 20`
-          ).bind(String(fbAccount.facebook_user_id)).all() : { results: [] };
-          const userTokens = [...new Set([
-            String(fbAccount.facebook_user_access_token),
-            ...(sameProfileRows.results || []).map((row) => String(row.facebook_user_access_token || ""))
-          ].filter(Boolean))];
-          let lastFetchError = null;
-          let successfulTokenCount = 0;
-          for (const userToken of userTokens) {
-            try {
-              const pagesProof = await appsecretProof(userToken);
-              const firstPageUrl = new URL(`${fbGraph}/me/accounts`);
-              firstPageUrl.search = new URLSearchParams({
-                fields: "id,name,access_token,picture",
-                limit: "100",
-                access_token: userToken,
-                ...(pagesProof ? { appsecret_proof: pagesProof } : {})
-              }).toString();
-              let nextPageUrl = firstPageUrl.href;
-              for (let pageRequest = 0; nextPageUrl && pageRequest < 10; pageRequest += 1) {
-                const out = await fetchFbJson(nextPageUrl);
-                for (const page of Array.isArray(out?.data) ? out.data : []) {
-                  const id = String(page.id || "");
-                  if (!id || pagesById.has(id)) continue;
-                  pagesById.set(id, {
-                    id,
-                    name: String(page.name || ""),
-                    access_token: String(page.access_token || ""),
-                    picture: page.picture?.data?.url || `https://graph.facebook.com/${id}/picture?type=square`
-                  });
-                }
-                const pagingUrl = String(out?.paging?.next || "");
-                if (!pagingUrl) break;
-                const parsedPagingUrl = new URL(pagingUrl);
-                if (parsedPagingUrl.origin !== graphOrigin) break;
-                parsedPagingUrl.searchParams.set("access_token", userToken);
-                if (pagesProof) parsedPagingUrl.searchParams.set("appsecret_proof", pagesProof);
-                nextPageUrl = parsedPagingUrl.href;
-              }
-              successfulTokenCount += 1;
-            } catch (error) {
-              lastFetchError = error;
+          for (let pageRequest = 0; nextPageUrl && pageRequest < 10; pageRequest += 1) {
+            const out = await fetchFbJson(nextPageUrl);
+            for (const page of Array.isArray(out?.data) ? out.data : []) {
+              const id = String(page.id || "");
+              if (!id || pagesById.has(id)) continue;
+              pagesById.set(id, {
+                id,
+                name: String(page.name || ""),
+                access_token: String(page.access_token || ""),
+                picture: page.picture?.data?.url || `https://graph.facebook.com/${id}/picture?type=square`
+              });
             }
+            const pagingUrl = String(out?.paging?.next || "");
+            if (!pagingUrl) break;
+            const parsedPagingUrl = new URL(pagingUrl);
+            if (parsedPagingUrl.origin !== graphOrigin) break;
+            parsedPagingUrl.searchParams.set("access_token", userToken);
+            if (pagesProof) parsedPagingUrl.searchParams.set("appsecret_proof", pagesProof);
+            nextPageUrl = parsedPagingUrl.href;
           }
-          if (successfulTokenCount === 0 && lastFetchError) throw lastFetchError;
           const pages = [...pagesById.values()];
           return new Response(
             JSON.stringify({ success: true, pages }),
