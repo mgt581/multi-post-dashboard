@@ -5,7 +5,7 @@ import vm from 'node:vm';
 const html=readFileSync(new URL('../app.html',import.meta.url),'utf8');
 function setup(fetch) {
   const listeners={};
-  const elements=Object.fromEntries(['createBrandDialog','brandName','createBrandError','saveBrandButton','cancelBrandButton'].map(id=>[id,{value:'',disabled:false,textContent:'',open:false,showModal(){this.open=true;},close(){this.open=false;},addEventListener(name,fn){listeners[name]=fn;}}]));
+  const elements=Object.fromEntries(['createBrandDialog','createBrandTitle','brandName','createBrandError','saveBrandButton','cancelBrandButton'].map(id=>[id,{value:'',disabled:false,textContent:'',open:false,showModal(){this.open=true;},close(){this.open=false;},addEventListener(name,fn){listeners[name]=fn;}}]));
   const context=vm.createContext({document:{getElementById:id=>elements[id]},window:{location:{hostname:'multipostapp.co.uk'}},fetch,prompt(){throw new Error('prompt() is not supported.');}});
   vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],context);
   vm.runInContext('userScope="owner"; let reloadCount=0; loadFolders=async()=>{reloadCount++}',context);
@@ -36,4 +36,11 @@ test('server errors stay visible and preserve the entered name for correction',a
   const f=setup(async()=>({ok:false,json:async()=>({success:false,error:'Service unavailable'})}));
   f.run('createNewFolder()');f.elements.brandName.value='My brand';await f.run(submit);
   assert.equal(f.elements.createBrandDialog.open,true);assert.equal(f.elements.brandName.value,'My brand');assert.equal(f.elements.createBrandError.textContent,'Service unavailable');assert.equal(f.elements.saveBrandButton.disabled,false);assert.equal(f.run('reloadCount'),0);
+});
+test('rename uses the same on-page name form and the workspace owner identity',async()=>{
+  let url,body,authorization;const f=setup(async(requestUrl,init)=>{url=requestUrl;body=JSON.parse(init.body);authorization=init.headers.Authorization;return {ok:true,json:async()=>({success:true})};});
+  f.run('authUser={getIdToken:async()=>"rename-token"}; openRenameFolder("42","legacy-owner@example.com","Old name")');
+  assert.equal(f.elements.createBrandDialog.open,true);assert.equal(f.elements.createBrandTitle.textContent,'Rename Brand');assert.equal(f.elements.brandName.value,'Old name');
+  f.elements.brandName.value='New name';await f.run(submit);
+  assert.equal(url,'/api/rename-folder');assert.deepEqual(body,{id:'42',name:'New name',user_id:'legacy-owner@example.com'});assert.equal(authorization,'Bearer rename-token');
 });

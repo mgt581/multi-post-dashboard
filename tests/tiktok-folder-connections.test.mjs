@@ -203,7 +203,11 @@ test('disconnect and folder deletion endpoints clear TikTok tokens, sessions and
     assert.equal(sqlite.prepare('SELECT count(*) n FROM tokens').get().n,0);
 
     sqlite.exec("INSERT INTO folders (id,user_id,name) VALUES (4,'legacy-owner@example.com','Legacy');");
-    const legacyDeletion=await worker.fetch(new Request('https://example.test/api/delete-folder',{method:'POST',headers:{Authorization:'Bearer test','Content-Type':'application/json'},body:JSON.stringify({id:4,user_id:'legacy-owner@example.com'})}),{...env,BILLING_OWNER_USER_IDS:'uid-1',BILLING_OWNER_EMAILS:'legacy-owner@example.com'});
+    const ownerEnv={...env,BILLING_OWNER_USER_IDS:'uid-1',BILLING_OWNER_EMAILS:'legacy-owner@example.com'};
+    const legacyRename=await worker.fetch(new Request('https://example.test/api/rename-folder',{method:'POST',headers:{Authorization:'Bearer test','Content-Type':'application/json'},body:JSON.stringify({id:4,name:'Renamed',user_id:'legacy-owner@example.com'})}),ownerEnv);
+    assert.equal(legacyRename.status,200);
+    assert.equal(sqlite.prepare('SELECT name FROM folders WHERE id=4').get().name,'Renamed');
+    const legacyDeletion=await worker.fetch(new Request('https://example.test/api/delete-folder',{method:'POST',headers:{Authorization:'Bearer test','Content-Type':'application/json'},body:JSON.stringify({id:4,user_id:'legacy-owner@example.com'})}),ownerEnv);
     assert.equal(legacyDeletion.status,200);
     assert.equal(sqlite.prepare('SELECT count(*) n FROM folders WHERE id=4').get().n,0);
   }finally{globalThis.fetch=original;sqlite.close();}
