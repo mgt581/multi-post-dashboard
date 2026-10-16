@@ -496,7 +496,7 @@
         return;
       }
       try {
-        const res  = await fetch(`${apiBase}/facebook/pages?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`);
+        const res  = await fetch(`${apiBase}/facebook/pages?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`, { headers: await accountHeaders() });
         const data = await res.json();
         if (!data.success || !Array.isArray(data.pages) || data.pages.length === 0) {
           const msg = (!data.success && data.error) ? data.error : "No pages found on this account.";
@@ -531,7 +531,7 @@
       try {
         const res  = await fetch(`${apiBase}/facebook/select-page`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: await accountHeaders(),
           body: JSON.stringify({
             folder_id:          fId,
             user_id:            userScope,
