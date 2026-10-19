@@ -40,6 +40,7 @@ var worker_default = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization, folder_id, user_id, client_platform",
+      "Access-Control-Expose-Headers": "X-Workspace-Owner",
       "X-Worker-Version": WORKER_VERSION
     };
     const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
@@ -520,11 +521,21 @@ Follow for daily trending content! \u{1F44F}
         const payload = await safeJson(response);
         const user = payload?.users?.[0];
         if (!user?.localId) return null;
-        return {
+        const identity = {
           userId: String(user.localId).trim(),
           emailVerified: user.emailVerified === true,
           email: String(user.email || "").trim().toLowerCase()
         };
+        // A verified, explicitly configured owner may have separate Firebase
+        // UIDs for Google and email/password. Bridge only those configured
+        // aliases; never trust a caller-supplied email or browser storage.
+        const configuredUids = splitEnvList(env.BILLING_OWNER_USER_IDS || env.OWNER_USER_IDS);
+        const configuredEmails = splitEnvList(env.BILLING_OWNER_EMAILS || env.OWNER_EMAILS).map(normalizeUserId);
+        if (configuredUids.includes(identity.userId) ||
+            (identity.emailVerified && configuredEmails.includes(identity.email))) {
+          identity.workspaceOwnerIds = [...configuredUids, ...configuredEmails];
+        }
+        return identity;
       } catch (_) {
         return null;
       }
@@ -959,11 +970,14 @@ Follow for daily trending content! \u{1F44F}
     try {
       if (url.pathname === "/api/get-folders") {
         const userId = requireUser(url.searchParams.get("user_id"));
-        const userEmail = String(url.searchParams.get("user_email") || "").trim();
         if (!userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
         }
-        const userAliases = await getUserAliases(userId, userEmail);
+        const identity = await getFirebaseIdentity(request);
+        if (!identity) return new Response(JSON.stringify({ success: false, code: "SIGN_IN_REQUIRED", error: "Sign in again to load your workspaces." }), { status: 401, headers: jsonHeaders });
+        if (identity.email && !identity.emailVerified) return new Response(JSON.stringify({ success: false, code: "EMAIL_VERIFICATION_REQUIRED", error: "Verify your email address before opening workspaces." }), { status: 403, headers: jsonHeaders });
+        if (!matchesIdentity(userId, identity)) return new Response(JSON.stringify({ success: false, code: "IDENTITY_MISMATCH", error: "This workspace request does not match your current sign-in." }), { status: 403, headers: jsonHeaders });
+        const userAliases = [...new Set([identity.userId, ...(identity.emailVerified && identity.email ? [identity.email] : []), ...(identity.workspaceOwnerIds || [])])];
         const { results } = await env.DB.prepare(
           `SELECT f.*, (SELECT nickname FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_channel, (SELECT profile_picture FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_picture FROM folders f WHERE f.user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY f.created_at DESC`
         ).bind(...userAliases).all();
@@ -1067,8 +1081,11 @@ Follow for daily trending content! \u{1F44F}
             error: unverified ? "Verify your Multi Post email address before opening email-owned workspaces, then retry."
               : "This saved account identity does not match your current sign-in." }), { status: 403, headers: jsonHeaders });
         }
-        if (!await ownedFolder(env.DB, folder_id, userId)) return new Response(JSON.stringify({ code: "WORKSPACE_ACCESS_DENIED", error: "This workspace belongs to a different Multi Post account. Sign in with the Gmail account used to create it." }), { status: 403, headers: jsonHeaders });
-        const userAliases = [userId];
+        const allowedOwners = [...new Set([identity.userId, ...(identity.emailVerified && identity.email ? [identity.email] : []), ...(identity.workspaceOwnerIds || [])])];
+        const folder = await env.DB.prepare(`SELECT id, user_id FROM folders WHERE id = ? AND user_id IN (${sqlPlaceholders(allowedOwners)})`).bind(folder_id, ...allowedOwners).first();
+        if (!folder) return new Response(JSON.stringify({ code: "WORKSPACE_ACCESS_DENIED", error: "This workspace belongs to a different Multi Post account. Sign in with the account used to create it." }), { status: 403, headers: jsonHeaders });
+        const workspaceOwner = folder.user_id || userId;
+        const userAliases = [workspaceOwner];
         const { results } = await env.DB.prepare(
           `SELECT * FROM accounts WHERE folder_id = ? AND user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY id DESC`
         ).bind(folder_id, ...userAliases).all();
@@ -1076,7 +1093,7 @@ Follow for daily trending content! \u{1F44F}
           if (account.platform !== "tiktok") return account;
           const { access_token, refresh_token, ...publicAccount } = account;
           return publicAccount;
-        })), { headers: { ...jsonHeaders, "Cache-Control": "no-store" } });
+        })), { headers: { ...jsonHeaders, "Cache-Control": "no-store", "X-Workspace-Owner": workspaceOwner } });
       }
       if (url.pathname === "/api/billing/plans" && request.method === "GET") {
         const priceCatalog = getPriceCatalog();
