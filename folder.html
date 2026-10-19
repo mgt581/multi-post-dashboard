@@ -406,8 +406,8 @@
         const result = await response.json();
         if (response.ok) {
           if (!Array.isArray(result)) throw new Error("The workspace returned an invalid account list. Please retry.");
-          userScope = scope;
-          localStorage.setItem("currentUserKey", scope);
+          userScope = response.headers.get("X-Workspace-Owner") || scope;
+          localStorage.setItem("currentUserKey", userScope);
           return result;
         }
         const error = new Error(result.error || `Could not load accounts (HTTP ${response.status}).`);
