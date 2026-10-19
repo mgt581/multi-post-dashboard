@@ -1022,8 +1022,8 @@ Follow for daily trending content! \u{1F44F}
         }
         if (type === "account_only") {
           const acct = await env.DB.prepare(
-            "SELECT platform, folder_id FROM accounts WHERE id = ? AND user_id = ?"
-          ).bind(id, userId).first();
+            "SELECT id, platform, folder_id FROM accounts WHERE (id = ? OR facebook_page_id = ?) AND user_id = ?"
+          ).bind(id, id, userId).first();
           if (acct?.platform === "tiktok") {
             if (!matchesIdentity(userId, await getFirebaseIdentity(request))) return new Response(JSON.stringify({ error: "Sign in again" }), { status: 401, headers: jsonHeaders });
             await disconnectTikTok(env.DB, id, userId);
