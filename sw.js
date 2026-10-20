@@ -1,11 +1,15 @@
-const SW_VERSION = "2026-10-15-oauth-same-origin";
-const DIRECT_API_ORIGIN = "https://multipost-seo-worker.alexbryant.workers.dev";
+const SW_VERSION = "2026-10-20-preview-api-routing";
+const PRODUCTION_API_ORIGIN = "https://multipost-seo-worker.alexbryant.workers.dev";
+const PREVIEW_API_ORIGIN = "https://multipost-seo-worker-preview.alexbryant.workers.dev";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
 function directWorkerUrl(url) {
-  const target = new URL(DIRECT_API_ORIGIN);
+  const apiOrigin = self.location.hostname.endsWith(".pages.dev")
+    ? PREVIEW_API_ORIGIN
+    : PRODUCTION_API_ORIGIN;
+  const target = new URL(apiOrigin);
   target.pathname = url.pathname;
   target.search = url.search;
   return target.toString();
@@ -44,6 +48,16 @@ self.addEventListener("fetch", (event) => {
   // back to the direct Worker if that route is temporarily unavailable.
   if (url.pathname.startsWith("/api/")) {
     event.respondWith((async () => {
+      if (self.location.hostname.endsWith(".pages.dev")) {
+        try {
+          return await fetchDirectWorker(event.request, url);
+        } catch (_) {
+          return new Response(
+            JSON.stringify({ error: "The preview API is temporarily unavailable. Please retry." }),
+            { status: 503, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } }
+          );
+        }
+      }
       try {
         const primary = await fetch(event.request.clone(), { cache: "no-store" });
         if (primary.status < 500) return primary;
