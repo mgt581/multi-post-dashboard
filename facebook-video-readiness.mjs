@@ -20,13 +20,15 @@ export function evaluateFacebookVideoReadiness(videoId, video) {
   const videoStatus = String(status.video_status || "").toLowerCase();
   const publishingStatus = String(status.publishing_phase?.status || "").toLowerCase();
   const videoMatches = Boolean(requestedVideoId) && String(video?.id || "") === requestedVideoId;
+  const published = video?.published === true;
   const processingReady = ["ready", "published"].includes(videoStatus)
     || ["complete", "completed", "published"].includes(publishingStatus);
   const permalinkUrl = normalizeFacebookPermalink(video?.permalink_url);
   const permalinkReady = Boolean(permalinkUrl);
 
   return {
-    ready: videoMatches && processingReady && permalinkReady,
+    ready: videoMatches && published && processingReady && permalinkReady,
+    published,
     processingReady,
     permalinkReady,
     permalinkUrl
