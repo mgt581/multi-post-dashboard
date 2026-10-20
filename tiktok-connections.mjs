@@ -1,7 +1,15 @@
 // All linkage is derived from a verified identity and a server-side OAuth transaction.
 export function matchesIdentity(userId, identity) {
-  return Boolean(identity && (userId === identity.userId ||
-    (identity.emailVerified && userId.toLowerCase() === identity.email.toLowerCase())));
+  if (!identity || !userId) return false;
+  const requested = String(userId).trim().toLowerCase();
+  const authenticatedIds = [identity.userId];
+  if (identity.emailVerified && identity.email) authenticatedIds.push(identity.email);
+  // Firebase can issue separate UIDs for Google and email/password sign-in.
+  // The worker adds this list only for a configured owner identity (or a
+  // verified configured owner email), so browser supplied aliases are never
+  // trusted as proof of ownership.
+  if (Array.isArray(identity.workspaceOwnerIds)) authenticatedIds.push(...identity.workspaceOwnerIds);
+  return authenticatedIds.some(value => String(value || '').trim().toLowerCase() === requested);
 }
 export async function ownedFolder(db, folderId, userId) {
   return db.prepare('SELECT id FROM folders WHERE id = ? AND user_id = ?').bind(String(folderId), String(userId)).first();

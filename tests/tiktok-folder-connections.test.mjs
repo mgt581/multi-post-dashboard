@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import worker from '../worker.js';
-import { beginTikTokLink, consumeTikTokLink, saveTikTokConnection, tikTokPublishingAccount, disconnectTikTok } from '../tiktok-connections.mjs';
+import { beginTikTokLink, consumeTikTokLink, saveTikTokConnection, tikTokPublishingAccount, disconnectTikTok, matchesIdentity } from '../tiktok-connections.mjs';
 
 function database() {
   const sqlite = new DatabaseSync(':memory:');
@@ -66,6 +66,57 @@ test('OAuth state is browser-bound, expiring, single-use and never accepts arbit
   await assert.rejects(beginTikTokLink(db,{...options,folderId:'1',identity:null}));
   await assert.rejects(beginTikTokLink(db,{...options,folderId:'1',userId:'one@example.com',identity:{...identity,emailVerified:false}}));
   sqlite.close();
+});
+
+test('configured verified owner aliases authorize the canonical workspace scope without trusting unverified aliases', async () => {
+  const { db, sqlite } = database();
+  sqlite.exec("INSERT INTO folders (id,user_id,name) VALUES (4,'google-owner-uid','Legacy Google workspace')");
+  const signedInIdentity = {
+    userId: 'password-owner-uid',
+    email: 'owner@example.com',
+    emailVerified: true,
+    workspaceOwnerIds: ['google-owner-uid', 'owner@example.com']
+  };
+  assert.equal(matchesIdentity('google-owner-uid', signedInIdentity), true);
+  assert.equal(matchesIdentity('attacker-uid', signedInIdentity), false);
+  assert.equal(matchesIdentity('google-owner-uid', { ...signedInIdentity, emailVerified: false, workspaceOwnerIds: undefined }), false);
+  const link = await beginTikTokLink(db, {
+    ...options,
+    folderId: '4',
+    userId: 'google-owner-uid',
+    identity: signedInIdentity
+  });
+  assert.ok(new URL(link.url).searchParams.get('state'));
+  sqlite.close();
+});
+
+test('Worker permits a verified cross-provider sign-in to relink TikTok using the workspace owner UID', async () => {
+  const { db, sqlite } = database();
+  sqlite.exec("INSERT INTO folders (id,user_id,name) VALUES (4,'google-owner-uid','Legacy Google workspace')");
+  const env = {
+    DB: db,
+    BASE_URL: 'https://example.test',
+    TIKTOK_CLIENT_KEY: 'test',
+    WEB_BILLING_ENABLED: 'false',
+    BILLING_OWNER_USER_IDS: 'google-owner-uid',
+    BILLING_OWNER_EMAILS: 'owner@example.com'
+  };
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async url => String(url).includes('identitytoolkit')
+    ? Response.json({ users: [{ localId: 'password-owner-uid', email: 'owner@example.com', emailVerified: true }] })
+    : (() => { throw new Error(`Unexpected request ${url}`); })();
+  try {
+    const response = await worker.fetch(new Request('https://example.test/api/auth/tiktok', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer signed-in-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder_id: '4', user_id: 'google-owner-uid' })
+    }), env);
+    assert.equal(response.status, 200, await response.clone().text());
+    assert.match((await response.json()).url, /^https:\/\/www\.tiktok\.com\//);
+  } finally {
+    globalThis.fetch = originalFetch;
+    sqlite.close();
+  }
 });
 
 test('invalid provider credentials or deleted folders preserve prior links', async () => {

@@ -33,7 +33,7 @@ var makeDeterministicSeoFallback = /* @__PURE__ */ __name((promptText) => {
 }, "makeDeterministicSeoFallback");
 
 // worker.js
-var WORKER_VERSION = "2026-10-13-tiktok-folder-link";
+var WORKER_VERSION = "2026-10-20-owner-alias-auth";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -648,7 +648,7 @@ Follow for daily trending content! \u{1F44F}
     const identityMatchesBillingUser = /* @__PURE__ */ __name((row, requestedUserId, identity) => {
       if (!identity) return false;
       const requested = String(requestedUserId || "").trim().toLowerCase();
-      const identityKeys = [identity.userId, identity.email].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
+      const identityKeys = [identity.userId, identity.email, ...(identity.workspaceOwnerIds || [])].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
       const rowKeys = [row?.user_id, row?.user_email].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
       return identityKeys.includes(requested) || rowKeys.some((value) => identityKeys.includes(value));
     }, "identityMatchesBillingUser");
@@ -770,9 +770,10 @@ Follow for daily trending content! \u{1F44F}
       const requested = String(requestedUserId || "").trim().toLowerCase();
       const authenticatedUserId = String(authenticatedIdentity?.userId || "").trim().toLowerCase();
       const authenticatedEmail = String(authenticatedIdentity?.email || "").trim().toLowerCase();
+      const authenticatedOwnerIds = (authenticatedIdentity?.workspaceOwnerIds || []).map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
       const isConfiguredOwner = ownerUserIds.has(authenticatedUserId) || ownerEmails.has(authenticatedEmail);
-      const requestedMatchesIdentity = requested && (requested === authenticatedUserId || requested === authenticatedEmail);
-      const rowMatchesIdentity = (userId && (userId.toLowerCase() === authenticatedUserId || userId.toLowerCase() === authenticatedEmail)) || (userEmail && userEmail === authenticatedEmail);
+      const requestedMatchesIdentity = requested && [authenticatedUserId, authenticatedEmail, ...authenticatedOwnerIds].includes(requested);
+      const rowMatchesIdentity = (userId && [authenticatedUserId, authenticatedEmail, ...authenticatedOwnerIds].includes(userId.toLowerCase())) || (userEmail && [authenticatedEmail, ...authenticatedOwnerIds].includes(userEmail));
       if (isConfiguredOwner && (requestedMatchesIdentity || rowMatchesIdentity)) {
         return {
           enabled: true,
