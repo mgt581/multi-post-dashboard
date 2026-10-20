@@ -848,6 +848,7 @@
 
   async function waitForTikTokVideo(publishId, sessionId) {
     if (!publishId) return;
+    const publishButton = document.querySelector('button[onclick="publishTikTok()"]');
     setTikTokViewButton({ label: "TikTok is processing…", disabled: true });
     for (let attempt = 0; attempt < 100; attempt += 1) {
       if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -865,13 +866,26 @@
         if (response.ok && data.success && data.failed) {
           setTikTokViewButton({ label: "View on TikTok", disabled: true });
           setStatus(`TikTok publish failed for "${activeTikTokName}"`, "error");
+          if (publishButton) {
+            publishButton.disabled = false;
+            publishButton.textContent = "🎵 Publish to TikTok";
+          }
+          return;
+        }
+        if (response.ok && data.success && data.requiresUserAction) {
+          setTikTokViewButton({ url: data.tiktokProfileUrl || "https://www.tiktok.com/", label: "Open TikTok to finish", disabled: false });
+          setStatus(`TikTok received the video. Open TikTok and finish the draft from your inbox.`, "working");
+          if (publishButton) publishButton.textContent = "Finish in TikTok";
           return;
         }
         if (response.ok && data.success && data.ready) {
           const viewUrl = data.tiktokUrl || data.viewUrl || data.tiktokProfileUrl || "https://www.tiktok.com/";
           const viewLabel = data.tiktokUrl ? "View on TikTok" : (data.viewLabel || "Open TikTok");
           setTikTokViewButton({ url: viewUrl, label: viewLabel, disabled: false });
-          setStatus(data.tiktokUrl ? `Video is live on "${activeTikTokName}"` : `TikTok published for "${activeTikTokName}"`, "success");
+          setStatus(data.publiclyAvailable && data.tiktokUrl
+            ? `Video is live on "${activeTikTokName}"`
+            : `TikTok published the video with restricted visibility. It is not publicly viewable.`, data.publiclyAvailable ? "success" : "working");
+          if (publishButton) publishButton.textContent = data.publiclyAvailable ? "✅ Published" : "Published privately";
           return;
         }
         if (response.ok && data.success) {
@@ -882,16 +896,18 @@
       }
     }
     setTikTokViewButton({ label: "TikTok still processing…", disabled: true });
+    if (publishButton) publishButton.textContent = "TikTok still processing…";
   }
 
   async function waitForFacebookVideo(videoId, pageUrl) {
     if (!videoId) return;
+    const publishButton = document.querySelector('button[onclick="publishFacebook()"]');
     let candidatePermalink = "";
     let consecutiveConfirmations = 0;
     for (let attempt = 0; attempt < 100; attempt += 1) {
       if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000));
       try {
-        const response = await fetch(`${uploadApiBase}/facebook/video-status?videoId=${encodeURIComponent(videoId)}`, {
+        const response = await authenticatedFetch(`${uploadApiBase}/facebook/video-status?videoId=${encodeURIComponent(videoId)}`, {
           headers: {
             folder_id: activeFolderId,
             user_id: userScope,
@@ -913,12 +929,21 @@
               label: "View Facebook Video"
             });
             setStatus(`Video is live on "${activeFacebookName}"`, "success");
+            if (publishButton) publishButton.textContent = "✅ Published";
             return;
           }
           setStatus(`Facebook returned the final video link. Confirming it is stable…`, "working");
         } else {
           candidatePermalink = "";
           consecutiveConfirmations = 0;
+          if (!response.ok && data.error) {
+            setStatus(data.error, "error");
+            if (publishButton) {
+              publishButton.disabled = false;
+              publishButton.textContent = "📘 Publish to Facebook";
+            }
+            return;
+          }
         }
       } catch (error) {
         candidatePermalink = "";
@@ -931,6 +956,7 @@
       url: pageUrl,
       label: "Go to Facebook Page"
     });
+    if (publishButton) publishButton.textContent = "Facebook still processing…";
   }
 
   function setLoading(isLoading) {
@@ -1540,8 +1566,8 @@
         }
       }
 
-      setStatus(`Published to "${activeTikTokName}"`, "success");
-      btn.textContent = "✅ Uploaded";
+      setStatus(`TikTok received the upload and is checking it…`, "working");
+      btn.textContent = "Checking TikTok…";
       setTikTokViewButton({ label: "TikTok is processing…", disabled: true });
 
       if (warning) {
@@ -1663,8 +1689,8 @@
         throw new Error(data.error || "Facebook finish-upload failed");
       }
 
-      setStatus(`Published to "${activeFacebookName}"`, "success");
-      btn.textContent = "✅ Uploaded";
+      setStatus(`Facebook received the upload and is processing it…`, "working");
+      btn.textContent = "Checking Facebook…";
       const publishedUrl = data.pageUrl || data.facebookUrl || "";
       showFacebookPublishSuccess({
         message: `Video uploaded to "${activeFacebookName}". Waiting for Facebook to finish processing it…`,

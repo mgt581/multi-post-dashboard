@@ -1,5 +1,6 @@
 import { beginTikTokLink, consumeTikTokLink, saveTikTokConnection, tikTokPublishingAccount, disconnectTikTok, tikTokLinkCookie, matchesIdentity, ownedFolder } from "./tiktok-connections.mjs";
 import { evaluateFacebookVideoReadiness } from "./facebook-video-readiness.mjs";
+import { evaluateTikTokPublishStatus } from "./tiktok-publish-status.mjs";
 import { FACEBOOK_PAGE_LINK_SCOPE } from "./facebook-oauth.mjs";
 import { generateSeo, normalizeSeoInput } from "./services/seoEngine.mjs";
 
@@ -33,7 +34,7 @@ var makeDeterministicSeoFallback = /* @__PURE__ */ __name((promptText) => {
 }, "makeDeterministicSeoFallback");
 
 // worker.js
-var WORKER_VERSION = "2026-10-20-owner-alias-auth";
+var WORKER_VERSION = "2026-10-20-social-publish-status";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -2472,8 +2473,8 @@ Follow for daily trending content! \u{1F44F}
           const sessionId = crypto.randomUUID();
           const expiresAt = Math.floor(Date.now() / 1e3) + SESSION_EXPIRY_SECONDS;
           await env.DB.prepare(
-            "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, file_size, expires_at, folder_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-          ).bind(sessionId, "tiktok", uploadUrl, tiktokAccessToken, publishId, videoSize, expiresAt, folder_id, user_id).run();
+            "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, title, file_size, expires_at, folder_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          ).bind(sessionId, "tiktok", uploadUrl, tiktokAccessToken, publishId, privacyStatus, videoSize, expiresAt, folder_id, user_id).run();
           await recordPublishUsage(user_id, "tiktok");
           return new Response(JSON.stringify({
             success: true,
@@ -2612,15 +2613,11 @@ Follow for daily trending content! \u{1F44F}
             throw new Error(`TikTok status failed: ${JSON.stringify(statusJson?.error || statusJson)}`);
           }
           const data = statusJson?.data || statusJson || {};
-          const status = String(data.status || data.publish_status || "").toUpperCase();
-          const ready = ["PUBLISH_COMPLETE", "SEND_TO_USER_INBOX"].includes(status);
-          const postId = String(
-            data.publicaly_available_post_id ||
-            data.publicly_available_post_id ||
-            data.post_id ||
-            data.video_id ||
-            ""
-          ).trim();
+          const publishState = evaluateTikTokPublishStatus(data);
+          const { status, failed, requiresUserAction, complete, publiclyAvailable, postId } = publishState;
+          const privacyStatus = String(session.title || "").toUpperCase();
+          const expectsPublicPost = privacyStatus === "PUBLIC_TO_EVERYONE";
+          const ready = publiclyAvailable || (complete && !expectsPublicPost);
           let tiktokUrl = String(
             data.share_url ||
             data.public_share_url ||
@@ -2631,7 +2628,7 @@ Follow for daily trending content! \u{1F44F}
           ).trim();
           let creatorUsername = "";
           let tiktokProfileUrl = "";
-          if (ready && !tiktokUrl) {
+          if (complete && !tiktokUrl) {
             try {
               const creatorRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/creator_info/query/`, {
                 method: "POST",
@@ -2654,7 +2651,6 @@ Follow for daily trending content! \u{1F44F}
               console.warn("TikTok creator info lookup failed:", creatorErr?.message || creatorErr);
             }
           }
-          const failed = ["FAILED", "PUBLISH_FAILED"].includes(status);
           const viewUrl = tiktokUrl || tiktokProfileUrl || "https://www.tiktok.com/";
           if (ready || failed) {
             await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(session.id).run();
@@ -2662,6 +2658,10 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify({
             success: true,
             ready,
+            complete,
+            publiclyAvailable,
+            requiresUserAction,
+            privacyStatus,
             failed,
             publishId,
             status,
@@ -2671,7 +2671,13 @@ Follow for daily trending content! \u{1F44F}
             tiktokProfileUrl,
             viewUrl,
             viewLabel: tiktokUrl ? "View on TikTok" : creatorUsername ? "Open TikTok Profile" : "Open TikTok",
-            message: ready && !tiktokUrl ? "TikTok marked the post complete but did not return a direct video URL. This can happen for private or unaudited-app posts." : "",
+            message: requiresUserAction
+              ? "Open TikTok and finish the draft from your inbox before it will be published."
+              : ready && !publiclyAvailable
+                ? "TikTok completed the post with restricted visibility and has no public video link."
+                : complete && expectsPublicPost
+                  ? "TikTok posted the video and is still completing public moderation."
+                : "",
             data
           }), { headers: jsonHeaders });
         } catch (err) {
@@ -2685,6 +2691,9 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/facebook/init-upload" && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
+        if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
+          return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        }
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
             status: 400,
@@ -2752,8 +2761,8 @@ Follow for daily trending content! \u{1F44F}
           const sessionId = crypto.randomUUID();
           const expiresAt = Math.floor(Date.now() / 1e3) + SESSION_EXPIRY_SECONDS;
           await env.DB.prepare(
-            "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, page_id, title, description, file_size, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-          ).bind(sessionId, "facebook", uploadUrl, pageAccessToken, videoId, pageId, title, description, fileSize, expiresAt).run();
+            "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, page_id, title, description, file_size, expires_at, folder_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          ).bind(sessionId, "facebook", uploadUrl, pageAccessToken, videoId, pageId, title, description, fileSize, expiresAt, folder_id, user_id).run();
           return new Response(JSON.stringify({ success: true, sessionId, videoId, chunkSize, totalChunks }), { headers: jsonHeaders });
         } catch (err) {
           console.error("Facebook init-upload error:", err);
@@ -2766,6 +2775,9 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/facebook/upload-chunk" && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
+        if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
+          return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        }
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
             status: 400,
@@ -2789,8 +2801,8 @@ Follow for daily trending content! \u{1F44F}
           });
         }
         const session = await env.DB.prepare(
-          "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'facebook' LIMIT 1"
-        ).bind(sessionId).first();
+          "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'facebook' AND folder_id = ? AND user_id = ? LIMIT 1"
+        ).bind(sessionId, folder_id, user_id).first();
         if (!session) {
           return new Response(JSON.stringify({ success: false, error: "Upload session not found or expired" }), {
             status: 404,
@@ -2849,6 +2861,9 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/facebook/finish-upload" && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
+        if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
+          return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        }
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
             status: 400,
@@ -2864,8 +2879,8 @@ Follow for daily trending content! \u{1F44F}
           });
         }
         const session = await env.DB.prepare(
-          "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'facebook' LIMIT 1"
-        ).bind(sessionId).first();
+          "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'facebook' AND folder_id = ? AND user_id = ? LIMIT 1"
+        ).bind(sessionId, folder_id, user_id).first();
         if (!session) {
           return new Response(JSON.stringify({ success: false, error: "Upload session not found or expired" }), {
             status: 404,
@@ -2897,7 +2912,6 @@ Follow for daily trending content! \u{1F44F}
             })
           });
           await recordPublishUsage(user_id, "facebook");
-          await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(sessionId).run();
           const pageUrl = `https://www.facebook.com/${encodeURIComponent(pageId)}`;
           const postUrl = finishRes?.post_id ? `https://www.facebook.com/${finishRes.post_id}` : "";
           const videoUrl = `https://www.facebook.com/${encodeURIComponent(pageId)}/videos/${encodeURIComponent(videoId)}`;
@@ -2924,9 +2938,21 @@ Follow for daily trending content! \u{1F44F}
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
         const videoId = String(url.searchParams.get("videoId") || "").trim();
+        if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
+          return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        }
         if (!folder_id || !user_id || !videoId) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id, user_id, or videoId" }), {
             status: 400,
+            headers: jsonHeaders
+          });
+        }
+        const session = await env.DB.prepare(
+          "SELECT * FROM upload_sessions WHERE video_id = ? AND platform = 'facebook' AND folder_id = ? AND user_id = ? ORDER BY expires_at DESC LIMIT 1"
+        ).bind(videoId, folder_id, user_id).first();
+        if (!session) {
+          return new Response(JSON.stringify({ success: false, error: "Facebook publish session not found or expired" }), {
+            status: 404,
             headers: jsonHeaders
           });
         }
@@ -2942,21 +2968,31 @@ Follow for daily trending content! \u{1F44F}
         try {
           const pageId = String(pageAccount.facebook_page_id);
           const pageAccessToken = String(pageAccount.facebook_page_access_token);
+          if (String(session.page_id || "") !== pageId) {
+            return new Response(JSON.stringify({ success: false, error: "Facebook Page selection changed during publishing" }), {
+              status: 409,
+              headers: jsonHeaders
+            });
+          }
           const params = new URLSearchParams({
             access_token: pageAccessToken,
-            fields: "id,status,permalink_url"
+            fields: "id,status,permalink_url,published"
           });
           const proof = await appsecretProof(pageAccessToken);
           if (proof) params.set("appsecret_proof", proof);
           const video = await fetchFbJson(`${fbGraph}/${encodeURIComponent(videoId)}?${params.toString()}`);
           const status = video?.status || {};
           const readiness = evaluateFacebookVideoReadiness(videoId, video);
+          if (readiness.ready) {
+            await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(session.id).run();
+          }
           return new Response(JSON.stringify({
             success: true,
             ready: readiness.ready,
             videoId,
             status,
             processingReady: readiness.processingReady,
+            published: readiness.published,
             permalinkReady: readiness.permalinkReady,
             videoUrl: readiness.ready ? readiness.permalinkUrl : "",
             pageUrl: `https://www.facebook.com/${encodeURIComponent(pageId)}`

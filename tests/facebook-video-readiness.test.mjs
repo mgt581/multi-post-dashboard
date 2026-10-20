@@ -9,7 +9,8 @@ import {
 test("does not expose a URL when processing completes before a permalink exists", () => {
   const result = evaluateFacebookVideoReadiness("video-123", {
     id: "video-123",
-    status: { video_status: "ready" }
+    status: { video_status: "ready" },
+    published: true
   });
 
   assert.equal(result.processingReady, true);
@@ -22,6 +23,7 @@ test("requires the returned Graph object to match the uploaded video", () => {
   const result = evaluateFacebookVideoReadiness("video-123", {
     id: "another-video",
     status: { video_status: "published" },
+    published: true,
     permalink_url: "https://www.facebook.com/reel/video-123/"
   });
 
@@ -45,13 +47,29 @@ test("returns the canonical permalink only for the matching published video", ()
   const result = evaluateFacebookVideoReadiness("video-123", {
     id: "video-123",
     status: { publishing_phase: { status: "complete" } },
+    published: true,
     permalink_url: "https://www.facebook.com/reel/video-123/"
   });
 
   assert.deepEqual(result, {
     ready: true,
+    published: true,
     processingReady: true,
     permalinkReady: true,
     permalinkUrl: "https://www.facebook.com/reel/video-123/"
   });
+});
+
+test("does not report ready until Facebook marks the video published", () => {
+  const result = evaluateFacebookVideoReadiness("video-123", {
+    id: "video-123",
+    status: { video_status: "ready" },
+    published: false,
+    permalink_url: "https://www.facebook.com/reel/video-123/"
+  });
+
+  assert.equal(result.processingReady, true);
+  assert.equal(result.permalinkReady, true);
+  assert.equal(result.published, false);
+  assert.equal(result.ready, false);
 });
