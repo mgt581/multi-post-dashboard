@@ -1,6 +1,7 @@
 import { beginTikTokLink, consumeTikTokLink, saveTikTokConnection, tikTokPublishingAccount, disconnectTikTok, tikTokLinkCookie, matchesIdentity, ownedFolder } from "./tiktok-connections.mjs";
 import { evaluateFacebookVideoReadiness } from "./facebook-video-readiness.mjs";
 import { evaluateTikTokPublishStatus } from "./tiktok-publish-status.mjs";
+import { buildTikTokChunkProfiles } from "./tiktok-upload-chunks.mjs";
 import { FACEBOOK_PAGE_LINK_SCOPE } from "./facebook-oauth.mjs";
 import { generateSeo, normalizeSeoInput } from "./services/seoEngine.mjs";
 
@@ -34,7 +35,7 @@ var makeDeterministicSeoFallback = /* @__PURE__ */ __name((promptText) => {
 }, "makeDeterministicSeoFallback");
 
 // worker.js
-var WORKER_VERSION = "2026-10-20-social-publish-status";
+var WORKER_VERSION = "2026-10-20-tiktok-chunk-count";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -2354,25 +2355,6 @@ Follow for daily trending content! \u{1F44F}
             await persistTikTokTokens();
             refreshedBeforeInit = true;
           }
-          const TIKTOK_MIN_CHUNK_SIZE = 5 * 1024 * 1024;
-          const TIKTOK_DEFAULT_CHUNK_SIZE = 10 * 1024 * 1024;
-          const TIKTOK_MAX_CHUNK_SIZE = 64 * 1024 * 1024;
-          const clampTikTokChunkSize = /* @__PURE__ */ __name((size) => Math.min(
-            TIKTOK_MAX_CHUNK_SIZE,
-            Math.max(TIKTOK_MIN_CHUNK_SIZE, Number(size) || TIKTOK_MIN_CHUNK_SIZE)
-          ), "clampTikTokChunkSize");
-          const buildChunkProfiles = /* @__PURE__ */ __name(() => {
-            const candidates = [
-              clampTikTokChunkSize(videoSize),
-              clampTikTokChunkSize(TIKTOK_DEFAULT_CHUNK_SIZE),
-              TIKTOK_MIN_CHUNK_SIZE
-            ];
-            const unique = [...new Set(candidates)];
-            return unique.map((size) => ({
-              chunkSize: size,
-              totalChunks: Math.max(1, Math.ceil(videoSize / size))
-            }));
-          }, "buildChunkProfiles");
           const buildInitBody = /* @__PURE__ */ __name((privacy, chunkSize, totalChunks) => JSON.stringify({
             post_info: {
               title: caption,
@@ -2398,7 +2380,7 @@ Follow for daily trending content! \u{1F44F}
             "isUnauditedPrivateAccountError"
           );
           const unauditedPrivateAccountMessage = "TikTok rejected this publish because the TikTok app is unaudited. For testing, connect a TikTok account set to Private, or submit the TikTok app for Content Posting API review to enable posting from public accounts.";
-          const chunkProfiles = buildChunkProfiles();
+          const chunkProfiles = buildTikTokChunkProfiles(videoSize);
           let initRes = null;
           let initData = null;
           let selectedChunkSize = chunkProfiles[0].chunkSize;
