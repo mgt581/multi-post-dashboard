@@ -74,6 +74,29 @@ test("Facebook page picker requires the signed-in workspace owner", async () => 
   }
 });
 
+test("Facebook page picker accepts a configured owner UID alias for a verified sign-in", async () => {
+  const { db, sqlite } = database();
+  sqlite.exec("UPDATE folders SET user_id='google-owner-uid' WHERE id=1; UPDATE accounts SET user_id='google-owner-uid' WHERE folder_id=1;");
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const href = String(url);
+    if (href.includes("identitytoolkit")) return Response.json({ users: [{ localId: "password-owner-uid", email: "owner@example.com", emailVerified: true }] });
+    if (href.includes("/me/accounts")) return Response.json({ data: [{ id: "page-1", name: "Test Page", access_token: "page-token" }] });
+    throw new Error(`Unexpected request ${href}`);
+  };
+  try {
+    const response = await worker.fetch(
+      new Request("https://example.test/api/facebook/pages?folder_id=1&user_id=google-owner-uid", { headers: { Authorization: "Bearer test" } }),
+      { DB: db, FB_APP_SECRET: "test", BILLING_OWNER_USER_IDS: "google-owner-uid", BILLING_OWNER_EMAILS: "owner@example.com" }
+    );
+    assert.equal(response.status, 200, await response.clone().text());
+    assert.deepEqual((await response.json()).pages.map(page => page.name), ["Test Page"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    sqlite.close();
+  }
+});
+
 
 test("Facebook page picker adds publishable Pages from linked Business portfolios", async () => {
   const { db, sqlite } = database();
