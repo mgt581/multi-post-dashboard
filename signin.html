@@ -76,11 +76,15 @@
 
     .legal { margin-top: 24px; font-size: 12px; }
     .legal a { color: var(--muted); text-decoration: none; margin: 0 8px; }
+    .brand-link { display: inline-block; color: inherit; text-decoration: none; }
+    .back-home { display: inline-block; margin: 0 0 18px; color: #bae6fd; font-size: 13px; font-weight: 800; text-decoration: none; }
+    .back-home:hover, .brand-link:hover { color: #fff; }
   </style>
 </head>
 <body>
   <main class="card">
-    <h1>Multipost</h1>
+    <a id="backToHomepage" class="back-home" href="index.html">← Back to Homepage</a>
+    <h1><a id="brandHomepageLink" class="brand-link" href="index.html" aria-label="MultiPost homepage">Multipost</a></h1>
     <p id="status">Sign in to your workspace</p>
     <div class="tabs" role="tablist" aria-label="Account access">
       <button id="loginTab" class="tab active" type="button">Sign In</button>
@@ -215,6 +219,14 @@
         setMessage(error?.message || "Could not send the reset email.");
       }
     });
+
+    // Android passes this explicit mode from its existing wrapper. Keep that
+    // app flow free of the public website navigation.
+    const platform = new URLSearchParams(location.search).get("app_platform") || localStorage.getItem("app_platform");
+    if (platform === "android" || /MultiPostAndroid\//i.test(navigator.userAgent || "")) {
+      document.getElementById("backToHomepage").hidden = true;
+      document.getElementById("brandHomepageLink").removeAttribute("href");
+    }
 
     loginTab.addEventListener("click", () => setMode("login"));
     signupTab.addEventListener("click", () => setMode("signup"));

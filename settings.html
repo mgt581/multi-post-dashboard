@@ -101,6 +101,7 @@
 
     .btn-logout { color: var(--error); }
     .btn-logout .icon-box { background: rgba(244, 63, 94, 0.1); color: var(--error); }
+    .btn-home .icon-box { background: rgba(14, 165, 233, 0.12); color: var(--accent-2); }
     .billing-card {
       flex-direction: column;
       align-items: flex-start;
@@ -228,6 +229,14 @@
 
     <div class="section-title">Security</div>
 
+    <a id="homepageAction" href="index.html" class="card action-card btn-home" style="text-decoration: none; color: inherit;">
+      <div class="icon-box"><i class="fa-solid fa-house"></i></div>
+      <div class="action-info">
+        <span class="action-title">Homepage</span>
+        <span class="action-sub">View MultiPost plans and product information</span>
+      </div>
+    </a>
+
     <div class="card action-card btn-logout" onclick="handleSignOut()">
       <div class="icon-box"><i class="fa-solid fa-right-from-bracket"></i></div>
       <div class="action-info">
@@ -338,6 +347,12 @@
       if (fromOverride === "web") return "web";
       return uaAndroid ? "web" : "web";
     }
+
+    // The native wrapper starts at app.html and identifies itself with this
+    // token. This is UI routing only: getClientPlatform remains unchanged so
+    // billing and entitlement requests keep their established behavior.
+    const isAndroidWrapper = () => getClientPlatform() === "android" || /MultiPostAndroid\//i.test(navigator.userAgent || "");
+    if (isAndroidWrapper()) document.getElementById("homepageAction").hidden = true;
 
     function setBillingUi(statusText, noteText, tone = "") {
       const pill = document.getElementById("billingStatusPill");
@@ -459,7 +474,7 @@
       if(confirm("Sign out of Multipost?")) {
         await signOut(auth);
         localStorage.clear();
-        window.location.href = "signin.html";
+        window.location.href = isAndroidWrapper() ? "signin.html" : "index.html";
       }
     };
 
