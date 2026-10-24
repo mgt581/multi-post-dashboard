@@ -26,12 +26,12 @@ Status: NOT approved for commercial advertising. Preview deployment and browser 
 | Pricing | Explain trial eligibility, annual billing, automatic renewal and platform limits. Match source behavior: Creator/Pro can get a first eligible trial; Agency does not. Live Stripe prices remain unverified. |
 | Policies | Correct inaccurate no-sign-in statements; disclose Firebase, Stripe and requested AI processing; add renewal/trial explanations. These are review drafts, not a legal sign-off. |
 | SEO | Add canonical homepage, sitemap and robots rules. Preview responses are noindex. |
-| Preview | Prepare dedicated isolated Worker, a new synthetic-only D1 database and a deployment workflow restricted to this audit branch. Real OAuth, posting, AI usage, deletion and payment APIs are blocked in the review entrypoint. |
+| Preview | Prepare a dedicated isolated Worker, a new synthetic-only D1 database and direct Cloudflare deployment scripts. GitHub Actions is not used. Real OAuth, posting, AI usage, deletion and payment APIs are blocked in the review entrypoint. |
 
 ## Validation completed
 
 - Original baseline: 86 tests passed.
-- Updated suite: **100 tests passed, 0 failed**.
+- Updated suite: **101 tests passed, 0 failed**.
 - Tests cover forged ownership, cross-provider identities, unverified aliases, state tampering/wrong browser/expiration/replay, TikTok per-workspace tokens and refresh races, publish-state interpretation, upload chunk sizing, existing billing logic and image processing.
 - Added a YouTube init/chunk/completion test with synthetic provider responses. No real YouTube content was transmitted.
 - Preview page-render tests exercise 11 public/application pages, verify removal of production API/Firebase imports in the isolated entrypoint and syntax-check the resulting inline scripts.
@@ -52,7 +52,7 @@ There is **no verified hosted preview URL yet**. The configured URL must not be 
 
 ## Outstanding launch gates
 
-1. Restore deployment access, deploy the isolated review build, then perform browser walkthroughs of brands, linking/cancellation/replay, publishing UI, billing blocks and mobile layouts.
+1. Sign into the existing Cloudflare account, deploy the isolated review build, then perform browser walkthroughs of brands, linking/cancellation/replay, publishing UI, billing blocks and mobile layouts.
 2. Verify actual Meta app mode/Advanced Access and TikTok Content Posting approval, scopes, app credentials and registered preview callbacks. Connected database records do not establish those provider permissions. Provider restrictions cannot be solved by UI changes.
 3. Run explicitly authorized end-to-end posts from safe test accounts. Current coverage uses provider fixtures. Facebook/TikTok live publishing failures have not been reproduced or proven resolved; YouTube has not received a real smoke-test upload in this audit.
 4. Inspect Firebase project settings and verify web/Android identity behavior with a non-owner test customer. The backend has configured-owner alias support; that is not evidence of general account linking for every customer. No new Android package was built.
@@ -71,4 +71,4 @@ There is **no verified hosted preview URL yet**. The configured URL must not be 
 
 ## Resume
 
-Sign into the existing Cloudflare account in Safari, or resolve the GitHub Actions billing lock without authorizing production changes. Resume from this branch and report. Deploy only `prelaunch-preview-worker.mjs` using the generated dedicated preview configuration, never the default production wrangler.toml. Real credentials must not be added to the synthetic preview. The full OAuth and provider smoke tests need a separately configured test environment and explicit posting permission.
+Sign into the existing Cloudflare account in Safari. GitHub remains source storage only; its billing issue does not need resolving for direct Cloudflare deployment. The newly introduced GitHub Actions preview workflow has been removed. Wrangler also reports an expired saved session. After Cloudflare access is restored, use `node scripts/deploy-prelaunch-preview.mjs` from the repository root. It runs tests, generates isolated configuration, validates the staging Worker/database bindings and deploys only `prelaunch-preview-worker.mjs`; it does not use the default production wrangler.toml. Real credentials must not be added to the synthetic preview. The full OAuth and provider smoke tests need a separately configured test environment and explicit posting permission.

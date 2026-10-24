@@ -23,3 +23,6 @@ firebase-debug.log
 
 # Generated preview assets
 work/
+
+# Direct Cloudflare preview configuration is generated locally.
+wrangler.prelaunch.json
