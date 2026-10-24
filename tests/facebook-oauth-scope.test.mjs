@@ -21,12 +21,8 @@ test("Facebook linking requests only supported page-link permissions", () => {
   );
 });
 
-test("Facebook reconnect asks the provider to re-check page permissions", async () => {
-  const response = await worker.fetch(
-    new Request("https://example.test/api/auth/facebook?folder_id=1&user_id=uid-1&refresh=1"),
-    { FB_CLIENT_ID: "app-id", FB_CLIENT_SECRET: "secret", FRONTEND_URL: "https://example.test" }
-  );
-  const destination = new URL(response.headers.get("Location"));
-  assert.equal(destination.searchParams.get("auth_type"), "rerequest");
-  assert.equal(destination.searchParams.get("scope"), FACEBOOK_PAGE_LINK_SCOPE);
+test("Facebook linking rejects unauthenticated legacy navigation", async () => {
+  const response = await worker.fetch(new Request("https://example.test/api/auth/facebook?folder_id=1&user_id=uid-1&refresh=1"), {});
+  assert.equal(response.status, 405);
+  assert.equal(response.headers.get("Location"), null);
 });

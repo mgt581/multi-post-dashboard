@@ -529,6 +529,8 @@
               <option value="unlisted">🔗 Unlisted</option>
               <option value="public">🌐 Public</option>
             </select>
+            <p id="ttCreatorHelp" class="small" role="status">Loading account options. Comments, Duet and Stitch are disabled for these uploads.</p>
+            <button type="button" class="btn secondary" onclick="loadTikTokCreatorOptions()">Reload account options</button>
           </div>
 
           <div class="upload-help" style="margin-top: 12px;">
@@ -580,9 +582,7 @@
           <div>
             <label for="ttPrivacy">Privacy</label>
             <select id="ttPrivacy">
-              <option value="SELF_ONLY">🔒 Private</option>
-              <option value="MUTUAL_FOLLOW_FRIENDS">👥 Friends</option>
-              <option value="PUBLIC_TO_EVERYONE">🌐 Public</option>
+              <option value="">Choose an audience after account options load</option>
             </select>
           </div>
 
@@ -1140,6 +1140,7 @@
         throw new Error("Failed to load accounts");
       }
 
+      userScope = res.headers.get("X-Workspace-Owner") || userScope;
       const accounts = await res.json();
       const yt     = accounts.find((acc) => acc.platform === "youtube");
       const fbPage = accounts.find((acc) => acc.platform === "facebook_page");
@@ -1161,6 +1162,7 @@
         : pickAccountName(fbUser);
       activeTikTokName   = pickAccountName(tt);
       updateContextUI();
+      if (tt) await loadTikTokCreatorOptions();
     } catch {
       activeYouTubeName = "Error loading account";
       activeFacebookName = "Error loading account";
@@ -1168,6 +1170,23 @@
       updateContextUI();
     }
   }
+
+  async function loadTikTokCreatorOptions() {
+    const select = document.getElementById("ttPrivacy");
+    const help = document.getElementById("ttCreatorHelp");
+    select.replaceChildren(new Option("Choose an audience", ""));
+    select.disabled = true;
+    try {
+      const response = await authenticatedFetch(`${apiBase}/tiktok/creator-info?folder_id=${encodeURIComponent(activeFolderId)}&user_id=${encodeURIComponent(userScope)}`);
+      const result = await response.json();
+      if (!response.ok || !Array.isArray(result.creator?.privacy_level_options)) throw new Error(result.error || "Could not load TikTok account options.");
+      const labels = { SELF_ONLY: "Private", MUTUAL_FOLLOW_FRIENDS: "Friends", FOLLOWER_OF_CREATOR: "Followers", PUBLIC_TO_EVERYONE: "Public" };
+      for (const value of result.creator.privacy_level_options) if (labels[value]) select.add(new Option(labels[value], value));
+      select.disabled = false;
+      help.textContent = `Publishing as ${result.creator.creator_nickname || activeTikTokName}. Choose an audience. Comments, Duet and Stitch are disabled. TikTok account and app-review restrictions still apply.`;
+    } catch (error) { help.textContent = error.message; }
+  }
+  window.loadTikTokCreatorOptions = loadTikTokCreatorOptions;
 
   async function generateSEO() {
     await (window.seoImageProcessing || Promise.resolve());
@@ -1503,6 +1522,7 @@
 
     const caption = document.getElementById("ttAllInOne").value.trim();
     const privacyStatus = document.getElementById("ttPrivacy").value;
+    if (!privacyStatus) { alert("Choose an available TikTok audience first."); return; }
 
     if (!caption) {
       alert("Please enter a TikTok caption.");

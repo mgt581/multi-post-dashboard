@@ -195,6 +195,10 @@
     let nameDialogAction = null;
     const scopedKey = name => `${name}:${userScope}`;
 
+    function escapeHTML(value) {
+      return String(value ?? "").replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+    }
+
     function normalizeEmail(value) {
       return String(value || "").trim().toLowerCase();
     }
@@ -310,23 +314,23 @@
 
         container.innerHTML = folders.map(f => {
           const iconBox = f.youtube_picture
-            ? `<div class="icon-box" style="background:rgba(239,68,68,0.12);"><img src="${f.youtube_picture}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><i class="fa-brands fa-youtube" style="display:none;color:#ef4444;font-size:22px;"></i></div>`
+            ? `<div class="icon-box" style="background:rgba(239,68,68,0.12);"><img src="${escapeHTML(f.youtube_picture)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><i class="fa-brands fa-youtube" style="display:none;color:#ef4444;font-size:22px;"></i></div>`
             : `<div class="icon-box"><i class="fa-solid fa-folder"></i></div>`;
           const subText = f.youtube_channel
-            ? `<i class="fa-brands fa-youtube" style="color:#ef4444;margin-right:4px;"></i>${f.youtube_channel}`
+            ? `<i class="fa-brands fa-youtube" style="color:#ef4444;margin-right:4px;"></i>${escapeHTML(f.youtube_channel)}`
             : 'Manage assets &amp; accounts';
           return `
-          <div class="card folder-card" data-folder-id="${f.id}" data-folder-name="${f.name}" data-folder-owner="${f.user_id}">
+          <div class="card folder-card" data-folder-id="${escapeHTML(f.id)}" data-folder-name="${escapeHTML(f.name)}" data-folder-owner="${escapeHTML(f.user_id)}">
             ${iconBox}
             <div class="card-content">
-              <span class="card-title">${f.name}</span>
+              <span class="card-title">${escapeHTML(f.name)}</span>
               <span class="card-sub">${subText}</span>
             </div>
             <div class="folder-actions">
-              <button class="action-btn rename-btn" data-id="${f.id}" data-name="${f.name}" data-owner="${f.user_id}">
+              <button aria-label="Rename brand" class="action-btn rename-btn" data-id="${escapeHTML(f.id)}" data-name="${escapeHTML(f.name)}" data-owner="${escapeHTML(f.user_id)}">
                 <i class="fa-solid fa-pen"></i>
               </button>
-              <button class="action-btn delete delete-btn" data-id="${f.id}" data-owner="${f.user_id}">
+              <button aria-label="Delete brand" class="action-btn delete delete-btn" data-id="${escapeHTML(f.id)}" data-owner="${escapeHTML(f.user_id)}">
                 <i class="fa-solid fa-trash"></i>
               </button>
             </div>
@@ -435,7 +439,7 @@
     function openFolder(id, name) {
       localStorage.setItem(scopedKey("activeFolderId"), id);
       localStorage.setItem(scopedKey("activeFolderName"), name);
-      window.location.href = `folder.html?id=${id}`;
+      window.location.href = `folder.html?id=${encodeURIComponent(id)}&name=${encodeURIComponent(name || "Workspace")}`;
     }
   </script>
 

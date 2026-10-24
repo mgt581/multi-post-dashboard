@@ -141,6 +141,7 @@ function fixtureFetch(calls) {
       return Response.json({access_token:`token-${code}`,refresh_token:`refresh-${code}`,open_id:code,expires_in:3600});
     }
     if(url.includes('/user/info/')) return Response.json({data:{user:{display_name:'Fixture TikTok'}}});
+    if(url.includes('/creator_info/query/')) return Response.json({data:{privacy_level_options:['SELF_ONLY','PUBLIC_TO_EVERYONE']},error:{code:'ok'}});
     if(url.includes('/video/init/')) {
       calls.push(init.headers.Authorization);
       return Response.json({data:{publish_id:'publish-'+calls.length,upload_url:'https://upload.example.test/file'},error:{code:'ok'}});

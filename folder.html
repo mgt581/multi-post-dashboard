@@ -205,7 +205,7 @@
     <p id="tiktokLinkStatus" role="alert" hidden style="color:var(--error);text-align:center;"></p>
     <div id="workspaceAccessHelp" hidden style="padding:16px;">
       <button class="btn btn-link" onclick="retryWorkspaceAccounts()">Retry account loading</button>
-      <p><a href="signin.html">Sign in with the Gmail account that owns this workspace</a></p>
+      <p><a href="signin.html">Sign in with the account that owns this workspace</a></p>
     </div>
 
     <a id="createPostLink" href="publish-choice.html" class="btn-create-post">
@@ -429,7 +429,7 @@
       try {
         const accounts = await fetchWorkspaceAccounts(fId);
         document.getElementById("workspaceAccessHelp").hidden = true;
-        document.getElementById("count").innerText = `${accounts.length} total accounts connected`;
+        document.getElementById("count").innerText = `${accounts.filter(a => a.platform !== "facebook").length} publishing accounts connected`;
         listEl.innerHTML = Object.keys(allPlatforms).map(key => {
           const meta = allPlatforms[key];
           if (key === "facebook") return buildFacebookCard(meta, accounts);
@@ -451,13 +451,30 @@
       if (platform === "tiktok") {
         return startTikTokConnection(fId);
       }
-      window.location.href = `${apiBase}/auth/${platform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
+      return startPlatformConnection(platform, fId);
     }
 
-    function reconnectFacebook() {
+    async function reconnectFacebook() {
       const fId = getUrlParam("id") || getLS("activeFolderId");
       if (!fId || !userScope) return alert("Session expired.");
-      window.location.href = `${apiBase}/auth/facebook?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}&refresh=1`;
+      return startPlatformConnection("facebook", fId, true);
+    }
+
+    async function startPlatformConnection(platform, folderId, refresh = false) {
+      const status = document.getElementById("tiktokLinkStatus");
+      status.hidden = true;
+      try {
+        const response = await fetch(`${apiBase}/auth/${platform}`, {
+          method: "POST", credentials: "same-origin", headers: await accountHeaders(),
+          body: JSON.stringify({ folder_id: folderId, user_id: userScope, refresh })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.url) throw new Error(result.error || "Could not start platform connection.");
+        window.location.assign(result.url);
+      } catch (error) {
+        status.textContent = error.message || "Please try connecting again.";
+        status.hidden = false;
+      }
     }
 
     async function startTikTokConnection(folderId) {

@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /app.html
+Disallow: /folder.html
+Disallow: /create-post.html
+Disallow: /uploadimages.html
+Sitemap: https://multipostapp.co.uk/sitemap.xml

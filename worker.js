@@ -1,3 +1,4 @@
+import { beginPlatformLink, consumePlatformLink, platformLinkCookie } from './platform-link.mjs';
 import { beginTikTokLink, consumeTikTokLink, saveTikTokConnection, tikTokPublishingAccount, disconnectTikTok, tikTokLinkCookie, matchesIdentity, ownedFolder } from "./tiktok-connections.mjs";
 import { evaluateFacebookVideoReadiness } from "./facebook-video-readiness.mjs";
 import { evaluateTikTokPublishStatus } from "./tiktok-publish-status.mjs";
@@ -35,7 +36,7 @@ var makeDeterministicSeoFallback = /* @__PURE__ */ __name((promptText) => {
 }, "makeDeterministicSeoFallback");
 
 // worker.js
-var WORKER_VERSION = "2026-10-20-tiktok-chunk-count";
+var WORKER_VERSION = "2026-10-24-prelaunch-preview";
 var worker_default = {
   async fetch(request, env) {
     const corsHeaders = {
@@ -240,7 +241,7 @@ var worker_default = {
         scope: String(tData.scope || "")
       };
     }, "refreshTikTokAccessToken");
-    const fbGraph = "https://graph.facebook.com/v18.0";
+    const fbGraph = "https://graph.facebook.com/v24.0";
     const fbSafe = /* @__PURE__ */ __name(async (res) => {
       const data = await safeJson(res);
       if (!res.ok) {
@@ -986,8 +987,10 @@ Follow for daily trending content! \u{1F44F}
         ).bind(...userAliases).all();
         return new Response(JSON.stringify(results), { headers: jsonHeaders });
       }
-      if (url.pathname === "/api/add-folder") {
+      if (url.pathname === "/api/add-folder" && request.method === "POST") {
         const { name, user_id } = await request.json();
+        const identity = await getFirebaseIdentity(request);
+        if (!matchesIdentity(user_id, identity)) return new Response(JSON.stringify({ error: "Sign in again to create a workspace." }), { status: 401, headers: jsonHeaders });
         const userId = requireUser(user_id);
         if (!name || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing name or user_id" }), { status: 400, headers: jsonHeaders });
@@ -1328,21 +1331,18 @@ Follow for daily trending content! \u{1F44F}
         }
       }
       if (url.pathname === "/api/auth/youtube") {
-        const legacyState = url.searchParams.get("state");
-        const stateObj = decodeState(legacyState);
-        const folderId = url.searchParams.get("folder_id") || stateObj.folderId;
-        const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId);
-        if (!folderId || !userId) {
-          return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), { status: 400, headers: jsonHeaders });
-        }
-        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, null, url.searchParams.get("client_platform")), request);
-        if (billingSnapshot.ok) {
-          const linkGate = await ensureLinkingQuota({ userId, platform: "youtube", folderId, evaluated: billingSnapshot.evaluated });
-          if (!linkGate.ok) {
-            return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
-          }
-        }
-        const state = encodeState({ folderId, platform: "youtube", userId });
+        if (request.method !== "POST") return new Response(JSON.stringify({ error: "Start the connection from your workspace." }), { status: 405, headers: jsonHeaders });
+        const body = await request.json();
+        const folderId = String(body.folder_id || "");
+        const userId = requireUser(body.user_id);
+        const identity = await getFirebaseIdentity(request);
+        if (!matchesIdentity(userId, identity) || !await ownedFolder(env.DB, folderId, userId)) return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request), request, true);
+        if (!billingSnapshot.ok) return new Response(JSON.stringify(billingSnapshot.body), { status: billingSnapshot.statusCode, headers: jsonHeaders });
+        const linkGate = await ensureLinkingQuota({ userId, platform: "youtube", folderId, evaluated: billingSnapshot.evaluated });
+        if (!linkGate.ok) return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
+        const link = await beginPlatformLink(env.DB, { platform: "youtube", folderId, userId, identity });
+        const state = link.state;
         if (!env.GOOGLE_CLIENT_ID) {
           return new Response(JSON.stringify({ success: false, error: "Missing GOOGLE_CLIENT_ID env var" }), { status: 500, headers: jsonHeaders });
         }
@@ -1350,7 +1350,7 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify({ success: false, error: "Missing GOOGLE_CLIENT_SECRET env var" }), { status: 500, headers: jsonHeaders });
         }
         const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(env.GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(YOUTUBE_OAUTH_SCOPE)}&access_type=offline&include_granted_scopes=false&prompt=${encodeURIComponent("consent select_account")}&state=${encodeURIComponent(state)}`;
-        return Response.redirect(googleAuthUrl);
+        return new Response(JSON.stringify({ url: googleAuthUrl }), { headers: { ...jsonHeaders, "Cache-Control": "no-store", "Set-Cookie": platformLinkCookie("youtube", link.browserNonce, request.url) } });
       }
       if (url.pathname === "/api/auth/login/tiktok") {
         const clientKey = getTikTokSigninClientKey();
@@ -1405,7 +1405,7 @@ Follow for daily trending content! \u{1F44F}
         requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
         const loginState = randomState();
         const facebookSigninScope = "public_profile";
-        const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?client_id=${encodeURIComponent(
+        const fbAuthUrl = `https://www.facebook.com/v24.0/dialog/oauth?client_id=${encodeURIComponent(
           fbClientId
         )}&redirect_uri=${encodeURIComponent(
           fbRedirectUri
@@ -1436,13 +1436,18 @@ Follow for daily trending content! \u{1F44F}
           "Cache-Control": "no-store", "Set-Cookie": tikTokLinkCookie(link.browserNonce, 600, request.url) } });
       }
       if (url.pathname === "/api/auth/facebook") {
-        const legacyState = url.searchParams.get("state");
-        const stateObj = decodeState(legacyState) || {};
-        const folderId = url.searchParams.get("folder_id") || stateObj.folderId || "";
-        const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId || "");
+        if (request.method !== "POST") return new Response(JSON.stringify({ error: "Start the connection from your workspace." }), { status: 405, headers: jsonHeaders });
+        const body = await request.json();
+        const folderId = String(body.folder_id || "");
+        const userId = requireUser(body.user_id);
+        const identity = await getFirebaseIdentity(request);
+        if (!matchesIdentity(userId, identity) || !await ownedFolder(env.DB, folderId, userId)) return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request), request, true);
+        if (!billingSnapshot.ok) return new Response(JSON.stringify(billingSnapshot.body), { status: billingSnapshot.statusCode, headers: jsonHeaders });
         const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
         requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
-        const state = encodeState({ folderId, platform: "facebook", userId });
+        const link = await beginPlatformLink(env.DB, { platform: "facebook", folderId, userId, identity });
+        const state = link.state;
         const fbAuthParams = new URLSearchParams({
           client_id: fbClientId,
           redirect_uri: fbRedirectUri,
@@ -1453,15 +1458,21 @@ Follow for daily trending content! \u{1F44F}
         // Ask Facebook to re-check the granted Page permissions when the user
         // explicitly refreshes a connection. The provider still controls which
         // Facebook profile is signed in and which Pages it returns.
-        if (url.searchParams.get("refresh") === "1") fbAuthParams.set("auth_type", "rerequest");
-        const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?${fbAuthParams.toString()}`;
-        return Response.redirect(fbAuthUrl);
+        if (body.refresh === true) fbAuthParams.set("auth_type", "rerequest");
+        const fbAuthUrl = `https://www.facebook.com/v24.0/dialog/oauth?${fbAuthParams.toString()}`;
+        return new Response(JSON.stringify({ url: fbAuthUrl }), { headers: { ...jsonHeaders, "Cache-Control": "no-store", "Set-Cookie": platformLinkCookie("facebook", link.browserNonce, request.url) } });
       }
       if (url.pathname === "/api/auth/callback/youtube") {
         const code = url.searchParams.get("code");
-        const stateObj = decodeState(url.searchParams.get("state"));
-        const folderId = stateObj.folderId;
-        const userId = requireUser(stateObj.userId);
+        let link;
+        try {
+          const cookies = parseCookies(request.headers.get("Cookie"));
+          link = await consumePlatformLink(env.DB, "youtube", url.searchParams.get("state") || "", cookies.mp_youtube_link_nonce || "");
+        } catch (error) {
+          return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: jsonHeaders });
+        }
+        const folderId = link.folder_id;
+        const userId = requireUser(link.user_id);
         if (!folderId || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing state" }), { status: 400, headers: jsonHeaders });
         }
@@ -1669,7 +1680,7 @@ Follow for daily trending content! \u{1F44F}
         const code = url.searchParams.get("code");
         const rawState = url.searchParams.get("state") || "";
         const cookies = parseCookies(request.headers.get("Cookie"));
-        if (cookies.mp_facebook_login_state) {
+        if (!rawState.startsWith("facebooklink_") && cookies.mp_facebook_login_state) {
           const expectedState = cookies.mp_facebook_login_state || "";
           const returnedState = rawState;
           const error = url.searchParams.get("error") || "";
@@ -1733,9 +1744,15 @@ Follow for daily trending content! \u{1F44F}
             return redirectWithError(err?.message || "Facebook sign-in failed");
           }
         }
-        const stateObj = decodeState(rawState);
-        const folderId = stateObj.folderId;
-        const userId = requireUser(stateObj.userId);
+        let link;
+        try {
+          const cookies = parseCookies(request.headers.get("Cookie"));
+          link = await consumePlatformLink(env.DB, "facebook", url.searchParams.get("state") || "", cookies.mp_facebook_link_nonce || "");
+        } catch (error) {
+          return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: jsonHeaders });
+        }
+        const folderId = link.folder_id;
+        const userId = requireUser(link.user_id);
         if (!folderId || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing state" }), { status: 400, headers: jsonHeaders });
         }
@@ -1977,6 +1994,9 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/youtube/init-upload" && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
+        if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
+          return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        }
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
             status: 400,
@@ -2157,6 +2177,9 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/youtube/upload-chunk" && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
+        if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
+          return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        }
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
             status: 400,
@@ -2267,6 +2290,17 @@ Follow for daily trending content! \u{1F44F}
           });
         }
       }
+      if (url.pathname === "/api/tiktok/creator-info" && request.method === "GET") {
+        const folderId = url.searchParams.get("folder_id") || "";
+        const userId = url.searchParams.get("user_id") || "";
+        if (!matchesIdentity(userId, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folderId, userId)) return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        const account = await tikTokPublishingAccount(env.DB, folderId, userId);
+        if (!account?.access_token) return new Response(JSON.stringify({ error: "Connect TikTok first." }), { status: 400, headers: jsonHeaders });
+        const response = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/creator_info/query/`, { method: "POST", headers: { Authorization: `Bearer ${account.access_token}`, "Content-Type": "application/json" }, body: "{}" });
+        const result = await safeJson(response);
+        if (!response.ok || (result.error?.code && result.error.code !== "ok")) return new Response(JSON.stringify({ error: "Could not load TikTok publishing options. Reconnect TikTok and retry.", code: result.error?.code }), { status: 400, headers: jsonHeaders });
+        return new Response(JSON.stringify({ creator: result.data }), { headers: { ...jsonHeaders, "Cache-Control": "no-store" } });
+      }
       if (url.pathname === "/api/tiktok/init-upload" && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
@@ -2312,7 +2346,7 @@ Follow for daily trending content! \u{1F44F}
         }
         const validPrivacyLevels = ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "FOLLOWER_OF_CREATOR", "SELF_ONLY"];
         if (!validPrivacyLevels.includes(privacyStatus)) {
-          privacyStatus = "SELF_ONLY";
+          return new Response(JSON.stringify({ error: "Choose a TikTok audience before publishing." }), { status: 400, headers: jsonHeaders });
         }
         const tiktokAccount = await tikTokPublishingAccount(env.DB, folder_id, user_id);
         let tiktokAccessToken = String(tiktokAccount?.access_token || "").trim();
@@ -2355,13 +2389,18 @@ Follow for daily trending content! \u{1F44F}
             await persistTikTokTokens();
             refreshedBeforeInit = true;
           }
+          const creatorResponse = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/creator_info/query/`, { method: "POST", headers: { Authorization: `Bearer ${tiktokAccessToken}`, "Content-Type": "application/json" }, body: "{}" });
+          const creatorResult = await safeJson(creatorResponse);
+          if (!creatorResponse.ok || (creatorResult.error?.code && creatorResult.error.code !== "ok") || !creatorResult.data?.privacy_level_options?.includes(privacyStatus)) {
+            return new Response(JSON.stringify({ error: "TikTok audience options changed or access expired. Reload the account options and choose an available audience." }), { status: 400, headers: jsonHeaders });
+          }
           const buildInitBody = /* @__PURE__ */ __name((privacy, chunkSize, totalChunks) => JSON.stringify({
             post_info: {
               title: caption,
               privacy_level: privacy,
-              disable_duet: false,
-              disable_comment: false,
-              disable_stitch: false,
+              disable_duet: true,
+              disable_comment: true,
+              disable_stitch: true,
               video_cover_timestamp_ms: 0
             },
             source_info: {
@@ -2419,17 +2458,7 @@ Follow for daily trending content! \u{1F44F}
               initData = await safeJson(initRes);
             }
             if (isUnauditedPrivateAccountError(initData)) {
-              privacyDowngraded = attemptPrivacy !== "SELF_ONLY";
-              attemptPrivacy = "SELF_ONLY";
-              initRes = await fetch(`${tiktokApiBaseUrl}/v2/post/publish/video/init/`, {
-                method: "POST",
-                headers: { Authorization: `Bearer ${tiktokAccessToken}`, "Content-Type": "application/json; charset=UTF-8" },
-                body: buildInitBody("SELF_ONLY", profile.chunkSize, profile.totalChunks)
-              });
-              initData = await safeJson(initRes);
-              if (isUnauditedPrivateAccountError(initData)) {
-                throw new Error(unauditedPrivateAccountMessage);
-              }
+              throw new Error(unauditedPrivateAccountMessage);
             }
             if (initRes.ok && (!initData?.error?.code || initData.error.code === "ok")) {
               selectedChunkSize = profile.chunkSize;
@@ -2990,6 +3019,9 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/facebook/upload-image" && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
+        if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
+          return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        }
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
             status: 400,
@@ -3085,6 +3117,9 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/youtube/upload" && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
+        if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
+          return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        }
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
             status: 400,
@@ -3281,6 +3316,9 @@ Follow for daily trending content! \u{1F44F}
       if (url.pathname === "/api/facebook/upload" && request.method === "POST") {
         const folder_id = request.headers.get("folder_id") || "";
         const user_id = request.headers.get("user_id") || "";
+        if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
+          return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        }
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
             status: 400,

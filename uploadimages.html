@@ -745,7 +745,8 @@
       try {
         const res = await authenticatedFetch(`${apiBase}/get-accounts?folder_id=${encodeURIComponent(activeFolderId)}&user_id=${encodeURIComponent(userScope)}&user_email=${encodeURIComponent(signedInUserEmail)}`);
         if (!res.ok) throw new Error("Failed to load accounts");
-        const accounts = await res.json();
+        userScope = res.headers.get("X-Workspace-Owner") || userScope;
+      const accounts = await res.json();
 
         const fbPage = accounts.find((acc) => acc.platform === "facebook_page");
         const fbUser = accounts.find((acc) => acc.platform === "facebook");
