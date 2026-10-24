@@ -63,3 +63,36 @@ test('Facebook reconnect issues authenticated provider URL and binds callback to
   assert.equal(sqlite.prepare('SELECT count(*) n FROM accounts').get().n,0);
  }finally{sqlite.close();globalThis.fetch=original}
 });
+test('YouTube resumable upload completes with provider fixtures and scopes session to its workspace',async()=>{
+ const {db,sqlite}=fixture();sqlite.exec(readFileSync(new URL('../migrations/0004_create_upload_sessions.sql',import.meta.url),'utf8'));
+ sqlite.exec('ALTER TABLE upload_sessions ADD COLUMN folder_id TEXT; ALTER TABLE upload_sessions ADD COLUMN user_id TEXT;');
+ sqlite.exec("INSERT INTO accounts(folder_id,user_id,platform,nickname,access_token,expires_at) VALUES(1,'owner','youtube','Test channel','fixture-token',9999999999999)");
+ const original=globalThis.fetch;let uploads=0;
+ globalThis.fetch=async(input,init)=>{
+  const url=String(input);
+  if(url.includes('identitytoolkit'))return Response.json({users:[{localId:'owner',emailVerified:true}]});
+  if(url.startsWith('https://www.googleapis.com/upload/youtube/'))return new Response(null,{headers:{Location:'https://upload.example.test/session'}});
+  if(url==='https://upload.example.test/session'){uploads++;assert.equal(init.method,'PUT');return Response.json({id:'fixture-video'})}
+  throw new Error('Unexpected network '+url);
+ };
+ try{
+  const env={DB:db,WEB_BILLING_ENABLED:'false'};
+  const headers={Authorization:'Bearer fixture',folder_id:'1',user_id:'owner','Content-Type':'application/json'};
+  const init=await worker.fetch(new Request('https://preview.test/api/youtube/init-upload',{method:'POST',headers,body:JSON.stringify({title:'Fixture only',fileSize:4,fileType:'video/mp4',privacyStatus:'private'})}),env);
+  assert.equal(init.status,200,await init.clone().text());const {sessionId}=await init.json();
+  assert.equal(sqlite.prepare('SELECT user_id FROM upload_sessions WHERE id=?').get(sessionId).user_id,'owner');
+  const form=new FormData();form.set('sessionId',sessionId);form.set('offset','0');form.set('chunk',new File(['test'],'test.mp4',{type:'video/mp4'}));
+  const uploaded=await worker.fetch(new Request('https://preview.test/api/youtube/upload-chunk',{method:'POST',headers:{Authorization:'Bearer fixture',folder_id:'1',user_id:'owner'},body:form}),env);
+  assert.equal(uploaded.status,200,await uploaded.clone().text());assert.equal((await uploaded.json()).videoId,'fixture-video');assert.equal(uploads,1);
+  assert.equal(sqlite.prepare('SELECT count(*) n FROM upload_sessions').get().n,0);
+ }finally{globalThis.fetch=original;sqlite.close()}
+});
+test('preview renders each app page without production API or Firebase imports and keeps scripts valid',async()=>{
+ const {writeFileSync,mkdtempSync,rmSync}=await import('node:fs');const {execFileSync}=await import('node:child_process');const {tmpdir}=await import('node:os');const path=await import('node:path');
+ const temp=mkdtempSync(path.join(tmpdir(),'multipost-preview-'));let index=0;
+ try{for(const page of ['index.html','signin.html','app.html','folder.html','create-post.html','uploadimages.html','pricing.html','settings.html','privacy.html','terms.html','tiktok-app-review.html']){
+  const response=await preview.fetch(new Request('https://preview.test/'+page,{headers:{Cookie:'mp_preview_session=aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'}}),{DB:{},PRELAUNCH_ISOLATED:'true',ASSETS:{async fetch(){return new Response(readFileSync(new URL('../'+page,import.meta.url),'utf8'),{headers:{'Content-Type':'text/html'}})}}});
+  const html=await response.text();assert.equal(response.status,200,page);assert.match(html,/PREVIEW/);assert.doesNotMatch(html,/https:\/\/multipost-seo-worker(?:-preview)?\.alexbryant\.workers\.dev\/api/);assert.doesNotMatch(html,/import[^;]+https:\/\/www\.gstatic\.com/);
+  for(const script of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)){const file=path.join(temp,`${index++}.mjs`);writeFileSync(file,script[1]);execFileSync(process.execPath,['--check',file]);}
+ }}finally{rmSync(temp,{recursive:true,force:true})}
+});

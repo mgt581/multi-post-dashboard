@@ -2156,8 +2156,8 @@ Follow for daily trending content! \u{1F44F}
           const totalChunks = Math.max(1, Math.ceil(fileSize / chunkSize));
           const expiresAt = Math.floor(Date.now() / 1e3) + SESSION_EXPIRY_SECONDS;
           await env.DB.prepare(
-            "INSERT INTO upload_sessions (id, platform, upload_url, access_token, file_size, expires_at) VALUES (?, ?, ?, ?, ?, ?)"
-          ).bind(sessionId, "youtube", uploadUrl, accessToken, fileSize, expiresAt).run();
+            "INSERT INTO upload_sessions (id, platform, upload_url, access_token, file_size, expires_at, folder_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+          ).bind(sessionId, "youtube", uploadUrl, accessToken, fileSize, expiresAt, folder_id, user_id).run();
           return new Response(JSON.stringify({
             success: true,
             sessionId,
@@ -2210,8 +2210,8 @@ Follow for daily trending content! \u{1F44F}
           });
         }
         const session = await env.DB.prepare(
-          "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'youtube' LIMIT 1"
-        ).bind(sessionId).first();
+          "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'youtube' AND folder_id = ? AND user_id = ? LIMIT 1"
+        ).bind(sessionId, folder_id, user_id).first();
         if (!session) {
           return new Response(JSON.stringify({ success: false, error: "Upload session not found or expired" }), {
             status: 404,
