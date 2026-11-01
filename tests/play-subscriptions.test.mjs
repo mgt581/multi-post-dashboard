@@ -24,6 +24,15 @@ test('active, trial and grace-period purchases grant access when Google confirms
   assert.equal(interpretPlaySubscription(purchase('SUBSCRIPTION_STATE_IN_GRACE_PERIOD', '2026-11-08T12:00:00Z'), account, now).access, true);
 });
 
+test('only a current matching Play free-trial phase is labelled a trial', () => {
+  const activeTrial = purchase('SUBSCRIPTION_STATE_ACTIVE', '2026-11-08T12:00:00Z', 'yearly');
+  activeTrial.lineItems[0].offerDetails.offerId = 'trial-7d-yearly';
+  activeTrial.lineItems[0].offerPhase = { freeTrial: {} };
+  assert.equal(interpretPlaySubscription(activeTrial, account, now).trialEnd, Math.floor(Date.parse('2026-11-08T12:00:00Z') / 1000));
+  activeTrial.lineItems[0].offerPhase = { basePrice: {} };
+  assert.equal(interpretPlaySubscription(activeTrial, account, now).trialEnd, null);
+});
+
 test('expired and refunded or revoked subscriptions do not grant access', () => {
   assert.equal(interpretPlaySubscription(purchase('SUBSCRIPTION_STATE_ACTIVE', '2026-10-31T12:00:00Z'), account, now).access, false);
   for (const state of ['SUBSCRIPTION_STATE_EXPIRED', 'SUBSCRIPTION_STATE_ON_HOLD', 'SUBSCRIPTION_STATE_PAUSED', 'SUBSCRIPTION_STATE_PENDING']) {
@@ -74,6 +83,7 @@ test('authenticated Play purchase grants cross-platform access; a spoofed Androi
   const db = new DatabaseSync(':memory:');
   db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
   db.exec(readFileSync(new URL('../migrations/0009_play_subscriptions.sql', import.meta.url), 'utf8'));
+  db.exec(readFileSync(new URL('../migrations/0010_play_trial_phase.sql', import.meta.url), 'utf8'));
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const env = {
     WEB_BILLING_ENABLED: 'true',
@@ -93,7 +103,10 @@ test('authenticated Play purchase grants cross-platform access; a spoofed Androi
   globalThis.fetch = async url => {
     if (String(url).includes('identitytoolkit.googleapis.com')) return Response.json({ users: [{ localId: 'uid-123', email: 'user@example.com', emailVerified: true }] });
     if (String(url).endsWith('/token')) return Response.json({ access_token: 'google-token' });
-    return Response.json(purchase('SUBSCRIPTION_STATE_ACTIVE', new Date(Date.now() + 86400000).toISOString()));
+    const trial = purchase('SUBSCRIPTION_STATE_ACTIVE', new Date(Date.now() + 86400000).toISOString());
+    trial.lineItems[0].offerDetails.offerId = 'trial-7d-monthly';
+    trial.lineItems[0].offerPhase = { freeTrial: {} };
+    return Response.json(trial);
   };
   const headers = { Authorization: 'Bearer firebase-id-token', client_platform: 'android' };
   try {
@@ -107,6 +120,8 @@ test('authenticated Play purchase grants cross-platform access; a spoofed Androi
     const status = (await after.json()).billing;
     assert.equal(status.access, true);
     assert.equal(status.reason, 'play_verified');
+    assert.equal(status.status, 'trialing');
+    assert.equal(status.play.trial_end > Math.floor(Date.now() / 1000), true);
     assert.equal(db.prepare('SELECT encrypted_token FROM billing_play_purchases').get().encrypted_token.includes('valid-play-token'), false);
     // The same token cannot be reassigned even if a later Google response is
     // tampered with or a concurrent registration tries another account.
@@ -125,6 +140,7 @@ test('authenticated Play purchase grants cross-platform access; a spoofed Androi
       .run(Math.floor(Date.now() / 1000) - 10, 'SUBSCRIPTION_STATE_ACTIVE', 'uid-123');
     const expired = await worker.fetch(new Request('https://example.test/api/billing/status?user_id=uid-123', { headers }), env);
     assert.equal((await expired.json()).billing.access, false);
+    assert.equal((await worker.fetch(new Request('https://example.test/api/billing/status?user_id=uid-123', { headers }), env).then(response => response.json())).billing.status, 'expired');
     db.prepare('UPDATE billing_play_purchases SET expiry_time = ?, subscription_state = ? WHERE user_id = ?')
       .run(Math.floor(Date.now() / 1000) + 3600, 'SUBSCRIPTION_STATE_EXPIRED', 'uid-123');
     const revoked = await worker.fetch(new Request('https://example.test/api/billing/status?user_id=uid-123', { headers }), env);

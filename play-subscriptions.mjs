@@ -35,6 +35,7 @@ export function interpretPlaySubscription(data, expectedAccountId, now = Date.no
     basePlanId: line.offerDetails.basePlanId,
     state,
     expiry,
+    trialEnd: line.offerPhase?.freeTrial && ['trial-7d-monthly', 'trial-7d-yearly'].includes(line.offerDetails?.offerId) ? expiry : null,
     needsAcknowledgement: data.acknowledgementState === 'ACKNOWLEDGEMENT_STATE_PENDING',
     access: PLAY_STATES_WITH_ACCESS.has(state) && expiry * 1000 > now
   };

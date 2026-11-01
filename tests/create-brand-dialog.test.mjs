@@ -21,7 +21,7 @@ test('create brand opens an on-page form when native prompts are unsupported; ca
 });
 test('empty names and missing sign-in fail in the form before requesting creation',async()=>{
   let calls=0;const f=setup(()=>{calls++;});
-  f.elements.brandName.value='   ';await f.run(submit);assert.match(f.elements.createBrandError.textContent,/Enter a brand/);
+  f.elements.brandName.value='   ';await f.run(submit);assert.match(f.elements.createBrandError.textContent,/Enter a workspace/);
   f.elements.brandName.value='My brand';f.run('userScope=null');await f.run(submit);assert.match(f.elements.createBrandError.textContent,/Sign in/);assert.equal(calls,0);
 });
 test('create sends the trimmed name and selected user once; refreshes brands after success',async()=>{

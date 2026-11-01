@@ -437,7 +437,7 @@
 
       <div class="controls">
         <button id="generateBtn" class="btn" onclick="generateSEO()" disabled>✨ Generate Trending SEO</button>
-        <a id="trialCta" class="btn trial-cta" href="pricing.html" hidden>🚀 START 7-DAY FREE TRIAL</a>
+        <a id="trialCta" class="btn trial-cta" href="settings.html" hidden>VIEW SUBSCRIPTION OPTIONS</a>
         <span id="status" class="status">Upload an image, enter a description, or both</span>
         <div id="billingStatusText" class="billing-entitlement" aria-live="polite">Checking subscription…</div>
       </div>
@@ -998,7 +998,7 @@
     }
     const detail = message && String(message).trim()
       ? String(message).trim()
-      : "Start your 7 day free trial or upgrade in the Pricing page.";
+      : "Open Profile to review available plans and any eligible trial.";
     const safeDetail = escapeHtml(detail);
     paywallBanner.classList.add("show");
     paywallBanner.innerHTML = `
@@ -1044,7 +1044,7 @@
         return;
       }
       billingReady = true;
-      setPublishingEnabled(false, "Unlock AI SEO generation with your 7-day free trial.");
+      setPublishingEnabled(false, "Open Profile to review available plans and any eligible trial.");
       renderCurrentBilling();
     } catch (err) {
       billingReady = true;
@@ -1173,7 +1173,7 @@
     await (window.seoImageProcessing || Promise.resolve());
     if (!billingReady) await loadBillingStatus();
     if (!hasBillingAccess) {
-      alert("Web publishing requires an active plan. Start your 7 day free trial in Pricing.");
+      alert("Publishing requires an active plan. Open Profile to review your options.");
       return;
     }
     const prompt = document.getElementById("videoPrompt").value.trim();
@@ -1354,7 +1354,7 @@
     const btn = document.querySelector('button[onclick="publishYouTube()"]');
     if (!billingReady) await loadBillingStatus();
     if (!hasBillingAccess) {
-      alert("Web publishing requires an active plan. Start your 7 day free trial in Pricing.");
+      alert("Publishing requires an active plan. Open Profile to review your options.");
       return;
     }
 
@@ -1481,7 +1481,7 @@
     const btn = document.querySelector('button[onclick="publishTikTok()"]');
     if (!billingReady) await loadBillingStatus();
     if (!hasBillingAccess) {
-      alert("Web publishing requires an active plan. Start your 7 day free trial in Pricing.");
+      alert("Publishing requires an active plan. Open Profile to review your options.");
       return;
     }
 
@@ -1589,7 +1589,7 @@
     const btn = document.querySelector('button[onclick="publishFacebook()"]');
     if (!billingReady) await loadBillingStatus();
     if (!hasBillingAccess) {
-      alert("Web publishing requires an active plan. Start your 7 day free trial in Pricing.");
+      alert("Publishing requires an active plan. Open Profile to review your options.");
       return;
     }
 

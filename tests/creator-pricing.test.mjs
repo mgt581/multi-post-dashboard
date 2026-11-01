@@ -7,7 +7,7 @@ test("staged Pro paywall presents proposed prices and monthly allowances", async
   assert.match(pricing, /<h2>Pro Monthly<\/h2>[\s\S]*?£9\.99/);
   assert.match(pricing, /<h2>Pro Yearly<\/h2>[\s\S]*?£79\.99/);
   assert.match(pricing, /150 AI credits and 150 successful platform publications every month, including on annual billing/);
-  assert.match(pricing, /Stage 1 paywall is display-only/);
+  assert.match(pricing, /This page is display-only/);
 });
 
 test("the staged paywall does not change legacy Stripe price mappings or enable checkout", async () => {
@@ -17,7 +17,7 @@ test("the staged paywall does not change legacy Stripe price mappings or enable 
     readFile(new URL("../wrangler.toml", import.meta.url), "utf8")
   ]);
   assert.doesNotMatch(pricing, /billing\/create-checkout-session/);
-  assert.match(pricing, /disabled>Checkout opens after Stage 3/);
+  assert.match(pricing, /disabled>Purchases coming after testing/);
   assert.match(worker, /key: "pro_plus",\s+label: "Pro"/);
   assert.match(worker, /\["pro", "pro_plus"\]\.includes\(requestedPlan\)/);
   assert.equal((config.match(/STRIPE_PRICE_PRO_PLUS_MONTHLY = "price_1UP25bPpTMFHe2pei04QVcwj"/g) || []).length, 1);

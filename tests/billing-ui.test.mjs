@@ -30,5 +30,5 @@ test("controls lock SEO and show trial CTA when access is absent", () => {
   assert.equal(result.access, false);
   assert.equal(generateButton.disabled, true);
   assert.equal(trialButton.hidden, false);
-  assert.match(statusElement.textContent, /7-day free trial/);
+  assert.match(statusElement.textContent, /available plan/);
 });

@@ -22,7 +22,7 @@ test("Stage 1 paywall displays the approved planned catalogue", () => {
 
 test("Stage 1 paywall cannot initiate a transaction", () => {
   assert.match(pricing, /display-only/i);
-  assert.match(pricing, /Checkout opens after Stage 3/);
+  assert.match(pricing, /Purchases coming after testing/);
   assert.doesNotMatch(pricing, /create-checkout-session/);
   assert.doesNotMatch(pricing, /billing\/create-checkout-session/);
   assert.doesNotMatch(pricing, /buy\.stripe\.com/);

@@ -37,7 +37,7 @@ export function getBillingDisplay(billing = {}, nowMs = Date.now()) {
     return { kind: "inactive", message: "Subscription Ended — Choose a plan to continue", access: false };
   }
 
-  return { kind: "inactive", message: "Unlock AI SEO generation with your 7-day free trial.", access: false };
+  return { kind: "inactive", message: "Choose an available plan to unlock AI SEO generation.", access: false };
 }
 
 export function renderBillingControls({ billing, generateButton, trialButton, statusElement, nowMs = Date.now() }) {

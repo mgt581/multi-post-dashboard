@@ -117,7 +117,8 @@ class PlayBillingManager(
     fun close() = client.endConnection()
 
     private fun ProductDetails.SubscriptionOfferDetails.hasSevenDayTrial(): Boolean =
-        offerId != null && pricingPhases.pricingPhaseList.any { it.priceAmountMicros == 0L && it.billingPeriod == "P1W" }
+        offerId == "trial-7d-$basePlanId" &&
+            pricingPhases.pricingPhaseList.any { it.priceAmountMicros == 0L && it.billingPeriod == "P1W" }
 
     private companion object {
         const val PRODUCT_ID = "multipost_pro"

@@ -1,18 +1,23 @@
 # Stage 2 Google Play subscriptions: configuration and release gate
 
-This branch is isolated from production. It does not create Play products,
-change Stripe prices, deploy a Worker or website, or upload an Android bundle.
+This branch is isolated from production. The main Play subscription and two
+trial offers were saved as drafts in Play Console. No Stripe price, Worker,
+website or Android bundle was deployed or uploaded by this branch work.
 
 ## Product catalogue
 
 * Subscription product: `multipost_pro`
 * Auto-renewing base plans: `monthly` (£9.99) and `yearly` (£79.99)
-* Seven-day free trial: provisional; configure as eligible Play introductory
-  offers after commercial and abuse checks. Offer eligibility is decided by Play.
+* Draft one-week introductory offers: `trial-7d-monthly` and
+  `trial-7d-yearly`, both New customer acquisition → Never had any
+  subscription in this app, blank tags, inherited 175-region availability.
+  The Play Console displayed both as Draft on 1 November 2026. Play decides
+  offer eligibility; the trial usage allowance is still provisional.
 
 ## Backend preparation before any test release
 
-1. Apply `migrations/0009_play_subscriptions.sql` to the intended D1 database.
+1. Apply `migrations/0009_play_subscriptions.sql`, then
+   `migrations/0010_play_trial_phase.sql` to the intended D1 database.
 2. Enable the Google Play Developer API and grant the service account the
    minimum Play Console permission required to view purchase/subscription data
    and acknowledge subscriptions. Store its JSON as the Worker secret
@@ -32,7 +37,7 @@ change Stripe prices, deploy a Worker or website, or upload an Android bundle.
 
 ## Validation on this branch (1 November 2026)
 
-* `npm test`: 99 passed, 0 failed. Before this review, four assertions also
+* `npm test`: 102 passed, 0 failed after first-use changes. Before this review, four assertions also
   failed on the untouched Stage 1 commit `bc7edad`: two expected superseded
   Creator/Pro pricing, one expected an owner email on the display-only pricing
   page, and one expected a live Firebase checkout on that display-only page.
@@ -53,7 +58,9 @@ change Stripe prices, deploy a Worker or website, or upload an Android bundle.
   **before compilation** because this restricted environment forbids its
   daemon listening on a local socket (`java.net.SocketException: Operation not
   permitted`). No APK or native unit test result was produced; do not interpret
-  this as a compilation failure or success. No AGP/Gradle upgrade was attempted.
+  this as a compilation failure or success. A repeat with a writable task-local
+  Gradle home failed at the same socket restriction. The existing debug APK
+  predates these changes. No AGP/Gradle upgrade was attempted.
 
 ## Entitlement and route audit
 
@@ -89,6 +96,23 @@ change Stripe prices, deploy a Worker or website, or upload an Android bundle.
   The unused legacy `app.js` still calls `/api/generate-seo` without an ID
   token; this route now correctly rejects anonymous calls. If that script is
   reintroduced to a page, update it to use authenticated SEO first.
+* The dashboard's Getting started progress now comes from authenticated
+  workspace rows: saved workspace count, connected social account count and
+  recorded post activity. Pending TikTok uploads no longer record publish
+  usage; a confirmed finished TikTok post records `publish_confirmed`. Old
+  TikTok initiation events are ignored for first-use progress. Facebook
+  Reels now record only after the provider status confirms readiness.
+* Play free-trial phase uses verified `subscriptionsv2.get` line item
+  `offerPhase.freeTrial` and a named offer ID, persisted in `trial_end` for
+  dashboard display. Entitlement still depends on state and expiry. Trial
+  purchase and expiration must be validated on a device.
+* Ordinary authenticated `get-accounts` responses still include some YouTube
+  and Facebook bearer credentials. Remove them from reads and redesign page
+  selection around server-held credentials before public launch.
+* Profile previously claimed Firebase sign-in deletion erased all data. It
+  now accurately describes its limited effect and links to a full deletion
+  request. Complete authenticated backend erasure and billing treatment are
+  required before launch.
 
 ## Before a release
 
@@ -102,7 +126,7 @@ change Stripe prices, deploy a Worker or website, or upload an Android bundle.
   store the password in chat or scripts.
 * Build and inspect an unsigned debug APK, then a signed AAB only with explicit
   approval. Check the manifest has `com.android.vending.BILLING`, package
-  `uk.co.multipostapp`, version code 9, and the same upload certificate.
+  `uk.co.multipostapp`, version code 10 (`1.9.1`), and the same upload certificate.
   In Android Studio open the isolated `stage2-dashboard/android` project and
   run `./gradlew :app:assembleDebug :app:testDebugUnitTest` in its terminal.
   Sync must resolve `androidx.webkit:webkit:1.15.0`; no native compilation has
@@ -122,8 +146,9 @@ change Stripe prices, deploy a Worker or website, or upload an Android bundle.
   build with an explicit staging origin before internal purchase tests, or
   deliberately deploy the reviewed frontend/backend together after approval.
   Do not activate paid plans prematurely.
-* Deploy `app.html`, `folder.html`, `settings.html`, the Worker modules, and
-  the migration as one reviewed release unit when approval is given. A lone
+* Deploy `app.html`, `folder.html`, `settings.html`, `help.html`, `pricing.html`,
+  `create-post.html`, `billing-ui.mjs`, the Worker modules and migrations as one
+  reviewed release unit when approval is given. A lone
   backend deploy would break the old GET OAuth start links; a lone frontend
   deploy would call POST routes the live backend does not support. Keep
   existing Stripe webhook/configuration and active subscriber rows intact.
@@ -132,7 +157,8 @@ change Stripe prices, deploy a Worker or website, or upload an Android bundle.
 * The existing 1.8 AAB has upload certificate SHA-256 as shown above. The
   candidate `multipost-upload.jks` is password-protected PKCS12; a password-free
   local inspection failed, so its certificate has **not** been matched. No
-  signed 1.9 bundle is prepared or authorized.
+  signed bundle from this branch is prepared or authorized. The user's reported
+  existing Internal Testing 1.9 upload has not been matched to this checkout.
 
 ## Current limitations
 
@@ -145,3 +171,7 @@ and actual device behavior remain unverified. The five-minute Play refresh
 window means refunds and revocations can take up to that long to remove access
 without RTDN; a purchase made outside the app needs a reconciliation path.
 Native build, signing, and a test purchase are still release blockers.
+Both base plans and offers are Draft and cannot be tested for purchase until
+a separately approved controlled activation. Workspace quantity, AI credits,
+150 successful publications, subscription replacement flows and RTDN remain
+launch blockers. See `docs/launch-readiness-1.9.md` for the decision and gate.

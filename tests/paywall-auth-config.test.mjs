@@ -72,8 +72,8 @@ test("publishing pages use the authenticated server entitlement for owner mode",
 test("pricing stays display-only until authenticated checkout is implemented", async () => {
   const source = await readFile(new URL("../pricing.html", import.meta.url), "utf8");
   assert.doesNotMatch(source, /billing\/create-checkout-session|auth\.currentUser\?\.getIdToken\(\)/);
-  assert.match(source, /Stage 1 paywall is display-only/);
-  assert.match(source, /disabled>Checkout opens after Stage 3/);
+  assert.match(source, /This page is display-only/);
+  assert.match(source, /disabled>Purchases coming after testing/);
 });
 
 test("profile uses the isolated preview billing service and shared Stripe countdown", async () => {

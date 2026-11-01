@@ -783,8 +783,8 @@ Follow for daily trending content! \u{1F44F}
         try {
           const token = await decryptPurchaseToken(row.encrypted_token, env.PLAY_TOKEN_ENCRYPTION_KEY);
           const verified = await verifyPlayPurchase({ token, firebaseUid: identity.userId, serviceAccountJson: env.PLAY_SERVICE_ACCOUNT_JSON });
-          await env.DB.prepare(`UPDATE billing_play_purchases SET subscription_state = ?, expiry_time = ?, base_plan_id = ?, last_verified_at = strftime('%s','now') WHERE user_id = ?`)
-            .bind(verified.state, verified.expiry, verified.basePlanId, identity.userId).run();
+          await env.DB.prepare(`UPDATE billing_play_purchases SET subscription_state = ?, expiry_time = ?, base_plan_id = ?, trial_end = ?, last_verified_at = strftime('%s','now') WHERE user_id = ?`)
+            .bind(verified.state, verified.expiry, verified.basePlanId, verified.trialEnd, identity.userId).run();
           return verified;
         } catch (_) {
           // A failed refresh cannot extend a Play entitlement.
@@ -796,6 +796,7 @@ Follow for daily trending content! \u{1F44F}
         state,
         expiry: Number(row.expiry_time || 0),
         basePlanId: row.base_plan_id,
+        trialEnd: Number(row.trial_end || 0) > nowUnix() ? Number(row.trial_end) : null,
         access: ["SUBSCRIPTION_STATE_ACTIVE", "SUBSCRIPTION_STATE_IN_GRACE_PERIOD", "SUBSCRIPTION_STATE_CANCELED"].includes(state) && Number(row.expiry_time || 0) > nowUnix()
       };
     }, "getPlayEntitlement");
@@ -831,7 +832,7 @@ Follow for daily trending content! \u{1F44F}
           enabled: true,
           access: true,
           reason: "play_verified",
-          status: playEntitlement.state === "SUBSCRIPTION_STATE_CANCELED" ? "canceled" : "active",
+          status: playEntitlement.state === "SUBSCRIPTION_STATE_CANCELED" ? "canceled" : playEntitlement.trialEnd > nowUnix() ? "trialing" : "active",
           owner: false,
           plan: { planKey: "pro", interval: playEntitlement.basePlanId, limits: PLAN_LIMITS.pro }
         };
@@ -848,7 +849,7 @@ Follow for daily trending content! \u{1F44F}
         enabled: true,
         access: hasAccess,
         reason: hasAccess ? "ok" : "subscription_required",
-        status: status || "inactive",
+        status: hasAccess ? status : playEntitlement ? "expired" : status || "inactive",
         owner: false,
         plan: getEffectivePlan(row)
       };
@@ -862,24 +863,24 @@ Follow for daily trending content! \u{1F44F}
         const total = await env.DB.prepare(`
           SELECT COUNT(*) AS count
           FROM billing_usage_events
-          WHERE user_id = ? AND event_type = 'publish' AND created_at >= ? AND created_at < ?
+          WHERE user_id = ? AND event_type IN ('publish', 'publish_confirmed') AND created_at >= ? AND created_at < ?
         `).bind(String(userId), dayStart, dayEnd).first();
         const byPlatform = await env.DB.prepare(`
           SELECT COUNT(*) AS count
           FROM billing_usage_events
-          WHERE user_id = ? AND event_type = 'publish' AND platform = ? AND created_at >= ? AND created_at < ?
+          WHERE user_id = ? AND event_type IN ('publish', 'publish_confirmed') AND platform = ? AND created_at >= ? AND created_at < ?
         `).bind(String(userId), String(platform), dayStart, dayEnd).first();
         return { total: Number(total?.count || 0), platform: Number(byPlatform?.count || 0), dayStart, dayEnd };
       } catch (_) {
         return { total: 0, platform: 0, dayStart, dayEnd };
       }
     }, "countDailyPosts");
-    const recordPublishUsage = /* @__PURE__ */ __name(async (userId, platform) => {
+    const recordPublishUsage = /* @__PURE__ */ __name(async (userId, platform, eventType = 'publish') => {
       try {
         await env.DB.prepare(`
           INSERT INTO billing_usage_events (user_id, event_type, platform, created_at)
-          VALUES (?, 'publish', ?, strftime('%s','now'))
-        `).bind(String(userId), String(platform)).run();
+          VALUES (?, ?, ?, strftime('%s','now'))
+        `).bind(String(userId), String(eventType), String(platform)).run();
       } catch (_) {
       }
     }, "recordPublishUsage");
@@ -1018,7 +1019,7 @@ Follow for daily trending content! \u{1F44F}
         if (!matchesIdentity(userId, identity)) return new Response(JSON.stringify({ success: false, code: "IDENTITY_MISMATCH", error: "This workspace request does not match your current sign-in." }), { status: 403, headers: jsonHeaders });
         const userAliases = [...new Set([identity.userId, ...(identity.emailVerified && identity.email ? [identity.email] : []), ...(identity.workspaceOwnerIds || [])])];
         const { results } = await env.DB.prepare(
-          `SELECT f.*, (SELECT nickname FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_channel, (SELECT profile_picture FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_picture FROM folders f WHERE f.user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY f.created_at DESC`
+          `SELECT f.*, (SELECT nickname FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_channel, (SELECT profile_picture FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_picture, (SELECT COUNT(*) FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform IN ('youtube', 'facebook_page', 'tiktok')) as connected_account_count, EXISTS(SELECT 1 FROM billing_usage_events e WHERE e.user_id = f.user_id AND ((e.event_type = 'publish' AND e.platform IN ('youtube', 'facebook')) OR (e.event_type = 'publish_confirmed' AND e.platform IN ('tiktok', 'facebook')))) as has_first_post FROM folders f WHERE f.user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY f.created_at DESC`
         ).bind(...userAliases).all();
         return new Response(JSON.stringify(results), { headers: jsonHeaders });
       }
@@ -1189,13 +1190,13 @@ Follow for daily trending content! \u{1F44F}
           }
           const encrypted = await encryptPurchaseToken(token, env.PLAY_TOKEN_ENCRYPTION_KEY);
           await env.DB.prepare(`INSERT INTO billing_play_purchases
-            (user_id, token_hash, encrypted_token, product_id, base_plan_id, subscription_state, expiry_time, last_verified_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
+            (user_id, token_hash, encrypted_token, product_id, base_plan_id, subscription_state, expiry_time, trial_end, last_verified_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
             ON CONFLICT(user_id) DO UPDATE SET token_hash = excluded.token_hash, encrypted_token = excluded.encrypted_token,
             product_id = excluded.product_id, base_plan_id = excluded.base_plan_id,
-            subscription_state = excluded.subscription_state, expiry_time = excluded.expiry_time,
+            subscription_state = excluded.subscription_state, expiry_time = excluded.expiry_time, trial_end = excluded.trial_end,
             last_verified_at = excluded.last_verified_at`)
-            .bind(identity.userId, tokenHash, encrypted, verified.productId, verified.basePlanId, verified.state, verified.expiry).run();
+            .bind(identity.userId, tokenHash, encrypted, verified.productId, verified.basePlanId, verified.state, verified.expiry, verified.trialEnd).run();
           return Response.json({ success: true, access: verified.access, status: verified.state, expires_at: verified.expiry }, { headers: corsHeaders });
         } catch (_) {
           return Response.json({ success: false, error: "Google Play purchase could not be verified" }, { status: 400, headers: corsHeaders });
@@ -1246,11 +1247,11 @@ Follow for daily trending content! \u{1F44F}
               stripe_subscription_id: row?.stripe_subscription_id || null,
               stripe_price_id: row?.stripe_price_id || null,
               current_period_end: toUnix(row?.current_period_end),
-              trial_end: toUnix(row?.trial_end),
+              trial_end: playEntitlement?.trialEnd || toUnix(row?.trial_end),
               trial_used: Number(row?.trial_used || 0) === 1,
               is_owner: Number(row?.is_owner || 0) === 1
             },
-            play: playEntitlement ? { state: playEntitlement.state, expires_at: playEntitlement.expiry, base_plan_id: playEntitlement.basePlanId } : null
+            play: playEntitlement ? { state: playEntitlement.state, expires_at: playEntitlement.expiry, base_plan_id: playEntitlement.basePlanId, trial_end: playEntitlement.trialEnd || null } : null
           }
         }), { headers: jsonHeaders });
       }
@@ -2536,7 +2537,6 @@ Follow for daily trending content! \u{1F44F}
           await env.DB.prepare(
             "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, title, file_size, expires_at, folder_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
           ).bind(sessionId, "tiktok", uploadUrl, tiktokAccessToken, publishId, privacyStatus, videoSize, expiresAt, folder_id, user_id).run();
-          await recordPublishUsage(user_id, "tiktok");
           return new Response(JSON.stringify({
             success: true,
             sessionId,
@@ -2716,7 +2716,10 @@ Follow for daily trending content! \u{1F44F}
           }
           const viewUrl = tiktokUrl || tiktokProfileUrl || "https://www.tiktok.com/";
           if (ready || failed) {
-            await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(session.id).run();
+            const removed = await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(session.id).run();
+            if (ready && Number(removed?.meta?.changes ?? removed?.changes ?? 0) > 0) {
+              await recordPublishUsage(user_id, "tiktok", "publish_confirmed");
+            }
           }
           return new Response(JSON.stringify({
             success: true,
@@ -2978,7 +2981,6 @@ Follow for daily trending content! \u{1F44F}
               description: session.description || ""
             })
           });
-          await recordPublishUsage(user_id, "facebook");
           const pageUrl = `https://www.facebook.com/${encodeURIComponent(pageId)}`;
           const postUrl = finishRes?.post_id ? `https://www.facebook.com/${finishRes.post_id}` : "";
           const videoUrl = `https://www.facebook.com/${encodeURIComponent(pageId)}/videos/${encodeURIComponent(videoId)}`;
@@ -3051,7 +3053,10 @@ Follow for daily trending content! \u{1F44F}
           const status = video?.status || {};
           const readiness = evaluateFacebookVideoReadiness(videoId, video);
           if (readiness.ready) {
-            await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(session.id).run();
+            const removed = await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(session.id).run();
+            if (Number(removed?.meta?.changes ?? removed?.changes ?? 0) > 0) {
+              await recordPublishUsage(user_id, "facebook", "publish_confirmed");
+            }
           }
           return new Response(JSON.stringify({
             success: true,
@@ -3525,7 +3530,6 @@ Follow for daily trending content! \u{1F44F}
           if (!tiktokRes.ok || (result?.error?.code && result.error.code !== "ok")) {
             return new Response(JSON.stringify({ success: false, error: `TikTok init failed: ${JSON.stringify(result?.error || result)}` }), { headers: jsonHeaders });
           }
-          await recordPublishUsage(billingUserId, "tiktok");
           return new Response(JSON.stringify(result), { headers: jsonHeaders });
         }
         if (platform === "facebook") {

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>MultiPost | How it works</title>
+  <style>
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; padding:24px 16px 64px; color:#e2e8f0; font:15px/1.6 system-ui,sans-serif; background:linear-gradient(135deg,#0f172a,#0b2f52 65%,#0ea5e9); }
+    main { max-width:680px; margin:auto; }
+    a { color:#7dd3fc; }
+    h1 { margin:16px 0 6px; font-size:29px; line-height:1.2; }
+    h2 { font-size:18px; margin:0 0 8px; }
+    p { margin:6px 0 10px; }
+    .intro { color:#cbd5e1; }
+    .card { padding:18px; margin:14px 0; border-radius:16px; background:#0b1829; border:1px solid #334155; }
+    .card p,.card li { color:#cbd5e1; }
+    .card ol,.card ul { margin:8px 0; padding-left:22px; }
+    .action { display:inline-block; padding:11px 15px; border-radius:10px; margin-top:8px; color:white; font-weight:700; text-decoration:none; background:linear-gradient(135deg,#7c3aed,#0ea5e9); }
+    .muted { color:#94a3b8; font-size:13px; }
+  </style>
+</head>
+<body>
+<main>
+  <a href="app.html">← Dashboard</a>
+  <h1>How MultiPost works</h1>
+  <p class="intro">See the steps and subscription terms before choosing a plan. This guide is available before you subscribe.</p>
+
+  <section class="card">
+    <h2>Start with one workspace</h2>
+    <ol>
+      <li>Create an account or sign in. Verify your email if prompted.</li>
+      <li>Review the subscription in Profile. On Android, Google Play shows available monthly and yearly plans and any trial you are eligible for.</li>
+      <li>Create a workspace for a brand or client. Pro is intended to include one workspace. Paid extra workspaces are not available yet.</li>
+      <li>Open the workspace and connect a YouTube account, Facebook Page or TikTok account. Grant each provider the required permissions.</li>
+      <li>Open the post studio to enter a description or image, generate platform SEO, review the text and publish using an available platform flow. You can edit copy yourself. TikTok may ask you to finish a draft inside TikTok.</li>
+    </ol>
+    <p>Scheduled posting is not available in this version. Instagram publishing is not available in this version.</p>
+  </section>
+
+  <section class="card">
+    <h2>Plans, trial and renewal</h2>
+    <p>For UK customers the proposed MultiPost Pro prices are £9.99 per month or £79.99 per year. Google Play displays the current price in your local currency and the exact first payment date before you confirm. Your plan renews automatically until you cancel it.</p>
+    <p>A seven-day free-trial offer is planned for eligible first-time subscribers on either billing period. Google Play decides eligibility. The app only shows a trial option when Play returns that offer for your account. If there is no eligible offer, the paid base plan is shown.</p>
+    <p>The proposed allowance is 150 AI credits and 150 successful platform publications every month, including on yearly billing. Those limits and extra credit purchases still need backend enforcement and are not ready for purchase testing. Do not rely on the proposed allowance until the launch configuration is completed.</p>
+    <p>To cancel or manage a Play subscription, open Profile → Manage in Google Play. Cancelling stops renewal; access can continue until the verified expiry. Existing web subscribers can use Profile → Manage Billing for the Stripe portal. Restore purchases on Android to recheck a Play purchase for the signed-in MultiPost account.</p>
+  </section>
+
+  <section class="card">
+    <h2>Extra workspaces</h2>
+    <p>One workspace is intended to be included with Pro. Extra workspaces are proposed at £4.99 each per month or £39.99 each per year in the UK. Recurring multiple-workspace purchases and matching entitlements are still under design; there is no working add-on purchase button yet.</p>
+  </section>
+
+  <section class="card">
+    <h2>If something does not work</h2>
+    <ul>
+      <li>If workspaces do not load, use Retry on the dashboard. Sign in again if your session expired; check your network connection if the server is unavailable.</li>
+      <li>If a purchase is missing, check that you are using the original Google Play account and the same MultiPost sign-in, then use Restore purchases. A purchase screen alone does not activate access; the server must verify it.</li>
+      <li>If a social account fails to connect, open that workspace and reconnect it. Provider permissions or account restrictions may need attention.</li>
+      <li>If a post fails, read the platform-specific error and retry once your connection is restored. Failed publishing attempts should not be treated as a successful post.</li>
+    </ul>
+    <a class="action" href="settings.html">Review subscription options</a>
+  </section>
+  <section class="card">
+    <h2>Account and data deletion</h2>
+    <p>Profile can remove your Firebase sign-in. That action does not cancel a Play or Stripe subscription or erase saved workspace and social connection records. Cancel billing separately, then email <a href="mailto:info@multipostapp.co.uk?subject=MultiPost%20account%20deletion">info@multipostapp.co.uk</a> for a full account and data deletion request. A self-service backend deletion flow is required before public launch.</p>
+  </section>
+  <p class="muted">This guide describes the branch under development; purchase options are not live until the complete billing release is approved.</p>
+</main>
+</body>
+</html>

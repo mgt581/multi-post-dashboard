@@ -215,7 +215,7 @@
         <div class="icon-box"><i class="fa-solid fa-credit-card"></i></div>
         <div class="billing-copy">
           <span class="action-title">Subscription & Trial</span>
-          <span class="action-sub">Web billing for premium posting access</span>
+          <span class="action-sub" id="billingProviderLabel">Subscription access across your account</span>
           <span id="billingStatusPill" class="billing-status">Checking…</span>
           <div id="billingNote" class="billing-note">Loading billing state.</div>
         </div>
@@ -231,10 +231,16 @@
         <button id="playRestoreBtn" class="mini-btn" type="button">Restore purchases</button>
         <button id="playManageBtn" class="mini-btn" type="button">Manage in Google Play</button>
       </div>
-      <div class="billing-note">Upgrade and checkout options are now in the dedicated pricing page.</div>
+      <div id="playPaymentNote" class="billing-note" hidden></div>
+      <div class="billing-note">Pro is planned to include one workspace with a YouTube account, Facebook Page and TikTok account. Workspace limits, AI credits, monthly publishing limits and extra workspace purchases still need backend enforcement; see <a href="help.html" style="color:#7dd3fc;">How it works</a> before subscribing. Google Play shows the final terms and confirms any first payment date before purchase. Subscriptions renew automatically unless cancelled in Google Play. Web Stripe subscribers can manage their existing subscription in the billing portal.</div>
     </div>
 
     <div class="section-title">Security</div>
+
+    <a href="help.html" class="card action-card" style="text-decoration:none;color:inherit;">
+      <div class="icon-box"><i class="fa-solid fa-circle-question"></i></div>
+      <div class="action-info"><span class="action-title">Help / How It Works</span><span class="action-sub">Learn about workspaces, billing, posting and troubleshooting</span></div>
+    </a>
 
     <a id="homepageAction" href="index.html" class="card action-card btn-home" style="text-decoration: none; color: inherit;">
       <div class="icon-box"><i class="fa-solid fa-house"></i></div>
@@ -255,8 +261,8 @@
     <div class="card action-card" onclick="deleteAccount()" style="border-color: rgba(244, 63, 94, 0.3);">
       <div class="icon-box" style="color: var(--error);"><i class="fa-solid fa-user-slash"></i></div>
       <div class="action-info">
-        <span class="action-title" style="color: var(--error);">Delete Account</span>
-        <span class="action-sub">Permanently erase all data</span>
+        <span class="action-title" style="color: var(--error);">Delete sign-in</span>
+        <span class="action-sub">This removes Firebase login only. See the data deletion instructions first.</span>
       </div>
     </div>
 
@@ -324,6 +330,8 @@
       : "https://multipost-seo-worker-preview.alexbryant.workers.dev/api";
     let billingUser = null;
     let currentBilling = null;
+    let availablePlayPlans = [];
+    let playPlansLoaded = false;
     let billingRefreshTimer = null;
     const OWNER_KEYS = ["alexbryant3234@gmail.com"];
     const normalizeUserKey = value => String(value || "").trim().toLowerCase();
@@ -375,13 +383,45 @@
       if (!currentBilling) return;
       const display = getBillingDisplay(currentBilling);
       const note = display.kind === "trial"
-        ? "Your trial countdown is based on the verified subscription end time and refreshes automatically."
+        ? "Your trial countdown comes from the verified subscription. Check Google Play or your Stripe billing portal for the exact payment date and cancellation controls."
         : display.kind === "owner"
           ? "Owner mode is enabled for this authenticated account. Billing gates are bypassed."
           : display.access
-            ? "Your account currently has premium posting access."
+            ? currentBilling.reason === "play_verified"
+              ? `Google Play Pro ${currentBilling.play?.base_plan_id || ""} access. ${currentBilling.status === "canceled" ? "Cancelled; access continues until the verified expiry." : "Manage renewal in Google Play."}`
+              : "Existing web subscription access. Manage billing in your Stripe portal."
             : display.message;
       setBillingUi(display.message, note, display.access ? "ok" : "warn");
+      renderPlayPlans();
+    }
+
+    function renderPlayPlans() {
+      if (!isAndroidWrapper()) return;
+      const hasAccess = !!currentBilling?.access;
+      const readyForPurchase = currentBilling?.enabled === true && !hasAccess;
+      const note = document.getElementById("playPaymentNote");
+      document.getElementById("billingProviderLabel").textContent = "Google Play subscription and restoration";
+      for (const interval of ["monthly", "yearly"]) {
+        const offer = availablePlayPlans.find(plan => plan.base_plan_id === interval && plan.trial_available)
+          || availablePlayPlans.find(plan => plan.base_plan_id === interval && !plan.offer_id);
+        const button = document.getElementById(interval === "monthly" ? "playMonthlyBtn" : "playYearlyBtn");
+        button.hidden = hasAccess;
+        button.disabled = !offer || !readyForPurchase;
+        button.textContent = offer
+          ? `${offer.trial_available ? "Eligible: 7 days free, then " : "Subscribe: "}${offer.price}/${interval === "monthly" ? "month" : "year"}`
+          : `${interval} unavailable`;
+      }
+      const anyTrial = availablePlayPlans.some(plan => plan.trial_available && ["monthly", "yearly"].includes(plan.base_plan_id));
+      note.hidden = false;
+      note.textContent = !currentBilling?.enabled
+        ? "Purchases are unavailable until the server confirms billing access. Retry the status check before choosing a plan."
+        : !playPlansLoaded
+          ? "Checking eligible offers and local prices in Google Play…"
+          : hasAccess
+        ? "Your existing access is active. Restore purchases if this account is missing a Google Play subscription. Plan changes are not offered in-app yet."
+        : anyTrial
+          ? `Google Play has returned an eligible seven-day trial. If started today, the first payment is expected around ${new Date(Date.now() + 7 * 86400000).toLocaleDateString()}; the Google Play checkout shows the exact date before you agree. Cancel in Google Play before the trial ends to avoid the first charge.`
+          : "Google Play has not returned a free-trial offer for this account. Review the price and first payment date in Google Play before confirming. You can cancel renewal in Google Play.";
     }
 
     function startBillingRefresh() {
@@ -421,16 +461,9 @@
       document.getElementById("openPricingBtn").hidden = true;
       document.getElementById("manageBillingBtn").hidden = true;
       window.onMultiPostPlayPlans = plans => {
-        for (const interval of ["monthly", "yearly"]) {
-          const offer = plans.find(plan => plan.base_plan_id === interval && plan.trial_available)
-            || plans.find(plan => plan.base_plan_id === interval && !plan.offer_id)
-            || plans.find(plan => plan.base_plan_id === interval);
-          const button = document.getElementById(interval === "monthly" ? "playMonthlyBtn" : "playYearlyBtn");
-          button.disabled = !offer;
-          button.textContent = offer
-            ? `${offer.trial_available ? "7 days free, then " : ""}${offer.price}/${interval === "monthly" ? "month" : "year"}`
-            : `${interval} unavailable`;
-        }
+        availablePlayPlans = Array.isArray(plans) ? plans : [];
+        playPlansLoaded = true;
+        renderPlayPlans();
       };
       window.onMultiPostPlayError = message => setBillingUi("Google Play", String(message), "warn");
       window.onMultiPostPlayPurchase = async purchase => {
@@ -520,7 +553,7 @@
     };
 
     window.deleteAccount = async () => {
-      if(confirm("DANGER: This will permanently delete your account. Proceed?")) {
+      if(confirm("This deletes your sign-in only. It does not cancel Google Play or Stripe billing or remove saved workspace data. For full account and data deletion, contact info@multipostapp.co.uk. Continue deleting this sign-in?")) {
         try {
           const user = auth.currentUser;
           await deleteUser(user);
