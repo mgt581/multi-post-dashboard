@@ -139,26 +139,28 @@ var worker_default = {
         return { raw: text };
       }
     }, "safeJson");
-    const encodeState = /* @__PURE__ */ __name((obj) => {
-      try {
-        return btoa(JSON.stringify(obj));
-      } catch {
-        return String(obj?.folderId || "");
-      }
+    const oauthStateKey = /* @__PURE__ */ __name((secret) => crypto.subtle.importKey(
+      "raw", new TextEncoder().encode(requireEnv(secret, "OAuth client secret")),
+      { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]
+    ), "oauthStateKey");
+    const encodeState = /* @__PURE__ */ __name(async (obj, secret) => {
+      const payload = btoa(JSON.stringify({ ...obj, expiresAt: Math.floor(Date.now() / 1e3) + 600, nonce: crypto.randomUUID() }));
+      const signature = await crypto.subtle.sign("HMAC", await oauthStateKey(secret), new TextEncoder().encode(payload));
+      const mac = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+      return `${payload}.${mac}`;
     }, "encodeState");
-    const decodeState = /* @__PURE__ */ __name((stateStr) => {
-      if (!stateStr) return { folderId: null, userId: null, platform: null };
+    const decodeState = /* @__PURE__ */ __name(async (value, secret, platform) => {
       try {
-        return JSON.parse(atob(stateStr));
-      } catch {
-        try {
-          const raw = atob(stateStr);
-          const [folderId] = raw.split("|");
-          return { folderId: folderId || raw, userId: null, platform: null };
-        } catch {
-          return { folderId: stateStr, userId: null, platform: null };
-        }
-      }
+        const [payload, mac, extra] = String(value || "").split(".");
+        if (!payload || !mac || extra) return null;
+        const raw = atob(mac.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(mac.length / 4) * 4, "="));
+        const signature = Uint8Array.from(raw, (character) => character.charCodeAt(0));
+        if (!await crypto.subtle.verify("HMAC", await oauthStateKey(secret), signature, new TextEncoder().encode(payload))) return null;
+        const state = JSON.parse(atob(payload));
+        if (state.platform !== platform || !state.folderId || !state.userId || !state.nonce ||
+          !Number.isInteger(state.expiresAt) || state.expiresAt <= Math.floor(Date.now() / 1e3)) return null;
+        return state;
+      } catch { return null; }
     }, "decodeState");
     const upsertToken = /* @__PURE__ */ __name(async ({ folderId, platform, accountId, accessToken, refreshToken, expiresAt, scope }) => {
       const safeFolderId = folderId == null ? null : String(folderId);
@@ -1026,6 +1028,8 @@ Follow for daily trending content! \u{1F44F}
         if (!name || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing name or user_id" }), { status: 400, headers: jsonHeaders });
         }
+        const billingGate = await ensureBillingAccess(userId, "web", request);
+        if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         await env.DB.prepare(
           "INSERT INTO folders (name, user_id) VALUES (?, ?)"
         ).bind(name, userId).run();
@@ -1399,29 +1403,26 @@ Follow for daily trending content! \u{1F44F}
         }
       }
       if (url.pathname === "/api/auth/youtube") {
-        const legacyState = url.searchParams.get("state");
-        const stateObj = decodeState(legacyState);
-        const folderId = url.searchParams.get("folder_id") || stateObj.folderId;
-        const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId);
+        if (request.method !== "POST") return new Response("Connect YouTube from your workspace while signed in.", { status: 405, headers: { ...jsonHeaders, Allow: "POST" } });
+        const { folder_id: folderId, user_id: requestedUserId } = await request.json();
+        const userId = requireUser(requestedUserId);
         if (!folderId || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), { status: 400, headers: jsonHeaders });
         }
-        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, null, url.searchParams.get("client_platform")), request);
-        if (billingSnapshot.ok) {
-          const linkGate = await ensureLinkingQuota({ userId, platform: "youtube", folderId, evaluated: billingSnapshot.evaluated });
-          if (!linkGate.ok) {
-            return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
-          }
-        }
-        const state = encodeState({ folderId, platform: "youtube", userId });
+        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request), request);
+        if (!billingSnapshot.ok) return new Response(JSON.stringify(billingSnapshot.body), { status: billingSnapshot.statusCode, headers: jsonHeaders });
+        if (!await ownedFolder(env.DB, folderId, userId)) return new Response(JSON.stringify({ error: "Workspace not found" }), { status: 404, headers: jsonHeaders });
+        const linkGate = await ensureLinkingQuota({ userId, platform: "youtube", folderId, evaluated: billingSnapshot.evaluated });
+        if (!linkGate.ok) return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
         if (!env.GOOGLE_CLIENT_ID) {
           return new Response(JSON.stringify({ success: false, error: "Missing GOOGLE_CLIENT_ID env var" }), { status: 500, headers: jsonHeaders });
         }
         if (!env.GOOGLE_CLIENT_SECRET) {
           return new Response(JSON.stringify({ success: false, error: "Missing GOOGLE_CLIENT_SECRET env var" }), { status: 500, headers: jsonHeaders });
         }
+        const state = await encodeState({ folderId, platform: "youtube", userId }, env.GOOGLE_CLIENT_SECRET);
         const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(env.GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(YOUTUBE_OAUTH_SCOPE)}&access_type=offline&include_granted_scopes=false&prompt=${encodeURIComponent("consent select_account")}&state=${encodeURIComponent(state)}`;
-        return Response.redirect(googleAuthUrl);
+        return Response.json({ url: googleAuthUrl }, { headers: jsonHeaders });
       }
       if (url.pathname === "/api/auth/login/tiktok") {
         const clientKey = getTikTokSigninClientKey();
@@ -1507,13 +1508,18 @@ Follow for daily trending content! \u{1F44F}
           "Cache-Control": "no-store", "Set-Cookie": tikTokLinkCookie(link.browserNonce, 600, request.url) } });
       }
       if (url.pathname === "/api/auth/facebook") {
-        const legacyState = url.searchParams.get("state");
-        const stateObj = decodeState(legacyState) || {};
-        const folderId = url.searchParams.get("folder_id") || stateObj.folderId || "";
-        const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId || "");
+        if (request.method !== "POST") return new Response("Connect Facebook from your workspace while signed in.", { status: 405, headers: { ...jsonHeaders, Allow: "POST" } });
+        const { folder_id: folderId, user_id: requestedUserId, refresh } = await request.json();
+        const userId = requireUser(requestedUserId);
+        if (!folderId || !userId) return Response.json({ error: "Missing folder_id or user_id" }, { status: 400, headers: jsonHeaders });
+        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request), request);
+        if (!billingSnapshot.ok) return Response.json(billingSnapshot.body, { status: billingSnapshot.statusCode, headers: jsonHeaders });
+        if (!await ownedFolder(env.DB, folderId, userId)) return Response.json({ error: "Workspace not found" }, { status: 404, headers: jsonHeaders });
+        const linkGate = await ensureLinkingQuota({ userId, platform: "facebook_page", folderId, evaluated: billingSnapshot.evaluated });
+        if (!linkGate.ok) return Response.json(linkGate.body, { status: linkGate.statusCode, headers: jsonHeaders });
         const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
         requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
-        const state = encodeState({ folderId, platform: "facebook", userId });
+        const state = await encodeState({ folderId, platform: "facebook", userId }, env.FB_CLIENT_SECRET);
         const fbAuthParams = new URLSearchParams({
           client_id: fbClientId,
           redirect_uri: fbRedirectUri,
@@ -1524,15 +1530,15 @@ Follow for daily trending content! \u{1F44F}
         // Ask Facebook to re-check the granted Page permissions when the user
         // explicitly refreshes a connection. The provider still controls which
         // Facebook profile is signed in and which Pages it returns.
-        if (url.searchParams.get("refresh") === "1") fbAuthParams.set("auth_type", "rerequest");
+        if (refresh === true) fbAuthParams.set("auth_type", "rerequest");
         const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?${fbAuthParams.toString()}`;
-        return Response.redirect(fbAuthUrl);
+        return Response.json({ url: fbAuthUrl }, { headers: jsonHeaders });
       }
       if (url.pathname === "/api/auth/callback/youtube") {
         const code = url.searchParams.get("code");
-        const stateObj = decodeState(url.searchParams.get("state"));
-        const folderId = stateObj.folderId;
-        const userId = requireUser(stateObj.userId);
+        const stateObj = await decodeState(url.searchParams.get("state"), env.GOOGLE_CLIENT_SECRET, "youtube");
+        const folderId = stateObj?.folderId;
+        const userId = requireUser(stateObj?.userId);
         if (!folderId || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing state" }), { status: 400, headers: jsonHeaders });
         }
@@ -1804,9 +1810,9 @@ Follow for daily trending content! \u{1F44F}
             return redirectWithError(err?.message || "Facebook sign-in failed");
           }
         }
-        const stateObj = decodeState(rawState);
-        const folderId = stateObj.folderId;
-        const userId = requireUser(stateObj.userId);
+        const stateObj = await decodeState(rawState, env.FB_CLIENT_SECRET, "facebook");
+        const folderId = stateObj?.folderId;
+        const userId = requireUser(stateObj?.userId);
         if (!folderId || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing state" }), { status: 400, headers: jsonHeaders });
         }
@@ -2007,12 +2013,9 @@ Follow for daily trending content! \u{1F44F}
           );
         }
         const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, body?.client_platform, null), request);
-        if (billingSnapshot.ok) {
-          const linkGate = await ensureLinkingQuota({ userId, platform: "facebook_page", folderId: folder_id, evaluated: billingSnapshot.evaluated });
-          if (!linkGate.ok) {
-            return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
-          }
-        }
+        if (!billingSnapshot.ok) return new Response(JSON.stringify(billingSnapshot.body), { status: billingSnapshot.statusCode, headers: jsonHeaders });
+        const linkGate = await ensureLinkingQuota({ userId, platform: "facebook_page", folderId: folder_id, evaluated: billingSnapshot.evaluated });
+        if (!linkGate.ok) return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
         await env.DB.batch([
           env.DB.prepare(
             "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook_page'"
@@ -2207,8 +2210,8 @@ Follow for daily trending content! \u{1F44F}
           const totalChunks = Math.max(1, Math.ceil(fileSize / chunkSize));
           const expiresAt = Math.floor(Date.now() / 1e3) + SESSION_EXPIRY_SECONDS;
           await env.DB.prepare(
-            "INSERT INTO upload_sessions (id, platform, upload_url, access_token, file_size, expires_at) VALUES (?, ?, ?, ?, ?, ?)"
-          ).bind(sessionId, "youtube", uploadUrl, accessToken, fileSize, expiresAt).run();
+            "INSERT INTO upload_sessions (id, platform, upload_url, access_token, file_size, expires_at, folder_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+          ).bind(sessionId, "youtube", uploadUrl, accessToken, fileSize, expiresAt, folder_id, user_id).run();
           return new Response(JSON.stringify({
             success: true,
             sessionId,
@@ -2234,6 +2237,11 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
+        if (!await ownedFolder(env.DB, folder_id, user_id)) {
+          return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        }
         const formData = await request.formData();
         const sessionId = String(formData.get("sessionId") || "").trim();
         const offset = Number(formData.get("offset") || 0);
@@ -2258,8 +2266,8 @@ Follow for daily trending content! \u{1F44F}
           });
         }
         const session = await env.DB.prepare(
-          "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'youtube' LIMIT 1"
-        ).bind(sessionId).first();
+          "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'youtube' AND folder_id = ? AND user_id = ? LIMIT 1"
+        ).bind(sessionId, folder_id, user_id).first();
         if (!session) {
           return new Response(JSON.stringify({ success: false, error: "Upload session not found or expired" }), {
             status: 404,
@@ -2552,6 +2560,8 @@ Follow for daily trending content! \u{1F44F}
         if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
           return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
         }
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
 
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
@@ -2831,6 +2841,8 @@ Follow for daily trending content! \u{1F44F}
         if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
           return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
         }
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
             status: 400,
@@ -2917,6 +2929,8 @@ Follow for daily trending content! \u{1F44F}
         if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
           return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
         }
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
             status: 400,
@@ -3593,6 +3607,10 @@ Follow for daily trending content! \u{1F44F}
       }
       if (url.pathname === "/api/generate-seo" && request.method === "POST") {
         const payload = await request.json();
+        const identity = await getFirebaseIdentity(request);
+        const userId = requireUser(payload?.user_id || identity?.userId);
+        const billingGate = await ensureBillingAccess(userId, "web", request, true);
+        if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         const sharedInput = await normalizeSeoInput(payload);
         if (!sharedInput.topic.trim() && !sharedInput.imageBase64) {
           return new Response(JSON.stringify({ success: false, error: "Provide an image, a text prompt, or both" }), { status: 400, headers: jsonHeaders });

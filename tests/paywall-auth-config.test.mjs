@@ -19,12 +19,14 @@ test("web billing recognizes the requested owner email and its Firebase account"
 });
 
 test("browser owner lists contain only the requested account", async () => {
-  const pages = ["app.html", "create-post.html", "folder.html", "pricing.html", "settings.html", "uploadimages.html"];
+  const pages = ["app.html", "create-post.html", "folder.html", "settings.html", "uploadimages.html"];
   for (const page of pages) {
     const source = await readFile(new URL(`../${page}`, import.meta.url), "utf8");
     assert.match(source, new RegExp(OWNER_EMAIL.replace(".", "\\.")));
     for (const alias of REMOVED_OWNER_ALIASES) assert.doesNotMatch(source, new RegExp(alias));
   }
+  const pricing = await readFile(new URL("../pricing.html", import.meta.url), "utf8");
+  assert.doesNotMatch(pricing, new RegExp(OWNER_EMAIL.replace(".", "\\.")));
 });
 
 test("signin requires an explicit account and landing links use it", async () => {
@@ -67,11 +69,11 @@ test("publishing pages use the authenticated server entitlement for owner mode",
   assert.match(worker, /identityMatchesBillingUser/);
 });
 
-test("pricing checkout uses the signed-in Firebase identity", async () => {
+test("pricing stays display-only until authenticated checkout is implemented", async () => {
   const source = await readFile(new URL("../pricing.html", import.meta.url), "utf8");
-  assert.match(source, /auth\.currentUser\?\.getIdToken\(\)/);
-  assert.match(source, /authenticatedFetch\(`\$\{apiBase\}\/billing\/create-checkout-session/);
-  assert.match(source, /success_url: `\$\{window\.location\.origin\}\/app\.html\?billing=success`/);
+  assert.doesNotMatch(source, /billing\/create-checkout-session|auth\.currentUser\?\.getIdToken\(\)/);
+  assert.match(source, /Stage 1 paywall is display-only/);
+  assert.match(source, /disabled>Checkout opens after Stage 3/);
 });
 
 test("profile uses the isolated preview billing service and shared Stripe countdown", async () => {

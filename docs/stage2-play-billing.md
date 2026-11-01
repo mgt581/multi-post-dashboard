@@ -30,21 +30,105 @@ change Stripe prices, deploy a Worker or website, or upload an Android bundle.
    route, at most five minutes after the last verification. An unavailable Play
    API fails closed for Play access after that interval.
 
+## Validation on this branch (1 November 2026)
+
+* `npm test`: 99 passed, 0 failed. Before this review, four assertions also
+  failed on the untouched Stage 1 commit `bc7edad`: two expected superseded
+  Creator/Pro pricing, one expected an owner email on the display-only pricing
+  page, and one expected a live Firebase checkout on that display-only page.
+  Tests now check the intended staged paywall and legacy Stripe mappings.
+* Regression tests cover Play active/trial, canceled before/after expiry,
+  expired/revoked, hold/paused/pending, wrong product or account, encrypted
+  tokens, duplicate tokens, Stripe fallback, spoofed Android headers, the
+  formerly unguarded legacy SEO route, upload completion, workspace creation,
+  OAuth linking, and the main-frame native message contract. Google responses
+  and Firebase identity in these tests are mocked; no live purchase was made.
+* `node --check worker.js` and `git diff --check` pass. Existing social media
+  publishing and Firebase integration tests pass. Native sign-in, WebView,
+  social publishing, and Play purchase flows still need device validation.
+  `npm run build` (Wrangler dry run) could not start because this checkout has
+  no installed `wrangler` executable. No Worker bundle was produced.
+* `./gradlew --offline --no-daemon :app:assembleDebug :app:testDebugUnitTest`
+  was attempted with Android Studio's JBR and local Gradle cache. Gradle failed
+  **before compilation** because this restricted environment forbids its
+  daemon listening on a local socket (`java.net.SocketException: Operation not
+  permitted`). No APK or native unit test result was produced; do not interpret
+  this as a compilation failure or success. No AGP/Gradle upgrade was attempted.
+
+## Entitlement and route audit
+
+* Google `subscriptionsv2.get` must match `multipost_pro`, `monthly`/`yearly`,
+  and the SHA-256 obfuscated Firebase UID. Access requires an active, grace,
+  or canceled-with-future-expiry state. Expiry, hold, pause, pending, and
+  revoked/expired are denied. A unique token hash and account binding prevent
+  another account registering a stored token; tokens are AES-GCM encrypted.
+  Initial purchases are acknowledged after verification.
+* No route grants access because the request says `client_platform=android`.
+  Authentication and entitlement are checked on premium SEO, the legacy SEO
+  route, publication start and completion, linking starts, page selection, and
+  workspace creation. Read-only workspace/status routes still authenticate.
+  The general `WEB_BILLING_ENABLED` switch can disable billing for all clients;
+  it must be true in the launch environment. Owner access requires a verified
+  Firebase account configured on the server.
+* YouTube and Facebook OAuth starts now use authenticated POST requests from
+  `folder.html` and return the provider URL for navigation. Redirect callback
+  state is HMAC-signed with the respective existing provider secret and expires
+  after ten minutes. Legacy in-flight callback states must restart linking
+  after a future Worker deployment. Existing Stripe rows retain their
+  independent path. Stripe `active` rows without a period end are presently
+  accepted by the pre-existing code if Stripe refresh is unavailable; audit
+  actual rows and fix this before a trial-and-paid-only public launch.
+  The signed OAuth state is not yet bound to the initiating browser session;
+  add and test a browser-bound nonce before public release to prevent a
+  user being tricked into completing another account's link flow.
+* In-flight YouTube resumable upload sessions created before this version do
+  not have owner fields and cannot be completed by the new guarded chunk route.
+  Clear or finish these sessions before a later Worker deployment.
+  Workspace count enforcement remains Stage 3: creation now requires a paid
+  entitlement but has no server-side maximum workspace count yet.
+  The unused legacy `app.js` still calls `/api/generate-seo` without an ID
+  token; this route now correctly rejects anonymous calls. If that script is
+  reintroduced to a page, update it to use authenticated SEO first.
+
 ## Before a release
 
 * Verify the upload keystore certificate SHA-256 matches both the Play Console
   **upload** certificate and the existing version 1.8 AAB certificate:
   `3D:37:61:C3:F4:61:CC:82:BF:E6:86:D2:95:F0:82:3C:A2:6A:5D:01:5B:8C:31:2D:78:AF:47:23:E0:D4:BD:1A`.
+  On the Mac, run
+  `'/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/keytool' -list -v -keystore '/Users/alexb/Desktop/multipost-upload.jks' -alias multipost`;
+  enter the password only in the local prompt. Compare with Play Console →
+  Setup → App integrity → App signing → Upload key certificate. Do not send or
+  store the password in chat or scripts.
 * Build and inspect an unsigned debug APK, then a signed AAB only with explicit
   approval. Check the manifest has `com.android.vending.BILLING`, package
   `uk.co.multipostapp`, version code 9, and the same upload certificate.
+  In Android Studio open the isolated `stage2-dashboard/android` project and
+  run `./gradlew :app:assembleDebug :app:testDebugUnitTest` in its terminal.
+  Sync must resolve `androidx.webkit:webkit:1.15.0`; no native compilation has
+  succeeded in this restricted workspace.
 * Test monthly, yearly, eligible and ineligible trials, purchase restoration,
   cancellation at period end, account hold, expiry, refund/revocation, Google
   sign-in, image upload, and each social publishing platform on a Play test track.
-* The branch's `settings.html` contains the Android Play controls. The existing
-  live website does not. An Android-only build cannot show those controls until
-  this branch's website is tested and deliberately deployed, or equivalent UI
-  is embedded in the native wrapper. Do not activate paid plans prematurely.
+* The native WebView starts at the live `app.html` and navigates to
+  `settings.html` through the existing Profile link. Play buttons only appear
+  when the branch's **`settings.html`** is served from
+  `https://multipostapp.co.uk` or `https://www.multipostapp.co.uk` in the new
+  Android wrapper. The `folder.html` and `app.html` branch changes also need
+  deployment for authenticated linking and workspace creation. The backend
+  requires `worker.js`, `play-subscriptions.mjs`, the D1 migration, and Worker
+  secrets. The live site has none of these Stage 2 changes. An isolated preview
+  host is not accepted by the native origin allowlist; use an approved staging
+  build with an explicit staging origin before internal purchase tests, or
+  deliberately deploy the reviewed frontend/backend together after approval.
+  Do not activate paid plans prematurely.
+* Deploy `app.html`, `folder.html`, `settings.html`, the Worker modules, and
+  the migration as one reviewed release unit when approval is given. A lone
+  backend deploy would break the old GET OAuth start links; a lone frontend
+  deploy would call POST routes the live backend does not support. Keep
+  existing Stripe webhook/configuration and active subscriber rows intact.
+  Coordinate cache invalidation and allow any in-progress OAuth or YouTube
+  upload sessions to finish before the paired change.
 * The existing 1.8 AAB has upload certificate SHA-256 as shown above. The
   candidate `multipost-upload.jks` is password-protected PKCS12; a password-free
   local inspection failed, so its certificate has **not** been matched. No
@@ -55,10 +139,9 @@ change Stripe prices, deploy a Worker or website, or upload an Android bundle.
 The original Android app has no native unit tests. No live Play Developer API,
 service account, Play products, subscription events, or signed release was used
 in Stage 2. Stage 3 credit and workspace allowances remain unimplemented.
-The WebView's `JavascriptInterface` is exposed to embedded frames when a
-trusted page is open. An embedded frame could invoke the native purchase UI;
-it cannot grant itself entitlement because the backend verifies the token and
-Firebase account with Google. Before release, replace the bridge with an
-origin-aware message listener or constrain embedded content and validate this
-on a device. The five-minute Play refresh window also means refunds and
-revocations can take up to that long to remove access without RTDN.
+The WebView Billing and Google sign-in bridges now use origin-aware messages,
+reject all subframes, and fail closed on unsupported WebViews. Their compilation
+and actual device behavior remain unverified. The five-minute Play refresh
+window means refunds and revocations can take up to that long to remove access
+without RTDN; a purchase made outside the app needs a reconciliation path.
+Native build, signing, and a test purchase are still release blockers.

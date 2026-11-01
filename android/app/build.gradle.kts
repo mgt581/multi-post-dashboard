@@ -30,4 +30,5 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.android.gms:play-services-auth:21.4.0")
     implementation("com.android.billingclient:billing:9.1.0")
+    implementation("androidx.webkit:webkit:1.15.0")
 }

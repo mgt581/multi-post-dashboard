@@ -414,6 +414,9 @@
     }
 
     if (window.AndroidBilling && isAndroidWrapper()) {
+      const sendPlayAction = (action, details = {}) => {
+        window.AndroidBilling.postMessage(JSON.stringify({ action, ...details }));
+      };
       document.getElementById("playControls").hidden = false;
       document.getElementById("openPricingBtn").hidden = true;
       document.getElementById("manageBillingBtn").hidden = true;
@@ -445,14 +448,14 @@
         }
       };
       document.getElementById("playMonthlyBtn").addEventListener("click", () => {
-        if (auth.currentUser) window.AndroidBilling.purchase("monthly", auth.currentUser.uid);
+        if (auth.currentUser) sendPlayAction("purchase", { base_plan_id: "monthly", firebase_uid: auth.currentUser.uid });
       });
       document.getElementById("playYearlyBtn").addEventListener("click", () => {
-        if (auth.currentUser) window.AndroidBilling.purchase("yearly", auth.currentUser.uid);
+        if (auth.currentUser) sendPlayAction("purchase", { base_plan_id: "yearly", firebase_uid: auth.currentUser.uid });
       });
-      document.getElementById("playRestoreBtn").addEventListener("click", () => window.AndroidBilling.restore());
-      document.getElementById("playManageBtn").addEventListener("click", () => window.AndroidBilling.openManage());
-      window.AndroidBilling.queryPlans();
+      document.getElementById("playRestoreBtn").addEventListener("click", () => sendPlayAction("restore"));
+      document.getElementById("playManageBtn").addEventListener("click", () => sendPlayAction("openManage"));
+      sendPlayAction("queryPlans");
     }
 
     async function openBillingPortal() {

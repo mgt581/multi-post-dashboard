@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { webcrypto, generateKeyPairSync } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
-import { interpretPlaySubscription, obfuscatedAccountId, encryptPurchaseToken, decryptPurchaseToken, verifyPlayPurchase } from '../play-subscriptions.mjs';
+import { interpretPlaySubscription, obfuscatedAccountId, sha256Hex, encryptPurchaseToken, decryptPurchaseToken, verifyPlayPurchase } from '../play-subscriptions.mjs';
 import worker from '../worker.js';
 
 globalThis.crypto ??= webcrypto;
@@ -15,12 +15,13 @@ const purchase = (state, expiry, basePlanId = 'monthly', accountId = account) =>
   lineItems: [{ productId: 'multipost_pro', expiryTime: expiry, offerDetails: { basePlanId } }]
 });
 
-test('active and trial purchases grant access when Google confirms a future expiry', () => {
+test('active, trial and grace-period purchases grant access when Google confirms a future expiry', () => {
   for (const plan of ['monthly', 'yearly']) {
     const result = interpretPlaySubscription(purchase('SUBSCRIPTION_STATE_ACTIVE', '2026-11-08T12:00:00Z', plan), account, now);
     assert.equal(result.access, true);
     assert.equal(result.basePlanId, plan);
   }
+  assert.equal(interpretPlaySubscription(purchase('SUBSCRIPTION_STATE_IN_GRACE_PERIOD', '2026-11-08T12:00:00Z'), account, now).access, true);
 });
 
 test('expired and refunded or revoked subscriptions do not grant access', () => {
@@ -107,6 +108,56 @@ test('authenticated Play purchase grants cross-platform access; a spoofed Androi
     assert.equal(status.access, true);
     assert.equal(status.reason, 'play_verified');
     assert.equal(db.prepare('SELECT encrypted_token FROM billing_play_purchases').get().encrypted_token.includes('valid-play-token'), false);
+    // The same token cannot be reassigned even if a later Google response is
+    // tampered with or a concurrent registration tries another account.
+    db.prepare(`INSERT INTO billing_play_purchases
+      (user_id, token_hash, encrypted_token, product_id, base_plan_id, subscription_state, expiry_time, last_verified_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))`)
+      .run('someone-else', await sha256Hex('duplicate-token'), 'encrypted', 'multipost_pro', 'monthly', 'SUBSCRIPTION_STATE_ACTIVE', Math.floor(Date.now() / 1000) + 3600);
+    const duplicate = await worker.fetch(new Request('https://example.test/api/billing/play-purchase', {
+      method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ purchase_token: 'duplicate-token' })
+    }), env);
+    assert.equal(duplicate.status, 409);
+
+    // The cached entitlement cannot outlive its recorded expiry or an
+    // expired/revoked state, even before the next Google refresh.
+    db.prepare('UPDATE billing_play_purchases SET expiry_time = ?, subscription_state = ? WHERE user_id = ?')
+      .run(Math.floor(Date.now() / 1000) - 10, 'SUBSCRIPTION_STATE_ACTIVE', 'uid-123');
+    const expired = await worker.fetch(new Request('https://example.test/api/billing/status?user_id=uid-123', { headers }), env);
+    assert.equal((await expired.json()).billing.access, false);
+    db.prepare('UPDATE billing_play_purchases SET expiry_time = ?, subscription_state = ? WHERE user_id = ?')
+      .run(Math.floor(Date.now() / 1000) + 3600, 'SUBSCRIPTION_STATE_EXPIRED', 'uid-123');
+    const revoked = await worker.fetch(new Request('https://example.test/api/billing/status?user_id=uid-123', { headers }), env);
+    assert.equal((await revoked.json()).billing.access, false);
+
+    const noEntitlement = await worker.fetch(new Request('https://example.test/api/youtube/upload-chunk', {
+      method: 'POST', headers: { ...headers, folder_id: '1', user_id: 'uid-123' }, body: 'not-a-chunk'
+    }), env);
+    assert.equal(noEntitlement.status, 402);
+    const createWorkspace = await worker.fetch(new Request('https://example.test/api/add-folder', {
+      method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'New workspace', user_id: 'uid-123' })
+    }), env);
+    assert.equal(createWorkspace.status, 402);
+    assert.equal((await worker.fetch(new Request('https://example.test/api/auth/youtube?folder_id=1&user_id=uid-123', { headers }), env)).status, 405);
+    assert.equal((await worker.fetch(new Request('https://example.test/api/auth/facebook?folder_id=1&user_id=uid-123', { headers }), env)).status, 405);
+    const connectYouTube = await worker.fetch(new Request('https://example.test/api/auth/youtube', {
+      method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ folder_id: '1', user_id: 'uid-123' })
+    }), env);
+    assert.equal(connectYouTube.status, 402);
+    const connectFacebook = await worker.fetch(new Request('https://example.test/api/auth/facebook', {
+      method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ folder_id: '1', user_id: 'uid-123' })
+    }), env);
+    assert.equal(connectFacebook.status, 402);
+    const legacySeo = await worker.fetch(new Request('https://example.test/api/generate-seo', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', client_platform: 'android' }, body: JSON.stringify({ prompt: 'test', user_id: 'uid-123' })
+    }), env);
+    assert.equal(legacySeo.status, 401);
+
+    // Existing Stripe subscriptions remain independent of the Play table.
+    db.prepare('INSERT INTO billing_subscriptions (user_id, subscription_status, current_period_end) VALUES (?, ?, ?)')
+      .run('uid-123', 'active', Math.floor(Date.now() / 1000) + 3600);
+    const stripe = await worker.fetch(new Request('https://example.test/api/billing/status?user_id=uid-123', { headers }), env);
+    assert.equal((await stripe.json()).billing.access, true);
   } finally {
     globalThis.fetch = original;
     db.close();

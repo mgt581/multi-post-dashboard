@@ -412,7 +412,7 @@
           : { name, user_id: userScope };
         const res = await fetch(`${apiBase}${endpoint}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...(nameDialogAction ? { Authorization: `Bearer ${await authUser.getIdToken()}` } : {}) },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${await authUser.getIdToken()}` },
           body: JSON.stringify(payload)
         });
         const data = await res.json();

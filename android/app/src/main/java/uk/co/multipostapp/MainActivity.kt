@@ -11,10 +11,11 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.webkit.JavascriptInterface
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
@@ -64,8 +65,40 @@ class MainActivity : ComponentActivity() {
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
             settings.userAgentString = settings.userAgentString + " MultiPostAndroid/1.5"
-            addJavascriptInterface(AndroidAuthBridge(), "AndroidAuth")
-            addJavascriptInterface(AndroidBillingBridge(), "AndroidBilling")
+            // JavascriptInterface cannot identify the caller's frame. Both
+            // native actions require a trusted main-frame message instead.
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
+                WebViewCompat.addWebMessageListener(
+                    this, "AndroidAuth",
+                    setOf("https://multipostapp.co.uk", "https://www.multipostapp.co.uk")
+                ) { view, message, sourceOrigin, isMainFrame, _ ->
+                    if (!isMainFrame || !isTrustedPage(sourceOrigin.toString()) ||
+                        !isTrustedPage(view.url) || message.data != "requestGoogleSignIn") return@addWebMessageListener
+                    runOnUiThread { if (isTrustedPage(webView.url)) launchGoogleSignIn() }
+                }
+                WebViewCompat.addWebMessageListener(
+                    this, "AndroidBilling",
+                    setOf("https://multipostapp.co.uk", "https://www.multipostapp.co.uk")
+                ) { view, message, sourceOrigin, isMainFrame, _ ->
+                    if (!isMainFrame || !isTrustedPage(sourceOrigin.toString()) ||
+                        !isTrustedPage(view.url)) return@addWebMessageListener
+                    val payload = runCatching { JSONObject(message.data ?: "") }.getOrNull()
+                        ?: return@addWebMessageListener
+                    runOnUiThread {
+                        if (!isTrustedPage(webView.url)) return@runOnUiThread
+                        when (payload.optString("action")) {
+                            "queryPlans" -> playBilling.queryPlans()
+                            "purchase" -> playBilling.purchase(
+                                payload.optString("base_plan_id"), payload.optString("firebase_uid")
+                            )
+                            "restore" -> playBilling.restore()
+                            "openManage" -> openOutsideApp(Uri.parse(
+                                "https://play.google.com/store/account/subscriptions?package=uk.co.multipostapp"
+                            ))
+                        }
+                    }
+                }
+            }
             webViewClient = MultiPostWebViewClient()
             webChromeClient = MultiPostChromeClient()
             setDownloadListener { url, _, _, _, _ -> openOutsideApp(Uri.parse(url)) }
@@ -85,41 +118,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private inner class AndroidAuthBridge {
-        @JavascriptInterface
-        fun requestGoogleSignIn() {
-            // JavascriptInterface methods run on WebView's bridge thread.
-            runOnUiThread {
-                if (!isTrustedPage(webView.url)) return@runOnUiThread
-                runCatching {
-                    val options = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                        .requestIdToken(getString(R.string.default_web_client_id))
-                        .requestEmail()
-                        .build()
-                    googleSignIn.launch(GoogleSignIn.getClient(this@MainActivity, options).signInIntent)
-                }.onFailure { reportGoogleSignInFailure(it.message ?: "Could not open Google sign-in") }
-            }
-        }
-    }
-
-    private inner class AndroidBillingBridge {
-        @JavascriptInterface
-        fun queryPlans() = runOnUiThread { if (isTrustedPage(webView.url)) playBilling.queryPlans() }
-
-        @JavascriptInterface
-        fun purchase(basePlanId: String, firebaseUid: String) = runOnUiThread {
-            if (isTrustedPage(webView.url)) playBilling.purchase(basePlanId, firebaseUid)
-        }
-
-        @JavascriptInterface
-        fun restore() = runOnUiThread { if (isTrustedPage(webView.url)) playBilling.restore() }
-
-        @JavascriptInterface
-        fun openManage() = runOnUiThread {
-            if (isTrustedPage(webView.url)) {
-                openOutsideApp(Uri.parse("https://play.google.com/store/account/subscriptions?package=uk.co.multipostapp"))
-            }
-        }
+    private fun launchGoogleSignIn() {
+        runCatching {
+            val options = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken(getString(R.string.default_web_client_id))
+                .requestEmail()
+                .build()
+            googleSignIn.launch(GoogleSignIn.getClient(this, options).signInIntent)
+        }.onFailure { reportGoogleSignInFailure(it.message ?: "Could not open Google sign-in") }
     }
 
     override fun onDestroy() {
@@ -215,7 +221,12 @@ class MainActivity : ComponentActivity() {
                 button.style.display = 'block';
                 if (!button.dataset.androidBound) {
                   button.dataset.androidBound = 'true';
-                  button.addEventListener('click', (event) => { event.preventDefault(); event.stopImmediatePropagation(); window.AndroidAuth?.requestGoogleSignIn(); return false; }, true);
+                  button.addEventListener('click', (event) => {
+                    event.preventDefault(); event.stopImmediatePropagation();
+                    if (window.AndroidAuth?.postMessage) window.AndroidAuth.postMessage('requestGoogleSignIn');
+                    else window.androidGoogleSignInFailed?.('Update Android System WebView to use Google sign-in. Email sign-in remains available.');
+                    return false;
+                  }, true);
                 }
                 window.completeAndroidGoogleSignIn = window.completeAndroidGoogleSignIn || (async (idToken) => {
                   try {

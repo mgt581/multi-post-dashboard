@@ -25,7 +25,8 @@ test('empty names and missing sign-in fail in the form before requesting creatio
   f.elements.brandName.value='My brand';f.run('userScope=null');await f.run(submit);assert.match(f.elements.createBrandError.textContent,/Sign in/);assert.equal(calls,0);
 });
 test('create sends the trimmed name and selected user once; refreshes brands after success',async()=>{
-  let finish,calls=0,body;const f=setup(async(url,init)=>{calls++;assert.equal(url,'/api/add-folder');body=JSON.parse(init.body);return new Promise(resolve=>finish=()=>resolve({ok:true,json:async()=>({success:true})}));});
+  let finish,calls=0,body;const f=setup(async(url,init)=>{calls++;assert.equal(url,'/api/add-folder');assert.equal(init.headers.Authorization,'Bearer create-token');body=JSON.parse(init.body);return new Promise(resolve=>finish=()=>resolve({ok:true,json:async()=>({success:true})}));});
+  f.run('authUser={getIdToken:async()=>"create-token"}');
   f.run('createNewFolder()');f.elements.brandName.value='  TikTok Brand B  ';
   const pending=f.run(submit);assert.equal(f.elements.saveBrandButton.disabled,true);assert.equal(f.elements.cancelBrandButton.disabled,true);
   await f.run(submit);assert.equal(calls,1);assert.deepEqual(body,{name:'TikTok Brand B',user_id:'owner'});
@@ -34,6 +35,7 @@ test('create sends the trimmed name and selected user once; refreshes brands aft
 });
 test('server errors stay visible and preserve the entered name for correction',async()=>{
   const f=setup(async()=>({ok:false,json:async()=>({success:false,error:'Service unavailable'})}));
+  f.run('authUser={getIdToken:async()=>"create-token"}');
   f.run('createNewFolder()');f.elements.brandName.value='My brand';await f.run(submit);
   assert.equal(f.elements.createBrandDialog.open,true);assert.equal(f.elements.brandName.value,'My brand');assert.equal(f.elements.createBrandError.textContent,'Service unavailable');assert.equal(f.elements.saveBrandButton.disabled,false);assert.equal(f.run('reloadCount'),0);
 });

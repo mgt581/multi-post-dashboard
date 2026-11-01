@@ -28,14 +28,22 @@ class PlayBillingManager(
 
     private var details: ProductDetails? = null
     private var ready = false
+    private var connecting = false
+    private var restoreOnConnect = false
 
     fun start() {
+        if (ready || connecting) return
+        connecting = true
         client.startConnection(object : BillingClientStateListener {
             override fun onBillingSetupFinished(result: BillingResult) {
+                connecting = false
                 ready = result.responseCode == BillingClient.BillingResponseCode.OK
-                if (ready) queryPlans() else error("Google Play Billing is unavailable")
+                if (ready) {
+                    queryPlans()
+                    if (restoreOnConnect) { restoreOnConnect = false; restore() }
+                } else error("Google Play Billing is unavailable")
             }
-            override fun onBillingServiceDisconnected() { ready = false }
+            override fun onBillingServiceDisconnected() { ready = false; connecting = false }
         })
     }
 
@@ -83,7 +91,7 @@ class PlayBillingManager(
     }
 
     fun restore() {
-        if (!ready) { start(); return }
+        if (!ready) { restoreOnConnect = true; start(); return }
         val params = QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build()
         client.queryPurchasesAsync(params) { result, purchases ->
             if (result.responseCode == BillingClient.BillingResponseCode.OK) {
