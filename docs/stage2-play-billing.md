@@ -122,7 +122,8 @@ website or Android bundle was deployed or uploaded by this branch work.
   On the Mac, run
   `'/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/keytool' -list -v -keystore '/Users/alexb/Desktop/multipost-upload.jks' -alias multipost`;
   enter the password only in the local prompt. Compare with Play Console →
-  Setup → App integrity → App signing → Upload key certificate. Do not send or
+  Protected with Play → Play Store protection → Manage Play app signing →
+  Upload key certificate. Do not send or
   store the password in chat or scripts.
 * Build and inspect an unsigned debug APK, then a signed AAB only with explicit
   approval. Check the manifest has `com.android.vending.BILLING`, package
