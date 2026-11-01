@@ -3,259 +3,135 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Multipost | Pricing</title>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <title>MultiPost | Plans</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap');
     :root {
-      --bg: linear-gradient(135deg, #0f172a, #0b2f52 60%, #0ea5e9);
-      --card: #0b1829;
-      --border: rgba(255, 255, 255, 0.08);
-      --muted: #94a3b8;
-      --text: #e2e8f0;
-      --accent: #7c3aed;
-      --accent-2: #0ea5e9;
-      --shadow: 0 14px 40px rgba(15, 23, 42, 0.45);
+      --bg: #08111f;
+      --card: #0e1c30;
+      --card-soft: #12253e;
+      --border: rgba(148, 163, 184, .24);
+      --text: #f8fafc;
+      --muted: #b4c4d8;
+      --blue: #38bdf8;
+      --violet: #8b5cf6;
+      --green: #4ade80;
     }
     * { box-sizing: border-box; }
     body {
-      margin: 0;
-      background: var(--bg);
-      font-family: 'Manrope', sans-serif;
-      color: var(--text);
-      min-height: 100vh;
-      padding: 28px 16px 90px;
+      margin: 0; min-height: 100vh; color: var(--text); font-family: Manrope, sans-serif;
+      background: radial-gradient(circle at 10% 0%, #16365d 0, transparent 34%), radial-gradient(circle at 90% 8%, #31216b 0, transparent 30%), var(--bg);
+      padding: 28px 16px 64px;
     }
-    .page { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
-    .top {
-      display: flex; align-items: center; justify-content: space-between; gap: 10px;
-      background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px;
-      box-shadow: var(--shadow);
-    }
-    .title { margin: 0; font-size: 24px; }
-    .subtitle { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
-    .btn {
-      border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; cursor: pointer;
-      background: rgba(255,255,255,0.06); color: var(--text); font-weight: 800;
-    }
-    .plans-wrap {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 16px;
-      box-shadow: var(--shadow);
-    }
-    .plans-head { margin: 0 0 6px; font-size: 14px; font-weight: 800; color: #f8fafc; }
-    .plans-subhead { margin: 0 0 12px; font-size: 12px; color: var(--muted); }
-    .plans-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
-    .plan-link {
-      text-decoration: none;
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 12px;
-      background: rgba(255,255,255,0.04);
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-      position: relative;
-      cursor: pointer;
-    }
-    .plan-link:hover { border-color: rgba(14, 165, 233, 0.65); }
-    .plan-link.yearly {
-      background: linear-gradient(140deg, rgba(14,165,233,0.14), rgba(124,58,237,0.1));
-      border-color: rgba(14, 165, 233, 0.4);
-    }
-    .plan-link.featured {
-      border-color: rgba(34, 197, 94, 0.65);
-      box-shadow: 0 12px 32px rgba(34, 197, 94, 0.2);
-      transform: translateY(-1px);
-    }
-    .plan-badge {
-      position: absolute; top: 8px; right: 8px; font-size: 10px; font-weight: 800;
-      letter-spacing: 0.4px; color: #ecfeff; background: rgba(14, 165, 233, 0.3);
-      border: 1px solid rgba(125, 211, 252, 0.5); border-radius: 999px; padding: 3px 8px;
-    }
-    .plan-title { font-size: 14px; font-weight: 800; color: #f8fafc; }
-    .plan-sub { font-size: 12px; color: var(--muted); font-weight: 700; }
-    .plan-sub.trial { color: #86efac; font-weight: 800; }
-    .plan-cta { margin-top: 2px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; color: #bae6fd; }
-    .hint { color: var(--muted); font-size: 12px; }
-    @media (min-width: 640px) { .plans-grid { grid-template-columns: 1fr 1fr; } }
+    .page { width: min(940px, 100%); margin: 0 auto; }
+    .top { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+    .brand { font-size: 22px; font-weight: 800; letter-spacing: -.7px; }
+    .back { color: var(--text); text-decoration:none; border:1px solid var(--border); border-radius:10px; padding:9px 13px; font-weight:800; font-size:13px; }
+    .hero { text-align:center; max-width: 650px; margin: 50px auto 28px; }
+    .eyebrow { color: var(--blue); font-size: 12px; font-weight:800; letter-spacing:1px; text-transform:uppercase; }
+    h1 { margin: 10px 0 12px; font-size: clamp(32px, 6vw, 52px); line-height: 1.05; letter-spacing: -2px; }
+    .lead { color:var(--muted); margin:0; line-height:1.65; }
+    .notice { display:flex; gap:10px; align-items:flex-start; margin: 24px auto 30px; max-width:700px; padding:13px 15px; border:1px solid rgba(56, 189, 248, .34); border-radius:13px; color:#d9f2ff; background:rgba(14, 165, 233, .08); font-size:13px; line-height:1.45; }
+    .notice strong { color:white; }
+    .plans { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; }
+    .plan { position:relative; min-height:315px; padding:24px; border:1px solid var(--border); border-radius:20px; background:linear-gradient(155deg, rgba(19,37,62,.98), rgba(11,25,43,.98)); }
+    .plan.featured { border-color:rgba(74,222,128,.72); box-shadow:0 22px 55px rgba(16,185,129,.13); }
+    .badge { position:absolute; top:16px; right:16px; border-radius:999px; padding:5px 9px; color:#052e16; background:var(--green); font-size:10px; font-weight:800; letter-spacing:.4px; }
+    .plan h2 { margin:0; font-size:19px; }
+    .price { margin:13px 0 8px; font-size:37px; font-weight:800; letter-spacing:-1.6px; }
+    .price small { font-size:14px; color:var(--muted); letter-spacing:0; }
+    .saving { min-height:19px; color:#bbf7d0; font-size:12px; font-weight:800; }
+    .features { margin:20px 0 0; padding:0; list-style:none; display:grid; gap:11px; color:#dce8f5; font-size:13px; }
+    .features li::before { content:"✓"; display:inline-block; width:21px; color:var(--green); font-weight:800; }
+    .stage-button { width:100%; margin-top:23px; border:0; border-radius:11px; padding:12px; background:rgba(148,163,184,.16); color:#cbd5e1; font:inherit; font-size:12px; font-weight:800; cursor:not-allowed; }
+    .allowance { margin-top:19px; padding:18px; border:1px solid var(--border); border-radius:17px; background:rgba(15, 31, 51, .78); }
+    .allowance h2 { margin:0 0 12px; font-size:16px; }
+    .allowance-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; }
+    .allowance-item { padding:13px; border-radius:12px; background:rgba(255,255,255,.035); }
+    .allowance-item strong { display:block; color:var(--blue); font-size:19px; }
+    .allowance-item span { color:var(--muted); font-size:11px; line-height:1.35; }
+    .extras { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; margin-top:16px; }
+    .extra { padding:19px; border:1px solid var(--border); border-radius:17px; background:rgba(14,28,48,.84); }
+    .extra h3 { margin:0 0 7px; font-size:15px; }
+    .extra p { margin:0; color:var(--muted); font-size:12px; line-height:1.55; }
+    .price-line { color:white; font-weight:800; }
+    .fineprint { margin:21px 0 0; color:#93a9c2; font-size:11px; line-height:1.55; text-align:center; }
+    @media (max-width:650px) { .plans, .extras { grid-template-columns:1fr; } .allowance-grid { grid-template-columns:1fr; } .hero { margin-top:37px; } }
   </style>
 </head>
 <body>
-  <div class="page">
-    <div class="top">
-      <div>
-        <h1 class="title">Pricing</h1>
-        <p class="subtitle">Pick a plan to start checkout</p>
-      </div>
-      <button class="btn" onclick="location.href='settings.html'">Back</button>
+  <main class="page">
+    <header class="top">
+      <div class="brand">MultiPost</div>
+      <a class="back" href="settings.html">Back</a>
+    </header>
+
+    <section class="hero">
+      <div class="eyebrow">Create once. Publish everywhere.</div>
+      <h1>One workspace. Your next post.</h1>
+      <p class="lead">Start with a 7-day trial, then choose the plan that keeps your content moving.</p>
+    </section>
+
+    <!-- Stage 1 is deliberately display-only. Transactions begin only after server-side entitlement work is complete. -->
+    <div class="notice" role="status">
+      <span aria-hidden="true">◈</span>
+      <div><strong>Subscription launch in progress.</strong> This Stage 1 paywall is display-only. It cannot create a checkout session, charge a card or activate a subscription.</div>
     </div>
 
-    <div class="plans-wrap">
-      <p class="plans-head">Choose Your Plan</p>
-      <p class="plans-subhead">Start with a 7 day free trial. Yearly plans include better value.</p>
-      <div class="plans-grid">
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro" data-interval="monthly">
-          <span class="plan-title">Creator Monthly £7.99</span>
-          <span class="plan-sub">1 YouTube, 1 TikTok and 1 Facebook account · Up to 6 posts daily</span>
-          <span class="plan-sub trial">Includes 7 Day Free Trial</span>
-          <span class="plan-cta">Start Creator Trial</span>
-        </a>
-        <a class="plan-link yearly featured checkout-plan-link" href="#" data-plan="pro" data-interval="yearly">
-          <span class="plan-badge">Best Value</span>
-          <span class="plan-title">Creator Yearly £79</span>
-          <span class="plan-sub">1 YouTube, 1 TikTok and 1 Facebook account · Up to 6 posts daily</span>
-          <span class="plan-sub trial">Includes 7 Day Free Trial</span>
-          <span class="plan-cta">Start Creator Trial</span>
-        </a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="pro_plus" data-interval="monthly">
-          <span class="plan-title">Pro Monthly £14.99</span>
-          <span class="plan-sub">3 YouTube, 3 TikTok and 3 Facebook accounts · Up to 27 posts daily</span>
-          <span class="plan-sub trial">Includes 7 Day Free Trial</span>
-          <span class="plan-cta">Start Pro Trial</span>
-        </a>
-        <a class="plan-link yearly checkout-plan-link" href="#" data-plan="pro_plus" data-interval="yearly">
-          <span class="plan-title">Pro Yearly £149</span>
-          <span class="plan-sub">3 YouTube, 3 TikTok and 3 Facebook accounts · Up to 27 posts daily</span>
-          <span class="plan-sub trial">Includes 7 Day Free Trial</span>
-          <span class="plan-cta">Start Pro Trial</span>
-        </a>
-        <a class="plan-link checkout-plan-link" href="#" data-plan="agency" data-interval="monthly">
-          <span class="plan-title">Agency Monthly £249</span>
-          <span class="plan-sub">Pay monthly</span>
-          <span class="plan-cta">Choose Agency Monthly</span>
-        </a>
-        <a class="plan-link yearly checkout-plan-link" href="#" data-plan="agency" data-interval="yearly">
-          <span class="plan-title">Agency Yearly £2,499</span>
-          <span class="plan-sub">Save with annual billing</span>
-          <span class="plan-cta">Choose Agency Yearly</span>
-        </a>
+    <section class="plans" aria-label="Subscription plans">
+      <article class="plan">
+        <h2>Pro Monthly</h2>
+        <div class="price">£9.99 <small>/ month</small></div>
+        <div class="saving">Flexible monthly billing</div>
+        <ul class="features">
+          <li>7-day free trial</li>
+          <li>1 workspace</li>
+          <li>1 YouTube, 1 Facebook Page and 1 TikTok account</li>
+          <li>150 AI credits every billing period</li>
+          <li>150 successful platform publications every billing period</li>
+          <li>Manual editing is always free</li>
+        </ul>
+        <button class="stage-button" type="button" disabled>Checkout opens after Stage 3</button>
+      </article>
+
+      <article class="plan featured">
+        <span class="badge">BEST VALUE</span>
+        <h2>Pro Yearly</h2>
+        <div class="price">£79.99 <small>/ year</small></div>
+        <div class="saving">Save over 33% compared with monthly</div>
+        <ul class="features">
+          <li>Everything in Pro Monthly</li>
+          <li>7-day free trial</li>
+          <li>Monthly allowance periods for fair use</li>
+          <li>150 AI credits every billing period</li>
+          <li>150 successful platform publications every billing period</li>
+          <li>Manual editing is always free</li>
+        </ul>
+        <button class="stage-button" type="button" disabled>Checkout opens after Stage 3</button>
+      </article>
+    </section>
+
+    <section class="allowance" aria-labelledby="allowance-title">
+      <h2 id="allowance-title">How AI credits work</h2>
+      <div class="allowance-grid">
+        <div class="allowance-item"><strong>1 credit</strong><span>Text-to-SEO generation</span></div>
+        <div class="allowance-item"><strong>2 credits</strong><span>Image SEO, with or without a prompt</span></div>
+        <div class="allowance-item"><strong>0 credits</strong><span>Manual editing and rewriting</span></div>
       </div>
-    </div>
+    </section>
 
-    <p class="hint">After successful checkout you will be redirected to the app workspace.</p>
-  </div>
+    <section class="extras" aria-label="Optional add-ons">
+      <article class="extra">
+        <h3>Additional workspace</h3>
+        <p><span class="price-line">£4.99/month</span> or <span class="price-line">£39.99/year</span><br>Add one more workspace and one additional account slot on each supported platform. Credits stay in your account-level allowance.</p>
+      </article>
+      <article class="extra">
+        <h3>Extra AI credits</h3>
+        <p><span class="price-line">25 for £2.99</span> · <span class="price-line">100 for £8.99</span> · <span class="price-line">250 for £17.99</span><br>Available after secure purchase verification is implemented.</p>
+      </article>
+    </section>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
-      authDomain: "multi-post-daefc.firebaseapp.com",
-      projectId: "multi-post-daefc",
-      storageBucket: "multi-post-daefc.appspot.com",
-      messagingSenderId: "1099160429576",
-      appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd"
-    };
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    async function authenticatedFetch(input, init = {}) {
-      const headers = new Headers(init.headers || {});
-      const token = await auth.currentUser?.getIdToken();
-      if (token) headers.set("Authorization", `Bearer ${token}`);
-      return fetch(input, { ...init, headers });
-    }
-
-    const host = window.location.hostname;
-    const isProdHost = host === "multipostapp.co.uk" || host === "www.multipostapp.co.uk";
-    const isPreviewHost = host.endsWith(".pages.dev");
-    const apiBase = isProdHost
-      ? "/api"
-      : isPreviewHost
-        ? "https://multipost-seo-worker-preview.alexbryant.workers.dev/api"
-        : "https://multipost-seo-worker.alexbryant.workers.dev/api";
-    let userScope = null;
-    let billingUserEmail = "";
-    const OWNER_KEYS = ["alexbryant3234@gmail.com"];
-    const normalizeUserKey = value => String(value || "").trim().toLowerCase();
-    const isOwnerKey = value => OWNER_KEYS.some(ownerKey => normalizeUserKey(ownerKey) === normalizeUserKey(value));
-    const isSocialProviderUser = user => /^(facebook|tiktok):/.test(normalizeUserKey(user?.uid));
-    const getStoredOwnerScope = () => {
-      let knownKeys = [];
-      try {
-        knownKeys = JSON.parse(localStorage.getItem("knownUserKeys") || "[]");
-      } catch (_) {
-        knownKeys = [];
-      }
-      return [localStorage.getItem("currentUserKey"), ...knownKeys].find(isOwnerKey) || "";
-    };
-    const isOwnerUser = user => [user?.email, user?.uid]
-      .some(isOwnerKey);
-    const resolveUserScope = user => {
-      const ownerScope = getStoredOwnerScope();
-      if (isOwnerUser(user)) return ownerScope || localStorage.getItem("currentUserKey") || user.email || user.uid;
-      if (isSocialProviderUser(user) && ownerScope) return ownerScope;
-      return user.email || user.uid;
-    };
-
-    function getClientPlatform() {
-      const qp = new URLSearchParams(window.location.search);
-      const q = (qp.get("app_platform") || "").trim().toLowerCase();
-      const ls = (localStorage.getItem("app_platform") || "").trim().toLowerCase();
-      const uaAndroid = /Android/i.test(navigator.userAgent || "");
-      const fromOverride = q || ls;
-      if (fromOverride === "android") return "android";
-      if (fromOverride === "web") return "web";
-      return uaAndroid ? "web" : "web";
-    }
-
-    async function startCheckoutForPlan(planKey, billingInterval, triggerEl) {
-      if (!userScope) {
-        window.location.href = "signin.html";
-        return;
-      }
-      const platform = getClientPlatform();
-      if (platform === "android") {
-        alert("Checkout is disabled for Android app mode.");
-        return;
-      }
-      const old = triggerEl.textContent;
-      triggerEl.textContent = "Opening...";
-      triggerEl.style.pointerEvents = "none";
-      try {
-        const res = await authenticatedFetch(`${apiBase}/billing/create-checkout-session`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", client_platform: platform },
-          body: JSON.stringify({
-            user_id: userScope,
-            user_email: billingUserEmail || "",
-            plan_key: planKey,
-            billing_interval: billingInterval,
-            client_platform: platform,
-            success_url: `${window.location.origin}/app.html?billing=success`,
-            cancel_url: `${window.location.origin}/pricing.html?billing=cancelled`
-          })
-        });
-        const out = await res.json();
-        if (!res.ok || !out?.success || !out?.url) throw new Error(out?.error || "Failed to create checkout session");
-        window.location.href = out.url;
-      } catch (err) {
-        alert(err?.message || "Unable to start checkout");
-        triggerEl.textContent = old;
-        triggerEl.style.pointerEvents = "auto";
-      }
-    }
-
-    document.querySelectorAll(".checkout-plan-link").forEach((link) => {
-      link.addEventListener("click", (e) => {
-        e.preventDefault();
-        const plan = String(link.dataset.plan || "").trim();
-        const interval = String(link.dataset.interval || "").trim();
-        if (!plan || !interval) return;
-        startCheckoutForPlan(plan, interval, link);
-      });
-    });
-
-    onAuthStateChanged(auth, (user) => {
-      if (!user) return;
-      userScope = resolveUserScope(user);
-      localStorage.setItem("currentUserKey", userScope);
-      billingUserEmail = user.email || "";
-    });
-  </script>
+    <p class="fineprint">A platform publication is one confirmed successful delivery to YouTube, Facebook Page or TikTok. Failed publishing attempts do not use publication allowance. Trial, subscription, workspace and credit access will be enforced server-side before checkout is enabled.</p>
+  </main>
 </body>
 </html>
