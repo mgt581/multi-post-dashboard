@@ -69,10 +69,10 @@
     .guide p { margin:0 0 10px; color:var(--muted); font-size:13px; }
     .guide a { color:#7dd3fc; font-weight:700; }
     .guide-steps { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:10px; }
-    .guide-steps li { display:flex; gap:10px; align-items:flex-start; font-size:14px; }
+    .guide-steps li { display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; font-size:14px; }
     .guide-steps li span { color:var(--muted); }
     .guide-steps li.done span { color:#86efac; }
-    .guide-steps a { margin-left:auto; flex-shrink:0; }
+    .guide-steps a { margin-left:auto; flex-shrink:0; min-height:32px; display:inline-flex; align-items:center; }
     .notice { padding:14px; border:1px solid #64748b; border-radius:12px; background:#13253d; font-size:13px; line-height:1.5; }
     .notice p { margin:5px 0 0; }
     .notice a { color:#7dd3fc; }
