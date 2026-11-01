@@ -23,3 +23,17 @@ firebase-debug.log
 
 # Generated preview assets
 work/
+
+# Android local build and Firebase configuration
+android/.gradle/
+android/.gradle-user/
+android/.kotlin/
+android/build/
+android/app/build/
+android/local.properties
+android/app/google-services.json
+android/app/release/
+android/*.jks
+android/*.keystore
+android/.DS_Store
+android/**/.DS_Store

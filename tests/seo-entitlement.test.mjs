@@ -68,7 +68,7 @@ test("an authenticated active subscriber can generate SEO", async () => {
 
 test("the configured owner keeps a verified server-side SEO bypass", async () => {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => new Response(JSON.stringify({ users: [{ localId: "owner-uid", email: "alexbryant3234@gmail.com" }] }), { status: 200 });
+  globalThis.fetch = async () => new Response(JSON.stringify({ users: [{ localId: "owner-uid", email: "alexbryant3234@gmail.com", emailVerified: true }] }), { status: 200 });
   try {
     const env = {
       WEB_BILLING_ENABLED: "true",
@@ -79,6 +79,22 @@ test("the configured owner keeps a verified server-side SEO bypass", async () =>
     const body = await response.json();
     assert.equal(response.status, 200);
     assert.equal(body.success, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("an unverified email cannot claim owner access", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ users: [{ localId: "unverified-uid", email: "alexbryant3234@gmail.com", emailVerified: false }] });
+  try {
+    const env = {
+      WEB_BILLING_ENABLED: "true",
+      BILLING_OWNER_EMAILS: "alexbryant3234@gmail.com",
+      DB: makeDb({ user_id: "unverified-uid", subscription_status: "inactive" })
+    };
+    const response = await worker.fetch(seoRequest("unverified-uid", "Bearer unverified-token"), env);
+    assert.equal(response.status, 402);
   } finally {
     globalThis.fetch = originalFetch;
   }

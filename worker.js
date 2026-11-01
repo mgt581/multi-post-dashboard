@@ -4,6 +4,7 @@ import { evaluateTikTokPublishStatus } from "./tiktok-publish-status.mjs";
 import { buildTikTokChunkProfiles } from "./tiktok-upload-chunks.mjs";
 import { FACEBOOK_PAGE_LINK_SCOPE } from "./facebook-oauth.mjs";
 import { generateSeo, normalizeSeoInput } from "./services/seoEngine.mjs";
+import { verifyPlayPurchase, sha256Hex, encryptPurchaseToken, decryptPurchaseToken } from "./play-subscriptions.mjs";
 
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -651,8 +652,8 @@ Follow for daily trending content! \u{1F44F}
       if (!identity) return false;
       const requested = String(requestedUserId || "").trim().toLowerCase();
       const identityKeys = [identity.userId, identity.email, ...(identity.workspaceOwnerIds || [])].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
-      const rowKeys = [row?.user_id, row?.user_email].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
-      return identityKeys.includes(requested) || rowKeys.some((value) => identityKeys.includes(value));
+      // A billing row's email must never authorize a different requested user ID.
+      return Boolean(requested && identityKeys.includes(requested));
     }, "identityMatchesBillingUser");
     const ensureBillingRow = /* @__PURE__ */ __name(async (userId, userEmail) => {
       await env.DB.prepare(`
@@ -766,14 +767,44 @@ Follow for daily trending content! \u{1F44F}
         return row;
       }
     }, "refreshBillingFromStripe");
-    const evaluateBillingAccess = /* @__PURE__ */ __name((row, platform, requestedUserId = "", authenticatedIdentity = null) => {
+    const getPlayEntitlement = /* @__PURE__ */ __name(async (identity) => {
+      if (!identity?.userId) return null;
+      let row;
+      try {
+        row = await env.DB.prepare("SELECT * FROM billing_play_purchases WHERE user_id = ? LIMIT 1").bind(identity.userId).first();
+      } catch (_) {
+        // Existing Stripe subscriptions remain available while the new migration is pending.
+        return null;
+      }
+      if (!row) return null;
+      if (Number(row.last_verified_at || 0) + 300 < nowUnix()) {
+        try {
+          const token = await decryptPurchaseToken(row.encrypted_token, env.PLAY_TOKEN_ENCRYPTION_KEY);
+          const verified = await verifyPlayPurchase({ token, firebaseUid: identity.userId, serviceAccountJson: env.PLAY_SERVICE_ACCOUNT_JSON });
+          await env.DB.prepare(`UPDATE billing_play_purchases SET subscription_state = ?, expiry_time = ?, base_plan_id = ?, last_verified_at = strftime('%s','now') WHERE user_id = ?`)
+            .bind(verified.state, verified.expiry, verified.basePlanId, identity.userId).run();
+          return verified;
+        } catch (_) {
+          // A failed refresh cannot extend a Play entitlement.
+          return null;
+        }
+      }
+      const state = String(row.subscription_state || "");
+      return {
+        state,
+        expiry: Number(row.expiry_time || 0),
+        basePlanId: row.base_plan_id,
+        access: ["SUBSCRIPTION_STATE_ACTIVE", "SUBSCRIPTION_STATE_IN_GRACE_PERIOD", "SUBSCRIPTION_STATE_CANCELED"].includes(state) && Number(row.expiry_time || 0) > nowUnix()
+      };
+    }, "getPlayEntitlement");
+    const evaluateBillingAccess = /* @__PURE__ */ __name((row, platform, requestedUserId = "", authenticatedIdentity = null, playEntitlement = null) => {
       const userId = String(row?.user_id || "").trim();
       const userEmail = String(row?.user_email || "").trim().toLowerCase();
       const requested = String(requestedUserId || "").trim().toLowerCase();
       const authenticatedUserId = String(authenticatedIdentity?.userId || "").trim().toLowerCase();
       const authenticatedEmail = String(authenticatedIdentity?.email || "").trim().toLowerCase();
       const authenticatedOwnerIds = (authenticatedIdentity?.workspaceOwnerIds || []).map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
-      const isConfiguredOwner = ownerUserIds.has(authenticatedUserId) || ownerEmails.has(authenticatedEmail);
+      const isConfiguredOwner = ownerUserIds.has(authenticatedUserId) || (authenticatedIdentity?.emailVerified === true && ownerEmails.has(authenticatedEmail));
       const requestedMatchesIdentity = requested && [authenticatedUserId, authenticatedEmail, ...authenticatedOwnerIds].includes(requested);
       const rowMatchesIdentity = (userId && [authenticatedUserId, authenticatedEmail, ...authenticatedOwnerIds].includes(userId.toLowerCase())) || (userEmail && [authenticatedEmail, ...authenticatedOwnerIds].includes(userEmail));
       if (isConfiguredOwner && (requestedMatchesIdentity || rowMatchesIdentity)) {
@@ -793,12 +824,14 @@ Follow for daily trending content! \u{1F44F}
           status: "not_required"
         };
       }
-      if (platform === "android") {
+      if (playEntitlement?.access) {
         return {
           enabled: true,
           access: true,
-          reason: "android_bypass",
-          status: "not_required_android"
+          reason: "play_verified",
+          status: playEntitlement.state === "SUBSCRIPTION_STATE_CANCELED" ? "canceled" : "active",
+          owner: false,
+          plan: { planKey: "pro", interval: playEntitlement.basePlanId, limits: PLAN_LIMITS.pro }
         };
       }
       const now = nowUnix();
@@ -849,7 +882,7 @@ Follow for daily trending content! \u{1F44F}
       }
     }, "recordPublishUsage");
     const ensurePlanQuota = /* @__PURE__ */ __name(async (userId, platform, evaluated) => {
-      if (!evaluated?.enabled || evaluated?.reason === "android_bypass" || evaluated?.reason === "owner_bypass") {
+      if (!evaluated?.enabled || evaluated?.reason === "owner_bypass") {
         return { ok: true };
       }
       const limits = evaluated?.plan?.limits || PLAN_LIMITS.pro;
@@ -873,7 +906,7 @@ Follow for daily trending content! \u{1F44F}
       return Number(row?.count || 0);
     }, "countLinkedAccountsByPlatform");
     const ensureLinkingQuota = /* @__PURE__ */ __name(async ({ userId, platform, folderId, evaluated }) => {
-      if (!evaluated?.enabled || evaluated?.reason === "android_bypass" || evaluated?.reason === "owner_bypass") return { ok: true };
+      if (!evaluated?.enabled || evaluated?.reason === "owner_bypass") return { ok: true };
       const limits = evaluated?.plan?.limits || PLAN_LIMITS.pro;
       const cap = Number(limits?.account_caps?.[platform] || 0);
       if (!cap) return { ok: true };
@@ -894,10 +927,11 @@ Follow for daily trending content! \u{1F44F}
       }
       const row = await getBillingRow(userId);
       const authenticatedIdentity = await getFirebaseIdentity(request2);
-      if (requireAuthentication && !identityMatchesBillingUser(row, userId, authenticatedIdentity)) {
+      if (!identityMatchesBillingUser(row, userId, authenticatedIdentity)) {
         return { ok: false, statusCode: 401, body: { success: false, error: "Authenticated account does not match this billing account" } };
       }
-      const evaluated = evaluateBillingAccess(row, platform, userId, authenticatedIdentity);
+      const playEntitlement = await getPlayEntitlement(authenticatedIdentity);
+      const evaluated = evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement);
       if (evaluated.access) {
         return { ok: true, row, evaluated };
       }
@@ -1128,6 +1162,41 @@ Follow for daily trending content! \u{1F44F}
           }
         }), { headers: jsonHeaders });
       }
+      if (url.pathname === "/api/billing/play-purchase" && request.method === "POST") {
+        const identity = await getFirebaseIdentity(request);
+        if (!identity?.userId) {
+          return Response.json({ success: false, error: "Firebase authentication required" }, { status: 401, headers: corsHeaders });
+        }
+        const body = await request.json().catch(() => ({}));
+        const token = body?.purchase_token;
+        if (typeof token !== "string" || !token || token.length > 4096) {
+          return Response.json({ success: false, error: "Invalid purchase token" }, { status: 400, headers: corsHeaders });
+        }
+        if (!env.PLAY_SERVICE_ACCOUNT_JSON || !env.PLAY_TOKEN_ENCRYPTION_KEY) {
+          return Response.json({ success: false, error: "Play verification is not configured" }, { status: 503, headers: corsHeaders });
+        }
+        try {
+          // Only Google's API response and the authenticated Firebase UID establish access.
+          const verified = await verifyPlayPurchase({ token, firebaseUid: identity.userId, serviceAccountJson: env.PLAY_SERVICE_ACCOUNT_JSON });
+          const tokenHash = await sha256Hex(token);
+          const existing = await env.DB.prepare("SELECT user_id FROM billing_play_purchases WHERE token_hash = ? LIMIT 1").bind(tokenHash).first();
+          if (existing && existing.user_id !== identity.userId) {
+            return Response.json({ success: false, error: "Purchase belongs to another account" }, { status: 409, headers: corsHeaders });
+          }
+          const encrypted = await encryptPurchaseToken(token, env.PLAY_TOKEN_ENCRYPTION_KEY);
+          await env.DB.prepare(`INSERT INTO billing_play_purchases
+            (user_id, token_hash, encrypted_token, product_id, base_plan_id, subscription_state, expiry_time, last_verified_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
+            ON CONFLICT(user_id) DO UPDATE SET token_hash = excluded.token_hash, encrypted_token = excluded.encrypted_token,
+            product_id = excluded.product_id, base_plan_id = excluded.base_plan_id,
+            subscription_state = excluded.subscription_state, expiry_time = excluded.expiry_time,
+            last_verified_at = excluded.last_verified_at`)
+            .bind(identity.userId, tokenHash, encrypted, verified.productId, verified.basePlanId, verified.state, verified.expiry).run();
+          return Response.json({ success: true, access: verified.access, status: verified.state, expires_at: verified.expiry }, { headers: corsHeaders });
+        } catch (_) {
+          return Response.json({ success: false, error: "Google Play purchase could not be verified" }, { status: 400, headers: corsHeaders });
+        }
+      }
       if (url.pathname === "/api/billing/status" && request.method === "GET") {
         const userId = requireUser(url.searchParams.get("user_id"));
         if (!userId) {
@@ -1140,8 +1209,9 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify({ success: false, error: "Authenticated account does not match this billing account" }), { status: 401, headers: jsonHeaders });
         }
         row = await refreshBillingFromStripe(row);
-        const evaluated = evaluateBillingAccess(row, platform, userId, authenticatedIdentity);
-        const effPlan = getEffectivePlan(row);
+        const playEntitlement = await getPlayEntitlement(authenticatedIdentity);
+        const evaluated = evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement);
+        const effPlan = evaluated.plan || getEffectivePlan(row);
         const usageYt = await countDailyPosts(userId, "youtube");
         const usageTt = await countDailyPosts(userId, "tiktok");
         const usageFb = await countDailyPosts(userId, "facebook");
@@ -1175,7 +1245,8 @@ Follow for daily trending content! \u{1F44F}
               trial_end: toUnix(row?.trial_end),
               trial_used: Number(row?.trial_used || 0) === 1,
               is_owner: Number(row?.is_owner || 0) === 1
-            }
+            },
+            play: playEntitlement ? { state: playEntitlement.state, expires_at: playEntitlement.expiry, base_plan_id: playEntitlement.basePlanId } : null
           }
         }), { headers: jsonHeaders });
       }

@@ -141,6 +141,7 @@
       gap: 8px;
       width: 100%;
     }
+    #playControls[hidden] { display: none; }
     .mini-btn {
       border: 1px solid var(--border);
       background: rgba(255,255,255,0.06);
@@ -223,6 +224,12 @@
         <button id="openPricingBtn" class="mini-btn primary" type="button">View Pricing</button>
         <button id="manageBillingBtn" class="mini-btn" type="button">Manage Billing</button>
         <button id="refreshBillingBtn" class="mini-btn" type="button">Refresh</button>
+      </div>
+      <div id="playControls" class="billing-actions" hidden>
+        <button id="playMonthlyBtn" class="mini-btn primary" type="button" disabled>Loading monthly plan…</button>
+        <button id="playYearlyBtn" class="mini-btn primary" type="button" disabled>Loading yearly plan…</button>
+        <button id="playRestoreBtn" class="mini-btn" type="button">Restore purchases</button>
+        <button id="playManageBtn" class="mini-btn" type="button">Manage in Google Play</button>
       </div>
       <div class="billing-note">Upgrade and checkout options are now in the dedicated pricing page.</div>
     </div>
@@ -368,7 +375,7 @@
       if (!currentBilling) return;
       const display = getBillingDisplay(currentBilling);
       const note = display.kind === "trial"
-        ? "Your trial countdown is based on Stripe's confirmed trial end time and refreshes automatically."
+        ? "Your trial countdown is based on the verified subscription end time and refreshes automatically."
         : display.kind === "owner"
           ? "Owner mode is enabled for this authenticated account. Billing gates are bypassed."
           : display.access
@@ -388,19 +395,8 @@
     async function loadBillingStatus(user) {
       billingUser = user;
       const manageBtn = document.getElementById("manageBillingBtn");
-      if (normalizeUserKey(user?.email) === "alexbryant3234@gmail.com") {
-        currentBilling = { access: true, owner_mode: true, status: "active" };
-        renderCurrentBilling();
-        manageBtn.disabled = true;
-        return;
-      }
       const platform = getClientPlatform();
-      if (platform === "android") {
-        setBillingUi("Android app mode", "Billing is managed via app store purchase flow for Android builds.", "warn");
-        manageBtn.disabled = true;
-        return;
-      }
-      manageBtn.disabled = false;
+      manageBtn.disabled = isAndroidWrapper();
       try {
         const res = await authenticatedFetch(`${apiBase}/billing/status?user_id=${encodeURIComponent(resolveBillingUserId(user))}&user_email=${encodeURIComponent(user.email || "")}&client_platform=${encodeURIComponent(platform)}`);
         const out = await res.json();
@@ -415,6 +411,48 @@
       } catch (err) {
         setBillingUi("Billing unavailable", err?.message || "Could not load billing status.", "warn");
       }
+    }
+
+    if (window.AndroidBilling && isAndroidWrapper()) {
+      document.getElementById("playControls").hidden = false;
+      document.getElementById("openPricingBtn").hidden = true;
+      document.getElementById("manageBillingBtn").hidden = true;
+      window.onMultiPostPlayPlans = plans => {
+        for (const interval of ["monthly", "yearly"]) {
+          const offer = plans.find(plan => plan.base_plan_id === interval && plan.trial_available)
+            || plans.find(plan => plan.base_plan_id === interval && !plan.offer_id)
+            || plans.find(plan => plan.base_plan_id === interval);
+          const button = document.getElementById(interval === "monthly" ? "playMonthlyBtn" : "playYearlyBtn");
+          button.disabled = !offer;
+          button.textContent = offer
+            ? `${offer.trial_available ? "7 days free, then " : ""}${offer.price}/${interval === "monthly" ? "month" : "year"}`
+            : `${interval} unavailable`;
+        }
+      };
+      window.onMultiPostPlayError = message => setBillingUi("Google Play", String(message), "warn");
+      window.onMultiPostPlayPurchase = async purchase => {
+        try {
+          const response = await authenticatedFetch(`${apiBase}/billing/play-purchase`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ purchase_token: purchase.purchase_token })
+          });
+          const result = await response.json();
+          if (!response.ok || !result.success) throw new Error(result.error || "Purchase verification failed");
+          if (billingUser) await loadBillingStatus(billingUser);
+          if (!result.access) setBillingUi("Subscription inactive", "Google Play has not confirmed active access.", "warn");
+        } catch (error) {
+          setBillingUi("Verification pending", error.message || "Try Restore purchases again.", "warn");
+        }
+      };
+      document.getElementById("playMonthlyBtn").addEventListener("click", () => {
+        if (auth.currentUser) window.AndroidBilling.purchase("monthly", auth.currentUser.uid);
+      });
+      document.getElementById("playYearlyBtn").addEventListener("click", () => {
+        if (auth.currentUser) window.AndroidBilling.purchase("yearly", auth.currentUser.uid);
+      });
+      document.getElementById("playRestoreBtn").addEventListener("click", () => window.AndroidBilling.restore());
+      document.getElementById("playManageBtn").addEventListener("click", () => window.AndroidBilling.openManage());
+      window.AndroidBilling.queryPlans();
     }
 
     async function openBillingPortal() {
