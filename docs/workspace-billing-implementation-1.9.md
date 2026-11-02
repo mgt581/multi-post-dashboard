@@ -12,24 +12,46 @@ consumed; any later release needs version code 11 or higher. The screenshot
 does not independently establish which Git commit was bundled in code 10.
 
 On this branch, `node --check worker.js` passed and all 16 SQL migration files
-applied sequentially to an in-memory SQLite baseline; **no remote D1 data was
-read or changed**. The earlier 121-test JavaScript result has not been rerun.
-The Cloudflare CLI reports that its authentication token expired and cannot be
-refreshed in this non-interactive session. The remote migration ledger, Worker
-secrets and deployed Worker/frontend versions remain unverified. A requested
-Wrangler dry-run was automatically blocked because it might send the Worker
-bundle to Cloudflare; no bundle was deliberately deployed. Play Console
-management access is also unavailable here. The Pro plans, two trial offers,
-and ten workspace products must be inspected in Console before any purchase
-test; the workspace products were not created as part of this branch work.
+applied sequentially to an in-memory SQLite baseline. The earlier 121-test
+JavaScript result has not been rerun. A requested Wrangler dry-run was
+automatically blocked because it might send the Worker bundle to Cloudflare;
+no bundle was deliberately deployed. Play Console management access remains
+unavailable here. The Pro plans, two trial offers, and ten workspace products
+must be inspected in Console before any purchase test; the workspace products
+were not created as part of this branch work.
 
-The coordinated release gate remains: authenticate Cloudflare locally; review
-the remote migration ledger and existing Stripe entitlement rows; take a D1
-backup; apply missing migrations in order; configure Play API verification
-secrets; coordinate the Worker and frontend release; confirm product and offer
-eligibility for licensed testers; then run test purchases on code 10. Avoid
-enabling charging until the backend is verified. No production migration,
-deployment, product activation or customer charge was made in this update.
+After the owner reauthenticated Wrangler, read-only live checks confirmed:
+
+* The production D1 migration ledger ends at `0006`. It lists `0007` through
+  `0015` as pending. All changes from `0008_tiktok_folder_oauth.sql` are
+  **already present** in the remote schema (both added columns, the OAuth
+  state table and its index). Running that migration unchanged will fail with
+  duplicate-column errors. Check the schema again and reconcile this one
+  ledger entry after capturing a recovery bookmark; do not skip other files.
+* D1 Time Travel returned a pre-change recovery bookmark. No remote D1 rows
+  were modified. There are 24 historical upload sessions without owner fields,
+  **none still unexpired**, and no unexpired TikTok OAuth state.
+* The production Worker has existing Stripe secrets but lacks
+  `PLAY_SERVICE_ACCOUNT_JSON` and `PLAY_TOKEN_ENCRYPTION_KEY`. Do not activate
+  Play checkout until those secrets and the Google API permissions are set.
+* Nine existing Stripe subscription records must be preserved. Two canceled
+  and two past-due records have future period ends; status alone must not be
+  used to remove their access. No customer identifiers or token values were
+  read for this check.
+* The current frontend's GitHub Pages configuration publishes `main` at
+  `multipostapp.co.uk`. The isolated branch is not live there; the native
+  WebView's allowed origin requires a coordinated frontend release before
+  billing buttons in the version-code-10 app can be tested. The production
+  Worker last deployed on 24 October, before this branch's billing changes.
+
+The coordinated release gate remains: retain a current D1 recovery bookmark;
+reconcile the already-present `0008` schema with the migration ledger; apply
+the other missing migrations in order; provision Play Developer API access and
+the two Worker verification secrets; coordinate the Worker and GitHub Pages
+frontend release; confirm product and offer eligibility for licensed testers;
+then run test purchases on code 10. Avoid enabling charging until the backend
+is verified. No production migration, deployment, product activation or
+customer charge was made in this update.
 
 Prepared on `feat/subscription-stage2-play-billing`. No production migration,
 deployment, Play configuration, payment or release was performed.
