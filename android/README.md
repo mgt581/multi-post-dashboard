@@ -3,7 +3,7 @@
 This source was copied from the confirmed version 1.8 Android Studio project at
 `/Users/alexb/Documents/Codex/2026-10-16/new-chat-7/MultiPost-Android`.
 The original signed 1.8/code 8 bundle and source remain untouched. This branch
-sets version 1.9/code 9 and adds Google Play Billing 9.1.0.
+sets version 1.9.1/code 10 and uses Google Play Billing 9.1.0.
 
 Package: `uk.co.multipostapp`; min SDK 24; target SDK 36. The existing WebView,
 Firebase authentication, Google sign-in, document picker, and navigation remain
@@ -12,16 +12,37 @@ origin-aware messages restricted to the trusted top-level frame. Devices whose
 WebView lacks `WEB_MESSAGE_LISTENER` have no native purchase bridge; Google
 sign-in displays an update message and email sign-in remains available.
 No signing key or password is committed. `app/google-services.json`
-is ignored; copy the existing file into this local working copy to build.
+is ignored. The verified 1.8 backup's Firebase configuration was copied to
+this isolated clone (same package `uk.co.multipostapp` and Firebase project).
+It remains ignored by Git and is not part of any commit.
 
 The native billing bridge offers `multipost_pro` with `monthly` and `yearly`
-base plans, and restores purchases. Google Play determines eligibility for any
-seven-day introductory offer. The app forwards purchase tokens to the Worker
-through the authenticated Settings page; only the Worker can grant access.
+base plans, ten distinct workspace add-on products (`multipost_workspace_01`
+through `_10`) with matching monthly/yearly periods, and restores purchases.
+Google Play determines eligibility for any seven-day introductory offer. The
+app forwards purchase tokens to the Worker through authenticated Settings;
+only the Worker can grant access. The add-on controls stay hidden if the
+complete catalogue is unavailable or the device's Play region is South Korea.
 
-Build the unsigned debug variant locally with `./gradlew :app:assembleDebug
-:app:testDebugUnitTest`. Do not build a signed release until the upload keystore
-certificate has been verified against the existing bundle and Play Console.
+Open this `android` directory in Android Studio and run
+`./gradlew :app:assembleDebug :app:testDebugUnitTest` in its Terminal.
+The restricted Work shell cannot start Gradle's daemon because local socket
+binding is denied; Kotlin compilation has not been verified here. Do not
+build a signed release until the upload keystore certificate has been verified
+against the existing bundle and Play Console. Run this command locally; it
+prompts for the password without placing it on the command line:
+
+```sh
+'/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/keytool' -list -v -keystore '/Users/alexb/Desktop/multipost-upload.jks' -alias multipost
+```
+
+The required SHA-256 is
+`3D:37:61:C3:F4:61:CC:82:BF:E6:86:D2:95:F0:82:3C:A2:6A:5D:01:5B:8C:31:2D:78:AF:47:23:E0:D4:BD:1A`.
+The keystore alias certificate has not yet been confirmed. Check the highest
+Play Console version code is below 10. After a successful debug build, native
+tests, keystore match and explicit signing approval, Android Studio's
+**Build → Generate Signed App Bundle / APK → Android App Bundle** can use the
+existing keystore and alias. Never store the password in source or chat.
 The Gradle plugin remains 8.10.1; no toolchain migration was made.
 The website is loaded from `https://multipostapp.co.uk/app.html`; the branch's
 Google Play controls live in `settings.html`, which has not been deployed.
