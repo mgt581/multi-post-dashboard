@@ -233,7 +233,14 @@
         <button id="playManageBtn" class="mini-btn" type="button">Manage in Google Play</button>
       </div>
       <div id="playPaymentNote" class="billing-note" hidden></div>
-      <div class="billing-note">Pro is planned to include one workspace with a YouTube account, Facebook Page and TikTok account. Extra workspaces and the proposed monthly AI and publishing allowances are not available yet; see <a href="help.html" style="color:#7dd3fc;">How it works</a> before subscribing. Google Play shows the final terms and confirms any first payment date before purchase. Subscriptions renew automatically unless cancelled in Google Play. Web Stripe subscribers can manage their existing subscription in the billing portal.</div>
+      <div id="workspacePlayControls" hidden>
+        <div class="billing-note" id="workspacePlayNote"></div>
+        <div class="billing-actions">
+          <button id="workspaceAddBtn" class="mini-btn primary" type="button" disabled>Add one workspace</button>
+          <button id="workspaceRemoveBtn" class="mini-btn" type="button" disabled>Remove one at renewal</button>
+        </div>
+      </div>
+      <div class="billing-note">Pro includes one workspace and an allowance of 150 AI credits and 150 successful platform publications each month. Additional workspace purchasing is shown only when Google Play returns supported plans for your region and your Pro entitlement is verified. See <a href="help.html" style="color:#7dd3fc;">How it works</a> before subscribing. Google Play shows the final terms and first payment date before purchase. Subscriptions renew automatically unless cancelled in Google Play. Existing web subscribers can manage their Stripe subscription in the billing portal.</div>
     </div>
 
     <div class="section-title">Security</div>
@@ -332,6 +339,8 @@
     let billingUser = null;
     let currentBilling = null;
     let availablePlayPlans = [];
+    let availableWorkspacePlans = [];
+    let playCountryCode = null;
     let playPlansLoaded = false;
     let billingRefreshTimer = null;
     const OWNER_KEYS = ["alexbryant3234@gmail.com"];
@@ -397,6 +406,33 @@
       allowance.hidden = !currentBilling.access || !currentBilling.ai_credits || !currentBilling.publications;
       if (!allowance.hidden) allowance.textContent = `This month: ${Math.max(0, 150 - currentBilling.ai_credits.used)} of 150 AI credits and ${Math.max(0, 150 - currentBilling.publications.used)} of 150 successful publications remaining. ${currentBilling.workspace_allowance == null ? "Owner workspace access." : `${currentBilling.workspace_allowance} workspace${currentBilling.workspace_allowance === 1 ? "" : "s"} included in your current entitlement.`}`;
       renderPlayPlans();
+      renderWorkspacePlans();
+    }
+
+    function renderWorkspacePlans() {
+      const controls = document.getElementById('workspacePlayControls');
+      if (!controls || !isAndroidWrapper()) return;
+      const billing = currentBilling;
+      const interval = billing?.play?.base_plan_id;
+      const active = billing?.workspace_product_ids?.length || 0;
+      const renewing = billing?.workspace_renewing_ids || [];
+      const matchingPlans = availableWorkspacePlans.filter(plan => plan.base_plan_id === interval);
+      const prices = new Set(matchingPlans.map(plan => plan.price).filter(Boolean));
+      const completeCatalogue = matchingPlans.length === 10 &&
+        new Set(matchingPlans.map(plan => plan.product_id)).size === 10 && prices.size === 1;
+      const price = completeCatalogue ? [...prices][0] : null;
+      const eligible = billing?.reason === 'play_verified' && billing?.access &&
+        billing?.status !== 'canceled' && playCountryCode && playCountryCode !== 'KR' &&
+        ['monthly', 'yearly'].includes(interval) && !!price;
+      controls.hidden = !eligible;
+      if (!eligible) return;
+      document.getElementById('workspacePlayNote').textContent =
+        `${active} paid extra workspace${active === 1 ? '' : 's'} available now; ${renewing.length} set to renew. Each additional workspace costs ${price}/${interval === 'monthly' ? 'month' : 'year'} in your Play region. Adding one may charge a prorated amount today. Removing one stops renewal; it remains usable until its paid period ends. Review the exact total and date in Play before confirming.`;
+      const add = document.getElementById('workspaceAddBtn');
+      const remove = document.getElementById('workspaceRemoveBtn');
+      add.disabled = renewing.length >= 10 || active >= 10;
+      remove.disabled = renewing.length === 0;
+      add.textContent = `Add one (${price}/${interval === 'monthly' ? 'month' : 'year'})`;
     }
 
     function renderPlayPlans() {
@@ -469,6 +505,14 @@
         playPlansLoaded = true;
         renderPlayPlans();
       };
+      window.onMultiPostWorkspacePlans = plans => {
+        availableWorkspacePlans = Array.isArray(plans) ? plans : [];
+        renderWorkspacePlans();
+      };
+      window.onMultiPostPlayCountry = country => {
+        playCountryCode = String(country || '').toUpperCase();
+        renderWorkspacePlans();
+      };
       window.onMultiPostPlayError = message => setBillingUi("Google Play", String(message), "warn");
       window.onMultiPostPlayPurchase = async purchase => {
         try {
@@ -490,6 +534,15 @@
       document.getElementById("playYearlyBtn").addEventListener("click", () => {
         if (auth.currentUser) sendPlayAction("purchase", { base_plan_id: "yearly", firebase_uid: auth.currentUser.uid });
       });
+      const changeWorkspaces = delta => {
+        const renewal = currentBilling?.workspace_renewing_ids || [];
+        if (!auth.currentUser || currentBilling?.reason !== 'play_verified' || !currentBilling.play?.base_plan_id) return;
+        sendPlayAction('changeWorkspaces', { target: renewal.length + delta,
+          renewing_ids: renewal, base_plan_id: currentBilling.play.base_plan_id,
+          firebase_uid: auth.currentUser.uid });
+      };
+      document.getElementById('workspaceAddBtn').addEventListener('click', () => changeWorkspaces(1));
+      document.getElementById('workspaceRemoveBtn').addEventListener('click', () => changeWorkspaces(-1));
       document.getElementById("playRestoreBtn").addEventListener("click", () => sendPlayAction("restore"));
       document.getElementById("playManageBtn").addEventListener("click", () => sendPlayAction("openManage"));
       sendPlayAction("queryPlans");

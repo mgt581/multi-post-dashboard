@@ -117,6 +117,9 @@
     .card-content { flex: 1; }
     .card-title { display: block; font-weight: 700; font-size: 17px; }
     .card-sub { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
+    .folder-card.locked { border-color:#f59e0b88; }
+    .folder-card.locked .icon-box { background:#57401d; }
+    .folder-card.locked .card-sub { color:#fbbf24; }
 
     .chevron { color: var(--muted); font-size: 14px; }
     /* Folder action buttons */
@@ -433,13 +436,14 @@
             ? `<i class="fa-brands fa-youtube" style="color:#ef4444;margin-right:4px;"></i>${escapeHtml(f.youtube_channel)}`
             : 'Manage social accounts and posts';
           return `
-          <div class="card folder-card" data-folder-id="${escapeHtml(f.id)}" data-folder-name="${escapeHtml(f.name)}" data-folder-owner="${escapeHtml(f.user_id)}">
+          <div class="card folder-card ${f.workspace_locked ? 'locked' : ''}" data-folder-id="${escapeHtml(f.id)}" data-folder-locked="${f.workspace_locked ? 'true' : 'false'}" data-folder-name="${escapeHtml(f.name)}" data-folder-owner="${escapeHtml(f.user_id)}">
             ${iconBox}
             <div class="card-content">
               <span class="card-title">${escapeHtml(f.name)}</span>
-              <span class="card-sub">${subText}</span>
+              <span class="card-sub">${f.workspace_locked ? 'Saved and locked. Choose it as an active workspace or restore your allowance.' : subText}</span>
             </div>
             <div class="folder-actions">
+              ${f.workspace_locked ? `<button class="action-btn select-workspace-btn" type="button" data-id="${escapeHtml(f.id)}" aria-label="Use ${escapeHtml(f.name)} as an active workspace">Use</button>` : ''}
               <button class="action-btn rename-btn" data-id="${escapeHtml(f.id)}" data-name="${escapeHtml(f.name)}" data-owner="${escapeHtml(f.user_id)}" aria-label="Rename workspace">
                 <i class="fa-solid fa-pen"></i>
               </button>
@@ -454,10 +458,30 @@
         // Click listeners... (kept existing logic)
         container.querySelectorAll('.folder-card').forEach(card => {
           card.addEventListener('click', (e) => {
-            if (e.target.closest('.rename-btn') || e.target.closest('.delete-btn')) return;
+            if (e.target.closest('.rename-btn') || e.target.closest('.delete-btn') || e.target.closest('.select-workspace-btn')) return;
+            if (card.dataset.folderLocked === 'true') {
+              setDashboardNotice('This workspace is safely saved but locked by your current allowance. Choose Use to switch, or open Profile to restore billing.', 'billing');
+              return;
+            }
             openFolder(card.dataset.folderId, card.dataset.folderName);
           });
         });
+
+        container.querySelectorAll('.select-workspace-btn').forEach(btn => btn.addEventListener('click', async event => {
+          event.stopPropagation();
+          btn.disabled = true;
+          try {
+            const response = await fetch(`${apiBase}/workspaces/select-active`, { method:'POST',
+              headers: { 'Content-Type':'application/json', Authorization:`Bearer ${await authUser.getIdToken()}` },
+              body: JSON.stringify({ folder_ids:[btn.dataset.id] }) });
+            const result = await response.json();
+            if (!response.ok || !result.success) throw new Error(result.error || 'Could not switch workspaces.');
+            await loadFolders();
+          } catch (error) {
+            setDashboardNotice(error.message || 'Could not switch workspaces. Try again.', 'billing');
+            btn.disabled = false;
+          }
+        }));
 
         container.querySelectorAll('.rename-btn').forEach(btn => {
           btn.addEventListener('click', async (e) => {

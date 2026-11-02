@@ -91,6 +91,12 @@ class MainActivity : ComponentActivity() {
                             "purchase" -> playBilling.purchase(
                                 payload.optString("base_plan_id"), payload.optString("firebase_uid")
                             )
+                            "changeWorkspaces" -> {
+                                val ids = payload.optJSONArray("renewing_ids")
+                                playBilling.changeWorkspaces(payload.optInt("target", -1),
+                                    payload.optString("base_plan_id"), payload.optString("firebase_uid"),
+                                    (0 until (ids?.length() ?: 0)).map { ids!!.optString(it) })
+                            }
                             "restore" -> playBilling.restore()
                             "openManage" -> openOutsideApp(Uri.parse(
                                 "https://play.google.com/store/account/subscriptions?package=uk.co.multipostapp"

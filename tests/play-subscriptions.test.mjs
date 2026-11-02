@@ -33,25 +33,28 @@ test('only a current matching Play free-trial phase is labelled a trial', () => 
   assert.equal(interpretPlaySubscription(activeTrial, account, now).trialEnd, null);
 });
 
-test('verified workspace tiers grant only the active, matching paid line item', () => {
+test('ten unique paid workspace products grant only current, matching entitlements through deferred removal', () => {
   const bundle = purchase('SUBSCRIPTION_STATE_ACTIVE', '2026-11-30T12:00:00Z');
-  bundle.lineItems.push({ productId: 'multipost_workspace', expiryTime: '2026-11-30T12:00:00Z',
-    latestSuccessfulOrderId: 'GPA.test', offerDetails: { basePlanId: 'monthly-10' } });
+  for (let n = 1; n <= 10; n++) bundle.lineItems.push({ productId: `multipost_workspace_${String(n).padStart(2, '0')}`,
+    expiryTime: '2026-11-30T12:00:00Z', latestSuccessfulOrderId: `GPA.${n}`,
+    autoRenewingPlan: { autoRenewEnabled: n < 10 }, offerDetails: { basePlanId: 'monthly' } });
   assert.equal(interpretPlaySubscription(bundle, account, now).workspaceQuantity, 10);
-  bundle.lineItems.push({ productId: 'multipost_workspace', offerDetails: { basePlanId: 'monthly-2' } });
-  assert.equal(interpretPlaySubscription(bundle, account, now).workspaceQuantity, 10, 'deferred unpaid replacement is not active');
-  bundle.lineItems[1].offerDetails.basePlanId = 'yearly-10';
-  assert.equal(interpretPlaySubscription(bundle, account, now).workspaceQuantity, 0);
-  bundle.lineItems[1].offerDetails.basePlanId = 'monthly-11';
-  assert.equal(interpretPlaySubscription(bundle, account, now).workspaceQuantity, 0);
-  bundle.lineItems[1].offerDetails.basePlanId = 'monthly-3';
-  bundle.lineItems[1].expiryTime = '2026-10-30T12:00:00Z';
-  assert.equal(interpretPlaySubscription(bundle, account, now).workspaceQuantity, 0);
-  bundle.lineItems[1].expiryTime = '2026-11-30T12:00:00Z';
-  bundle.lineItems[1].latestSuccessfulOrderId = '';
-  assert.equal(interpretPlaySubscription(bundle, account, now).workspaceQuantity, 0);
-  bundle.lineItems[1].latestSuccessfulOrderId = 'GPA.test';
+  assert.equal(interpretPlaySubscription(bundle, account, now).workspaceItems.filter(i => i.renewing).length, 9);
+  bundle.lineItems[1].offerDetails.basePlanId = 'yearly';
+  assert.equal(interpretPlaySubscription(bundle, account, now).workspaceQuantity, 9);
+  bundle.lineItems[1].offerDetails.basePlanId = 'monthly';
+  bundle.lineItems[2].latestSuccessfulOrderId = '';
+  assert.equal(interpretPlaySubscription(bundle, account, now).workspaceQuantity, 9);
+  bundle.lineItems[2].latestSuccessfulOrderId = 'GPA.2';
+  bundle.lineItems[3].expiryTime = '2026-10-30T12:00:00Z';
+  assert.equal(interpretPlaySubscription(bundle, account, now).workspaceQuantity, 9);
+  bundle.lineItems[3].expiryTime = '2026-11-30T12:00:00Z';
+  bundle.lineItems.push({ ...bundle.lineItems[1] });
+  assert.throws(() => interpretPlaySubscription(bundle, account, now), /duplicate/);
   bundle.lineItems.pop();
+  bundle.lineItems[1].productId = 'multipost_workspace';
+  assert.throws(() => interpretPlaySubscription(bundle, account, now), /unknown/);
+  bundle.lineItems[1].productId = 'multipost_workspace_01';
   bundle.subscriptionState = 'SUBSCRIPTION_STATE_ON_HOLD';
   assert.equal(interpretPlaySubscription(bundle, account, now).workspaceQuantity, 0);
 });
@@ -109,6 +112,7 @@ test('authenticated Play purchase grants cross-platform access; a spoofed Androi
   db.exec(readFileSync(new URL('../migrations/0010_play_trial_phase.sql', import.meta.url), 'utf8'));
   db.exec(readFileSync(new URL('../migrations/0011_usage_workspace_entitlements.sql', import.meta.url), 'utf8'));
   db.exec(readFileSync(new URL('../migrations/0012_publication_reservations.sql', import.meta.url), 'utf8'));
+  db.exec(readFileSync(new URL('../migrations/0013_workspace_item_entitlements.sql', import.meta.url), 'utf8'));
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const env = {
     WEB_BILLING_ENABLED: 'true',
@@ -128,7 +132,9 @@ test('authenticated Play purchase grants cross-platform access; a spoofed Androi
   globalThis.fetch = async url => {
     if (String(url).includes('identitytoolkit.googleapis.com')) return Response.json({ users: [{ localId: 'uid-123', email: 'user@example.com', emailVerified: true }] });
     if (String(url).endsWith('/token')) return Response.json({ access_token: 'google-token' });
-    const trial = purchase('SUBSCRIPTION_STATE_ACTIVE', new Date(Date.now() + 86400000).toISOString());
+    const replacing = String(url).endsWith('/new-token');
+    const trial = purchase('SUBSCRIPTION_STATE_ACTIVE', new Date(Date.now() + (replacing ? 43200000 : 86400000)).toISOString());
+    if (replacing) trial.linkedPurchaseToken = 'valid-play-token';
     trial.lineItems[0].offerDetails.offerId = 'trial-7d-monthly';
     trial.lineItems[0].offerPhase = { freeTrial: {} };
     return Response.json(trial);
@@ -148,6 +154,14 @@ test('authenticated Play purchase grants cross-platform access; a spoofed Androi
     assert.equal(status.status, 'trialing');
     assert.equal(status.play.trial_end > Math.floor(Date.now() / 1000), true);
     assert.equal(db.prepare('SELECT encrypted_token FROM billing_play_purchases').get().encrypted_token.includes('valid-play-token'), false);
+    const replacement = await worker.fetch(new Request('https://example.test/api/billing/play-purchase', {
+      method:'POST', headers:{ ...headers, 'Content-Type':'application/json' }, body:JSON.stringify({ purchase_token:'new-token' })
+    }), env);
+    assert.equal(replacement.status, 200, 'a linked prorated change may have a shorter immediate expiry');
+    const oldReplay = await worker.fetch(new Request('https://example.test/api/billing/play-purchase', {
+      method:'POST', headers:{ ...headers, 'Content-Type':'application/json' }, body:JSON.stringify({ purchase_token:'valid-play-token' })
+    }), env);
+    assert.equal(oldReplay.status, 409, 'the previous token must not replace the newer purchase');
     // The same token cannot be reassigned even if a later Google response is
     // tampered with or a concurrent registration tries another account.
     db.prepare(`INSERT INTO billing_play_purchases

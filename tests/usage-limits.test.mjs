@@ -3,12 +3,15 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import worker from '../worker.js';
+import { reconcilePendingPublications } from '../publication-reconciliation.mjs';
 
 function fixture() {
   const sqlite = new DatabaseSync(':memory:');
   for (const file of ['schema.sql', 'migrations/0009_play_subscriptions.sql',
     'migrations/0010_play_trial_phase.sql', 'migrations/0011_usage_workspace_entitlements.sql',
-    'migrations/0012_publication_reservations.sql']) {
+    'migrations/0012_publication_reservations.sql', 'migrations/0013_workspace_item_entitlements.sql',
+    'migrations/0014_workspace_choices.sql',
+    'migrations/0015_publication_reconciliation.sql']) {
     sqlite.exec(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'));
   }
   sqlite.exec(readFileSync(new URL('../migrations/0004_create_upload_sessions.sql', import.meta.url), 'utf8'));
@@ -18,7 +21,11 @@ function fixture() {
     async first() { return sqlite.prepare(sql).get(...args) || null; },
     async run() { return sqlite.prepare(sql).run(...args); },
     async all() { return { results: sqlite.prepare(sql).all(...args) }; }
-  }; } };
+  }; }, async batch(statements) {
+    sqlite.exec('BEGIN');
+    try { const output = []; for (const statement of statements) output.push(await statement.run()); sqlite.exec('COMMIT'); return output; }
+    catch (error) { sqlite.exec('ROLLBACK'); throw error; }
+  } };
   sqlite.prepare(`INSERT INTO billing_subscriptions (user_id,user_email,subscription_status,current_period_end)
     VALUES ('uid-1','one@example.com','active',?)`).run(Math.floor(Date.now() / 1000) + 86400);
   return { sqlite, env: { DB: db, WEB_BILLING_ENABLED: 'true' } };
@@ -80,12 +87,71 @@ test('workspace creation enforces one included place across UID and verified ema
       (user_id,token_hash,encrypted_token,product_id,base_plan_id,subscription_state,expiry_time,last_verified_at,workspace_quantity,workspace_expiry)
       VALUES ('uid-1','hash','encrypted','multipost_pro','monthly','SUBSCRIPTION_STATE_ACTIVE',?,?,2,?)`)
       .run(Math.floor(Date.now()/1000)+3600, Math.floor(Date.now()/1000), Math.floor(Date.now()/1000)+3600);
+    sqlite.prepare("UPDATE billing_play_purchases SET workspace_items_json = ? WHERE user_id = 'uid-1'")
+      .run(JSON.stringify([1, 2].map(n => ({ productId: `multipost_workspace_0${n}`, expiry: Math.floor(Date.now()/1000)+3600, renewing: true }))));
     assert.equal((await add('uid-1')).status, 200);
     assert.equal((await add('uid-1')).status, 200);
     assert.equal((await add('one@example.com')).status, 429, 'the same account cannot gain another place using its email');
-    sqlite.prepare("UPDATE billing_play_purchases SET workspace_expiry = 1 WHERE user_id = 'uid-1'").run();
+    sqlite.prepare("UPDATE billing_play_purchases SET workspace_items_json = '[]' WHERE user_id = 'uid-1'").run();
     assert.equal((await add('uid-1')).status, 429);
     assert.equal(sqlite.prepare("SELECT COUNT(*) count FROM folders WHERE user_id='uid-1'").get().count, 3);
+  } finally { globalThis.fetch = original; sqlite.close(); }
+});
+
+test('downsized workspace entitlements lock excess folders without deleting them and allow a verified choice', async () => {
+  const { sqlite, env } = fixture();
+  const now = Math.floor(Date.now() / 1000);
+  sqlite.prepare(`INSERT INTO billing_play_purchases
+    (user_id,token_hash,encrypted_token,product_id,base_plan_id,subscription_state,expiry_time,last_verified_at,workspace_items_json)
+    VALUES ('uid-1','hash','encrypted','multipost_pro','monthly','SUBSCRIPTION_STATE_ACTIVE',?,?,?)`)
+    .run(now + 3600, now, JSON.stringify([1,2].map(n => ({ productId: `multipost_workspace_0${n}`, expiry: now + 3600, renewing: true }))));
+  for (const id of [1,2,3]) sqlite.prepare('INSERT INTO folders (id,user_id,name) VALUES (?, ?, ?)').run(id, 'uid-1', `Workspace ${id}`);
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ users: [{ localId: 'uid-1', email: 'one@example.com', emailVerified: true }] });
+  const list = () => worker.fetch(new Request('https://test.invalid/api/get-folders?user_id=uid-1', { headers }), env);
+  try {
+    assert.deepEqual((await (await list()).json()).map(item => item.workspace_locked), [false,false,false]);
+    sqlite.prepare("UPDATE billing_play_purchases SET workspace_items_json = ? WHERE user_id='uid-1'")
+      .run(JSON.stringify([{ productId:'multipost_workspace_01', expiry: now + 3600, renewing:false }]));
+    const downgraded = await (await list()).json();
+    assert.deepEqual(Object.fromEntries(downgraded.map(item => [item.id, item.workspace_locked])), { 1:false, 2:false, 3:true });
+    const blocked = await worker.fetch(new Request('https://test.invalid/api/youtube/init-upload', {
+      method:'POST', headers:{...headers, folder_id:'3', user_id:'uid-1'}, body:JSON.stringify({title:'Blocked',fileSize:100})
+    }), env);
+    assert.equal(blocked.status, 423);
+    const select = await worker.fetch(new Request('https://test.invalid/api/workspaces/select-active', {
+      method:'POST', headers, body:JSON.stringify({folder_ids:[3]})
+    }), env);
+    assert.equal(select.status, 200, await select.clone().text());
+    assert.deepEqual(Object.fromEntries((await (await list()).json()).map(item => [item.id, item.workspace_locked])), { 1:false, 2:true, 3:false });
+    assert.equal(sqlite.prepare('SELECT COUNT(*) count FROM folders').get().count, 3);
+    const denied = await worker.fetch(new Request('https://test.invalid/api/workspaces/select-active', {
+      method:'POST', headers, body:JSON.stringify({folder_ids:[1,2,3]})
+    }), env);
+    assert.equal(denied.status, 403);
+  } finally { globalThis.fetch = original; sqlite.close(); }
+});
+
+test('one verified additional Play workspace grants its own social account place', async () => {
+  const { sqlite, env } = fixture();
+  const now = Math.floor(Date.now() / 1000);
+  env.GOOGLE_CLIENT_ID = 'test-client';
+  env.GOOGLE_CLIENT_SECRET = 'test-secret';
+  sqlite.prepare(`INSERT INTO billing_play_purchases
+    (user_id,token_hash,encrypted_token,product_id,base_plan_id,subscription_state,expiry_time,last_verified_at,workspace_items_json)
+    VALUES ('uid-1','hash','encrypted','multipost_pro','monthly','SUBSCRIPTION_STATE_ACTIVE',?,?,?)`)
+    .run(now + 3600, now, JSON.stringify([{ productId:'multipost_workspace_01', expiry:now + 3600, renewing:true }]));
+  for (const id of [1,2]) sqlite.prepare('INSERT INTO folders (id,user_id,name) VALUES (?, ?, ?)').run(id, 'uid-1', `Workspace ${id}`);
+  sqlite.prepare("INSERT INTO accounts (user_id,folder_id,platform,access_token) VALUES ('uid-1',1,'youtube','existing')").run();
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ users:[{ localId:'uid-1', email:'one@example.com', emailVerified:true }] });
+  try {
+    const connect = folder_id => worker.fetch(new Request('https://test.invalid/api/auth/youtube', {
+      method:'POST', headers, body:JSON.stringify({ folder_id, user_id:'uid-1' })
+    }), env);
+    const second = await connect(2);
+    assert.equal(second.status, 200, await second.clone().text());
+    assert.match((await second.json()).url, /accounts\.google\.com/);
   } finally { globalThis.fetch = original; sqlite.close(); }
 });
 
@@ -146,6 +212,19 @@ test('publication preflight counts only this month’s confirmed events across a
     const blocked = await publish();
     assert.equal(blocked.status, 429);
     assert.match((await blocked.json()).error, /150 successful platform publications/);
+  } finally { globalThis.fetch = original; sqlite.close(); }
+});
+
+test('a publication completed after midnight at the month boundary belongs to its completion month', async () => {
+  const { sqlite, env } = fixture();
+  const month = monthStart();
+  sqlite.prepare(`INSERT INTO billing_publish_slots (id,user_id,platform,month_start,status,completed_at)
+    VALUES ('late','uid-1','facebook',?,'completed',?)`).run(month - 86400, month + 1);
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ users:[{ localId:'uid-1', email:'one@example.com', emailVerified:true }] });
+  try {
+    const status = await worker.fetch(new Request('https://test.invalid/api/billing/status?user_id=uid-1', { headers }), env);
+    assert.equal((await status.json()).billing.publications.used, 1);
   } finally { globalThis.fetch = original; sqlite.close(); }
 });
 
@@ -304,4 +383,90 @@ test('TikTok provider failure releases a place; confirmed completion consumes on
     const status = await worker.fetch(new Request('https://test.invalid/api/billing/status?user_id=uid-1', { headers }), env);
     assert.equal((await status.json()).billing.publications.used, 1);
   } finally { globalThis.fetch = original; sqlite.close(); }
+});
+
+test('Facebook Reel submission reserves a place and only confirmed status consumes it once', async () => {
+  const { sqlite, env } = fixture();
+  sqlite.prepare("INSERT INTO folders (id,user_id,name) VALUES (1,'uid-1','Main')").run();
+  sqlite.prepare(`INSERT INTO accounts (user_id,folder_id,platform,facebook_page_id,facebook_page_access_token)
+    VALUES ('uid-1',1,'facebook_page','page-1','page-token')`).run();
+  const original = globalThis.fetch;
+  let published = false;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes('identitytoolkit.googleapis.com')) return Response.json({ users: [{ localId:'uid-1', email:'one@example.com', emailVerified:true }] });
+    if (String(url).includes('/video_reels')) {
+      if (new URLSearchParams(init.body).get('upload_phase') === 'start') return Response.json({ video_id:'reel-1', upload_url:'https://upload.invalid/reel' });
+      return Response.json({ post_id:'post-1' });
+    }
+    if (String(url).includes('upload.invalid')) return new Response('', { status:200 });
+    if (String(url).includes('/reel-1?')) return Response.json({ id:'reel-1', published, status: { video_status: published ? 'ready' : 'processing' },
+      permalink_url: published ? 'https://www.facebook.com/reel/reel-1' : '' });
+    throw new Error(`Unexpected request: ${url}`);
+  };
+  const post = new FormData();
+  post.set('title','New Reel');
+  post.set('video',new File([new Uint8Array([1,2,3])], 'clip.mp4', { type:'video/mp4' }));
+  const requestHeaders = { Authorization:headers.Authorization, folder_id:'1', user_id:'uid-1' };
+  try {
+    const start = await worker.fetch(new Request('https://test.invalid/api/facebook/upload', { method:'POST', headers:requestHeaders, body:post }), env);
+    assert.equal(start.status, 200, await start.clone().text());
+    assert.equal(sqlite.prepare("SELECT COUNT(*) count FROM billing_publish_slots WHERE status='pending'").get().count, 1);
+    const status = () => worker.fetch(new Request('https://test.invalid/api/facebook/video-status?videoId=reel-1', { headers:requestHeaders }), env);
+    assert.equal((await (await status()).json()).ready, false);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) count FROM billing_publish_slots WHERE status='completed'").get().count, 0);
+    published = true;
+    assert.equal((await (await status()).json()).ready, true);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) count FROM billing_publish_slots WHERE status='completed'").get().count, 1);
+    assert.equal((await (await status()).status), 404, 'status replay must not count again');
+    assert.equal(sqlite.prepare("SELECT COUNT(*) count FROM billing_usage_events WHERE event_type='publish_metered'").get().count, 1);
+    assert.equal((await (await worker.fetch(new Request('https://test.invalid/api/billing/status?user_id=uid-1', { headers }), env)).json()).billing.publications.used, 1);
+  } finally { globalThis.fetch = original; sqlite.close(); }
+});
+
+test('an explicit Facebook Reel processing failure releases its publication place', async () => {
+  const { sqlite, env } = fixture();
+  sqlite.prepare("INSERT INTO folders (id,user_id,name) VALUES (1,'uid-1','Main')").run();
+  sqlite.prepare(`INSERT INTO accounts (user_id,folder_id,platform,facebook_page_id,facebook_page_access_token)
+    VALUES ('uid-1',1,'facebook_page','page-1','page-token')`).run();
+  sqlite.prepare(`INSERT INTO billing_publish_slots (id,user_id,platform,month_start,status)
+    VALUES ('failed-reel','uid-1','facebook',?,'pending')`).run(monthStart());
+  sqlite.prepare(`INSERT INTO upload_sessions (id,platform,video_id,page_id,folder_id,user_id,expires_at)
+    VALUES ('failed-reel','facebook','video-failed','page-1','1','uid-1',?)`).run(Math.floor(Date.now()/1000)+3600);
+  sqlite.prepare("INSERT INTO billing_publish_sessions (session_id,slot_id) VALUES ('failed-reel','failed-reel')").run();
+  const original = globalThis.fetch;
+  globalThis.fetch = async url => {
+    if (String(url).includes('identitytoolkit.googleapis.com')) return Response.json({ users:[{ localId:'uid-1', email:'one@example.com', emailVerified:true }] });
+    return Response.json({ id:'video-failed', status:{ publishing_phase:{ status:'failed' } }, published:false });
+  };
+  try {
+    const result = await worker.fetch(new Request('https://test.invalid/api/facebook/video-status?videoId=video-failed', {
+      headers:{ Authorization:headers.Authorization, folder_id:'1', user_id:'uid-1' }
+    }), env);
+    assert.equal(result.status, 200);
+    assert.equal((await result.json()).failed, true);
+    assert.equal(sqlite.prepare("SELECT status FROM billing_publish_slots WHERE id='failed-reel'").get().status, 'failed');
+    assert.equal(sqlite.prepare("SELECT COUNT(*) count FROM billing_usage_events WHERE event_type='publish_metered'").get().count, 0);
+  } finally { globalThis.fetch = original; sqlite.close(); }
+});
+
+test('reconciler confirms provider success once, releases explicit failures, and retains uncertain reservations', async () => {
+  const { sqlite, env } = fixture();
+  const now = Math.floor(Date.now() / 1000);
+  for (const id of ['success', 'failure', 'uncertain']) {
+    sqlite.prepare(`INSERT INTO billing_publish_slots (id,user_id,platform,month_start,status) VALUES (?,'uid-1','tiktok',?,'pending')`).run(id, monthStart());
+    sqlite.prepare(`INSERT INTO upload_sessions (id,platform,access_token,video_id,title,folder_id,user_id,expires_at)
+      VALUES (?,'tiktok','token',?,'SELF_ONLY','1','uid-1',?)`).run(id, id, now + 3600);
+    sqlite.prepare('INSERT INTO billing_publish_sessions (session_id,slot_id) VALUES (?,?)').run(id, id);
+  }
+  const fetcher = async (_url, init) => Response.json({ error:{ code:'ok' }, data:{ status: {
+    success:'PUBLISH_COMPLETE', failure:'FAILED', uncertain:'PROCESSING'
+  }[JSON.parse(init.body).publish_id] } });
+  try {
+    assert.deepEqual(await reconcilePendingPublications(env, fetcher, now), { scanned:3, completed:1, failed:1 });
+    assert.equal(sqlite.prepare("SELECT status FROM billing_publish_slots WHERE id='success'").get().status, 'completed');
+    assert.equal(sqlite.prepare("SELECT status FROM billing_publish_slots WHERE id='failure'").get().status, 'failed');
+    assert.equal(sqlite.prepare("SELECT status FROM billing_publish_slots WHERE id='uncertain'").get().status, 'pending');
+    assert.deepEqual(await reconcilePendingPublications(env, fetcher, now + 300), { scanned:1, completed:0, failed:0 });
+    assert.equal(sqlite.prepare("SELECT COUNT(*) count FROM billing_usage_events WHERE event_type='publish_metered'").get().count, 1);
+  } finally { sqlite.close(); }
 });

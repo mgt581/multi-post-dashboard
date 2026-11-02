@@ -1,5 +1,8 @@
 # MultiPost 1.9 first-use and billing launch gate — 1 November 2026
 
+> Earlier snapshot. See [workspace-billing-implementation-1.9.md](workspace-billing-implementation-1.9.md)
+> for the approved workspace catalogue and current publication reconciliation.
+
 Branch: `feat/subscription-stage2-play-billing`. No merge, deployment, product
 activation, customer charge, or release upload was performed in this review.
 

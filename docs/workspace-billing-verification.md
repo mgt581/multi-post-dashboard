@@ -1,5 +1,9 @@
 # MultiPost workspace billing verification — 2 November 2026
 
+> Historical decision note. The approved ten-product implementation and
+> remaining gates are in [workspace-billing-implementation-1.9.md](workspace-billing-implementation-1.9.md).
+> The provisional single-product text below no longer describes the code.
+
 Status: **architecture gate, no workspace product created and no purchase UI enabled**.
 
 ## Play rules and the product choice

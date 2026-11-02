@@ -902,8 +902,6 @@
   async function waitForFacebookVideo(videoId, pageUrl) {
     if (!videoId) return;
     const publishButton = document.querySelector('button[onclick="publishFacebook()"]');
-    let candidatePermalink = "";
-    let consecutiveConfirmations = 0;
     for (let attempt = 0; attempt < 100; attempt += 1) {
       if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000));
       try {
@@ -916,26 +914,23 @@
         });
         const data = await response.json().catch(() => ({}));
         if (response.ok && data.success && data.ready && data.videoUrl) {
-          if (candidatePermalink === data.videoUrl) {
-            consecutiveConfirmations += 1;
-          } else {
-            candidatePermalink = data.videoUrl;
-            consecutiveConfirmations = 1;
-          }
-          if (consecutiveConfirmations >= 2) {
-            showFacebookPublishSuccess({
-              message: `Video is live on "${activeFacebookName}".`,
-              url: candidatePermalink,
-              label: "View Facebook Video"
-            });
-            setStatus(`Video is live on "${activeFacebookName}"`, "success");
-            if (publishButton) publishButton.textContent = "✅ Published";
+          showFacebookPublishSuccess({
+            message: `Video is live on "${activeFacebookName}".`,
+            url: data.videoUrl,
+            label: "View Facebook Video"
+          });
+          setStatus(`Video is live on "${activeFacebookName}"`, "success");
+          if (publishButton) publishButton.textContent = "✅ Published";
+          return;
+        } else {
+          if (response.ok && data.success && data.failed) {
+            setStatus('Facebook could not publish the Reel. Your publication place was released; review the video and try again.', 'error');
+            if (publishButton) {
+              publishButton.disabled = false;
+              publishButton.textContent = '📘 Publish to Facebook';
+            }
             return;
           }
-          setStatus(`Facebook returned the final video link. Confirming it is stable…`, "working");
-        } else {
-          candidatePermalink = "";
-          consecutiveConfirmations = 0;
           if (!response.ok && data.error) {
             setStatus(data.error, "error");
             if (publishButton) {
@@ -946,8 +941,6 @@
           }
         }
       } catch (error) {
-        candidatePermalink = "";
-        consecutiveConfirmations = 0;
         console.warn("Facebook video status check failed:", error);
       }
     }

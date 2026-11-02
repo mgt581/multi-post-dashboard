@@ -10,6 +10,12 @@ import {
 } from "../facebook-oauth.mjs";
 import worker from "../worker.js";
 
+const minimalDb = { prepare: sql => ({
+  bind() { return this; },
+  async first() { return sql.includes('FROM folders') ? { id: 1, user_id: 'uid-1' } : null; },
+  async all() { return { results: sql.includes('SELECT f.id FROM folders') ? [{ id: 1 }] : [] }; }
+}) };
+
 test("Facebook linking requests only supported page-link permissions", () => {
   assert.deepEqual(FACEBOOK_PAGE_LINK_SCOPES, [
     "public_profile",
@@ -35,7 +41,7 @@ test("Facebook reconnect asks the provider to re-check page permissions", async 
         body: JSON.stringify({ folder_id: "1", user_id: "uid-1", refresh: true })
       }),
       { FB_CLIENT_ID: "app-id", FB_CLIENT_SECRET: "secret", FRONTEND_URL: "https://example.test",
-        DB: { prepare: sql => ({ bind() { return this; }, async first() { return sql.includes("FROM folders") ? { id: 1, user_id: "uid-1" } : null; } }) } }
+        DB: minimalDb }
     );
   } finally { globalThis.fetch = originalFetch; }
   assert.equal(response.status, 200);
@@ -58,7 +64,7 @@ test("YouTube linking returns an account-selection URL only after Firebase authe
   globalThis.fetch = async () => Response.json({ users: [{ localId: "uid-1", emailVerified: true }] });
   try {
     const env = { GOOGLE_CLIENT_ID: "google-id", GOOGLE_CLIENT_SECRET: "google-secret", FRONTEND_URL: "https://example.test",
-      DB: { prepare: sql => ({ bind() { return this; }, async first() { return sql.includes("FROM folders") ? { id: 1, user_id: "uid-1" } : null; } }) } };
+      DB: minimalDb };
     const response = await worker.fetch(new Request("https://example.test/api/auth/youtube", {
       method: "POST", headers: { Authorization: "Bearer firebase-token", "Content-Type": "application/json" },
       body: JSON.stringify({ folder_id: "1", user_id: "uid-1" })
