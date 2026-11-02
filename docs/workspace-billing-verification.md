@@ -65,14 +65,23 @@ this selection and enforce it on every protected route before testing charges.
 ## Other launch gates
 
 AI reservations use calendar UTC months (150 credits; text 1, image 2), replay
-by request ID, and release on failure or a deterministic local fallback. Publication preflight counts
-150 confirmed records across authenticated UID/email aliases in the UTC
-calendar month, excluding failed or merely initiated TikTok uploads. It is
-**not a strict concurrent cap**: concurrent requests can both pass before
-either records a success, and legacy Reel URL publishing counts at submission.
-An atomic publication reservation and provider confirmation design remains
-required. The existing Stripe `active` row without a period end can still be
-accepted if refresh fails; audit actual rows before tightening it.
+by request ID, and release on failure or a deterministic local fallback.
+Migration 0012 adds atomic publication places for the 150 monthly limit.
+Two concurrent starts cannot reserve the same last place. Failed synchronous
+requests release it, and TikTok failure status releases an asynchronous one.
+YouTube completion, TikTok ready status and Facebook ready status commit their
+reserved place. Legacy URL Facebook publishing still counts at provider
+submission rather than final processing. An abandoned asynchronous upload
+retains a pending place until provider confirmation or manual reconciliation;
+there is no scheduled reconciliation job. A success reported after a billing
+month boundary is attributed to its reservation month. These edge cases and
+provider-device tests remain launch gates, not proof of a strict end-to-end
+success cap. The unused legacy TikTok URL posting endpoint now rejects new
+attempts because it cannot observe a final success; supported TikTok upload
+sessions continue to work. The existing Stripe `active` row without a period
+end can still be accepted if refresh fails; audit actual rows before tightening
+it. The backend's `/api/get-accounts` now returns public account metadata only,
+and deleting an account requires Firebase identity and clears its tokens.
 
 The current cloud checkout lacks the Mac's candidate upload keystore and the
 previous signed AAB. It also lacks a cached Gradle 9.6 distribution and an

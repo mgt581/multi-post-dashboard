@@ -53,6 +53,7 @@ test("an authenticated active subscriber can generate SEO", async () => {
   db.exec(readFileSync(new URL('../migrations/0009_play_subscriptions.sql', import.meta.url), 'utf8'));
   db.exec(readFileSync(new URL('../migrations/0010_play_trial_phase.sql', import.meta.url), 'utf8'));
   db.exec(readFileSync(new URL('../migrations/0011_usage_workspace_entitlements.sql', import.meta.url), 'utf8'));
+  db.exec(readFileSync(new URL('../migrations/0012_publication_reservations.sql', import.meta.url), 'utf8'));
   db.prepare('INSERT INTO billing_subscriptions (user_id,user_email,subscription_status,current_period_end) VALUES (?,?,?,?)')
     .run('customer@example.com','customer@example.com','active',Math.floor(Date.now() / 1000) + 3600);
   try {

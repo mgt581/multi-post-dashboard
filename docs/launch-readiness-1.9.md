@@ -83,8 +83,8 @@ folders and explicit excess-workspace handling before charging.
 | Existing Stripe access | PASS in mocked tests; NOT TESTED live | Independent Stripe path remains; active rows lacking a period end are still trusted if refresh fails. Audit real rows before launch. |
 | Workspace quantity and add-on | PARTIAL / BLOCKED | Atomic folder creation cap and provisional verified Play tier parsing have been added in migration 0011. No SKU or Android purchase flow exists. Same-product base-plan downgrades need a different catalogue or validated grandfathering; excess existing workspaces remain accessible after downgrade. See workspace verification note. |
 | AI credits | PASS in local tests; NOT TESTED live | Atomic 150-credit UTC calendar-month reservation for both SEO routes; text 1/image 2, failed/local fallback zero, same-key replay. Migration 0011 and live API tests are still required. Trial-period allowance remains provisional. |
-| 150 successful monthly publications | PARTIAL / FAIL launch gate | Authenticated UTC monthly count rejects new publishing initiations at 150 and ignores pending TikTok attempts. Concurrent starts can pass before either records a success; legacy Reel URL path records at submission. Implement atomic reservations and confirm each provider's final success before calling this secure. |
-| Account login and social flows | PASS in automated fixtures; NOT TESTED live | 102 JS tests cover simulated auth, OAuth and publishing cases. New Firebase users, provider credentials, Android sign-in and device WebView still need manual verification. |
+| 150 successful monthly publications | PARTIAL / FAIL launch gate | Migration 0012 atomically reserves places; 114 local JS tests include concurrent final-place, YouTube completion, TikTok failed and complete status. Pending sessions do not show as successful but can tie up places without reconciliation. Legacy Facebook Reel URL path records at submission, and cross-month completion can be attributed to initiation month. Live provider/device tests and reconciliation remain required. |
+| Account login and social flows | PASS in automated fixtures; NOT TESTED live | 114 JS tests cover simulated auth, OAuth and publishing cases. The YouTube start and legacy URL publishing paths now verify workspace ownership; `/api/get-accounts` does not expose provider tokens; account-only removal requires Firebase authentication. New Firebase users, provider credentials, Android sign-in and device WebView still need manual verification. |
 | Android compilation and unit tests | BLOCKED | This resumed cloud checkout has no Android SDK or cached Gradle 9.6 distribution; the offline wrapper failed before compilation because it could not download Gradle. Android Studio on the Mac must run `:app:assembleDebug :app:testDebugUnitTest` for the current branch. |
 | Signed code-10 AAB | BLOCKED | Candidate keystore certificate is not verified; no build from latest edits and no authorization to upload. Verify alias locally without sharing a password. |
 | Internal billing test | BLOCKED | Draft plans/offers cannot be purchased; use license testers after separate activation approval, staging backend/frontend, and code-10 verified build. Existing internal 9 (1.9) is older than these edits. |
@@ -93,8 +93,8 @@ folders and explicit excess-workspace handling before charging.
 ## Coordinated path to the next internal build
 
 1. Decide the workspace catalogue described in the new verification note. Implement and
-   test quantity/replacement and Stripe compatibility; complete server caps,
-   credit enforcement and publication accounting before showing those benefits.
+   test quantity/replacement and Stripe compatibility; complete excess-workspace
+   locking and publication-session reconciliation before showing those benefits.
 2. Finish account deletion and token-exposure fixes; run auth, new-user,
    existing Stripe, trial, cancelled and expired browser/device scenarios.
 3. On this isolated branch in Android Studio, sync without upgrading AGP,

@@ -868,12 +868,12 @@ Follow for daily trending content! \u{1F44F}
         const total = await env.DB.prepare(`
           SELECT COUNT(*) AS count
           FROM billing_usage_events
-          WHERE user_id IN (${sqlPlaceholders(aliases)}) AND event_type IN ('publish', 'publish_confirmed') AND created_at >= ? AND created_at < ?
+          WHERE user_id IN (${sqlPlaceholders(aliases)}) AND event_type IN ('publish', 'publish_confirmed', 'publish_metered') AND created_at >= ? AND created_at < ?
         `).bind(...aliases, dayStart, dayEnd).first();
         const byPlatform = await env.DB.prepare(`
           SELECT COUNT(*) AS count
           FROM billing_usage_events
-          WHERE user_id IN (${sqlPlaceholders(aliases)}) AND event_type IN ('publish', 'publish_confirmed') AND platform = ? AND created_at >= ? AND created_at < ?
+          WHERE user_id IN (${sqlPlaceholders(aliases)}) AND event_type IN ('publish', 'publish_confirmed', 'publish_metered') AND platform = ? AND created_at >= ? AND created_at < ?
         `).bind(...aliases, String(platform), dayStart, dayEnd).first();
         return { total: Number(total?.count || 0), platform: Number(byPlatform?.count || 0), dayStart, dayEnd };
       } catch (_) {
@@ -891,9 +891,57 @@ Follow for daily trending content! \u{1F44F}
         AND ((event_type = 'publish' AND platform IN ('youtube','facebook'))
           OR (event_type = 'publish_confirmed' AND platform IN ('youtube','facebook','tiktok')))`)
         .bind(...aliases, start, end).first();
-      return Number(row?.count || 0);
+      const metered = await env.DB.prepare(`SELECT COUNT(*) AS count FROM billing_publish_slots
+        WHERE user_id IN (${sqlPlaceholders(aliases)}) AND month_start = ? AND status = 'completed'`)
+        .bind(...aliases, start).first();
+      return Number(row?.count || 0) + Number(metered?.count || 0);
     }, "countMonthlyPublications");
+    let publicationSlotId = null;
+    let publicationCanonicalUserId = null;
+    let publicationSlotRetained = false;
+    const releasePublicationSlot = /* @__PURE__ */ __name(async (slotId) => {
+      if (slotId) await env.DB.prepare("UPDATE billing_publish_slots SET status = 'failed' WHERE id = ? AND status = 'pending'").bind(slotId).run();
+    }, "releasePublicationSlot");
+    const bindPublicationSession = /* @__PURE__ */ __name(async (sessionId) => {
+      if (!publicationSlotId) return;
+      await env.DB.prepare("INSERT INTO billing_publish_sessions (session_id, slot_id) VALUES (?, ?)")
+        .bind(sessionId, publicationSlotId).run();
+      publicationSlotRetained = true;
+    }, "bindPublicationSession");
+    const finishPublicationSlot = /* @__PURE__ */ __name(async (slotId, canonicalUserId, platform, eventUserId = canonicalUserId) => {
+      if (!slotId) return false;
+      const completed = await env.DB.prepare(`UPDATE billing_publish_slots SET status = 'completed', completed_at = strftime('%s','now')
+        WHERE id = ? AND user_id = ? AND platform = ? AND status = 'pending'`).bind(slotId, String(canonicalUserId), String(platform)).run();
+      if (!Number(completed?.meta?.changes ?? completed?.changes ?? 0)) {
+        const previous = await env.DB.prepare("SELECT status FROM billing_publish_slots WHERE id = ? AND user_id = ? AND platform = ?")
+          .bind(slotId, String(canonicalUserId), String(platform)).first();
+        if (previous?.status === 'completed') return false; // concurrent status retry
+        throw new Error("Publication succeeded but its reservation could not be finalized; contact support before retrying.");
+      }
+      // New publications are counted by the slot, not by this compatibility
+      // event. The event retains the existing daily meter and onboarding flag.
+      await env.DB.prepare(`INSERT INTO billing_usage_events (user_id, event_type, platform, created_at)
+        VALUES (?, 'publish_metered', ?, strftime('%s','now'))`).bind(String(eventUserId), String(platform)).run();
+      return true;
+    }, "finishPublicationSlot");
+    const finishPublicationSession = /* @__PURE__ */ __name(async (sessionId, userId, platform, success) => {
+      const binding = await env.DB.prepare(`SELECT b.slot_id, s.user_id, s.platform FROM billing_publish_sessions b
+        JOIN billing_publish_slots s ON s.id = b.slot_id WHERE b.session_id = ?`).bind(sessionId).first();
+      if (binding) {
+        if (binding.platform !== platform) throw new Error("Publication session platform mismatch");
+        if (success) await finishPublicationSlot(binding.slot_id, binding.user_id, platform, userId);
+        else await releasePublicationSlot(binding.slot_id);
+        await env.DB.prepare("DELETE FROM billing_publish_sessions WHERE session_id = ?").bind(sessionId).run();
+        return true;
+      }
+      return false;
+    }, "finishPublicationSession");
     const recordPublishUsage = /* @__PURE__ */ __name(async (userId, platform, eventType = 'publish') => {
+      if (publicationSlotId) {
+        publicationSlotRetained = true;
+        await finishPublicationSlot(publicationSlotId, publicationCanonicalUserId || userId, platform, userId);
+        return;
+      }
       try {
         await env.DB.prepare(`
           INSERT INTO billing_usage_events (user_id, event_type, platform, created_at)
@@ -919,7 +967,27 @@ Follow for daily trending content! \u{1F44F}
       if (totalLimit > 0 && usage.total >= totalLimit) {
         return { ok: false, statusCode: 429, body: { success: false, error: "Daily posting limit reached for your plan" } };
       }
-      return { ok: true };
+      const aliases = [...new Set(evaluated?.identityAliases || [userId])].filter(Boolean);
+      const monthStart = aiMonthStart();
+      const slotId = crypto.randomUUID();
+      // SQLite/D1 serializes this conditional insert. Legacy successes and
+      // pending/completed slots occupy one of the 150 monthly places.
+      const reserved = await env.DB.prepare(`INSERT INTO billing_publish_slots (id, user_id, platform, month_start, status)
+        SELECT ?, ?, ?, ?, 'pending' WHERE
+          (SELECT COUNT(*) FROM billing_usage_events WHERE user_id IN (${sqlPlaceholders(aliases)})
+            AND created_at >= ? AND created_at < ?
+            AND ((event_type = 'publish' AND platform IN ('youtube','facebook'))
+              OR (event_type = 'publish_confirmed' AND platform IN ('youtube','facebook','tiktok'))))
+          + (SELECT COUNT(*) FROM billing_publish_slots WHERE user_id = ? AND month_start = ? AND status IN ('pending','completed')) < 150`)
+        .bind(slotId, evaluated.canonicalUserId || userId, platform, monthStart, ...aliases,
+          monthStart, Math.floor(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1) / 1000),
+          evaluated.canonicalUserId || userId, monthStart).run();
+      if (!Number(reserved?.meta?.changes ?? reserved?.changes ?? 0)) {
+        return { ok: false, statusCode: 429, body: { success: false, error: "150 platform publication places are in use this month. Pending uploads release their place if they fail." } };
+      }
+      publicationSlotId = slotId;
+      publicationCanonicalUserId = evaluated.canonicalUserId || userId;
+      return { ok: true, slotId };
     }, "ensurePlanQuota");
     const countLinkedAccountsByPlatform = /* @__PURE__ */ __name(async (userId, platform) => {
       const row = await env.DB.prepare(`
@@ -957,6 +1025,7 @@ Follow for daily trending content! \u{1F44F}
       const playEntitlement = await getPlayEntitlement(authenticatedIdentity);
       const evaluated = evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement);
       if (evaluated.access) {
+        evaluated.canonicalUserId = authenticatedIdentity.userId;
         evaluated.identityAliases = [...new Set([authenticatedIdentity.userId,
           ...(authenticatedIdentity.emailVerified && authenticatedIdentity.email ? [authenticatedIdentity.email] : []),
           ...(authenticatedIdentity.workspaceOwnerIds || [])])];
@@ -1088,7 +1157,7 @@ Follow for daily trending content! \u{1F44F}
         if (!matchesIdentity(userId, identity)) return new Response(JSON.stringify({ success: false, code: "IDENTITY_MISMATCH", error: "This workspace request does not match your current sign-in." }), { status: 403, headers: jsonHeaders });
         const userAliases = [...new Set([identity.userId, ...(identity.emailVerified && identity.email ? [identity.email] : []), ...(identity.workspaceOwnerIds || [])])];
         const { results } = await env.DB.prepare(
-          `SELECT f.*, (SELECT nickname FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_channel, (SELECT profile_picture FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_picture, (SELECT COUNT(*) FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform IN ('youtube', 'facebook_page', 'tiktok')) as connected_account_count, EXISTS(SELECT 1 FROM billing_usage_events e WHERE e.user_id = f.user_id AND ((e.event_type = 'publish' AND e.platform IN ('youtube', 'facebook')) OR (e.event_type = 'publish_confirmed' AND e.platform IN ('tiktok', 'facebook')))) as has_first_post FROM folders f WHERE f.user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY f.created_at DESC`
+          `SELECT f.*, (SELECT nickname FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_channel, (SELECT profile_picture FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_picture, (SELECT COUNT(*) FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform IN ('youtube', 'facebook_page', 'tiktok')) as connected_account_count, EXISTS(SELECT 1 FROM billing_usage_events e WHERE e.user_id = f.user_id AND ((e.event_type = 'publish' AND e.platform IN ('youtube', 'facebook')) OR (e.event_type = 'publish_confirmed' AND e.platform IN ('tiktok', 'facebook')) OR e.event_type = 'publish_metered')) as has_first_post FROM folders f WHERE f.user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY f.created_at DESC`
         ).bind(...userAliases).all();
         return new Response(JSON.stringify(results), { headers: jsonHeaders });
       }
@@ -1137,12 +1206,18 @@ Follow for daily trending content! \u{1F44F}
         if (!id || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing id or user_id" }), { status: 400, headers: jsonHeaders });
         }
+        const deleteIdentity = await getFirebaseIdentity(request);
+        if (!matchesIdentity(userId, deleteIdentity)) {
+          return Response.json({ success: false, error: "Sign in to manage this workspace" }, { status: 403, headers: corsHeaders });
+        }
         if (type === "account_only") {
           const acct = await env.DB.prepare(
             "SELECT id, platform, folder_id FROM accounts WHERE (id = ? OR facebook_page_id = ?) AND user_id = ?"
           ).bind(id, id, userId).first();
+          if (!acct || !await ownedFolder(env.DB, acct.folder_id, userId)) {
+            return Response.json({ success: false, error: "Connected account not found" }, { status: 404, headers: corsHeaders });
+          }
           if (acct?.platform === "tiktok") {
-            if (!matchesIdentity(userId, await getFirebaseIdentity(request))) return new Response(JSON.stringify({ error: "Sign in again" }), { status: 401, headers: jsonHeaders });
             await disconnectTikTok(env.DB, id, userId);
             return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
           }
@@ -1150,14 +1225,15 @@ Follow for daily trending content! \u{1F44F}
             await env.DB.prepare(
               "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform IN ('facebook', 'facebook_page')"
             ).bind(acct.folder_id, userId).run();
+            await env.DB.prepare("DELETE FROM tokens WHERE folder_id = ? AND platform = 'facebook_page'").bind(acct.folder_id).run();
           } else {
             await env.DB.prepare(
               "DELETE FROM accounts WHERE id = ? AND user_id = ?"
             ).bind(id, userId).run();
+            if (acct.platform === "youtube") await env.DB.prepare("DELETE FROM tokens WHERE folder_id = ? AND platform = 'youtube'").bind(acct.folder_id).run();
           }
           return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
         }
-        const deleteIdentity = await getFirebaseIdentity(request);
         const requestedOwnerIsConfigured = ownerUserIds.has(normalizeUserId(userId)) || ownerEmails.has(normalizeUserId(userId));
         const authenticatedOwnerIsConfigured = deleteIdentity && (
           ownerUserIds.has(normalizeUserId(deleteIdentity.userId)) || ownerEmails.has(normalizeUserId(deleteIdentity.email))
@@ -1174,13 +1250,10 @@ Follow for daily trending content! \u{1F44F}
         await env.DB.prepare(
           "DELETE FROM accounts WHERE folder_id = ? AND user_id = ?"
         ).bind(id, userId).run();
+        await env.DB.prepare("DELETE FROM tokens WHERE folder_id = ?").bind(id).run();
         await env.DB.prepare(
           "DELETE FROM folders WHERE id = ? AND user_id = ?"
         ).bind(id, userId).run();
-        await env.DB.prepare(`
-          DELETE FROM tokens
-          WHERE folder_id IN (SELECT id FROM folders WHERE id = ? AND user_id = ?)
-        `).bind(id, userId).run();
         return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
       }
       if (url.pathname === "/api/get-accounts") {
@@ -1204,13 +1277,11 @@ Follow for daily trending content! \u{1F44F}
         const workspaceOwner = folder.user_id || userId;
         const userAliases = [workspaceOwner];
         const { results } = await env.DB.prepare(
-          `SELECT * FROM accounts WHERE folder_id = ? AND user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY id DESC`
+          `SELECT id, user_id, folder_id, platform, nickname, profile_picture, facebook_user_id,
+            facebook_user_name, facebook_page_id, facebook_page_name, facebook_page_picture, tiktok_open_id
+            FROM accounts WHERE folder_id = ? AND user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY id DESC`
         ).bind(folder_id, ...userAliases).all();
-        return new Response(JSON.stringify(results.map(account => {
-          if (account.platform !== "tiktok") return account;
-          const { access_token, refresh_token, ...publicAccount } = account;
-          return publicAccount;
-        })), { headers: { ...jsonHeaders, "Cache-Control": "no-store", "X-Workspace-Owner": workspaceOwner } });
+        return new Response(JSON.stringify(results), { headers: { ...jsonHeaders, "Cache-Control": "no-store", "X-Workspace-Owner": workspaceOwner } });
       }
       if (url.pathname === "/api/billing/plans" && request.method === "GET") {
         const priceCatalog = getPriceCatalog();
@@ -2167,6 +2238,9 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
+        if (!await ownedFolder(env.DB, folder_id, user_id)) {
+          return Response.json({ success: false, error: "Workspace access denied" }, { status: 403, headers: corsHeaders });
+        }
         const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
@@ -2322,6 +2396,7 @@ Follow for daily trending content! \u{1F44F}
           await env.DB.prepare(
             "INSERT INTO upload_sessions (id, platform, upload_url, access_token, file_size, expires_at, folder_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
           ).bind(sessionId, "youtube", uploadUrl, accessToken, fileSize, expiresAt, folder_id, user_id).run();
+          await bindPublicationSession(sessionId);
           return new Response(JSON.stringify({
             success: true,
             sessionId,
@@ -2439,7 +2514,7 @@ Follow for daily trending content! \u{1F44F}
             throw new Error(`YouTube chunk upload failed: ${uploadRes.status} ${uploadText}`);
           }
           const videoId = uploadData?.id;
-          await recordPublishUsage(user_id, "youtube");
+          if (!await finishPublicationSession(sessionId, user_id, "youtube", true)) await recordPublishUsage(user_id, "youtube");
           await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(sessionId).run();
           return new Response(JSON.stringify({
             success: true,
@@ -2646,6 +2721,7 @@ Follow for daily trending content! \u{1F44F}
           await env.DB.prepare(
             "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, title, file_size, expires_at, folder_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
           ).bind(sessionId, "tiktok", uploadUrl, tiktokAccessToken, publishId, privacyStatus, videoSize, expiresAt, folder_id, user_id).run();
+          await bindPublicationSession(sessionId);
           return new Response(JSON.stringify({
             success: true,
             sessionId,
@@ -2825,10 +2901,9 @@ Follow for daily trending content! \u{1F44F}
           }
           const viewUrl = tiktokUrl || tiktokProfileUrl || "https://www.tiktok.com/";
           if (ready || failed) {
+            const metered = await finishPublicationSession(session.id, user_id, "tiktok", ready);
             const removed = await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(session.id).run();
-            if (ready && Number(removed?.meta?.changes ?? removed?.changes ?? 0) > 0) {
-              await recordPublishUsage(user_id, "tiktok", "publish_confirmed");
-            }
+            if (ready && !metered && Number(removed?.meta?.changes ?? removed?.changes ?? 0) > 0) await recordPublishUsage(user_id, "tiktok", "publish_confirmed");
           }
           return new Response(JSON.stringify({
             success: true,
@@ -2938,6 +3013,7 @@ Follow for daily trending content! \u{1F44F}
           await env.DB.prepare(
             "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, page_id, title, description, file_size, expires_at, folder_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
           ).bind(sessionId, "facebook", uploadUrl, pageAccessToken, videoId, pageId, title, description, fileSize, expiresAt, folder_id, user_id).run();
+          await bindPublicationSession(sessionId);
           return new Response(JSON.stringify({ success: true, sessionId, videoId, chunkSize, totalChunks }), { headers: jsonHeaders });
         } catch (err) {
           console.error("Facebook init-upload error:", err);
@@ -3162,10 +3238,9 @@ Follow for daily trending content! \u{1F44F}
           const status = video?.status || {};
           const readiness = evaluateFacebookVideoReadiness(videoId, video);
           if (readiness.ready) {
+            const metered = await finishPublicationSession(session.id, user_id, "facebook", true);
             const removed = await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(session.id).run();
-            if (Number(removed?.meta?.changes ?? removed?.changes ?? 0) > 0) {
-              await recordPublishUsage(user_id, "facebook", "publish_confirmed");
-            }
+            if (!metered && Number(removed?.meta?.changes ?? removed?.changes ?? 0) > 0) await recordPublishUsage(user_id, "facebook", "publish_confirmed");
           }
           return new Response(JSON.stringify({
             success: true,
@@ -3289,6 +3364,9 @@ Follow for daily trending content! \u{1F44F}
             status: 400,
             headers: jsonHeaders
           });
+        }
+        if (!await ownedFolder(env.DB, folder_id, user_id)) {
+          return Response.json({ success: false, error: "Workspace access denied" }, { status: 403, headers: corsHeaders });
         }
         const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) {
@@ -3605,9 +3683,18 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify({ error: "TikTok account does not belong to this workspace" }), { status: 403, headers: jsonHeaders });
         }
         const billingUserId = requireUser(user_id) || requireUser(account?.user_id);
+        if (!billingUserId || !folder_id || !await ownedFolder(env.DB, folder_id, billingUserId) ||
+            (account && (String(account.folder_id) !== String(folder_id) || account.user_id !== billingUserId))) {
+          return Response.json({ success: false, error: "Workspace access denied" }, { status: 403, headers: corsHeaders });
+        }
         const billingGate = await ensureBillingAccess(billingUserId, getClientPlatform(request, client_platform), request);
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
+        }
+        if (platform === "tiktok") {
+          // This old URL endpoint has no verified final-publish callback. Keep
+          // TikTok on the session/status flow so a 150-post cap is measurable.
+          return Response.json({ success: false, error: "Use the TikTok upload flow from your workspace to publish." }, { status: 400, headers: corsHeaders });
         }
         const quotaPlatform = platform === "tiktok" ? "tiktok" : platform === "facebook" ? "facebook" : "youtube";
         const quotaGate = await ensurePlanQuota(billingUserId, quotaPlatform, billingGate.evaluated);
@@ -4093,6 +4180,11 @@ Generate trending, specific SEO \u2014 not generic content.`
         status: err.statusCode || 500,
         headers: jsonHeaders
       });
+    } finally {
+      if (publicationSlotId && !publicationSlotRetained) {
+        try { await releasePublicationSlot(publicationSlotId); }
+        catch (error) { console.error("Publication reservation cleanup failed", error); }
+      }
     }
   }
 };

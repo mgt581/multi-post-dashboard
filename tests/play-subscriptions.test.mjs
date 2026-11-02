@@ -108,6 +108,7 @@ test('authenticated Play purchase grants cross-platform access; a spoofed Androi
   db.exec(readFileSync(new URL('../migrations/0009_play_subscriptions.sql', import.meta.url), 'utf8'));
   db.exec(readFileSync(new URL('../migrations/0010_play_trial_phase.sql', import.meta.url), 'utf8'));
   db.exec(readFileSync(new URL('../migrations/0011_usage_workspace_entitlements.sql', import.meta.url), 'utf8'));
+  db.exec(readFileSync(new URL('../migrations/0012_publication_reservations.sql', import.meta.url), 'utf8'));
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const env = {
     WEB_BILLING_ENABLED: 'true',
