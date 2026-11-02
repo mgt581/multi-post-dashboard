@@ -1,5 +1,6 @@
 const PRODUCT_ID = 'multipost_pro';
 const BASE_PLANS = new Set(['monthly', 'yearly']);
+const WORKSPACE_PRODUCT_ID = 'multipost_workspace';
 const PACKAGE_NAME = 'uk.co.multipostapp';
 const PLAY_STATES_WITH_ACCESS = new Set([
   'SUBSCRIPTION_STATE_ACTIVE',
@@ -26,18 +27,33 @@ export function interpretPlaySubscription(data, expectedAccountId, now = Date.no
   if (!matching.length || data?.externalAccountIdentifiers?.obfuscatedExternalAccountId !== expectedAccountId) {
     throw new Error('Purchase product or account does not match');
   }
-  const line = matching.reduce((latest, item) => Date.parse(item.expiryTime) > Date.parse(latest.expiryTime) ? item : latest);
+  const current = matching.filter((item) => Number.isFinite(Date.parse(item.expiryTime)) && Date.parse(item.expiryTime) > now);
+  // A deferred replacement without an expiry/order is not an entitlement.
+  const line = (current.length ? current : matching).reduce((latest, item) =>
+    Date.parse(item.expiryTime || 0) > Date.parse(latest.expiryTime || 0) ? item : latest);
   const expiry = Math.floor(Date.parse(line.expiryTime) / 1000);
   if (!Number.isFinite(expiry)) throw new Error('Purchase expiry is invalid');
   const state = String(data.subscriptionState || 'SUBSCRIPTION_STATE_UNSPECIFIED');
+  const access = PLAY_STATES_WITH_ACCESS.has(state) && expiry * 1000 > now;
+  const workspaceLines = lines.filter((item) => item.productId === WORKSPACE_PRODUCT_ID);
+  // A pending deferred tier has no successful order yet. An ambiguous bundle
+  // fails closed rather than summing two quantities for the same product.
+  const ownedWorkspace = workspaceLines.filter((item) =>
+    item.latestSuccessfulOrderId && Number.isFinite(Date.parse(item.expiryTime)) && Date.parse(item.expiryTime) > now);
+  const workspace = ownedWorkspace.length === 1 ? ownedWorkspace[0] : null;
+  const tier = workspace?.offerDetails?.basePlanId?.match(/^(monthly|yearly)-(10|[1-9])$/);
+  const workspaceQuantity = access && tier?.[1] === line.offerDetails.basePlanId ? Number(tier[2]) : 0;
   return {
     productId: PRODUCT_ID,
     basePlanId: line.offerDetails.basePlanId,
     state,
     expiry,
+    workspaceQuantity,
+    workspaceExpiry: workspaceQuantity ? Math.floor(Date.parse(workspace.expiryTime) / 1000) : null,
+    linkedPurchaseToken: data.linkedPurchaseToken || null,
     trialEnd: line.offerPhase?.freeTrial && ['trial-7d-monthly', 'trial-7d-yearly'].includes(line.offerDetails?.offerId) ? expiry : null,
     needsAcknowledgement: data.acknowledgementState === 'ACKNOWLEDGEMENT_STATE_PENDING',
-    access: PLAY_STATES_WITH_ACCESS.has(state) && expiry * 1000 > now
+    access
   };
 }
 

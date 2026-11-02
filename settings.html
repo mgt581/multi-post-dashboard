@@ -218,6 +218,7 @@
           <span class="action-sub" id="billingProviderLabel">Subscription access across your account</span>
           <span id="billingStatusPill" class="billing-status">Checking…</span>
           <div id="billingNote" class="billing-note">Loading billing state.</div>
+          <div id="allowanceNote" class="billing-note" hidden></div>
         </div>
       </div>
       <div class="billing-actions">
@@ -392,6 +393,9 @@
               : "Existing web subscription access. Manage billing in your Stripe portal."
             : display.message;
       setBillingUi(display.message, note, display.access ? "ok" : "warn");
+      const allowance = document.getElementById("allowanceNote");
+      allowance.hidden = !currentBilling.access || !currentBilling.ai_credits || !currentBilling.publications;
+      if (!allowance.hidden) allowance.textContent = `This month: ${Math.max(0, 150 - currentBilling.ai_credits.used)} of 150 AI credits and ${Math.max(0, 150 - currentBilling.publications.used)} of 150 successful publications remaining. ${currentBilling.workspace_allowance == null ? "Owner workspace access." : `${currentBilling.workspace_allowance} workspace${currentBilling.workspace_allowance === 1 ? "" : "s"} included in your current entitlement.`}`;
       renderPlayPlans();
     }
 

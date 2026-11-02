@@ -33,6 +33,29 @@ test('only a current matching Play free-trial phase is labelled a trial', () => 
   assert.equal(interpretPlaySubscription(activeTrial, account, now).trialEnd, null);
 });
 
+test('verified workspace tiers grant only the active, matching paid line item', () => {
+  const bundle = purchase('SUBSCRIPTION_STATE_ACTIVE', '2026-11-30T12:00:00Z');
+  bundle.lineItems.push({ productId: 'multipost_workspace', expiryTime: '2026-11-30T12:00:00Z',
+    latestSuccessfulOrderId: 'GPA.test', offerDetails: { basePlanId: 'monthly-10' } });
+  assert.equal(interpretPlaySubscription(bundle, account, now).workspaceQuantity, 10);
+  bundle.lineItems.push({ productId: 'multipost_workspace', offerDetails: { basePlanId: 'monthly-2' } });
+  assert.equal(interpretPlaySubscription(bundle, account, now).workspaceQuantity, 10, 'deferred unpaid replacement is not active');
+  bundle.lineItems[1].offerDetails.basePlanId = 'yearly-10';
+  assert.equal(interpretPlaySubscription(bundle, account, now).workspaceQuantity, 0);
+  bundle.lineItems[1].offerDetails.basePlanId = 'monthly-11';
+  assert.equal(interpretPlaySubscription(bundle, account, now).workspaceQuantity, 0);
+  bundle.lineItems[1].offerDetails.basePlanId = 'monthly-3';
+  bundle.lineItems[1].expiryTime = '2026-10-30T12:00:00Z';
+  assert.equal(interpretPlaySubscription(bundle, account, now).workspaceQuantity, 0);
+  bundle.lineItems[1].expiryTime = '2026-11-30T12:00:00Z';
+  bundle.lineItems[1].latestSuccessfulOrderId = '';
+  assert.equal(interpretPlaySubscription(bundle, account, now).workspaceQuantity, 0);
+  bundle.lineItems[1].latestSuccessfulOrderId = 'GPA.test';
+  bundle.lineItems.pop();
+  bundle.subscriptionState = 'SUBSCRIPTION_STATE_ON_HOLD';
+  assert.equal(interpretPlaySubscription(bundle, account, now).workspaceQuantity, 0);
+});
+
 test('expired and refunded or revoked subscriptions do not grant access', () => {
   assert.equal(interpretPlaySubscription(purchase('SUBSCRIPTION_STATE_ACTIVE', '2026-10-31T12:00:00Z'), account, now).access, false);
   for (const state of ['SUBSCRIPTION_STATE_EXPIRED', 'SUBSCRIPTION_STATE_ON_HOLD', 'SUBSCRIPTION_STATE_PAUSED', 'SUBSCRIPTION_STATE_PENDING']) {
@@ -84,6 +107,7 @@ test('authenticated Play purchase grants cross-platform access; a spoofed Androi
   db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
   db.exec(readFileSync(new URL('../migrations/0009_play_subscriptions.sql', import.meta.url), 'utf8'));
   db.exec(readFileSync(new URL('../migrations/0010_play_trial_phase.sql', import.meta.url), 'utf8'));
+  db.exec(readFileSync(new URL('../migrations/0011_usage_workspace_entitlements.sql', import.meta.url), 'utf8'));
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const env = {
     WEB_BILLING_ENABLED: 'true',

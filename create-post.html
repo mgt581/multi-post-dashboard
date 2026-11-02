@@ -1205,6 +1205,7 @@
         headers: { "Content-Type": "application/json", client_platform: getClientPlatform() },
         body: JSON.stringify({
           user_id: userScope,
+          request_id: crypto.randomUUID(),
           topic: prompt || "",
           image_url: resolvedImageUrl,
           folder_id: activeFolderId,

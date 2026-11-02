@@ -3,6 +3,12 @@
 Branch: `feat/subscription-stage2-play-billing`. No merge, deployment, product
 activation, customer charge, or release upload was performed in this review.
 
+**2 November continuation:** the original Mac worktree was unavailable in the
+new Work environment, so development resumed from the last pushed commit on
+this same branch. See `docs/workspace-billing-verification.md` for the add-on
+catalogue finding, quota test evidence and remaining release blockers. The
+later branch changes must not be confused with the older internal-testing AAB.
+
 ## Verified Play state
 
 | Item | Status | Evidence |
@@ -33,7 +39,7 @@ than an unsaved draft. The currently named step is “Create your first post”;
 marks complete after YouTube/Facebook records a post or TikTok confirms one.
 There is no durable draft object or scheduling implementation in this source.
 
-## Workspace billing architecture decision — approval required
+## Workspace billing architecture — revised 2 November
 
 Google Play Subscription with add-ons permits one unique product ID per line
 item, all line items in a purchase must use the same recurring period, and it
@@ -41,7 +47,7 @@ is unavailable in South Korea. A subscription product cannot simply be bought
 in quantity N. The existing Android client queries only `multipost_pro`, and
 the backend stores one Play token per user and enforces no folder count.
 
-**Recommended catalogue:** keep `multipost_workspace` as one subscription
+**Earlier provisional catalogue:** keep `multipost_workspace` as one subscription
 product, with quantity-tier base plans such as `monthly-1` through
 `monthly-10` and `yearly-1` through `yearly-10`. Tier N costs N × £4.99/month
 or N × £39.99/year in the UK, with converted local prices. A Play add-on
@@ -53,11 +59,11 @@ workspaces inaccessible if Pro lapses, while explaining any continued charges
 and making cancellation available. A separate design is required for Korea or
 other unsupported add-on paths. No workspace product has been created.
 
-**Product decision needed before implementation:** approve an initial maximum
-of 10 extra workspaces and confirm whether workspace purchases should be
-unavailable in South Korea until a separately tested path exists. The tier
-price is exactly linear, so no volume discount is implied. Higher capacities
-can be added later with new base plans after design/testing.
+The customer approved a maximum of 10 and exclusion of unsupported bundled
+purchases in South Korea. Further review found that same-product base-plan
+switches do not provide the straightforward deferred downgrade assumed here.
+**Do not use this provisional catalogue without reviewing the distinct-product
+alternative in `docs/workspace-billing-verification.md`.**
 
 After approval, implement product querying and add-on/replacement flow using
 the old token, server-side verification of every `lineItem`, product-to-quantity
@@ -75,17 +81,18 @@ folders and explicit excess-workspace handling before charging.
 | Google Play trial drafts | PASS | Both saved; neither active. |
 | Play token validation | PASS in mocked tests; NOT TESTED live | Google Developer API service account, D1 migration 0009/0010, encryption key, RTDN and purchase test are not configured here. |
 | Existing Stripe access | PASS in mocked tests; NOT TESTED live | Independent Stripe path remains; active rows lacking a period end are still trusted if refresh fails. Audit real rows before launch. |
-| Workspace quantity and add-on | BLOCKED | Product decision above, no SKU or quantity entitlement yet; `/api/add-folder` has no paid count cap. |
-| AI credits and 150 successful monthly publications | FAIL | No credit wallet/reset and no exact successful-platform accounting. Do not advertise these as enforced yet. |
+| Workspace quantity and add-on | PARTIAL / BLOCKED | Atomic folder creation cap and provisional verified Play tier parsing have been added in migration 0011. No SKU or Android purchase flow exists. Same-product base-plan downgrades need a different catalogue or validated grandfathering; excess existing workspaces remain accessible after downgrade. See workspace verification note. |
+| AI credits | PASS in local tests; NOT TESTED live | Atomic 150-credit UTC calendar-month reservation for both SEO routes; text 1/image 2, failed/local fallback zero, same-key replay. Migration 0011 and live API tests are still required. Trial-period allowance remains provisional. |
+| 150 successful monthly publications | PARTIAL / FAIL launch gate | Authenticated UTC monthly count rejects new publishing initiations at 150 and ignores pending TikTok attempts. Concurrent starts can pass before either records a success; legacy Reel URL path records at submission. Implement atomic reservations and confirm each provider's final success before calling this secure. |
 | Account login and social flows | PASS in automated fixtures; NOT TESTED live | 102 JS tests cover simulated auth, OAuth and publishing cases. New Firebase users, provider credentials, Android sign-in and device WebView still need manual verification. |
-| Android compilation and unit tests | BLOCKED | Native Gradle daemon cannot bind a local socket in this restricted runtime. Android Studio on the Mac must run `:app:assembleDebug :app:testDebugUnitTest` for the current branch. |
+| Android compilation and unit tests | BLOCKED | This resumed cloud checkout has no Android SDK or cached Gradle 9.6 distribution; the offline wrapper failed before compilation because it could not download Gradle. Android Studio on the Mac must run `:app:assembleDebug :app:testDebugUnitTest` for the current branch. |
 | Signed code-10 AAB | BLOCKED | Candidate keystore certificate is not verified; no build from latest edits and no authorization to upload. Verify alias locally without sharing a password. |
 | Internal billing test | BLOCKED | Draft plans/offers cannot be purchased; use license testers after separate activation approval, staging backend/frontend, and code-10 verified build. Existing internal 9 (1.9) is older than these edits. |
 | Privacy, deletion and platform claims | FAIL / NOT TESTED | Backend data deletion, Data Safety accuracy, store listing, vitals, device compatibility, TikTok provider restrictions and image/video UX need verification. Instagram and scheduling are not supported by this code. |
 
 ## Coordinated path to the next internal build
 
-1. Approve the workspace tier ceiling and South Korea exception. Implement and
+1. Decide the workspace catalogue described in the new verification note. Implement and
    test quantity/replacement and Stripe compatibility; complete server caps,
    credit enforcement and publication accounting before showing those benefits.
 2. Finish account deletion and token-exposure fixes; run auth, new-user,

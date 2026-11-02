@@ -783,8 +783,8 @@ Follow for daily trending content! \u{1F44F}
         try {
           const token = await decryptPurchaseToken(row.encrypted_token, env.PLAY_TOKEN_ENCRYPTION_KEY);
           const verified = await verifyPlayPurchase({ token, firebaseUid: identity.userId, serviceAccountJson: env.PLAY_SERVICE_ACCOUNT_JSON });
-          await env.DB.prepare(`UPDATE billing_play_purchases SET subscription_state = ?, expiry_time = ?, base_plan_id = ?, trial_end = ?, last_verified_at = strftime('%s','now') WHERE user_id = ?`)
-            .bind(verified.state, verified.expiry, verified.basePlanId, verified.trialEnd, identity.userId).run();
+          await env.DB.prepare(`UPDATE billing_play_purchases SET subscription_state = ?, expiry_time = ?, base_plan_id = ?, trial_end = ?, workspace_quantity = ?, workspace_expiry = ?, last_verified_at = strftime('%s','now') WHERE user_id = ?`)
+            .bind(verified.state, verified.expiry, verified.basePlanId, verified.trialEnd, verified.workspaceQuantity, verified.workspaceExpiry, identity.userId).run();
           return verified;
         } catch (_) {
           // A failed refresh cannot extend a Play entitlement.
@@ -797,6 +797,8 @@ Follow for daily trending content! \u{1F44F}
         expiry: Number(row.expiry_time || 0),
         basePlanId: row.base_plan_id,
         trialEnd: Number(row.trial_end || 0) > nowUnix() ? Number(row.trial_end) : null,
+        workspaceQuantity: Number(row.workspace_expiry || 0) > nowUnix() ? Number(row.workspace_quantity || 0) : 0,
+        workspaceExpiry: Number(row.workspace_expiry || 0),
         access: ["SUBSCRIPTION_STATE_ACTIVE", "SUBSCRIPTION_STATE_IN_GRACE_PERIOD", "SUBSCRIPTION_STATE_CANCELED"].includes(state) && Number(row.expiry_time || 0) > nowUnix()
       };
     }, "getPlayEntitlement");
@@ -834,6 +836,7 @@ Follow for daily trending content! \u{1F44F}
           reason: "play_verified",
           status: playEntitlement.state === "SUBSCRIPTION_STATE_CANCELED" ? "canceled" : playEntitlement.trialEnd > nowUnix() ? "trialing" : "active",
           owner: false,
+          workspaceAllowance: 1 + Number(playEntitlement.workspaceQuantity || 0),
           plan: { planKey: "pro", interval: playEntitlement.basePlanId, limits: PLAN_LIMITS.pro }
         };
       }
@@ -851,10 +854,12 @@ Follow for daily trending content! \u{1F44F}
         reason: hasAccess ? "ok" : "subscription_required",
         status: hasAccess ? status : playEntitlement ? "expired" : status || "inactive",
         owner: false,
+        workspaceAllowance: getEffectivePlan(row).planKey === "agency" ? 100 : getEffectivePlan(row).planKey === "pro_plus" ? 3 : 1,
         plan: getEffectivePlan(row)
       };
     }, "evaluateBillingAccess");
-    const countDailyPosts = /* @__PURE__ */ __name(async (userId, platform) => {
+    const countDailyPosts = /* @__PURE__ */ __name(async (userIds, platform) => {
+      const aliases = [...new Set(Array.isArray(userIds) ? userIds : [userIds])].filter(Boolean);
       const start = new Date();
       start.setUTCHours(0, 0, 0, 0);
       const dayStart = Math.floor(start.getTime() / 1e3);
@@ -863,18 +868,31 @@ Follow for daily trending content! \u{1F44F}
         const total = await env.DB.prepare(`
           SELECT COUNT(*) AS count
           FROM billing_usage_events
-          WHERE user_id = ? AND event_type IN ('publish', 'publish_confirmed') AND created_at >= ? AND created_at < ?
-        `).bind(String(userId), dayStart, dayEnd).first();
+          WHERE user_id IN (${sqlPlaceholders(aliases)}) AND event_type IN ('publish', 'publish_confirmed') AND created_at >= ? AND created_at < ?
+        `).bind(...aliases, dayStart, dayEnd).first();
         const byPlatform = await env.DB.prepare(`
           SELECT COUNT(*) AS count
           FROM billing_usage_events
-          WHERE user_id = ? AND event_type IN ('publish', 'publish_confirmed') AND platform = ? AND created_at >= ? AND created_at < ?
-        `).bind(String(userId), String(platform), dayStart, dayEnd).first();
+          WHERE user_id IN (${sqlPlaceholders(aliases)}) AND event_type IN ('publish', 'publish_confirmed') AND platform = ? AND created_at >= ? AND created_at < ?
+        `).bind(...aliases, String(platform), dayStart, dayEnd).first();
         return { total: Number(total?.count || 0), platform: Number(byPlatform?.count || 0), dayStart, dayEnd };
       } catch (_) {
         return { total: 0, platform: 0, dayStart, dayEnd };
       }
     }, "countDailyPosts");
+    const countMonthlyPublications = /* @__PURE__ */ __name(async (userIds) => {
+      const aliases = [...new Set(Array.isArray(userIds) ? userIds : [userIds])].filter(Boolean);
+      if (!aliases.length) return 0;
+      const current = new Date();
+      const start = Math.floor(Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), 1) / 1000);
+      const end = Math.floor(Date.UTC(current.getUTCFullYear(), current.getUTCMonth() + 1, 1) / 1000);
+      const row = await env.DB.prepare(`SELECT COUNT(*) AS count FROM billing_usage_events
+        WHERE user_id IN (${sqlPlaceholders(aliases)}) AND created_at >= ? AND created_at < ?
+        AND ((event_type = 'publish' AND platform IN ('youtube','facebook'))
+          OR (event_type = 'publish_confirmed' AND platform IN ('youtube','facebook','tiktok')))`)
+        .bind(...aliases, start, end).first();
+      return Number(row?.count || 0);
+    }, "countMonthlyPublications");
     const recordPublishUsage = /* @__PURE__ */ __name(async (userId, platform, eventType = 'publish') => {
       try {
         await env.DB.prepare(`
@@ -889,7 +907,10 @@ Follow for daily trending content! \u{1F44F}
         return { ok: true };
       }
       const limits = evaluated?.plan?.limits || PLAN_LIMITS.pro;
-      const usage = await countDailyPosts(userId, platform);
+      if (await countMonthlyPublications(evaluated?.identityAliases || [userId]) >= 150) {
+        return { ok: false, statusCode: 429, body: { success: false, error: "150 successful platform publications reached this month" } };
+      }
+      const usage = await countDailyPosts(evaluated?.identityAliases || [userId], platform);
       const platformLimit = Number(limits?.daily_per_platform_posts?.[platform] || 0);
       if (platformLimit > 0 && usage.platform >= platformLimit) {
         return { ok: false, statusCode: 429, body: { success: false, error: `Daily ${platform} posting limit reached for your plan` } };
@@ -936,7 +957,10 @@ Follow for daily trending content! \u{1F44F}
       const playEntitlement = await getPlayEntitlement(authenticatedIdentity);
       const evaluated = evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement);
       if (evaluated.access) {
-        return { ok: true, row, evaluated };
+        evaluated.identityAliases = [...new Set([authenticatedIdentity.userId,
+          ...(authenticatedIdentity.emailVerified && authenticatedIdentity.email ? [authenticatedIdentity.email] : []),
+          ...(authenticatedIdentity.workspaceOwnerIds || [])])];
+        return { ok: true, row, evaluated, identity: authenticatedIdentity };
       }
       return {
         ok: false,
@@ -953,6 +977,51 @@ Follow for daily trending content! \u{1F44F}
         }
       };
     }, "ensureBillingAccess");
+    const aiMonthStart = /* @__PURE__ */ __name(() => {
+      const current = new Date();
+      return Math.floor(Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), 1) / 1000);
+    }, "aiMonthStart");
+    const generateWithCredits = /* @__PURE__ */ __name(async (userId, gate, payload, input, options = {}) => {
+      if (!gate.evaluated.enabled || gate.evaluated.owner) return generateSeo(env, input, options);
+      userId = gate.identity.userId;
+      const credits = input.imageBase64 || input.imageDataUrl ? 2 : 1;
+      const requestId = typeof payload.request_id === "string" && /^[a-zA-Z0-9_-]{16,80}$/.test(payload.request_id)
+        ? payload.request_id : crypto.randomUUID();
+      const inputHash = await sha256Hex(JSON.stringify({ input, provider: options.provider || "" }));
+      const monthStart = aiMonthStart();
+      // A Worker interrupted after reserving but before finalizing must not
+      // permanently consume the customer's allowance.
+      await env.DB.prepare(`UPDATE billing_ai_requests SET status = 'failed'
+        WHERE user_id = ? AND status = 'pending' AND created_at < strftime('%s','now') - 1800`)
+        .bind(userId).run();
+      // D1 serializes this count and reservation in one statement.
+      const reserved = await env.DB.prepare(`INSERT OR IGNORE INTO billing_ai_requests
+        (user_id, request_id, input_hash, month_start, credits, status)
+        SELECT ?, ?, ?, ?, ?, 'pending'
+        WHERE ? + COALESCE((SELECT SUM(credits) FROM billing_ai_requests
+          WHERE user_id = ? AND month_start = ? AND status IN ('pending','completed')), 0) <= 150`)
+        .bind(userId, requestId, inputHash, monthStart, credits, credits, userId, monthStart).run();
+      if (!Number(reserved?.meta?.changes ?? reserved?.changes ?? 0)) {
+        const previous = await env.DB.prepare("SELECT input_hash, status, result_json FROM billing_ai_requests WHERE user_id = ? AND request_id = ?")
+          .bind(userId, requestId).first();
+        if (!previous) { const error = new Error("Monthly AI credit allowance reached"); error.statusCode = 429; throw error; }
+        if (previous.input_hash !== inputHash) { const error = new Error("Request ID was already used for different content"); error.statusCode = 409; throw error; }
+        if (previous.status === "completed" && previous.result_json) return JSON.parse(previous.result_json);
+        const error = new Error(previous.status === "pending" ? "Generation is already in progress" : "Previous generation failed; start a new request");
+        error.statusCode = 409;
+        throw error;
+      }
+      try {
+        const result = await generateSeo(env, input, options);
+        await env.DB.prepare("UPDATE billing_ai_requests SET status = 'completed', credits = ?, result_json = ? WHERE user_id = ? AND request_id = ? AND status = 'pending'")
+          .bind(result.provider === "local" ? 0 : credits, JSON.stringify(result), userId, requestId).run();
+        return result;
+      } catch (error) {
+        await env.DB.prepare("UPDATE billing_ai_requests SET status = 'failed' WHERE user_id = ? AND request_id = ? AND status = 'pending'")
+          .bind(userId, requestId).run();
+        throw error;
+      }
+    }, "generateWithCredits");
     if (url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
       try {
         const body = await request.json();
@@ -972,10 +1041,10 @@ Follow for daily trending content! \u{1F44F}
         const requestedProvider = env.ALLOW_SEO_PROVIDER_OVERRIDE === "true" && ["openai", "cloudflare"].includes(body.provider)
           ? body.provider
           : undefined;
-        const result = await generateSeo(env, input, requestedProvider ? { provider: requestedProvider } : {});
+        const result = await generateWithCredits(userId, billingGate, body, input, requestedProvider ? { provider: requestedProvider } : {});
         return new Response(JSON.stringify(result), { status: 200, headers: jsonHeaders });
       } catch (err) {
-        return new Response(JSON.stringify({ success: false, error: err?.message || "SEO generation failed" }), { status: 500, headers: jsonHeaders });
+        return new Response(JSON.stringify({ success: false, error: err?.message || "SEO generation failed" }), { status: err?.statusCode || 500, headers: jsonHeaders });
       }
     }
     const timingSafeEqual = /* @__PURE__ */ __name((a, b) => {
@@ -1031,9 +1100,15 @@ Follow for daily trending content! \u{1F44F}
         }
         const billingGate = await ensureBillingAccess(userId, "web", request);
         if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
-        await env.DB.prepare(
-          "INSERT INTO folders (name, user_id) VALUES (?, ?)"
-        ).bind(name, userId).run();
+        const allowance = billingGate.evaluated.reason === "owner_bypass" ? 1000 : billingGate.evaluated.workspaceAllowance || 1;
+        const identity = billingGate.identity;
+        const aliases = [...new Set([identity.userId, ...(identity.emailVerified && identity.email ? [identity.email] : []), ...(identity.workspaceOwnerIds || [])])];
+        const inserted = await env.DB.prepare(`INSERT INTO folders (name, user_id)
+          SELECT ?, ? WHERE (SELECT COUNT(*) FROM folders WHERE user_id IN (${sqlPlaceholders(aliases)})) < ?`)
+          .bind(name, userId, ...aliases, allowance).run();
+        if (!Number(inserted?.meta?.changes ?? inserted?.changes ?? 0)) {
+          return Response.json({ success: false, error: "Workspace allowance reached. Review your subscription before adding another." }, { status: 429, headers: jsonHeaders });
+        }
         return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
       }
       if (url.pathname === "/api/rename-folder") {
@@ -1184,20 +1259,41 @@ Follow for daily trending content! \u{1F44F}
           // Only Google's API response and the authenticated Firebase UID establish access.
           const verified = await verifyPlayPurchase({ token, firebaseUid: identity.userId, serviceAccountJson: env.PLAY_SERVICE_ACCOUNT_JSON });
           const tokenHash = await sha256Hex(token);
-          const existing = await env.DB.prepare("SELECT user_id FROM billing_play_purchases WHERE token_hash = ? LIMIT 1").bind(tokenHash).first();
+          const existing = await env.DB.prepare("SELECT user_id FROM billing_play_token_claims WHERE token_hash = ? LIMIT 1").bind(tokenHash).first();
           if (existing && existing.user_id !== identity.userId) {
+            return Response.json({ success: false, error: "Purchase belongs to another account" }, { status: 409, headers: corsHeaders });
+          }
+          const prior = await env.DB.prepare("SELECT token_hash, expiry_time FROM billing_play_purchases WHERE user_id = ? LIMIT 1").bind(identity.userId).first();
+          if (prior && prior.token_hash !== tokenHash) {
+            const linkedHash = verified.linkedPurchaseToken ? await sha256Hex(verified.linkedPurchaseToken) : null;
+            if ((linkedHash !== prior.token_hash && Number(prior.expiry_time || 0) > nowUnix()) ||
+                Number(verified.expiry || 0) < Number(prior.expiry_time || 0)) {
+              return Response.json({ success: false, error: "Purchase replacement does not match the current subscription" }, { status: 409, headers: corsHeaders });
+            }
+          }
+          await env.DB.prepare("INSERT OR IGNORE INTO billing_play_token_claims (token_hash, user_id) VALUES (?, ?)")
+            .bind(tokenHash, identity.userId).run();
+          const claim = await env.DB.prepare("SELECT user_id FROM billing_play_token_claims WHERE token_hash = ?").bind(tokenHash).first();
+          if (claim?.user_id !== identity.userId) {
             return Response.json({ success: false, error: "Purchase belongs to another account" }, { status: 409, headers: corsHeaders });
           }
           const encrypted = await encryptPurchaseToken(token, env.PLAY_TOKEN_ENCRYPTION_KEY);
           await env.DB.prepare(`INSERT INTO billing_play_purchases
-            (user_id, token_hash, encrypted_token, product_id, base_plan_id, subscription_state, expiry_time, trial_end, last_verified_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
+            (user_id, token_hash, encrypted_token, product_id, base_plan_id, subscription_state, expiry_time, trial_end, workspace_quantity, workspace_expiry, last_verified_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
             ON CONFLICT(user_id) DO UPDATE SET token_hash = excluded.token_hash, encrypted_token = excluded.encrypted_token,
             product_id = excluded.product_id, base_plan_id = excluded.base_plan_id,
             subscription_state = excluded.subscription_state, expiry_time = excluded.expiry_time, trial_end = excluded.trial_end,
-            last_verified_at = excluded.last_verified_at`)
-            .bind(identity.userId, tokenHash, encrypted, verified.productId, verified.basePlanId, verified.state, verified.expiry, verified.trialEnd).run();
-          return Response.json({ success: true, access: verified.access, status: verified.state, expires_at: verified.expiry }, { headers: corsHeaders });
+            workspace_quantity = excluded.workspace_quantity, workspace_expiry = excluded.workspace_expiry,
+            last_verified_at = excluded.last_verified_at
+            WHERE billing_play_purchases.token_hash = ? OR billing_play_purchases.token_hash = excluded.token_hash`)
+            .bind(identity.userId, tokenHash, encrypted, verified.productId, verified.basePlanId, verified.state, verified.expiry,
+              verified.trialEnd, verified.workspaceQuantity, verified.workspaceExpiry, prior?.token_hash || tokenHash).run();
+          const current = await env.DB.prepare("SELECT token_hash FROM billing_play_purchases WHERE user_id = ?").bind(identity.userId).first();
+          if (current?.token_hash !== tokenHash) {
+            return Response.json({ success: false, error: "Subscription changed while restoring; retry with the current purchase" }, { status: 409, headers: corsHeaders });
+          }
+          return Response.json({ success: true, access: verified.access, status: verified.state, expires_at: verified.expiry, workspace_quantity: verified.workspaceQuantity }, { headers: corsHeaders });
         } catch (_) {
           return Response.json({ success: false, error: "Google Play purchase could not be verified" }, { status: 400, headers: corsHeaders });
         }
@@ -1217,10 +1313,19 @@ Follow for daily trending content! \u{1F44F}
         const playEntitlement = await getPlayEntitlement(authenticatedIdentity);
         const evaluated = evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement);
         const effPlan = evaluated.plan || getEffectivePlan(row);
-        const usageYt = await countDailyPosts(userId, "youtube");
-        const usageTt = await countDailyPosts(userId, "tiktok");
-        const usageFb = await countDailyPosts(userId, "facebook");
+        const usageAliases = [authenticatedIdentity.userId,
+          ...(authenticatedIdentity.emailVerified && authenticatedIdentity.email ? [authenticatedIdentity.email] : []),
+          ...(authenticatedIdentity.workspaceOwnerIds || [])];
+        const usageYt = await countDailyPosts(usageAliases, "youtube");
+        const usageTt = await countDailyPosts(usageAliases, "tiktok");
+        const usageFb = await countDailyPosts(usageAliases, "facebook");
         const dailyTotal = usageYt.total;
+        const aiMonth = aiMonthStart();
+        const aiUsed = await env.DB.prepare(`SELECT COALESCE(SUM(credits),0) AS count FROM billing_ai_requests
+          WHERE user_id = ? AND month_start = ? AND status IN ('pending','completed')`).bind(authenticatedIdentity.userId, aiMonth).first();
+        const publicationsThisMonth = await countMonthlyPublications([authenticatedIdentity.userId,
+          ...(authenticatedIdentity.emailVerified && authenticatedIdentity.email ? [authenticatedIdentity.email] : []),
+          ...(authenticatedIdentity.workspaceOwnerIds || [])]);
         return new Response(JSON.stringify({
           success: true,
           billing: {
@@ -1230,6 +1335,10 @@ Follow for daily trending content! \u{1F44F}
             reason: evaluated.reason,
             platform,
             owner_mode: evaluated.reason === "owner_bypass",
+            workspace_allowance: evaluated.workspaceAllowance || (evaluated.reason === "owner_bypass" ? null : 1),
+            additional_workspaces: playEntitlement?.access ? Number(playEntitlement.workspaceQuantity || 0) : 0,
+            ai_credits: { used: Number(aiUsed?.count || 0), allowance: 150 },
+            publications: { used: publicationsThisMonth, allowance: 150 },
             trial_days_default: stripeTrialDays,
             plan: {
               key: effPlan.planKey,
@@ -3619,7 +3728,7 @@ Follow for daily trending content! \u{1F44F}
         if (!sharedInput.topic.trim() && !sharedInput.imageBase64) {
           return new Response(JSON.stringify({ success: false, error: "Provide an image, a text prompt, or both" }), { status: 400, headers: jsonHeaders });
         }
-        const sharedResult = await generateSeo(env, sharedInput);
+        const sharedResult = await generateWithCredits(userId, billingGate, payload, sharedInput);
         return new Response(JSON.stringify(sharedResult), { status: 200, headers: jsonHeaders });
         const imageBase64 = payload.image_base64 || "";
         const imageFilename = payload.image_filename || "";
@@ -3981,7 +4090,7 @@ Generate trending, specific SEO \u2014 not generic content.`
       });
     } catch (err) {
       return new Response(JSON.stringify({ success: false, error: err.message || String(err) }), {
-        status: 500,
+        status: err.statusCode || 500,
         headers: jsonHeaders
       });
     }
