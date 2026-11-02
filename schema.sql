@@ -62,6 +62,13 @@ CREATE TABLE IF NOT EXISTS billing_usage_events (
   created_at INTEGER DEFAULT (strftime('%s','now'))
 );
 
+CREATE TABLE IF NOT EXISTS billing_workspace_choices (
+  user_id TEXT NOT NULL,
+  folder_id INTEGER NOT NULL,
+  priority INTEGER NOT NULL,
+  PRIMARY KEY (user_id, folder_id)
+);
+
 CREATE TABLE IF NOT EXISTS tiktok_oauth_states (
   state TEXT PRIMARY KEY, browser_nonce TEXT NOT NULL, folder_id TEXT NOT NULL,
   user_id TEXT NOT NULL, expires_at INTEGER NOT NULL

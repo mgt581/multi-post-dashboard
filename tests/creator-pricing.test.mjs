@@ -2,23 +2,22 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("Creator plan presents the new prices and included limits", async () => {
+test("staged Pro paywall presents proposed prices and monthly allowances", async () => {
   const pricing = await readFile(new URL("../pricing.html", import.meta.url), "utf8");
-  assert.match(pricing, /Creator Monthly £7\.99/);
-  assert.match(pricing, /Creator Yearly £79/);
-  assert.equal((pricing.match(/1 YouTube, 1 TikTok and 1 Facebook account · Up to 6 posts daily/g) || []).length, 2);
+  assert.match(pricing, /<h2>Pro Monthly<\/h2>[\s\S]*?£9\.99/);
+  assert.match(pricing, /<h2>Pro Yearly<\/h2>[\s\S]*?£79\.99/);
+  assert.match(pricing, /150 AI credits and 150 successful platform publications every month, including on annual billing/);
+  assert.match(pricing, /This page is display-only/);
 });
 
-test("Pro presents lower prices while preserving its existing limits and subscribers", async () => {
+test("the staged paywall does not change legacy Stripe price mappings or enable checkout", async () => {
   const [pricing, worker, config] = await Promise.all([
     readFile(new URL("../pricing.html", import.meta.url), "utf8"),
     readFile(new URL("../worker.js", import.meta.url), "utf8"),
     readFile(new URL("../wrangler.toml", import.meta.url), "utf8")
   ]);
-  assert.match(pricing, /Pro Monthly £14\.99/);
-  assert.match(pricing, /Pro Yearly £149/);
-  assert.equal((pricing.match(/3 YouTube, 3 TikTok and 3 Facebook accounts · Up to 27 posts daily/g) || []).length, 2);
-  assert.doesNotMatch(pricing, /Pro Plus Monthly £49|Pro Plus Yearly £529\.99/);
+  assert.doesNotMatch(pricing, /billing\/create-checkout-session/);
+  assert.match(pricing, /disabled>Purchases coming after testing/);
   assert.match(worker, /key: "pro_plus",\s+label: "Pro"/);
   assert.match(worker, /\["pro", "pro_plus"\]\.includes\(requestedPlan\)/);
   assert.equal((config.match(/STRIPE_PRICE_PRO_PLUS_MONTHLY = "price_1UP25bPpTMFHe2pei04QVcwj"/g) || []).length, 1);

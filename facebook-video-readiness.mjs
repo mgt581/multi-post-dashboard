@@ -19,6 +19,7 @@ export function evaluateFacebookVideoReadiness(videoId, video) {
   const status = video?.status || {};
   const videoStatus = String(status.video_status || "").toLowerCase();
   const publishingStatus = String(status.publishing_phase?.status || "").toLowerCase();
+  const failed = [videoStatus, publishingStatus].some((value) => ["error", "failed", "failure"].includes(value));
   const videoMatches = Boolean(requestedVideoId) && String(video?.id || "") === requestedVideoId;
   const published = video?.published === true;
   const processingReady = ["ready", "published"].includes(videoStatus)
@@ -27,7 +28,8 @@ export function evaluateFacebookVideoReadiness(videoId, video) {
   const permalinkReady = Boolean(permalinkUrl);
 
   return {
-    ready: videoMatches && published && processingReady && permalinkReady,
+    ready: videoMatches && published && processingReady && permalinkReady && !failed,
+    failed: videoMatches && failed,
     published,
     processingReady,
     permalinkReady,

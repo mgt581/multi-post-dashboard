@@ -53,11 +53,20 @@ test("returns the canonical permalink only for the matching published video", ()
 
   assert.deepEqual(result, {
     ready: true,
+    failed: false,
     published: true,
     processingReady: true,
     permalinkReady: true,
     permalinkUrl: "https://www.facebook.com/reel/video-123/"
   });
+});
+
+test('an explicit failed publishing phase releases a Reel reservation', () => {
+  const result = evaluateFacebookVideoReadiness('video-123', {
+    id:'video-123', status:{ publishing_phase:{ status:'failed' } }, published:false
+  });
+  assert.equal(result.failed, true);
+  assert.equal(result.ready, false);
 });
 
 test("does not report ready until Facebook marks the video published", () => {

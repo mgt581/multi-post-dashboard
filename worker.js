@@ -4,6 +4,8 @@ import { evaluateTikTokPublishStatus } from "./tiktok-publish-status.mjs";
 import { buildTikTokChunkProfiles } from "./tiktok-upload-chunks.mjs";
 import { FACEBOOK_PAGE_LINK_SCOPE } from "./facebook-oauth.mjs";
 import { generateSeo, normalizeSeoInput } from "./services/seoEngine.mjs";
+import { verifyPlayPurchase, sha256Hex, encryptPurchaseToken, decryptPurchaseToken } from "./play-subscriptions.mjs";
+import { reconcilePendingPublications } from "./publication-reconciliation.mjs";
 
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -37,6 +39,9 @@ var makeDeterministicSeoFallback = /* @__PURE__ */ __name((promptText) => {
 // worker.js
 var WORKER_VERSION = "2026-10-20-tiktok-chunk-count";
 var worker_default = {
+  async scheduled(_event, env) {
+    await reconcilePendingPublications(env);
+  },
   async fetch(request, env) {
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
@@ -138,26 +143,28 @@ var worker_default = {
         return { raw: text };
       }
     }, "safeJson");
-    const encodeState = /* @__PURE__ */ __name((obj) => {
-      try {
-        return btoa(JSON.stringify(obj));
-      } catch {
-        return String(obj?.folderId || "");
-      }
+    const oauthStateKey = /* @__PURE__ */ __name((secret) => crypto.subtle.importKey(
+      "raw", new TextEncoder().encode(requireEnv(secret, "OAuth client secret")),
+      { name: "HMAC", hash: "SHA-256" }, false, ["sign", "verify"]
+    ), "oauthStateKey");
+    const encodeState = /* @__PURE__ */ __name(async (obj, secret) => {
+      const payload = btoa(JSON.stringify({ ...obj, expiresAt: Math.floor(Date.now() / 1e3) + 600, nonce: crypto.randomUUID() }));
+      const signature = await crypto.subtle.sign("HMAC", await oauthStateKey(secret), new TextEncoder().encode(payload));
+      const mac = btoa(String.fromCharCode(...new Uint8Array(signature))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+      return `${payload}.${mac}`;
     }, "encodeState");
-    const decodeState = /* @__PURE__ */ __name((stateStr) => {
-      if (!stateStr) return { folderId: null, userId: null, platform: null };
+    const decodeState = /* @__PURE__ */ __name(async (value, secret, platform) => {
       try {
-        return JSON.parse(atob(stateStr));
-      } catch {
-        try {
-          const raw = atob(stateStr);
-          const [folderId] = raw.split("|");
-          return { folderId: folderId || raw, userId: null, platform: null };
-        } catch {
-          return { folderId: stateStr, userId: null, platform: null };
-        }
-      }
+        const [payload, mac, extra] = String(value || "").split(".");
+        if (!payload || !mac || extra) return null;
+        const raw = atob(mac.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(mac.length / 4) * 4, "="));
+        const signature = Uint8Array.from(raw, (character) => character.charCodeAt(0));
+        if (!await crypto.subtle.verify("HMAC", await oauthStateKey(secret), signature, new TextEncoder().encode(payload))) return null;
+        const state = JSON.parse(atob(payload));
+        if (state.platform !== platform || !state.folderId || !state.userId || !state.nonce ||
+          !Number.isInteger(state.expiresAt) || state.expiresAt <= Math.floor(Date.now() / 1e3)) return null;
+        return state;
+      } catch { return null; }
     }, "decodeState");
     const upsertToken = /* @__PURE__ */ __name(async ({ folderId, platform, accountId, accessToken, refreshToken, expiresAt, scope }) => {
       const safeFolderId = folderId == null ? null : String(folderId);
@@ -651,8 +658,8 @@ Follow for daily trending content! \u{1F44F}
       if (!identity) return false;
       const requested = String(requestedUserId || "").trim().toLowerCase();
       const identityKeys = [identity.userId, identity.email, ...(identity.workspaceOwnerIds || [])].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
-      const rowKeys = [row?.user_id, row?.user_email].map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
-      return identityKeys.includes(requested) || rowKeys.some((value) => identityKeys.includes(value));
+      // A billing row's email must never authorize a different requested user ID.
+      return Boolean(requested && identityKeys.includes(requested));
     }, "identityMatchesBillingUser");
     const ensureBillingRow = /* @__PURE__ */ __name(async (userId, userEmail) => {
       await env.DB.prepare(`
@@ -766,14 +773,51 @@ Follow for daily trending content! \u{1F44F}
         return row;
       }
     }, "refreshBillingFromStripe");
-    const evaluateBillingAccess = /* @__PURE__ */ __name((row, platform, requestedUserId = "", authenticatedIdentity = null) => {
+    const getPlayEntitlement = /* @__PURE__ */ __name(async (identity) => {
+      if (!identity?.userId) return null;
+      let row;
+      try {
+        row = await env.DB.prepare("SELECT * FROM billing_play_purchases WHERE user_id = ? LIMIT 1").bind(identity.userId).first();
+      } catch (_) {
+        // Existing Stripe subscriptions remain available while the new migration is pending.
+        return null;
+      }
+      if (!row) return null;
+      if (Number(row.last_verified_at || 0) + 300 < nowUnix()) {
+        try {
+          const token = await decryptPurchaseToken(row.encrypted_token, env.PLAY_TOKEN_ENCRYPTION_KEY);
+          const verified = await verifyPlayPurchase({ token, firebaseUid: identity.userId, serviceAccountJson: env.PLAY_SERVICE_ACCOUNT_JSON });
+          await env.DB.prepare(`UPDATE billing_play_purchases SET subscription_state = ?, expiry_time = ?, base_plan_id = ?, trial_end = ?, workspace_quantity = ?, workspace_expiry = ?, workspace_items_json = ?, last_verified_at = strftime('%s','now') WHERE user_id = ?`)
+            .bind(verified.state, verified.expiry, verified.basePlanId, verified.trialEnd, verified.workspaceQuantity,
+              verified.workspaceExpiry, JSON.stringify(verified.workspaceItems), identity.userId).run();
+          return verified;
+        } catch (_) {
+          // A failed refresh cannot extend a Play entitlement.
+          return null;
+        }
+      }
+      const state = String(row.subscription_state || "");
+      const workspaceItems = JSON.parse(row.workspace_items_json || '[]').filter((item) =>
+        Number(item.expiry || 0) > nowUnix() && /^multipost_workspace_(0[1-9]|10)$/.test(item.productId));
+      return {
+        state,
+        expiry: Number(row.expiry_time || 0),
+        basePlanId: row.base_plan_id,
+        trialEnd: Number(row.trial_end || 0) > nowUnix() ? Number(row.trial_end) : null,
+        workspaceQuantity: workspaceItems.length,
+        workspaceExpiry: Number(row.workspace_expiry || 0),
+        workspaceItems,
+        access: ["SUBSCRIPTION_STATE_ACTIVE", "SUBSCRIPTION_STATE_IN_GRACE_PERIOD", "SUBSCRIPTION_STATE_CANCELED"].includes(state) && Number(row.expiry_time || 0) > nowUnix()
+      };
+    }, "getPlayEntitlement");
+    const evaluateBillingAccess = /* @__PURE__ */ __name((row, platform, requestedUserId = "", authenticatedIdentity = null, playEntitlement = null) => {
       const userId = String(row?.user_id || "").trim();
       const userEmail = String(row?.user_email || "").trim().toLowerCase();
       const requested = String(requestedUserId || "").trim().toLowerCase();
       const authenticatedUserId = String(authenticatedIdentity?.userId || "").trim().toLowerCase();
       const authenticatedEmail = String(authenticatedIdentity?.email || "").trim().toLowerCase();
       const authenticatedOwnerIds = (authenticatedIdentity?.workspaceOwnerIds || []).map((value) => String(value || "").trim().toLowerCase()).filter(Boolean);
-      const isConfiguredOwner = ownerUserIds.has(authenticatedUserId) || ownerEmails.has(authenticatedEmail);
+      const isConfiguredOwner = ownerUserIds.has(authenticatedUserId) || (authenticatedIdentity?.emailVerified === true && ownerEmails.has(authenticatedEmail));
       const requestedMatchesIdentity = requested && [authenticatedUserId, authenticatedEmail, ...authenticatedOwnerIds].includes(requested);
       const rowMatchesIdentity = (userId && [authenticatedUserId, authenticatedEmail, ...authenticatedOwnerIds].includes(userId.toLowerCase())) || (userEmail && [authenticatedEmail, ...authenticatedOwnerIds].includes(userEmail));
       if (isConfiguredOwner && (requestedMatchesIdentity || rowMatchesIdentity)) {
@@ -793,12 +837,15 @@ Follow for daily trending content! \u{1F44F}
           status: "not_required"
         };
       }
-      if (platform === "android") {
+      if (playEntitlement?.access) {
         return {
           enabled: true,
           access: true,
-          reason: "android_bypass",
-          status: "not_required_android"
+          reason: "play_verified",
+          status: playEntitlement.state === "SUBSCRIPTION_STATE_CANCELED" ? "canceled" : playEntitlement.trialEnd > nowUnix() ? "trialing" : "active",
+          owner: false,
+          workspaceAllowance: 1 + Number(playEntitlement.workspaceQuantity || 0),
+          plan: { planKey: "pro", interval: playEntitlement.basePlanId, limits: PLAN_LIMITS.pro }
         };
       }
       const now = nowUnix();
@@ -813,12 +860,27 @@ Follow for daily trending content! \u{1F44F}
         enabled: true,
         access: hasAccess,
         reason: hasAccess ? "ok" : "subscription_required",
-        status: status || "inactive",
+        status: hasAccess ? status : playEntitlement ? "expired" : status || "inactive",
         owner: false,
+        workspaceAllowance: getEffectivePlan(row).planKey === "agency" ? 100 : getEffectivePlan(row).planKey === "pro_plus" ? 3 : 1,
         plan: getEffectivePlan(row)
       };
     }, "evaluateBillingAccess");
-    const countDailyPosts = /* @__PURE__ */ __name(async (userId, platform) => {
+    const workspaceSelection = /* @__PURE__ */ __name(async (identity, evaluated) => {
+      const aliases = [...new Set([identity.userId,
+        ...(identity.emailVerified && identity.email ? [identity.email] : []),
+        ...(identity.workspaceOwnerIds || [])])];
+      const { results } = await env.DB.prepare(`SELECT f.id FROM folders f
+        LEFT JOIN billing_workspace_choices c ON c.folder_id = f.id AND c.user_id = ?
+        WHERE f.user_id IN (${sqlPlaceholders(aliases)})
+        ORDER BY CASE WHEN c.priority IS NULL THEN 1 ELSE 0 END, c.priority ASC, f.id ASC`)
+        .bind(identity.userId, ...aliases).all();
+      const allowance = !evaluated.enabled || evaluated.owner ? results.length : evaluated.access
+        ? Math.max(0, Math.min(100, Number(evaluated.workspaceAllowance || 1))) : 0;
+      return { ordered: results.map((item) => String(item.id)), active: new Set(results.slice(0, allowance).map((item) => String(item.id))) };
+    }, "workspaceSelection");
+    const countDailyPosts = /* @__PURE__ */ __name(async (userIds, platform) => {
+      const aliases = [...new Set(Array.isArray(userIds) ? userIds : [userIds])].filter(Boolean);
       const start = new Date();
       start.setUTCHours(0, 0, 0, 0);
       const dayStart = Math.floor(start.getTime() / 1e3);
@@ -827,33 +889,97 @@ Follow for daily trending content! \u{1F44F}
         const total = await env.DB.prepare(`
           SELECT COUNT(*) AS count
           FROM billing_usage_events
-          WHERE user_id = ? AND event_type = 'publish' AND created_at >= ? AND created_at < ?
-        `).bind(String(userId), dayStart, dayEnd).first();
+          WHERE user_id IN (${sqlPlaceholders(aliases)}) AND event_type IN ('publish', 'publish_confirmed', 'publish_metered') AND created_at >= ? AND created_at < ?
+        `).bind(...aliases, dayStart, dayEnd).first();
         const byPlatform = await env.DB.prepare(`
           SELECT COUNT(*) AS count
           FROM billing_usage_events
-          WHERE user_id = ? AND event_type = 'publish' AND platform = ? AND created_at >= ? AND created_at < ?
-        `).bind(String(userId), String(platform), dayStart, dayEnd).first();
+          WHERE user_id IN (${sqlPlaceholders(aliases)}) AND event_type IN ('publish', 'publish_confirmed', 'publish_metered') AND platform = ? AND created_at >= ? AND created_at < ?
+        `).bind(...aliases, String(platform), dayStart, dayEnd).first();
         return { total: Number(total?.count || 0), platform: Number(byPlatform?.count || 0), dayStart, dayEnd };
       } catch (_) {
         return { total: 0, platform: 0, dayStart, dayEnd };
       }
     }, "countDailyPosts");
-    const recordPublishUsage = /* @__PURE__ */ __name(async (userId, platform) => {
+    const countMonthlyPublications = /* @__PURE__ */ __name(async (userIds) => {
+      const aliases = [...new Set(Array.isArray(userIds) ? userIds : [userIds])].filter(Boolean);
+      if (!aliases.length) return 0;
+      const current = new Date();
+      const start = Math.floor(Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), 1) / 1000);
+      const end = Math.floor(Date.UTC(current.getUTCFullYear(), current.getUTCMonth() + 1, 1) / 1000);
+      const row = await env.DB.prepare(`SELECT COUNT(*) AS count FROM billing_usage_events
+        WHERE user_id IN (${sqlPlaceholders(aliases)}) AND created_at >= ? AND created_at < ?
+        AND ((event_type = 'publish' AND platform IN ('youtube','facebook'))
+          OR (event_type = 'publish_confirmed' AND platform IN ('youtube','facebook','tiktok')))`)
+        .bind(...aliases, start, end).first();
+      const metered = await env.DB.prepare(`SELECT COUNT(*) AS count FROM billing_publish_slots
+        WHERE user_id IN (${sqlPlaceholders(aliases)}) AND completed_at >= ? AND completed_at < ? AND status = 'completed'`)
+        .bind(...aliases, start, end).first();
+      return Number(row?.count || 0) + Number(metered?.count || 0);
+    }, "countMonthlyPublications");
+    let publicationSlotId = null;
+    let publicationCanonicalUserId = null;
+    let publicationSlotRetained = false;
+    const releasePublicationSlot = /* @__PURE__ */ __name(async (slotId) => {
+      if (slotId) await env.DB.prepare("UPDATE billing_publish_slots SET status = 'failed' WHERE id = ? AND status = 'pending'").bind(slotId).run();
+    }, "releasePublicationSlot");
+    const bindPublicationSession = /* @__PURE__ */ __name(async (sessionId) => {
+      if (!publicationSlotId) return;
+      await env.DB.prepare("INSERT INTO billing_publish_sessions (session_id, slot_id) VALUES (?, ?)")
+        .bind(sessionId, publicationSlotId).run();
+      publicationSlotRetained = true;
+    }, "bindPublicationSession");
+    const finishPublicationSlot = /* @__PURE__ */ __name(async (slotId, canonicalUserId, platform, eventUserId = canonicalUserId) => {
+      if (!slotId) return false;
+      const completed = await env.DB.prepare(`UPDATE billing_publish_slots SET status = 'completed', completed_at = strftime('%s','now')
+        WHERE id = ? AND user_id = ? AND platform = ? AND status = 'pending'`).bind(slotId, String(canonicalUserId), String(platform)).run();
+      if (!Number(completed?.meta?.changes ?? completed?.changes ?? 0)) {
+        const previous = await env.DB.prepare("SELECT status FROM billing_publish_slots WHERE id = ? AND user_id = ? AND platform = ?")
+          .bind(slotId, String(canonicalUserId), String(platform)).first();
+        if (previous?.status === 'completed') return false; // concurrent status retry
+        throw new Error("Publication succeeded but its reservation could not be finalized; contact support before retrying.");
+      }
+      // New publications are counted by the slot, not by this compatibility
+      // event. The event retains the existing daily meter and onboarding flag.
+      await env.DB.prepare(`INSERT INTO billing_usage_events (user_id, event_type, platform, created_at)
+        VALUES (?, 'publish_metered', ?, strftime('%s','now'))`).bind(String(eventUserId), String(platform)).run();
+      return true;
+    }, "finishPublicationSlot");
+    const finishPublicationSession = /* @__PURE__ */ __name(async (sessionId, userId, platform, success) => {
+      const binding = await env.DB.prepare(`SELECT b.slot_id, s.user_id, s.platform FROM billing_publish_sessions b
+        JOIN billing_publish_slots s ON s.id = b.slot_id WHERE b.session_id = ?`).bind(sessionId).first();
+      if (binding) {
+        if (binding.platform !== platform) throw new Error("Publication session platform mismatch");
+        if (success) await finishPublicationSlot(binding.slot_id, binding.user_id, platform, userId);
+        else await releasePublicationSlot(binding.slot_id);
+        await env.DB.prepare("DELETE FROM billing_publish_sessions WHERE session_id = ?").bind(sessionId).run();
+        return true;
+      }
+      return false;
+    }, "finishPublicationSession");
+    const recordPublishUsage = /* @__PURE__ */ __name(async (userId, platform, eventType = 'publish') => {
+      if (publicationSlotId) {
+        publicationSlotRetained = true;
+        await finishPublicationSlot(publicationSlotId, publicationCanonicalUserId || userId, platform, userId);
+        return;
+      }
       try {
         await env.DB.prepare(`
           INSERT INTO billing_usage_events (user_id, event_type, platform, created_at)
-          VALUES (?, 'publish', ?, strftime('%s','now'))
-        `).bind(String(userId), String(platform)).run();
+          VALUES (?, ?, ?, strftime('%s','now'))
+        `).bind(String(userId), String(eventType), String(platform)).run();
       } catch (_) {
       }
     }, "recordPublishUsage");
     const ensurePlanQuota = /* @__PURE__ */ __name(async (userId, platform, evaluated) => {
-      if (!evaluated?.enabled || evaluated?.reason === "android_bypass" || evaluated?.reason === "owner_bypass") {
+      if (!evaluated?.enabled || evaluated?.reason === "owner_bypass") {
         return { ok: true };
       }
       const limits = evaluated?.plan?.limits || PLAN_LIMITS.pro;
-      const usage = await countDailyPosts(userId, platform);
+      if (await countMonthlyPublications(evaluated?.identityAliases || [userId]) >= 150) {
+        return { ok: false, statusCode: 429, body: { success: false, error: "150 successful platform publications reached this month" } };
+      }
+      const usage = await countDailyPosts(evaluated?.identityAliases || [userId], platform);
       const platformLimit = Number(limits?.daily_per_platform_posts?.[platform] || 0);
       if (platformLimit > 0 && usage.platform >= platformLimit) {
         return { ok: false, statusCode: 429, body: { success: false, error: `Daily ${platform} posting limit reached for your plan` } };
@@ -862,7 +988,29 @@ Follow for daily trending content! \u{1F44F}
       if (totalLimit > 0 && usage.total >= totalLimit) {
         return { ok: false, statusCode: 429, body: { success: false, error: "Daily posting limit reached for your plan" } };
       }
-      return { ok: true };
+      const aliases = [...new Set(evaluated?.identityAliases || [userId])].filter(Boolean);
+      const monthStart = aiMonthStart();
+      const slotId = crypto.randomUUID();
+      // SQLite/D1 serializes this conditional insert. Legacy successes and
+      // pending/completed slots occupy one of the 150 monthly places.
+      const reserved = await env.DB.prepare(`INSERT INTO billing_publish_slots (id, user_id, platform, month_start, status)
+        SELECT ?, ?, ?, ?, 'pending' WHERE
+          (SELECT COUNT(*) FROM billing_usage_events WHERE user_id IN (${sqlPlaceholders(aliases)})
+            AND created_at >= ? AND created_at < ?
+            AND ((event_type = 'publish' AND platform IN ('youtube','facebook'))
+              OR (event_type = 'publish_confirmed' AND platform IN ('youtube','facebook','tiktok'))))
+          + (SELECT COUNT(*) FROM billing_publish_slots WHERE user_id = ? AND
+             ((status = 'pending' AND month_start = ?) OR (status = 'completed' AND completed_at >= ? AND completed_at < ?))) < 150`)
+        .bind(slotId, evaluated.canonicalUserId || userId, platform, monthStart, ...aliases,
+          monthStart, Math.floor(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1) / 1000),
+          evaluated.canonicalUserId || userId, monthStart, monthStart,
+          Math.floor(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1) / 1000)).run();
+      if (!Number(reserved?.meta?.changes ?? reserved?.changes ?? 0)) {
+        return { ok: false, statusCode: 429, body: { success: false, error: "150 platform publication places are in use this month. Pending uploads release their place if they fail." } };
+      }
+      publicationSlotId = slotId;
+      publicationCanonicalUserId = evaluated.canonicalUserId || userId;
+      return { ok: true, slotId };
     }, "ensurePlanQuota");
     const countLinkedAccountsByPlatform = /* @__PURE__ */ __name(async (userId, platform) => {
       const row = await env.DB.prepare(`
@@ -873,9 +1021,11 @@ Follow for daily trending content! \u{1F44F}
       return Number(row?.count || 0);
     }, "countLinkedAccountsByPlatform");
     const ensureLinkingQuota = /* @__PURE__ */ __name(async ({ userId, platform, folderId, evaluated }) => {
-      if (!evaluated?.enabled || evaluated?.reason === "android_bypass" || evaluated?.reason === "owner_bypass") return { ok: true };
+      if (!evaluated?.enabled || evaluated?.reason === "owner_bypass") return { ok: true };
       const limits = evaluated?.plan?.limits || PLAN_LIMITS.pro;
-      const cap = Number(limits?.account_caps?.[platform] || 0);
+      const baseCap = Number(limits?.account_caps?.[platform] || 0);
+      const cap = evaluated.reason === 'play_verified'
+        ? baseCap * Math.max(1, Math.min(11, Number(evaluated.workspaceAllowance || 1))) : baseCap;
       if (!cap) return { ok: true };
       const existingInFolder = await env.DB.prepare(`
         SELECT COUNT(*) AS count FROM accounts WHERE user_id = ? AND folder_id = ? AND platform = ?
@@ -888,18 +1038,28 @@ Follow for daily trending content! \u{1F44F}
       }
       return { ok: true };
     }, "ensureLinkingQuota");
-    const ensureBillingAccess = /* @__PURE__ */ __name(async (userId, platform, request2, requireAuthentication = false) => {
+    const ensureBillingAccess = /* @__PURE__ */ __name(async (userId, platform, request2, requireAuthentication = false, requestedFolderId = null) => {
       if (!userId) {
         return { ok: false, statusCode: 400, body: { success: false, error: "Missing user_id" } };
       }
       const row = await getBillingRow(userId);
       const authenticatedIdentity = await getFirebaseIdentity(request2);
-      if (requireAuthentication && !identityMatchesBillingUser(row, userId, authenticatedIdentity)) {
+      if (!identityMatchesBillingUser(row, userId, authenticatedIdentity)) {
         return { ok: false, statusCode: 401, body: { success: false, error: "Authenticated account does not match this billing account" } };
       }
-      const evaluated = evaluateBillingAccess(row, platform, userId, authenticatedIdentity);
+      const playEntitlement = await getPlayEntitlement(authenticatedIdentity);
+      const evaluated = evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement);
       if (evaluated.access) {
-        return { ok: true, row, evaluated };
+        const folderId = requestedFolderId || request2.headers.get('folder_id') || new URL(request2.url).searchParams.get('folder_id');
+        if (folderId && !(await workspaceSelection(authenticatedIdentity, evaluated)).active.has(String(folderId))) {
+          return { ok: false, statusCode: 423, body: { success: false, code: 'WORKSPACE_LOCKED',
+            error: 'This workspace is saved but outside your current paid allowance. Choose it on the dashboard or restore your workspaces.' } };
+        }
+        evaluated.canonicalUserId = authenticatedIdentity.userId;
+        evaluated.identityAliases = [...new Set([authenticatedIdentity.userId,
+          ...(authenticatedIdentity.emailVerified && authenticatedIdentity.email ? [authenticatedIdentity.email] : []),
+          ...(authenticatedIdentity.workspaceOwnerIds || [])])];
+        return { ok: true, row, evaluated, identity: authenticatedIdentity };
       }
       return {
         ok: false,
@@ -916,6 +1076,51 @@ Follow for daily trending content! \u{1F44F}
         }
       };
     }, "ensureBillingAccess");
+    const aiMonthStart = /* @__PURE__ */ __name(() => {
+      const current = new Date();
+      return Math.floor(Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), 1) / 1000);
+    }, "aiMonthStart");
+    const generateWithCredits = /* @__PURE__ */ __name(async (userId, gate, payload, input, options = {}) => {
+      if (!gate.evaluated.enabled || gate.evaluated.owner) return generateSeo(env, input, options);
+      userId = gate.identity.userId;
+      const credits = input.imageBase64 || input.imageDataUrl ? 2 : 1;
+      const requestId = typeof payload.request_id === "string" && /^[a-zA-Z0-9_-]{16,80}$/.test(payload.request_id)
+        ? payload.request_id : crypto.randomUUID();
+      const inputHash = await sha256Hex(JSON.stringify({ input, provider: options.provider || "" }));
+      const monthStart = aiMonthStart();
+      // A Worker interrupted after reserving but before finalizing must not
+      // permanently consume the customer's allowance.
+      await env.DB.prepare(`UPDATE billing_ai_requests SET status = 'failed'
+        WHERE user_id = ? AND status = 'pending' AND created_at < strftime('%s','now') - 1800`)
+        .bind(userId).run();
+      // D1 serializes this count and reservation in one statement.
+      const reserved = await env.DB.prepare(`INSERT OR IGNORE INTO billing_ai_requests
+        (user_id, request_id, input_hash, month_start, credits, status)
+        SELECT ?, ?, ?, ?, ?, 'pending'
+        WHERE ? + COALESCE((SELECT SUM(credits) FROM billing_ai_requests
+          WHERE user_id = ? AND month_start = ? AND status IN ('pending','completed')), 0) <= 150`)
+        .bind(userId, requestId, inputHash, monthStart, credits, credits, userId, monthStart).run();
+      if (!Number(reserved?.meta?.changes ?? reserved?.changes ?? 0)) {
+        const previous = await env.DB.prepare("SELECT input_hash, status, result_json FROM billing_ai_requests WHERE user_id = ? AND request_id = ?")
+          .bind(userId, requestId).first();
+        if (!previous) { const error = new Error("Monthly AI credit allowance reached"); error.statusCode = 429; throw error; }
+        if (previous.input_hash !== inputHash) { const error = new Error("Request ID was already used for different content"); error.statusCode = 409; throw error; }
+        if (previous.status === "completed" && previous.result_json) return JSON.parse(previous.result_json);
+        const error = new Error(previous.status === "pending" ? "Generation is already in progress" : "Previous generation failed; start a new request");
+        error.statusCode = 409;
+        throw error;
+      }
+      try {
+        const result = await generateSeo(env, input, options);
+        await env.DB.prepare("UPDATE billing_ai_requests SET status = 'completed', credits = ?, result_json = ? WHERE user_id = ? AND request_id = ? AND status = 'pending'")
+          .bind(result.provider === "local" ? 0 : credits, JSON.stringify(result), userId, requestId).run();
+        return result;
+      } catch (error) {
+        await env.DB.prepare("UPDATE billing_ai_requests SET status = 'failed' WHERE user_id = ? AND request_id = ? AND status = 'pending'")
+          .bind(userId, requestId).run();
+        throw error;
+      }
+    }, "generateWithCredits");
     if (url.pathname === "/api/generate-premium-seo" && request.method === "POST") {
       try {
         const body = await request.json();
@@ -935,10 +1140,10 @@ Follow for daily trending content! \u{1F44F}
         const requestedProvider = env.ALLOW_SEO_PROVIDER_OVERRIDE === "true" && ["openai", "cloudflare"].includes(body.provider)
           ? body.provider
           : undefined;
-        const result = await generateSeo(env, input, requestedProvider ? { provider: requestedProvider } : {});
+        const result = await generateWithCredits(userId, billingGate, body, input, requestedProvider ? { provider: requestedProvider } : {});
         return new Response(JSON.stringify(result), { status: 200, headers: jsonHeaders });
       } catch (err) {
-        return new Response(JSON.stringify({ success: false, error: err?.message || "SEO generation failed" }), { status: 500, headers: jsonHeaders });
+        return new Response(JSON.stringify({ success: false, error: err?.message || "SEO generation failed" }), { status: err?.statusCode || 500, headers: jsonHeaders });
       }
     }
     const timingSafeEqual = /* @__PURE__ */ __name((a, b) => {
@@ -982,9 +1187,37 @@ Follow for daily trending content! \u{1F44F}
         if (!matchesIdentity(userId, identity)) return new Response(JSON.stringify({ success: false, code: "IDENTITY_MISMATCH", error: "This workspace request does not match your current sign-in." }), { status: 403, headers: jsonHeaders });
         const userAliases = [...new Set([identity.userId, ...(identity.emailVerified && identity.email ? [identity.email] : []), ...(identity.workspaceOwnerIds || [])])];
         const { results } = await env.DB.prepare(
-          `SELECT f.*, (SELECT nickname FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_channel, (SELECT profile_picture FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_picture FROM folders f WHERE f.user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY f.created_at DESC`
+          `SELECT f.*, (SELECT nickname FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_channel, (SELECT profile_picture FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_picture, (SELECT COUNT(*) FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform IN ('youtube', 'facebook_page', 'tiktok')) as connected_account_count, EXISTS(SELECT 1 FROM billing_usage_events e WHERE e.user_id = f.user_id AND ((e.event_type = 'publish' AND e.platform IN ('youtube', 'facebook')) OR (e.event_type = 'publish_confirmed' AND e.platform IN ('tiktok', 'facebook')) OR e.event_type = 'publish_metered')) as has_first_post FROM folders f WHERE f.user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY f.created_at DESC`
         ).bind(...userAliases).all();
-        return new Response(JSON.stringify(results), { headers: jsonHeaders });
+        let row = await getBillingRow(userId);
+        row = await refreshBillingFromStripe(row);
+        const entitlement = evaluateBillingAccess(row, 'web', userId, identity, await getPlayEntitlement(identity));
+        const selection = await workspaceSelection(identity, entitlement);
+        return new Response(JSON.stringify(results.map((folder) => ({ ...folder,
+          workspace_locked: !selection.active.has(String(folder.id)) }))), { headers: jsonHeaders });
+      }
+      if (url.pathname === '/api/workspaces/select-active' && request.method === 'POST') {
+        const identity = await getFirebaseIdentity(request);
+        if (!identity?.userId) return Response.json({ success: false, error: 'Sign in to manage workspaces' }, { status: 401, headers: corsHeaders });
+        const body = await request.json().catch(() => ({}));
+        const requested = Array.isArray(body.folder_ids) ? body.folder_ids.map(String) : [];
+        if (!requested.length || requested.length > 11 || new Set(requested).size !== requested.length ||
+            requested.some((id) => !/^\d+$/.test(id))) {
+          return Response.json({ success: false, error: 'Choose valid workspaces' }, { status: 400, headers: corsHeaders });
+        }
+        const gate = await ensureBillingAccess(identity.userId, 'web', request);
+        if (!gate.ok) return Response.json(gate.body, { status: gate.statusCode, headers: corsHeaders });
+        const selection = await workspaceSelection(identity, gate.evaluated);
+        const allowance = gate.evaluated.owner || !gate.evaluated.enabled ? selection.ordered.length : gate.evaluated.workspaceAllowance || 1;
+        if (requested.length > allowance || requested.some((id) => !selection.ordered.includes(id))) {
+          return Response.json({ success: false, error: 'Workspace selection exceeds your paid allowance' }, { status: 403, headers: corsHeaders });
+        }
+        await env.DB.batch([
+          env.DB.prepare('DELETE FROM billing_workspace_choices WHERE user_id = ?').bind(identity.userId),
+          ...requested.map((id, priority) => env.DB.prepare('INSERT INTO billing_workspace_choices (user_id, folder_id, priority) VALUES (?, ?, ?)')
+            .bind(identity.userId, id, priority))
+        ]);
+        return Response.json({ success: true }, { headers: corsHeaders });
       }
       if (url.pathname === "/api/add-folder") {
         const { name, user_id } = await request.json();
@@ -992,9 +1225,17 @@ Follow for daily trending content! \u{1F44F}
         if (!name || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing name or user_id" }), { status: 400, headers: jsonHeaders });
         }
-        await env.DB.prepare(
-          "INSERT INTO folders (name, user_id) VALUES (?, ?)"
-        ).bind(name, userId).run();
+        const billingGate = await ensureBillingAccess(userId, "web", request);
+        if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
+        const allowance = billingGate.evaluated.reason === "owner_bypass" ? 1000 : billingGate.evaluated.workspaceAllowance || 1;
+        const identity = billingGate.identity;
+        const aliases = [...new Set([identity.userId, ...(identity.emailVerified && identity.email ? [identity.email] : []), ...(identity.workspaceOwnerIds || [])])];
+        const inserted = await env.DB.prepare(`INSERT INTO folders (name, user_id)
+          SELECT ?, ? WHERE (SELECT COUNT(*) FROM folders WHERE user_id IN (${sqlPlaceholders(aliases)})) < ?`)
+          .bind(name, userId, ...aliases, allowance).run();
+        if (!Number(inserted?.meta?.changes ?? inserted?.changes ?? 0)) {
+          return Response.json({ success: false, error: "Workspace allowance reached. Review your subscription before adding another." }, { status: 429, headers: jsonHeaders });
+        }
         return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
       }
       if (url.pathname === "/api/rename-folder") {
@@ -1023,12 +1264,18 @@ Follow for daily trending content! \u{1F44F}
         if (!id || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing id or user_id" }), { status: 400, headers: jsonHeaders });
         }
+        const deleteIdentity = await getFirebaseIdentity(request);
+        if (!matchesIdentity(userId, deleteIdentity)) {
+          return Response.json({ success: false, error: "Sign in to manage this workspace" }, { status: 403, headers: corsHeaders });
+        }
         if (type === "account_only") {
           const acct = await env.DB.prepare(
             "SELECT id, platform, folder_id FROM accounts WHERE (id = ? OR facebook_page_id = ?) AND user_id = ?"
           ).bind(id, id, userId).first();
+          if (!acct || !await ownedFolder(env.DB, acct.folder_id, userId)) {
+            return Response.json({ success: false, error: "Connected account not found" }, { status: 404, headers: corsHeaders });
+          }
           if (acct?.platform === "tiktok") {
-            if (!matchesIdentity(userId, await getFirebaseIdentity(request))) return new Response(JSON.stringify({ error: "Sign in again" }), { status: 401, headers: jsonHeaders });
             await disconnectTikTok(env.DB, id, userId);
             return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
           }
@@ -1036,14 +1283,15 @@ Follow for daily trending content! \u{1F44F}
             await env.DB.prepare(
               "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform IN ('facebook', 'facebook_page')"
             ).bind(acct.folder_id, userId).run();
+            await env.DB.prepare("DELETE FROM tokens WHERE folder_id = ? AND platform = 'facebook_page'").bind(acct.folder_id).run();
           } else {
             await env.DB.prepare(
               "DELETE FROM accounts WHERE id = ? AND user_id = ?"
             ).bind(id, userId).run();
+            if (acct.platform === "youtube") await env.DB.prepare("DELETE FROM tokens WHERE folder_id = ? AND platform = 'youtube'").bind(acct.folder_id).run();
           }
           return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
         }
-        const deleteIdentity = await getFirebaseIdentity(request);
         const requestedOwnerIsConfigured = ownerUserIds.has(normalizeUserId(userId)) || ownerEmails.has(normalizeUserId(userId));
         const authenticatedOwnerIsConfigured = deleteIdentity && (
           ownerUserIds.has(normalizeUserId(deleteIdentity.userId)) || ownerEmails.has(normalizeUserId(deleteIdentity.email))
@@ -1060,13 +1308,10 @@ Follow for daily trending content! \u{1F44F}
         await env.DB.prepare(
           "DELETE FROM accounts WHERE folder_id = ? AND user_id = ?"
         ).bind(id, userId).run();
+        await env.DB.prepare("DELETE FROM tokens WHERE folder_id = ?").bind(id).run();
         await env.DB.prepare(
           "DELETE FROM folders WHERE id = ? AND user_id = ?"
         ).bind(id, userId).run();
-        await env.DB.prepare(`
-          DELETE FROM tokens
-          WHERE folder_id IN (SELECT id FROM folders WHERE id = ? AND user_id = ?)
-        `).bind(id, userId).run();
         return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
       }
       if (url.pathname === "/api/get-accounts") {
@@ -1087,16 +1332,16 @@ Follow for daily trending content! \u{1F44F}
         const allowedOwners = [...new Set([identity.userId, ...(identity.emailVerified && identity.email ? [identity.email] : []), ...(identity.workspaceOwnerIds || [])])];
         const folder = await env.DB.prepare(`SELECT id, user_id FROM folders WHERE id = ? AND user_id IN (${sqlPlaceholders(allowedOwners)})`).bind(folder_id, ...allowedOwners).first();
         if (!folder) return new Response(JSON.stringify({ code: "WORKSPACE_ACCESS_DENIED", error: "This workspace belongs to a different Multi Post account. Sign in with the account used to create it." }), { status: 403, headers: jsonHeaders });
+        const folderGate = await ensureBillingAccess(folder.user_id, 'web', request, false, folder_id);
+        if (!folderGate.ok) return Response.json(folderGate.body, { status: folderGate.statusCode, headers: corsHeaders });
         const workspaceOwner = folder.user_id || userId;
         const userAliases = [workspaceOwner];
         const { results } = await env.DB.prepare(
-          `SELECT * FROM accounts WHERE folder_id = ? AND user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY id DESC`
+          `SELECT id, user_id, folder_id, platform, nickname, profile_picture, facebook_user_id,
+            facebook_user_name, facebook_page_id, facebook_page_name, facebook_page_picture, tiktok_open_id
+            FROM accounts WHERE folder_id = ? AND user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY id DESC`
         ).bind(folder_id, ...userAliases).all();
-        return new Response(JSON.stringify(results.map(account => {
-          if (account.platform !== "tiktok") return account;
-          const { access_token, refresh_token, ...publicAccount } = account;
-          return publicAccount;
-        })), { headers: { ...jsonHeaders, "Cache-Control": "no-store", "X-Workspace-Owner": workspaceOwner } });
+        return new Response(JSON.stringify(results), { headers: { ...jsonHeaders, "Cache-Control": "no-store", "X-Workspace-Owner": workspaceOwner } });
       }
       if (url.pathname === "/api/billing/plans" && request.method === "GET") {
         const priceCatalog = getPriceCatalog();
@@ -1128,6 +1373,65 @@ Follow for daily trending content! \u{1F44F}
           }
         }), { headers: jsonHeaders });
       }
+      if (url.pathname === "/api/billing/play-purchase" && request.method === "POST") {
+        const identity = await getFirebaseIdentity(request);
+        if (!identity?.userId) {
+          return Response.json({ success: false, error: "Firebase authentication required" }, { status: 401, headers: corsHeaders });
+        }
+        const body = await request.json().catch(() => ({}));
+        const token = body?.purchase_token;
+        if (typeof token !== "string" || !token || token.length > 4096) {
+          return Response.json({ success: false, error: "Invalid purchase token" }, { status: 400, headers: corsHeaders });
+        }
+        if (!env.PLAY_SERVICE_ACCOUNT_JSON || !env.PLAY_TOKEN_ENCRYPTION_KEY) {
+          return Response.json({ success: false, error: "Play verification is not configured" }, { status: 503, headers: corsHeaders });
+        }
+        try {
+          // Only Google's API response and the authenticated Firebase UID establish access.
+          const verified = await verifyPlayPurchase({ token, firebaseUid: identity.userId, serviceAccountJson: env.PLAY_SERVICE_ACCOUNT_JSON });
+          const tokenHash = await sha256Hex(token);
+          const existing = await env.DB.prepare("SELECT user_id FROM billing_play_token_claims WHERE token_hash = ? LIMIT 1").bind(tokenHash).first();
+          if (existing && existing.user_id !== identity.userId) {
+            return Response.json({ success: false, error: "Purchase belongs to another account" }, { status: 409, headers: corsHeaders });
+          }
+          const prior = await env.DB.prepare("SELECT token_hash, expiry_time, subscription_state FROM billing_play_purchases WHERE user_id = ? LIMIT 1").bind(identity.userId).first();
+          if (prior && prior.token_hash !== tokenHash) {
+            const linkedHash = verified.linkedPurchaseToken ? await sha256Hex(verified.linkedPurchaseToken) : null;
+            const priorStillActive = ['SUBSCRIPTION_STATE_ACTIVE', 'SUBSCRIPTION_STATE_IN_GRACE_PERIOD',
+              'SUBSCRIPTION_STATE_CANCELED'].includes(prior.subscription_state) && Number(prior.expiry_time || 0) > nowUnix();
+            if (linkedHash !== prior.token_hash && priorStillActive) {
+              return Response.json({ success: false, error: "Purchase replacement does not match the current subscription" }, { status: 409, headers: corsHeaders });
+            }
+          }
+          await env.DB.prepare("INSERT OR IGNORE INTO billing_play_token_claims (token_hash, user_id) VALUES (?, ?)")
+            .bind(tokenHash, identity.userId).run();
+          const claim = await env.DB.prepare("SELECT user_id FROM billing_play_token_claims WHERE token_hash = ?").bind(tokenHash).first();
+          if (claim?.user_id !== identity.userId) {
+            return Response.json({ success: false, error: "Purchase belongs to another account" }, { status: 409, headers: corsHeaders });
+          }
+          const encrypted = await encryptPurchaseToken(token, env.PLAY_TOKEN_ENCRYPTION_KEY);
+          await env.DB.prepare(`INSERT INTO billing_play_purchases
+            (user_id, token_hash, encrypted_token, product_id, base_plan_id, subscription_state, expiry_time, trial_end, workspace_quantity, workspace_expiry, workspace_items_json, last_verified_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
+            ON CONFLICT(user_id) DO UPDATE SET token_hash = excluded.token_hash, encrypted_token = excluded.encrypted_token,
+            product_id = excluded.product_id, base_plan_id = excluded.base_plan_id,
+            subscription_state = excluded.subscription_state, expiry_time = excluded.expiry_time, trial_end = excluded.trial_end,
+            workspace_quantity = excluded.workspace_quantity, workspace_expiry = excluded.workspace_expiry,
+            workspace_items_json = excluded.workspace_items_json,
+            last_verified_at = excluded.last_verified_at
+            WHERE billing_play_purchases.token_hash = ? OR billing_play_purchases.token_hash = excluded.token_hash`)
+            .bind(identity.userId, tokenHash, encrypted, verified.productId, verified.basePlanId, verified.state, verified.expiry,
+              verified.trialEnd, verified.workspaceQuantity, verified.workspaceExpiry, JSON.stringify(verified.workspaceItems),
+              prior?.token_hash || tokenHash).run();
+          const current = await env.DB.prepare("SELECT token_hash FROM billing_play_purchases WHERE user_id = ?").bind(identity.userId).first();
+          if (current?.token_hash !== tokenHash) {
+            return Response.json({ success: false, error: "Subscription changed while restoring; retry with the current purchase" }, { status: 409, headers: corsHeaders });
+          }
+          return Response.json({ success: true, access: verified.access, status: verified.state, expires_at: verified.expiry, workspace_quantity: verified.workspaceQuantity }, { headers: corsHeaders });
+        } catch (_) {
+          return Response.json({ success: false, error: "Google Play purchase could not be verified" }, { status: 400, headers: corsHeaders });
+        }
+      }
       if (url.pathname === "/api/billing/status" && request.method === "GET") {
         const userId = requireUser(url.searchParams.get("user_id"));
         if (!userId) {
@@ -1140,12 +1444,22 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify({ success: false, error: "Authenticated account does not match this billing account" }), { status: 401, headers: jsonHeaders });
         }
         row = await refreshBillingFromStripe(row);
-        const evaluated = evaluateBillingAccess(row, platform, userId, authenticatedIdentity);
-        const effPlan = getEffectivePlan(row);
-        const usageYt = await countDailyPosts(userId, "youtube");
-        const usageTt = await countDailyPosts(userId, "tiktok");
-        const usageFb = await countDailyPosts(userId, "facebook");
+        const playEntitlement = await getPlayEntitlement(authenticatedIdentity);
+        const evaluated = evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement);
+        const effPlan = evaluated.plan || getEffectivePlan(row);
+        const usageAliases = [authenticatedIdentity.userId,
+          ...(authenticatedIdentity.emailVerified && authenticatedIdentity.email ? [authenticatedIdentity.email] : []),
+          ...(authenticatedIdentity.workspaceOwnerIds || [])];
+        const usageYt = await countDailyPosts(usageAliases, "youtube");
+        const usageTt = await countDailyPosts(usageAliases, "tiktok");
+        const usageFb = await countDailyPosts(usageAliases, "facebook");
         const dailyTotal = usageYt.total;
+        const aiMonth = aiMonthStart();
+        const aiUsed = await env.DB.prepare(`SELECT COALESCE(SUM(credits),0) AS count FROM billing_ai_requests
+          WHERE user_id = ? AND month_start = ? AND status IN ('pending','completed')`).bind(authenticatedIdentity.userId, aiMonth).first();
+        const publicationsThisMonth = await countMonthlyPublications([authenticatedIdentity.userId,
+          ...(authenticatedIdentity.emailVerified && authenticatedIdentity.email ? [authenticatedIdentity.email] : []),
+          ...(authenticatedIdentity.workspaceOwnerIds || [])]);
         return new Response(JSON.stringify({
           success: true,
           billing: {
@@ -1155,6 +1469,12 @@ Follow for daily trending content! \u{1F44F}
             reason: evaluated.reason,
             platform,
             owner_mode: evaluated.reason === "owner_bypass",
+            workspace_allowance: evaluated.workspaceAllowance || (evaluated.reason === "owner_bypass" ? null : 1),
+            additional_workspaces: playEntitlement?.access ? Number(playEntitlement.workspaceQuantity || 0) : 0,
+            workspace_product_ids: playEntitlement?.access ? (playEntitlement.workspaceItems || []).map((item) => item.productId) : [],
+            workspace_renewing_ids: playEntitlement?.access ? (playEntitlement.workspaceItems || []).filter((item) => item.renewing).map((item) => item.productId) : [],
+            ai_credits: { used: Number(aiUsed?.count || 0), allowance: 150 },
+            publications: { used: publicationsThisMonth, allowance: 150 },
             trial_days_default: stripeTrialDays,
             plan: {
               key: effPlan.planKey,
@@ -1172,10 +1492,11 @@ Follow for daily trending content! \u{1F44F}
               stripe_subscription_id: row?.stripe_subscription_id || null,
               stripe_price_id: row?.stripe_price_id || null,
               current_period_end: toUnix(row?.current_period_end),
-              trial_end: toUnix(row?.trial_end),
+              trial_end: playEntitlement?.trialEnd || toUnix(row?.trial_end),
               trial_used: Number(row?.trial_used || 0) === 1,
               is_owner: Number(row?.is_owner || 0) === 1
-            }
+            },
+            play: playEntitlement ? { state: playEntitlement.state, expires_at: playEntitlement.expiry, base_plan_id: playEntitlement.basePlanId, trial_end: playEntitlement.trialEnd || null } : null
           }
         }), { headers: jsonHeaders });
       }
@@ -1328,29 +1649,26 @@ Follow for daily trending content! \u{1F44F}
         }
       }
       if (url.pathname === "/api/auth/youtube") {
-        const legacyState = url.searchParams.get("state");
-        const stateObj = decodeState(legacyState);
-        const folderId = url.searchParams.get("folder_id") || stateObj.folderId;
-        const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId);
+        if (request.method !== "POST") return new Response("Connect YouTube from your workspace while signed in.", { status: 405, headers: { ...jsonHeaders, Allow: "POST" } });
+        const { folder_id: folderId, user_id: requestedUserId } = await request.json();
+        const userId = requireUser(requestedUserId);
         if (!folderId || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), { status: 400, headers: jsonHeaders });
         }
-        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, null, url.searchParams.get("client_platform")), request);
-        if (billingSnapshot.ok) {
-          const linkGate = await ensureLinkingQuota({ userId, platform: "youtube", folderId, evaluated: billingSnapshot.evaluated });
-          if (!linkGate.ok) {
-            return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
-          }
-        }
-        const state = encodeState({ folderId, platform: "youtube", userId });
+        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request), request, false, folderId);
+        if (!billingSnapshot.ok) return new Response(JSON.stringify(billingSnapshot.body), { status: billingSnapshot.statusCode, headers: jsonHeaders });
+        if (!await ownedFolder(env.DB, folderId, userId)) return new Response(JSON.stringify({ error: "Workspace not found" }), { status: 404, headers: jsonHeaders });
+        const linkGate = await ensureLinkingQuota({ userId, platform: "youtube", folderId, evaluated: billingSnapshot.evaluated });
+        if (!linkGate.ok) return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
         if (!env.GOOGLE_CLIENT_ID) {
           return new Response(JSON.stringify({ success: false, error: "Missing GOOGLE_CLIENT_ID env var" }), { status: 500, headers: jsonHeaders });
         }
         if (!env.GOOGLE_CLIENT_SECRET) {
           return new Response(JSON.stringify({ success: false, error: "Missing GOOGLE_CLIENT_SECRET env var" }), { status: 500, headers: jsonHeaders });
         }
+        const state = await encodeState({ folderId, platform: "youtube", userId }, env.GOOGLE_CLIENT_SECRET);
         const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(env.GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(YOUTUBE_OAUTH_SCOPE)}&access_type=offline&include_granted_scopes=false&prompt=${encodeURIComponent("consent select_account")}&state=${encodeURIComponent(state)}`;
-        return Response.redirect(googleAuthUrl);
+        return Response.json({ url: googleAuthUrl }, { headers: jsonHeaders });
       }
       if (url.pathname === "/api/auth/login/tiktok") {
         const clientKey = getTikTokSigninClientKey();
@@ -1426,7 +1744,7 @@ Follow for daily trending content! \u{1F44F}
         const identity = await getFirebaseIdentity(request);
         if (!folderId || !userId || !matchesIdentity(userId, identity)) return new Response(JSON.stringify({ error: "Sign in again before connecting TikTok." }), { status: 401, headers: jsonHeaders });
         if (!await ownedFolder(env.DB, folderId, userId)) return new Response(JSON.stringify({ error: "Workspace not found" }), { status: 404, headers: jsonHeaders });
-        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request), request, true);
+        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request), request, true, folderId);
         if (!billingSnapshot.ok) return new Response(JSON.stringify(billingSnapshot.body), { status: billingSnapshot.statusCode, headers: jsonHeaders });
         const linkGate = await ensureLinkingQuota({ userId, platform: "tiktok", folderId, evaluated: billingSnapshot.evaluated });
         if (!linkGate.ok) return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
@@ -1436,13 +1754,18 @@ Follow for daily trending content! \u{1F44F}
           "Cache-Control": "no-store", "Set-Cookie": tikTokLinkCookie(link.browserNonce, 600, request.url) } });
       }
       if (url.pathname === "/api/auth/facebook") {
-        const legacyState = url.searchParams.get("state");
-        const stateObj = decodeState(legacyState) || {};
-        const folderId = url.searchParams.get("folder_id") || stateObj.folderId || "";
-        const userId = requireUser(url.searchParams.get("user_id") || stateObj.userId || "");
+        if (request.method !== "POST") return new Response("Connect Facebook from your workspace while signed in.", { status: 405, headers: { ...jsonHeaders, Allow: "POST" } });
+        const { folder_id: folderId, user_id: requestedUserId, refresh } = await request.json();
+        const userId = requireUser(requestedUserId);
+        if (!folderId || !userId) return Response.json({ error: "Missing folder_id or user_id" }, { status: 400, headers: jsonHeaders });
+        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request), request, false, folderId);
+        if (!billingSnapshot.ok) return Response.json(billingSnapshot.body, { status: billingSnapshot.statusCode, headers: jsonHeaders });
+        if (!await ownedFolder(env.DB, folderId, userId)) return Response.json({ error: "Workspace not found" }, { status: 404, headers: jsonHeaders });
+        const linkGate = await ensureLinkingQuota({ userId, platform: "facebook_page", folderId, evaluated: billingSnapshot.evaluated });
+        if (!linkGate.ok) return Response.json(linkGate.body, { status: linkGate.statusCode, headers: jsonHeaders });
         const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
         requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
-        const state = encodeState({ folderId, platform: "facebook", userId });
+        const state = await encodeState({ folderId, platform: "facebook", userId }, env.FB_CLIENT_SECRET);
         const fbAuthParams = new URLSearchParams({
           client_id: fbClientId,
           redirect_uri: fbRedirectUri,
@@ -1453,15 +1776,15 @@ Follow for daily trending content! \u{1F44F}
         // Ask Facebook to re-check the granted Page permissions when the user
         // explicitly refreshes a connection. The provider still controls which
         // Facebook profile is signed in and which Pages it returns.
-        if (url.searchParams.get("refresh") === "1") fbAuthParams.set("auth_type", "rerequest");
+        if (refresh === true) fbAuthParams.set("auth_type", "rerequest");
         const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?${fbAuthParams.toString()}`;
-        return Response.redirect(fbAuthUrl);
+        return Response.json({ url: fbAuthUrl }, { headers: jsonHeaders });
       }
       if (url.pathname === "/api/auth/callback/youtube") {
         const code = url.searchParams.get("code");
-        const stateObj = decodeState(url.searchParams.get("state"));
-        const folderId = stateObj.folderId;
-        const userId = requireUser(stateObj.userId);
+        const stateObj = await decodeState(url.searchParams.get("state"), env.GOOGLE_CLIENT_SECRET, "youtube");
+        const folderId = stateObj?.folderId;
+        const userId = requireUser(stateObj?.userId);
         if (!folderId || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing state" }), { status: 400, headers: jsonHeaders });
         }
@@ -1733,9 +2056,9 @@ Follow for daily trending content! \u{1F44F}
             return redirectWithError(err?.message || "Facebook sign-in failed");
           }
         }
-        const stateObj = decodeState(rawState);
-        const folderId = stateObj.folderId;
-        const userId = requireUser(stateObj.userId);
+        const stateObj = await decodeState(rawState, env.FB_CLIENT_SECRET, "facebook");
+        const folderId = stateObj?.folderId;
+        const userId = requireUser(stateObj?.userId);
         if (!folderId || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing state" }), { status: 400, headers: jsonHeaders });
         }
@@ -1935,13 +2258,10 @@ Follow for daily trending content! \u{1F44F}
             { status: 403, headers: jsonHeaders }
           );
         }
-        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, body?.client_platform, null), request);
-        if (billingSnapshot.ok) {
-          const linkGate = await ensureLinkingQuota({ userId, platform: "facebook_page", folderId: folder_id, evaluated: billingSnapshot.evaluated });
-          if (!linkGate.ok) {
-            return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
-          }
-        }
+        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, body?.client_platform, null), request, false, folder_id);
+        if (!billingSnapshot.ok) return new Response(JSON.stringify(billingSnapshot.body), { status: billingSnapshot.statusCode, headers: jsonHeaders });
+        const linkGate = await ensureLinkingQuota({ userId, platform: "facebook_page", folderId: folder_id, evaluated: billingSnapshot.evaluated });
+        if (!linkGate.ok) return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
         await env.DB.batch([
           env.DB.prepare(
             "DELETE FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook_page'"
@@ -1982,6 +2302,9 @@ Follow for daily trending content! \u{1F44F}
             status: 400,
             headers: jsonHeaders
           });
+        }
+        if (!await ownedFolder(env.DB, folder_id, user_id)) {
+          return Response.json({ success: false, error: "Workspace access denied" }, { status: 403, headers: corsHeaders });
         }
         const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) {
@@ -2136,8 +2459,9 @@ Follow for daily trending content! \u{1F44F}
           const totalChunks = Math.max(1, Math.ceil(fileSize / chunkSize));
           const expiresAt = Math.floor(Date.now() / 1e3) + SESSION_EXPIRY_SECONDS;
           await env.DB.prepare(
-            "INSERT INTO upload_sessions (id, platform, upload_url, access_token, file_size, expires_at) VALUES (?, ?, ?, ?, ?, ?)"
-          ).bind(sessionId, "youtube", uploadUrl, accessToken, fileSize, expiresAt).run();
+            "INSERT INTO upload_sessions (id, platform, upload_url, access_token, file_size, expires_at, folder_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+          ).bind(sessionId, "youtube", uploadUrl, accessToken, fileSize, expiresAt, folder_id, user_id).run();
+          await bindPublicationSession(sessionId);
           return new Response(JSON.stringify({
             success: true,
             sessionId,
@@ -2163,6 +2487,11 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
+        if (!await ownedFolder(env.DB, folder_id, user_id)) {
+          return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
+        }
         const formData = await request.formData();
         const sessionId = String(formData.get("sessionId") || "").trim();
         const offset = Number(formData.get("offset") || 0);
@@ -2187,8 +2516,8 @@ Follow for daily trending content! \u{1F44F}
           });
         }
         const session = await env.DB.prepare(
-          "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'youtube' LIMIT 1"
-        ).bind(sessionId).first();
+          "SELECT * FROM upload_sessions WHERE id = ? AND platform = 'youtube' AND folder_id = ? AND user_id = ? LIMIT 1"
+        ).bind(sessionId, folder_id, user_id).first();
         if (!session) {
           return new Response(JSON.stringify({ success: false, error: "Upload session not found or expired" }), {
             status: 404,
@@ -2250,7 +2579,7 @@ Follow for daily trending content! \u{1F44F}
             throw new Error(`YouTube chunk upload failed: ${uploadRes.status} ${uploadText}`);
           }
           const videoId = uploadData?.id;
-          await recordPublishUsage(user_id, "youtube");
+          if (!await finishPublicationSession(sessionId, user_id, "youtube", true)) await recordPublishUsage(user_id, "youtube");
           await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(sessionId).run();
           return new Response(JSON.stringify({
             success: true,
@@ -2457,7 +2786,7 @@ Follow for daily trending content! \u{1F44F}
           await env.DB.prepare(
             "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, title, file_size, expires_at, folder_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
           ).bind(sessionId, "tiktok", uploadUrl, tiktokAccessToken, publishId, privacyStatus, videoSize, expiresAt, folder_id, user_id).run();
-          await recordPublishUsage(user_id, "tiktok");
+          await bindPublicationSession(sessionId);
           return new Response(JSON.stringify({
             success: true,
             sessionId,
@@ -2481,6 +2810,8 @@ Follow for daily trending content! \u{1F44F}
         if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
           return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
         }
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
 
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
@@ -2635,7 +2966,9 @@ Follow for daily trending content! \u{1F44F}
           }
           const viewUrl = tiktokUrl || tiktokProfileUrl || "https://www.tiktok.com/";
           if (ready || failed) {
-            await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(session.id).run();
+            const metered = await finishPublicationSession(session.id, user_id, "tiktok", ready);
+            const removed = await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(session.id).run();
+            if (ready && !metered && Number(removed?.meta?.changes ?? removed?.changes ?? 0) > 0) await recordPublishUsage(user_id, "tiktok", "publish_confirmed");
           }
           return new Response(JSON.stringify({
             success: true,
@@ -2745,6 +3078,7 @@ Follow for daily trending content! \u{1F44F}
           await env.DB.prepare(
             "INSERT INTO upload_sessions (id, platform, upload_url, access_token, video_id, page_id, title, description, file_size, expires_at, folder_id, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
           ).bind(sessionId, "facebook", uploadUrl, pageAccessToken, videoId, pageId, title, description, fileSize, expiresAt, folder_id, user_id).run();
+          await bindPublicationSession(sessionId);
           return new Response(JSON.stringify({ success: true, sessionId, videoId, chunkSize, totalChunks }), { headers: jsonHeaders });
         } catch (err) {
           console.error("Facebook init-upload error:", err);
@@ -2760,6 +3094,8 @@ Follow for daily trending content! \u{1F44F}
         if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
           return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
         }
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
             status: 400,
@@ -2846,6 +3182,8 @@ Follow for daily trending content! \u{1F44F}
         if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
           return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
         }
+        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
             status: 400,
@@ -2893,7 +3231,6 @@ Follow for daily trending content! \u{1F44F}
               description: session.description || ""
             })
           });
-          await recordPublishUsage(user_id, "facebook");
           const pageUrl = `https://www.facebook.com/${encodeURIComponent(pageId)}`;
           const postUrl = finishRes?.post_id ? `https://www.facebook.com/${finishRes.post_id}` : "";
           const videoUrl = `https://www.facebook.com/${encodeURIComponent(pageId)}/videos/${encodeURIComponent(videoId)}`;
@@ -2966,6 +3303,11 @@ Follow for daily trending content! \u{1F44F}
           const status = video?.status || {};
           const readiness = evaluateFacebookVideoReadiness(videoId, video);
           if (readiness.ready) {
+            const metered = await finishPublicationSession(session.id, user_id, "facebook", true);
+            const removed = await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(session.id).run();
+            if (!metered && Number(removed?.meta?.changes ?? removed?.changes ?? 0) > 0) await recordPublishUsage(user_id, "facebook", "publish_confirmed");
+          } else if (readiness.failed) {
+            await finishPublicationSession(session.id, user_id, "facebook", false);
             await env.DB.prepare("DELETE FROM upload_sessions WHERE id = ?").bind(session.id).run();
           }
           return new Response(JSON.stringify({
@@ -2975,6 +3317,7 @@ Follow for daily trending content! \u{1F44F}
             status,
             processingReady: readiness.processingReady,
             published: readiness.published,
+            failed: readiness.failed,
             permalinkReady: readiness.permalinkReady,
             videoUrl: readiness.ready ? readiness.permalinkUrl : "",
             pageUrl: `https://www.facebook.com/${encodeURIComponent(pageId)}`
@@ -3090,6 +3433,9 @@ Follow for daily trending content! \u{1F44F}
             status: 400,
             headers: jsonHeaders
           });
+        }
+        if (!await ownedFolder(env.DB, folder_id, user_id)) {
+          return Response.json({ success: false, error: "Workspace access denied" }, { status: 403, headers: corsHeaders });
         }
         const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) {
@@ -3371,9 +3717,19 @@ Follow for daily trending content! \u{1F44F}
               description: description || ""
             })
           });
-          await recordPublishUsage(user_id, "facebook");
+          // Meta accepts the Reel before its publishing phase completes. Keep
+          // the reserved place pending until /facebook/video-status verifies it.
+          const sessionId = crypto.randomUUID();
+          publicationSlotRetained = true;
+          await env.DB.prepare(`INSERT INTO upload_sessions
+            (id, platform, upload_url, access_token, video_id, page_id, title, description, file_size, expires_at, folder_id, user_id)
+            VALUES (?, 'facebook', NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+            .bind(sessionId, pageAccessToken, videoId, pageId, title, description, videoBytes.byteLength,
+              nowUnix() + SESSION_EXPIRY_SECONDS, folder_id, user_id).run();
+          await bindPublicationSession(sessionId);
           return new Response(JSON.stringify({
             success: true,
+            sessionId,
             videoId,
             facebookUrl: finishRes?.post_id ? `https://www.facebook.com/${finishRes.post_id}` : `https://www.facebook.com/video/${videoId}`,
             data: finishRes
@@ -3406,9 +3762,18 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify({ error: "TikTok account does not belong to this workspace" }), { status: 403, headers: jsonHeaders });
         }
         const billingUserId = requireUser(user_id) || requireUser(account?.user_id);
-        const billingGate = await ensureBillingAccess(billingUserId, getClientPlatform(request, client_platform), request);
+        if (!billingUserId || !folder_id || !await ownedFolder(env.DB, folder_id, billingUserId) ||
+            (account && (String(account.folder_id) !== String(folder_id) || account.user_id !== billingUserId))) {
+          return Response.json({ success: false, error: "Workspace access denied" }, { status: 403, headers: corsHeaders });
+        }
+        const billingGate = await ensureBillingAccess(billingUserId, getClientPlatform(request, client_platform), request, false, folder_id);
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
+        }
+        if (platform === "tiktok") {
+          // This old URL endpoint has no verified final-publish callback. Keep
+          // TikTok on the session/status flow so a 150-post cap is measurable.
+          return Response.json({ success: false, error: "Use the TikTok upload flow from your workspace to publish." }, { status: 400, headers: corsHeaders });
         }
         const quotaPlatform = platform === "tiktok" ? "tiktok" : platform === "facebook" ? "facebook" : "youtube";
         const quotaGate = await ensurePlanQuota(billingUserId, quotaPlatform, billingGate.evaluated);
@@ -3440,7 +3805,6 @@ Follow for daily trending content! \u{1F44F}
           if (!tiktokRes.ok || (result?.error?.code && result.error.code !== "ok")) {
             return new Response(JSON.stringify({ success: false, error: `TikTok init failed: ${JSON.stringify(result?.error || result)}` }), { headers: jsonHeaders });
           }
-          await recordPublishUsage(billingUserId, "tiktok");
           return new Response(JSON.stringify(result), { headers: jsonHeaders });
         }
         if (platform === "facebook") {
@@ -3449,6 +3813,16 @@ Follow for daily trending content! \u{1F44F}
           const postAsImage = String(media_type || "").toLowerCase() === "image" || !!image_url || looksLikeImageUrl(providedMediaUrl);
           let pageId = page_id ? String(page_id) : null;
           let pageAccessToken = null;
+          const selectedPage = await env.DB.prepare(
+            "SELECT facebook_page_id, facebook_page_access_token FROM accounts WHERE folder_id = ? AND user_id = ? AND platform = 'facebook_page' LIMIT 1"
+          ).bind(String(folder_id), billingUserId).first();
+          if (!selectedPage?.facebook_page_id || !selectedPage?.facebook_page_access_token ||
+              (pageId && pageId !== String(selectedPage.facebook_page_id))) {
+            return Response.json({ success: false, error: 'Select the Facebook Page linked to this workspace before publishing.' },
+              { status: 403, headers: corsHeaders });
+          }
+          pageId = String(selectedPage.facebook_page_id);
+          pageAccessToken = String(selectedPage.facebook_page_access_token);
           if (!pageAccessToken && account?.platform === "facebook_page" && account?.access_token) {
             pageAccessToken = String(account.access_token);
           }
@@ -3501,9 +3875,17 @@ Follow for daily trending content! \u{1F44F}
             videoUrl: providedMediaUrl,
             description: desc
           });
-          await recordPublishUsage(billingUserId, "facebook");
+          const sessionId = crypto.randomUUID();
+          publicationSlotRetained = true;
+          await env.DB.prepare(`INSERT INTO upload_sessions
+            (id, platform, upload_url, access_token, video_id, page_id, description, expires_at, folder_id, user_id)
+            VALUES (?, 'facebook', NULL, ?, ?, ?, ?, ?, ?, ?)`)
+            .bind(sessionId, pageAccessToken, String(out.video_id), pageId, desc,
+              nowUnix() + SESSION_EXPIRY_SECONDS, folder_id, billingUserId).run();
+          await bindPublicationSession(sessionId);
           return new Response(JSON.stringify({
             success: true,
+            sessionId,
             data: out,
             postType: "video",
             postUrl: out.postUrl,
@@ -3522,11 +3904,15 @@ Follow for daily trending content! \u{1F44F}
       }
       if (url.pathname === "/api/generate-seo" && request.method === "POST") {
         const payload = await request.json();
+        const identity = await getFirebaseIdentity(request);
+        const userId = requireUser(payload?.user_id || identity?.userId);
+        const billingGate = await ensureBillingAccess(userId, "web", request, true);
+        if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         const sharedInput = await normalizeSeoInput(payload);
         if (!sharedInput.topic.trim() && !sharedInput.imageBase64) {
           return new Response(JSON.stringify({ success: false, error: "Provide an image, a text prompt, or both" }), { status: 400, headers: jsonHeaders });
         }
-        const sharedResult = await generateSeo(env, sharedInput);
+        const sharedResult = await generateWithCredits(userId, billingGate, payload, sharedInput);
         return new Response(JSON.stringify(sharedResult), { status: 200, headers: jsonHeaders });
         const imageBase64 = payload.image_base64 || "";
         const imageFilename = payload.image_filename || "";
@@ -3888,9 +4274,14 @@ Generate trending, specific SEO \u2014 not generic content.`
       });
     } catch (err) {
       return new Response(JSON.stringify({ success: false, error: err.message || String(err) }), {
-        status: 500,
+        status: err.statusCode || 500,
         headers: jsonHeaders
       });
+    } finally {
+      if (publicationSlotId && !publicationSlotRetained) {
+        try { await releasePublicationSlot(publicationSlotId); }
+        catch (error) { console.error("Publication reservation cleanup failed", error); }
+      }
     }
   }
 };

@@ -451,13 +451,27 @@
       if (platform === "tiktok") {
         return startTikTokConnection(fId);
       }
-      window.location.href = `${apiBase}/auth/${platform}?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}`;
+      return startPlatformConnection(platform, fId);
     }
 
     function reconnectFacebook() {
       const fId = getUrlParam("id") || getLS("activeFolderId");
       if (!fId || !userScope) return alert("Session expired.");
-      window.location.href = `${apiBase}/auth/facebook?folder_id=${encodeURIComponent(fId)}&user_id=${encodeURIComponent(userScope)}&refresh=1`;
+      return startPlatformConnection("facebook", fId, true);
+    }
+
+    async function startPlatformConnection(platform, folderId, refresh = false) {
+      try {
+        const response = await fetch(`${apiBase}/auth/${platform}`, {
+          method: "POST", headers: await accountHeaders(),
+          body: JSON.stringify({ folder_id: folderId, user_id: userScope, refresh })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.url) throw new Error(result.error || `Could not connect ${platform}.`);
+        window.location.assign(result.url);
+      } catch (error) {
+        alert(error.message || `Could not connect ${platform}. Please try again.`);
+      }
     }
 
     async function startTikTokConnection(folderId) {

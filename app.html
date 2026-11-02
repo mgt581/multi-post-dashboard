@@ -64,6 +64,19 @@
     .btn:active { transform: scale(0.98); }
 
     .section-title { font-weight: 800; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-left: 4px; }
+    .guide { background:var(--card); border:1px solid var(--border); border-radius:18px; padding:18px; line-height:1.5; }
+    .guide h2 { margin:0 0 6px; font-size:19px; }
+    .guide p { margin:0 0 10px; color:var(--muted); font-size:13px; }
+    .guide a { color:#7dd3fc; font-weight:700; }
+    .guide-steps { list-style:none; margin:10px 0 0; padding:0; display:grid; gap:10px; }
+    .guide-steps li { display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap; font-size:14px; }
+    .guide-steps li span { color:var(--muted); }
+    .guide-steps li.done span { color:#86efac; }
+    .guide-steps a { margin-left:auto; flex-shrink:0; min-height:32px; display:inline-flex; align-items:center; }
+    .notice { padding:14px; border:1px solid #64748b; border-radius:12px; background:#13253d; font-size:13px; line-height:1.5; }
+    .notice p { margin:5px 0 0; }
+    .notice a { color:#7dd3fc; }
+    #dashboardNotice[hidden] { display:none; }
 
     .card {
       background: var(--card);
@@ -104,6 +117,9 @@
     .card-content { flex: 1; }
     .card-title { display: block; font-weight: 700; font-size: 17px; }
     .card-sub { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
+    .folder-card.locked { border-color:#f59e0b88; }
+    .folder-card.locked .icon-box { background:#57401d; }
+    .folder-card.locked .card-sub { color:#fbbf24; }
 
     .chevron { color: var(--muted); font-size: 14px; }
     /* Folder action buttons */
@@ -137,11 +153,11 @@
 <body>
   <dialog id="createBrandDialog" aria-labelledby="createBrandTitle" style="max-width:440px;width:calc(100% - 32px);background:#0b1829;color:#e2e8f0;border:1px solid #334155;border-radius:16px;padding:24px;">
     <form onsubmit="submitNewFolder(event)">
-      <h2 id="createBrandTitle">Create New Brand</h2>
-      <label for="brandName">Brand or client name</label>
+      <h2 id="createBrandTitle">Create Workspace</h2>
+      <label for="brandName">Workspace name (brand or client)</label>
       <input id="brandName" name="brandName" required maxlength="120" autocomplete="off" style="display:block;width:100%;box-sizing:border-box;margin:12px 0;padding:12px;border:1px solid #64748b;border-radius:8px;font:inherit;" autofocus>
       <p id="createBrandError" role="alert" style="color:#fda4af;"></p>
-      <button id="saveBrandButton" type="submit" class="btn">Create Brand</button>
+      <button id="saveBrandButton" type="submit" class="btn">Create Workspace</button>
       <button id="cancelBrandButton" type="button" class="btn" style="margin-top:12px;background:#334155;" onclick="document.getElementById('createBrandDialog').close()">Cancel</button>
     </form>
   </dialog>
@@ -149,24 +165,41 @@
     <header>
       <div class="greeting">
         <p>Welcome to Multipost</p>
-        <h1 id="userGreeting">Your Brands</h1>
+        <h1 id="userGreeting">Your Workspaces</h1>
       </div>
       <button class="header-btn" onclick="location.href='settings.html'">
         <i class="fa-solid fa-cog"></i>
       </button>
     </header>
 
+    <section class="guide" aria-labelledby="welcomeTitle">
+      <h2 id="welcomeTitle">Welcome to MultiPost</h2>
+      <p>A workspace keeps one brand's social accounts together. Connect a YouTube account, Facebook Page or TikTok account, prepare platform-specific content with AI, then publish through the available platform flows. Publishing may require you to finish a draft in TikTok.</p>
+      <p id="accountSummary" role="status">Checking your subscription…</p>
+      <a href="settings.html">Subscription and purchases</a> · <a href="help.html">Getting started help</a>
+    </section>
+
+    <section class="guide" aria-labelledby="gettingStartedTitle">
+      <h2 id="gettingStartedTitle">Getting started <span id="onboardingProgress" style="font-size:13px;color:var(--muted);"></span></h2>
+      <p>Progress comes from your saved workspace, connected account and a recorded post. An AI draft alone does not count as published.</p>
+      <ol class="guide-steps" id="onboardingSteps">
+        <li><span>Checking your workspaces…</span></li>
+      </ol>
+    </section>
+
+    <div id="dashboardNotice" class="notice" role="alert" hidden></div>
+
     <div>
-      <button class="btn" onclick="createNewFolder()">
-        <i class="fa-solid fa-plus" style="margin-right:8px;"></i> Create New Brand
+      <button id="createWorkspaceButton" class="btn" onclick="createNewFolder()">
+        <i class="fa-solid fa-plus" style="margin-right:8px;"></i> Create Workspace
       </button>
     </div>
 
     <div>
-      <div class="section-title">Active Brands</div>
+      <div class="section-title">Your Workspaces</div>
       <div id="folderContainer" style="margin-top: 10px;">
         <div class="card" style="justify-content: center; border-style: dashed; opacity: 0.7;">
-          <p class="card-sub">Loading your brands...</p>
+          <p class="card-sub">Loading your workspaces…</p>
         </div>
       </div>
     </div>
@@ -193,7 +226,87 @@
     let userScope = null;
     let authUser = null;
     let nameDialogAction = null;
+    let loadedFolders = [];
     const scopedKey = name => `${name}:${userScope}`;
+
+    function escapeHtml(value) {
+      return String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+    }
+
+    function safeImageUrl(value) {
+      try { const url = new URL(value); return url.protocol === "https:" ? escapeHtml(url.href) : ""; }
+      catch (_) { return ""; }
+    }
+
+    function setDashboardNotice(message, action = "") {
+      const notice = document.getElementById("dashboardNotice");
+      notice.hidden = !message;
+      notice.replaceChildren();
+      if (!message) return;
+      const explanation = document.createElement("span");
+      explanation.textContent = message;
+      notice.append(explanation);
+      if (action) {
+        const retry = document.createElement("button");
+        retry.type = "button";
+        retry.textContent = "Retry";
+        retry.style.marginLeft = "10px";
+        retry.addEventListener("click", () => action === "billing" ? loadAccountStatus() : loadFolders());
+        notice.append(retry);
+      }
+    }
+
+    function renderGettingStarted(folders = loadedFolders) {
+      const count = folders.length;
+      const connected = folders.some(folder => Number(folder.connected_account_count || 0) > 0);
+      const firstPost = folders.some(folder => Number(folder.has_first_post || 0) > 0);
+      const next = count ? `folder.html?id=${encodeURIComponent(folders[0].id)}` : "#create-workspace";
+      const steps = [
+        { done: count > 0, label: "Create a workspace", href: "#create-workspace", action: "Create" },
+        { done: connected, label: "Connect a social account", href: next, action: "Connect" },
+        { done: firstPost, label: "Create your first post", href: next, action: "Open workspace" }
+      ];
+      document.getElementById("onboardingProgress").textContent = `${steps.filter(s => s.done).length} of 3`;
+      document.getElementById("onboardingSteps").innerHTML = steps.map((step, index) =>
+        `<li class="${step.done ? "done" : ""}"><span>${step.done ? "✓" : index + 1 + "."} ${step.label}</span>${step.done ? "" : `<a href="${step.href}">${step.action}</a>`}</li>`
+      ).join("");
+      document.querySelectorAll('#onboardingSteps a[href="#create-workspace"]').forEach(link =>
+        link.addEventListener("click", event => { event.preventDefault(); createNewFolder(); })
+      );
+    }
+
+    async function loadAccountStatus() {
+      if (!userScope || !authUser) return;
+      const summary = document.getElementById("accountSummary");
+      try {
+        const token = await authUser.getIdToken();
+        const response = await fetch(`${apiBase}/billing/status?user_id=${encodeURIComponent(userScope)}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success) throw new Error(result.error || "Could not verify the subscription.");
+        const billing = result.billing || {};
+        if (!billing.enabled) summary.textContent = "Subscription checkout is being prepared. Check Profile for current access.";
+        else if (billing.owner_mode) summary.textContent = "Owner account: access enabled.";
+        else if (billing.access && billing.reason === "play_verified") {
+          const interval = billing.play?.base_plan_id === "yearly" ? "yearly" : "monthly";
+          summary.textContent = billing.status === "trialing"
+            ? `Your Google Play Pro ${interval} trial is active until ${new Date(billing.play.trial_end * 1000).toLocaleDateString()}. Manage or cancel in Profile.`
+            : billing.status === "canceled"
+              ? `Your Google Play Pro ${interval} subscription is cancelled. Access continues until ${new Date(billing.play.expires_at * 1000).toLocaleDateString()}.`
+              : `Google Play Pro access active (${interval}). Manage or restore your purchase in Profile.`;
+        } else if (billing.access && billing.status === "trialing") summary.textContent = "Your web subscription trial is active. See Profile for its end date and billing controls.";
+        else if (billing.access) summary.textContent = billing.status === "canceled"
+          ? "Your subscription is cancelled but access remains until its end date. See Profile."
+          : "Your web subscription is active. See Profile for billing controls.";
+        else if (billing.status === "canceled" || billing.status === "expired") summary.textContent = "Your subscription has ended. Open Profile to review available plans or restore a purchase.";
+        else summary.textContent = "A subscription is needed to create workspaces and use AI or publishing. Open Profile to see available plans and any eligible trial.";
+      } catch (error) {
+        summary.textContent = "Subscription status could not be checked. Your workspaces may still be visible.";
+        setDashboardNotice(error.message || "Could not check billing. Please retry.", "billing");
+      }
+    }
 
     function normalizeEmail(value) {
       return String(value || "").trim().toLowerCase();
@@ -268,7 +381,10 @@
       const res = await fetch(`${apiBase}/get-folders?user_id=${encodeURIComponent(scope)}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
-      if (!res.ok) throw new Error("Server error");
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({}));
+        throw new Error(detail.error || (res.status === 401 ? "Sign in again to load workspaces." : `Could not load workspaces (HTTP ${res.status}).`));
+      }
       return res.json();
     }
 
@@ -303,30 +419,35 @@
           }
         }
 
+        loadedFolders = folders;
+        renderGettingStarted(folders);
+        setDashboardNotice("");
         if (folders.length === 0) {
-          container.innerHTML = `<div class="card" style="border-style:dashed; justify-content:center; opacity:0.7;"><p class="card-sub">No brands yet. Start by creating one!</p></div>`;
+          container.innerHTML = `<div class="card" style="border-style:dashed; justify-content:center;"><p class="card-sub">No workspaces yet. Create one after your subscription is active.</p></div>`;
           return;
         }
 
         container.innerHTML = folders.map(f => {
-          const iconBox = f.youtube_picture
-            ? `<div class="icon-box" style="background:rgba(239,68,68,0.12);"><img src="${f.youtube_picture}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><i class="fa-brands fa-youtube" style="display:none;color:#ef4444;font-size:22px;"></i></div>`
+          const picture = safeImageUrl(f.youtube_picture);
+          const iconBox = picture
+            ? `<div class="icon-box" style="background:rgba(239,68,68,0.12);"><img src="${picture}" alt=""><i class="fa-brands fa-youtube" style="display:none;color:#ef4444;font-size:22px;"></i></div>`
             : `<div class="icon-box"><i class="fa-solid fa-folder"></i></div>`;
           const subText = f.youtube_channel
-            ? `<i class="fa-brands fa-youtube" style="color:#ef4444;margin-right:4px;"></i>${f.youtube_channel}`
-            : 'Manage assets &amp; accounts';
+            ? `<i class="fa-brands fa-youtube" style="color:#ef4444;margin-right:4px;"></i>${escapeHtml(f.youtube_channel)}`
+            : 'Manage social accounts and posts';
           return `
-          <div class="card folder-card" data-folder-id="${f.id}" data-folder-name="${f.name}" data-folder-owner="${f.user_id}">
+          <div class="card folder-card ${f.workspace_locked ? 'locked' : ''}" data-folder-id="${escapeHtml(f.id)}" data-folder-locked="${f.workspace_locked ? 'true' : 'false'}" data-folder-name="${escapeHtml(f.name)}" data-folder-owner="${escapeHtml(f.user_id)}">
             ${iconBox}
             <div class="card-content">
-              <span class="card-title">${f.name}</span>
-              <span class="card-sub">${subText}</span>
+              <span class="card-title">${escapeHtml(f.name)}</span>
+              <span class="card-sub">${f.workspace_locked ? 'Saved and locked. Choose it as an active workspace or restore your allowance.' : subText}</span>
             </div>
             <div class="folder-actions">
-              <button class="action-btn rename-btn" data-id="${f.id}" data-name="${f.name}" data-owner="${f.user_id}">
+              ${f.workspace_locked ? `<button class="action-btn select-workspace-btn" type="button" data-id="${escapeHtml(f.id)}" aria-label="Use ${escapeHtml(f.name)} as an active workspace">Use</button>` : ''}
+              <button class="action-btn rename-btn" data-id="${escapeHtml(f.id)}" data-name="${escapeHtml(f.name)}" data-owner="${escapeHtml(f.user_id)}" aria-label="Rename workspace">
                 <i class="fa-solid fa-pen"></i>
               </button>
-              <button class="action-btn delete delete-btn" data-id="${f.id}" data-owner="${f.user_id}">
+              <button class="action-btn delete delete-btn" data-id="${escapeHtml(f.id)}" data-owner="${escapeHtml(f.user_id)}" aria-label="Delete workspace">
                 <i class="fa-solid fa-trash"></i>
               </button>
             </div>
@@ -337,10 +458,30 @@
         // Click listeners... (kept existing logic)
         container.querySelectorAll('.folder-card').forEach(card => {
           card.addEventListener('click', (e) => {
-            if (e.target.closest('.rename-btn') || e.target.closest('.delete-btn')) return;
+            if (e.target.closest('.rename-btn') || e.target.closest('.delete-btn') || e.target.closest('.select-workspace-btn')) return;
+            if (card.dataset.folderLocked === 'true') {
+              setDashboardNotice('This workspace is safely saved but locked by your current allowance. Choose Use to switch, or open Profile to restore billing.', 'billing');
+              return;
+            }
             openFolder(card.dataset.folderId, card.dataset.folderName);
           });
         });
+
+        container.querySelectorAll('.select-workspace-btn').forEach(btn => btn.addEventListener('click', async event => {
+          event.stopPropagation();
+          btn.disabled = true;
+          try {
+            const response = await fetch(`${apiBase}/workspaces/select-active`, { method:'POST',
+              headers: { 'Content-Type':'application/json', Authorization:`Bearer ${await authUser.getIdToken()}` },
+              body: JSON.stringify({ folder_ids:[btn.dataset.id] }) });
+            const result = await response.json();
+            if (!response.ok || !result.success) throw new Error(result.error || 'Could not switch workspaces.');
+            await loadFolders();
+          } catch (error) {
+            setDashboardNotice(error.message || 'Could not switch workspaces. Try again.', 'billing');
+            btn.disabled = false;
+          }
+        }));
 
         container.querySelectorAll('.rename-btn').forEach(btn => {
           btn.addEventListener('click', async (e) => {
@@ -352,7 +493,7 @@
         container.querySelectorAll('.delete-btn').forEach(btn => {
           btn.addEventListener('click', async (e) => {
             e.stopPropagation();
-            if (!confirm("Delete this brand?")) return;
+            if (!confirm("Delete this workspace and its connected accounts?")) return;
             try {
               const response = await fetch(`${apiBase}/delete-folder`, {
               method: "POST",
@@ -368,15 +509,16 @@
         });
 
       } catch (err) {
-        container.innerHTML = `<p style="color:#f87171; text-align:center;">Failed to load brands.</p>`;
+        container.innerHTML = `<p style="color:#f87171; text-align:center;">Workspaces could not be loaded. Use Retry above.</p>`;
+        setDashboardNotice(err.message || "Could not load workspaces. Check your connection and try again.", "folders");
       }
     }
 
     function createNewFolder() {
       nameDialogAction = null;
       const dialog = document.getElementById("createBrandDialog");
-      document.getElementById("createBrandTitle").textContent = "Create New Brand";
-      document.getElementById("saveBrandButton").textContent = "Create Brand";
+      document.getElementById("createBrandTitle").textContent = "Create Workspace";
+      document.getElementById("saveBrandButton").textContent = "Create Workspace";
       document.getElementById("brandName").value = "";
       document.getElementById("createBrandError").textContent = "";
       dialog.showModal();
@@ -400,8 +542,8 @@
       if (button.disabled) return;
       const name = document.getElementById("brandName").value.trim();
       error.textContent = "";
-      if (!name) { error.textContent = "Enter a brand or client name."; return; }
-      if (!userScope) { error.textContent = "Sign in again before creating a brand."; return; }
+      if (!name) { error.textContent = "Enter a workspace name."; return; }
+      if (!userScope) { error.textContent = "Sign in again before creating a workspace."; return; }
       button.disabled = true;
       cancel.disabled = true;
       button.textContent = nameDialogAction ? "Saving…" : "Creating…";
@@ -412,20 +554,20 @@
           : { name, user_id: userScope };
         const res = await fetch(`${apiBase}${endpoint}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...(nameDialogAction ? { Authorization: `Bearer ${await authUser.getIdToken()}` } : {}) },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${await authUser.getIdToken()}` },
           body: JSON.stringify(payload)
         });
         const data = await res.json();
-        if (!res.ok || data.success === false) throw new Error(data.error || "Could not save this brand name. Please try again.");
+        if (!res.ok || data.success === false) throw new Error(data.error || "Could not save this workspace name. Please try again.");
         document.getElementById("createBrandDialog").close();
         nameDialogAction = null;
         await loadFolders();
       } catch (err) {
-        error.textContent = err.message || "Could not save this brand name. Please try again.";
+        error.textContent = err.message || "Could not save this workspace name. Please try again.";
       } finally {
         button.disabled = false;
         cancel.disabled = false;
-        button.textContent = nameDialogAction ? "Save Name" : "Create Brand";
+        button.textContent = nameDialogAction ? "Save Name" : "Create Workspace";
       }
     }
     document.getElementById("createBrandDialog").addEventListener("cancel", event => {
@@ -463,8 +605,8 @@
       authUser = user;
       userScope = getUserScopeCandidates(user)[0] || null;
       rememberUserScope(userScope);
-      document.getElementById("userGreeting").innerText = user.displayName ? user.displayName.split(' ')[0] : "Your Brands";
-      loadFolders();
+      document.getElementById("userGreeting").innerText = user.displayName ? user.displayName.split(' ')[0] : "Your Workspaces";
+      loadFolders().then(() => loadAccountStatus());
     });
   </script>
   <script>
