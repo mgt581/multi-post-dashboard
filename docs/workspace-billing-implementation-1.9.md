@@ -1,5 +1,36 @@
 # MultiPostApp 1.9 workspace and publication implementation
 
+## Internal-testing status — 2 November 2026
+
+The owner confirmed that `./gradlew :app:assembleDebug :app:testDebugUnitTest`
+completed successfully in the isolated Android project. The locally inspected
+`multipost` keystore certificate SHA-256 matches the existing signed 1.8 AAB
+and the upload key fingerprint previously recorded from Play Console. A Play
+Console screenshot now shows **1.9.1, version code 10, released and available
+to internal testers on 2 November at 12:16**. Version code 10 is therefore
+consumed; any later release needs version code 11 or higher. The screenshot
+does not independently establish which Git commit was bundled in code 10.
+
+On this branch, `node --check worker.js` passed and all 16 SQL migration files
+applied sequentially to an in-memory SQLite baseline; **no remote D1 data was
+read or changed**. The earlier 121-test JavaScript result has not been rerun.
+The Cloudflare CLI reports that its authentication token expired and cannot be
+refreshed in this non-interactive session. The remote migration ledger, Worker
+secrets and deployed Worker/frontend versions remain unverified. A requested
+Wrangler dry-run was automatically blocked because it might send the Worker
+bundle to Cloudflare; no bundle was deliberately deployed. Play Console
+management access is also unavailable here. The Pro plans, two trial offers,
+and ten workspace products must be inspected in Console before any purchase
+test; the workspace products were not created as part of this branch work.
+
+The coordinated release gate remains: authenticate Cloudflare locally; review
+the remote migration ledger and existing Stripe entitlement rows; take a D1
+backup; apply missing migrations in order; configure Play API verification
+secrets; coordinate the Worker and frontend release; confirm product and offer
+eligibility for licensed testers; then run test purchases on code 10. Avoid
+enabling charging until the backend is verified. No production migration,
+deployment, product activation or customer charge was made in this update.
+
 Prepared on `feat/subscription-stage2-play-billing`. No production migration,
 deployment, Play configuration, payment or release was performed.
 
