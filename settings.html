@@ -503,6 +503,8 @@
       document.getElementById("openPricingBtn").hidden = true;
       document.getElementById("manageBillingBtn").hidden = true;
       if (!window.AndroidBilling?.postMessage) {
+        document.getElementById("playRestoreBtn").disabled = true;
+        document.getElementById("playManageBtn").disabled = true;
         playPlansError = "This Android build has no Google Play billing bridge. Update the app from the internal testing link, then reopen Profile.";
         renderPlayPlans();
       }
