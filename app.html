@@ -188,6 +188,11 @@
     </section>
 
     <div id="dashboardNotice" class="notice" role="alert" hidden></div>
+    <div id="emailVerificationActions" class="notice" hidden>
+      <span>Verify your email address to open workspaces.</span>
+      <button id="sendVerificationEmail" type="button">Send verification email</button>
+      <button id="checkVerificationEmail" type="button">I verified my email</button>
+    </div>
 
     <div>
       <button id="createWorkspaceButton" class="btn" onclick="createNewFolder()">
@@ -383,7 +388,9 @@
       });
       if (!res.ok) {
         const detail = await res.json().catch(() => ({}));
-        throw new Error(detail.error || (res.status === 401 ? "Sign in again to load workspaces." : `Could not load workspaces (HTTP ${res.status}).`));
+        const error = new Error(detail.error || (res.status === 401 ? "Sign in again to load workspaces." : `Could not load workspaces (HTTP ${res.status}).`));
+        error.code = detail.code;
+        throw error;
       }
       return res.json();
     }
@@ -420,6 +427,7 @@
         }
 
         loadedFolders = folders;
+        document.getElementById("emailVerificationActions").hidden = true;
         renderGettingStarted(folders);
         setDashboardNotice("");
         if (folders.length === 0) {
@@ -509,8 +517,12 @@
         });
 
       } catch (err) {
-        container.innerHTML = `<p style="color:#f87171; text-align:center;">Workspaces could not be loaded. Use Retry above.</p>`;
-        setDashboardNotice(err.message || "Could not load workspaces. Check your connection and try again.", "folders");
+        const verificationNeeded = err.code === "EMAIL_VERIFICATION_REQUIRED";
+        document.getElementById("emailVerificationActions").hidden = !verificationNeeded;
+        container.innerHTML = verificationNeeded
+          ? `<p style="text-align:center;">Check your inbox for the verification link, then use the button above.</p>`
+          : `<p style="color:#f87171; text-align:center;">Workspaces could not be loaded. Use Retry above.</p>`;
+        setDashboardNotice(err.message || "Could not load workspaces. Check your connection and try again.", verificationNeeded ? "" : "folders");
       }
     }
 
@@ -583,7 +595,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getAuth, onAuthStateChanged, sendEmailVerification } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
@@ -596,6 +608,36 @@
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
+
+    document.getElementById("sendVerificationEmail").addEventListener("click", async event => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        if (!auth.currentUser?.email || auth.currentUser.emailVerified) throw new Error("This account does not need email verification.");
+        await sendEmailVerification(auth.currentUser);
+        setDashboardNotice("Verification email sent. Open the link in your inbox, then tap I verified my email.", "");
+      } catch (error) {
+        setDashboardNotice(error.message || "Could not send verification email. Try again later.", "");
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById("checkVerificationEmail").addEventListener("click", async event => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        await auth.currentUser.reload();
+        await auth.currentUser.getIdToken(true);
+        if (!auth.currentUser.emailVerified) throw new Error("Email is not verified yet. Open the link in your inbox first.");
+        await loadFolders();
+        await loadAccountStatus();
+      } catch (error) {
+        setDashboardNotice(error.message || "Could not check verification. Try again.", "");
+      } finally {
+        button.disabled = false;
+      }
+    });
 
     onAuthStateChanged(auth, (user) => {
       if (!user) {
