@@ -8,13 +8,23 @@ const PLAY_STATES_WITH_ACCESS = new Set([
   'SUBSCRIPTION_STATE_IN_GRACE_PERIOD',
   'SUBSCRIPTION_STATE_CANCELED'
 ]);
+const SAFE_GOOGLE_STATUSES = new Set([
+  'PERMISSION_DENIED', 'UNAUTHENTICATED', 'NOT_FOUND', 'INVALID_ARGUMENT',
+  'FAILED_PRECONDITION', 'ALREADY_EXISTS', 'ABORTED', 'RESOURCE_EXHAUSTED',
+  'DEADLINE_EXCEEDED', 'UNAVAILABLE', 'INTERNAL', 'UNKNOWN'
+]);
+const SAFE_OAUTH_ERRORS = new Set([
+  'invalid_grant', 'invalid_client', 'unauthorized_client',
+  'access_denied', 'temporarily_unavailable', 'invalid_scope'
+]);
 
 export class PlayVerificationError extends Error {
-  constructor(code, googleStatus = null, message = code) {
+  constructor(code, googleStatus = null, message = code, httpStatus = null) {
     super(message);
     this.name = 'PlayVerificationError';
     this.code = code;
     this.googleStatus = googleStatus;
+    this.httpStatus = httpStatus;
   }
 }
 
@@ -23,9 +33,9 @@ async function googleFailure(response, stage) {
   let status = null;
   try {
     const value = (await response.json())?.error?.status;
-    if (typeof value === 'string' && /^(?:[A-Z][A-Z0-9_]{1,63})$/.test(value)) status = value;
+    if (SAFE_GOOGLE_STATUSES.has(value)) status = value;
   } catch (_) { /* Some Google failures have no JSON body. */ }
-  return new PlayVerificationError(`PLAY_${stage}_HTTP_${response.status}`, status);
+  return new PlayVerificationError(`PLAY_${stage}_HTTP_${response.status}`, status, undefined, response.status);
 }
 
 const bytes = (value) => new TextEncoder().encode(value);
@@ -107,8 +117,8 @@ async function googleAccessToken(serviceAccount, fetcher) {
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const status = typeof result?.error === 'string' && /^[a-z_]{1,64}$/.test(result.error) ? result.error.toUpperCase() : null;
-    throw new PlayVerificationError(`PLAY_AUTH_HTTP_${response.status}`, status);
+    const status = SAFE_OAUTH_ERRORS.has(result?.error) ? result.error.toUpperCase() : null;
+    throw new PlayVerificationError(`PLAY_AUTH_HTTP_${response.status}`, status, undefined, response.status);
   }
   if (!result.access_token) throw new PlayVerificationError('PLAY_AUTH_NO_TOKEN');
   return result.access_token;

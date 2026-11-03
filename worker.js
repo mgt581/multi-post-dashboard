@@ -1433,8 +1433,12 @@ Follow for daily trending content! \u{1F44F}
         } catch (error) {
           const code = error instanceof PlayVerificationError ? error.code
             : playPurchaseStage === "persist" ? "PLAY_PERSISTENCE_FAILED" : "PLAY_VERIFICATION_FAILED";
-          console.warn("Play purchase verification failed", { code, google_status: error instanceof PlayVerificationError ? error.googleStatus : null });
-          return Response.json({ success: false, error: "Google Play purchase could not be verified", code }, { status: playPurchaseStage === "persist" ? 503 : 400, headers: corsHeaders });
+          const diagnosticId = crypto.randomUUID();
+          console.warn("Play purchase verification failed", { diagnostic_id: diagnosticId, stage: playPurchaseStage, code,
+            google_http_status: error instanceof PlayVerificationError ? error.httpStatus : null,
+            google_status: error instanceof PlayVerificationError ? error.googleStatus : null });
+          return Response.json({ success: false, error: "Google Play purchase could not be verified", code, diagnostic_id: diagnosticId },
+            { status: playPurchaseStage === "persist" ? 503 : 400, headers: corsHeaders });
         }
       }
       if (url.pathname === "/api/billing/status" && request.method === "GET") {
