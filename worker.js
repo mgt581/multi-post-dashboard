@@ -1436,7 +1436,8 @@ Follow for daily trending content! \u{1F44F}
           const diagnosticId = crypto.randomUUID();
           console.warn("Play purchase verification failed", { diagnostic_id: diagnosticId, stage: playPurchaseStage, code,
             google_http_status: error instanceof PlayVerificationError ? error.httpStatus : null,
-            google_status: error instanceof PlayVerificationError ? error.googleStatus : null });
+            google_status: error instanceof PlayVerificationError ? error.googleStatus : null,
+            google_reason: error instanceof PlayVerificationError ? error.googleReason : null });
           return Response.json({ success: false, error: "Google Play purchase could not be verified", code, diagnostic_id: diagnosticId },
             { status: playPurchaseStage === "persist" ? 503 : 400, headers: corsHeaders });
         }

@@ -17,25 +17,36 @@ const SAFE_OAUTH_ERRORS = new Set([
   'invalid_grant', 'invalid_client', 'unauthorized_client',
   'access_denied', 'temporarily_unavailable', 'invalid_scope'
 ]);
+const SAFE_PLAY_REASONS = new Set([
+  'subscriptionExpired', 'subscriptionInvalidArgument', 'invalidPurchaseState',
+  'invalidValue', 'prepaidSubscriptionNotSupported', 'productNotOwnedByUser',
+  'purchaseTokenMismatch', 'required', 'unsupportedIabType',
+  'userInsufficientPermission', 'notFound', 'concurrentUpdate',
+  'purchaseTokenNoLongerValid', 'subscriptionNoLongerAvailable'
+]);
 
 export class PlayVerificationError extends Error {
-  constructor(code, googleStatus = null, message = code, httpStatus = null) {
+  constructor(code, googleStatus = null, message = code, httpStatus = null, googleReason = null) {
     super(message);
     this.name = 'PlayVerificationError';
     this.code = code;
     this.googleStatus = googleStatus;
     this.httpStatus = httpStatus;
+    this.googleReason = googleReason;
   }
 }
 
 // Never include Google's free-form message, purchase token, or account identifiers in diagnostics.
 async function googleFailure(response, stage) {
   let status = null;
+  let reason = null;
   try {
-    const value = (await response.json())?.error?.status;
-    if (SAFE_GOOGLE_STATUSES.has(value)) status = value;
+    const error = (await response.json())?.error;
+    if (SAFE_GOOGLE_STATUSES.has(error?.status)) status = error.status;
+    const value = error?.errors?.[0]?.reason;
+    if (SAFE_PLAY_REASONS.has(value)) reason = value;
   } catch (_) { /* Some Google failures have no JSON body. */ }
-  return new PlayVerificationError(`PLAY_${stage}_HTTP_${response.status}`, status, undefined, response.status);
+  return new PlayVerificationError(`PLAY_${stage}_HTTP_${response.status}`, status, undefined, response.status, reason);
 }
 
 const bytes = (value) => new TextEncoder().encode(value);

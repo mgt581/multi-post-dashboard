@@ -113,7 +113,7 @@ test('Google API and acknowledgement failures expose only safe status codes', as
     const fetcher = async url => {
       if (url.endsWith('/token')) return Response.json({ access_token: 'google-access-token' });
       if ((stage === 'GET' && url.includes('/subscriptionsv2/')) || (stage === 'ACK' && url.endsWith(':acknowledge'))) {
-        return Response.json({ error: { status: 'PERMISSION_DENIED', message: `sensitive ${token}` } }, { status: 403 });
+        return Response.json({ error: { status: 'PERMISSION_DENIED', errors: [{ reason: 'userInsufficientPermission' }], message: `sensitive ${token}` } }, { status: 403 });
       }
       return Response.json({ ...purchase('SUBSCRIPTION_STATE_ACTIVE', '2026-11-08T12:00:00Z'), acknowledgementState: 'ACKNOWLEDGEMENT_STATE_PENDING' });
     };
@@ -121,6 +121,7 @@ test('Google API and acknowledgement failures expose only safe status codes', as
       assert.equal(error.code, `PLAY_${stage}_HTTP_403`);
       assert.equal(error.httpStatus, 403);
       assert.equal(error.googleStatus, 'PERMISSION_DENIED');
+      assert.equal(error.googleReason, 'userInsufficientPermission');
       assert.doesNotMatch(String(error), /secret-purchase-token|sensitive/);
       return true;
     });
@@ -132,10 +133,11 @@ test('Google free-form error fields cannot appear in diagnostic status', async (
   const serviceAccountJson = JSON.stringify({ type: 'service_account', client_email: 'test@example.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) });
   const fetcher = async url => url.endsWith('/token')
     ? Response.json({ access_token: 'google-access-token' })
-    : Response.json({ error: { status: 'SECRET_PURCHASE_TOKEN', message: 'private account data' } }, { status: 403 });
+    : Response.json({ error: { status: 'SECRET_PURCHASE_TOKEN', errors: [{ reason: 'privatePurchaseToken' }], message: 'private account data' } }, { status: 403 });
   await assert.rejects(verifyPlayPurchase({ token: 'secret', firebaseUid: 'uid-123', serviceAccountJson, fetcher, now }), error => {
     assert.equal(error.code, 'PLAY_GET_HTTP_403');
     assert.equal(error.googleStatus, null);
+    assert.equal(error.googleReason, null);
     assert.doesNotMatch(JSON.stringify({ code: error.code, status: error.googleStatus }), /SECRET_PURCHASE_TOKEN|private account data/);
     return true;
   });
@@ -167,7 +169,7 @@ test('purchase endpoint logs a correlated safe code without recording credential
       if (String(url).includes('identitytoolkit.googleapis.com')) return Response.json({ users: [{ localId: 'uid-123', email: 'private@example.com', emailVerified: true }] });
       if (String(url).endsWith('/token')) return Response.json({ access_token: 'secret-access-token' });
       if (String(url).includes('/subscriptionsv2/')) {
-        return Response.json({ error: { status: 'PERMISSION_DENIED', message: 'secret-purchase-token' } }, { status: 403 });
+        return Response.json({ error: { status: 'PERMISSION_DENIED', errors: [{ reason: 'userInsufficientPermission' }], message: 'secret-purchase-token' } }, { status: 403 });
       }
       throw new Error('Unexpected request');
     };
@@ -185,6 +187,7 @@ test('purchase endpoint logs a correlated safe code without recording credential
     assert.equal(warnings[0][1].stage, 'verify');
     assert.equal(warnings[0][1].google_http_status, 403);
     assert.equal(warnings[0][1].google_status, 'PERMISSION_DENIED');
+    assert.equal(warnings[0][1].google_reason, 'userInsufficientPermission');
     assert.doesNotMatch(JSON.stringify({ body, warnings }), /secret-purchase-token|secret-access-token|firebase-id-token|private@example.com|PRIVATE_KEY/);
   } finally {
     globalThis.fetch = originalFetch;
