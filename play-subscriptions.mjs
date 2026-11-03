@@ -9,6 +9,25 @@ const PLAY_STATES_WITH_ACCESS = new Set([
   'SUBSCRIPTION_STATE_CANCELED'
 ]);
 
+export class PlayVerificationError extends Error {
+  constructor(code, googleStatus = null, message = code) {
+    super(message);
+    this.name = 'PlayVerificationError';
+    this.code = code;
+    this.googleStatus = googleStatus;
+  }
+}
+
+// Never include Google's free-form message, purchase token, or account identifiers in diagnostics.
+async function googleFailure(response, stage) {
+  let status = null;
+  try {
+    const value = (await response.json())?.error?.status;
+    if (typeof value === 'string' && /^(?:[A-Z][A-Z0-9_]{1,63})$/.test(value)) status = value;
+  } catch (_) { /* Some Google failures have no JSON body. */ }
+  return new PlayVerificationError(`PLAY_${stage}_HTTP_${response.status}`, status);
+}
+
 const bytes = (value) => new TextEncoder().encode(value);
 const b64 = (value) => btoa(String.fromCharCode(...new Uint8Array(value)));
 const b64url = (value) => b64(value).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
@@ -26,7 +45,7 @@ export function interpretPlaySubscription(data, expectedAccountId, now = Date.no
   const lines = Array.isArray(data?.lineItems) ? data.lineItems : [];
   const matching = lines.filter((item) => item.productId === PRODUCT_ID && BASE_PLANS.has(item.offerDetails?.basePlanId));
   if (!matching.length || data?.externalAccountIdentifiers?.obfuscatedExternalAccountId !== expectedAccountId) {
-    throw new Error('Purchase product or account does not match');
+    throw new PlayVerificationError('PLAY_PRODUCT_OR_ACCOUNT_MISMATCH', null, 'Purchase product or account does not match');
   }
   const hasPaidProLine = matching.some((item) => item.latestSuccessfulOrderId);
   const current = matching.filter((item) => (!hasPaidProLine || item.latestSuccessfulOrderId) &&
@@ -35,13 +54,13 @@ export function interpretPlaySubscription(data, expectedAccountId, now = Date.no
   const line = (current.length ? current : matching.filter((item) => !hasPaidProLine || item.latestSuccessfulOrderId)).reduce((latest, item) =>
     Date.parse(item.expiryTime || 0) > Date.parse(latest.expiryTime || 0) ? item : latest);
   const expiry = Math.floor(Date.parse(line.expiryTime) / 1000);
-  if (!Number.isFinite(expiry)) throw new Error('Purchase expiry is invalid');
+  if (!Number.isFinite(expiry)) throw new PlayVerificationError('PLAY_INVALID_EXPIRY', null, 'Purchase expiry is invalid');
   const state = String(data.subscriptionState || 'SUBSCRIPTION_STATE_UNSPECIFIED');
   const access = PLAY_STATES_WITH_ACCESS.has(state) && expiry * 1000 > now;
   const workspaceLines = lines.filter((item) => item.productId?.startsWith('multipost_workspace'));
   if (workspaceLines.some((item) => !WORKSPACE_PRODUCTS.has(item.productId)) ||
       new Set(workspaceLines.map((item) => item.productId)).size !== workspaceLines.length) {
-    throw new Error('Workspace catalogue contains an unknown or duplicate product');
+    throw new PlayVerificationError('PLAY_INVALID_WORKSPACE_PRODUCT', null, 'Workspace catalogue contains an unknown or duplicate product');
   }
   const workspaceItems = access && data.regionCode !== 'KR' ? workspaceLines.filter((item) =>
     item.latestSuccessfulOrderId && item.offerDetails?.basePlanId === line.offerDetails.basePlanId &&
@@ -86,8 +105,12 @@ async function googleAccessToken(serviceAccount, fetcher) {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: `${header}.${claims}.${b64url(signature)}` })
   });
-  const result = await response.json();
-  if (!response.ok || !result.access_token) throw new Error('Google Play authentication failed');
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const status = typeof result?.error === 'string' && /^[a-z_]{1,64}$/.test(result.error) ? result.error.toUpperCase() : null;
+    throw new PlayVerificationError(`PLAY_AUTH_HTTP_${response.status}`, status);
+  }
+  if (!result.access_token) throw new PlayVerificationError('PLAY_AUTH_NO_TOKEN');
   return result.access_token;
 }
 
@@ -98,13 +121,13 @@ export async function verifyPlayPurchase({ token, firebaseUid, serviceAccountJso
   const response = await fetcher(`https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}/purchases/subscriptionsv2/tokens/${encodeURIComponent(token)}`, {
     headers: { Authorization: `Bearer ${bearer}` }
   });
-  if (!response.ok) throw new Error('Google Play purchase verification failed');
+  if (!response.ok) throw await googleFailure(response, 'GET');
   const verified = interpretPlaySubscription(await response.json(), await obfuscatedAccountId(firebaseUid), now);
   if (verified.access && verified.needsAcknowledgement) {
     const ack = await fetcher(`https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}/purchases/subscriptions/${PRODUCT_ID}/tokens/${encodeURIComponent(token)}:acknowledge`, {
       method: 'POST', headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' }, body: '{}'
     });
-    if (!ack.ok) throw new Error('Google Play acknowledgment failed');
+    if (!ack.ok) throw await googleFailure(ack, 'ACK');
   }
   return verified;
 }
