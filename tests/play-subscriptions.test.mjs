@@ -105,6 +105,42 @@ test('backend checks Google with a service account and acknowledges only a verif
   assert.equal(calls.filter(call => call.url.endsWith(':acknowledge')).length, 1);
 });
 
+test('Google API and acknowledgement failures expose only safe status codes', async () => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const serviceAccountJson = JSON.stringify({ type: 'service_account', client_email: 'test@example.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) });
+  const token = 'secret-purchase-token';
+  for (const stage of ['GET', 'ACK']) {
+    const fetcher = async url => {
+      if (url.endsWith('/token')) return Response.json({ access_token: 'google-access-token' });
+      if ((stage === 'GET' && url.includes('/subscriptionsv2/')) || (stage === 'ACK' && url.endsWith(':acknowledge'))) {
+        return Response.json({ error: { status: 'PERMISSION_DENIED', message: `sensitive ${token}` } }, { status: 403 });
+      }
+      return Response.json({ ...purchase('SUBSCRIPTION_STATE_ACTIVE', '2026-11-08T12:00:00Z'), acknowledgementState: 'ACKNOWLEDGEMENT_STATE_PENDING' });
+    };
+    await assert.rejects(verifyPlayPurchase({ token, firebaseUid: 'uid-123', serviceAccountJson, fetcher, now }), error => {
+      assert.equal(error.code, `PLAY_${stage}_HTTP_403`);
+      assert.equal(error.googleStatus, 'PERMISSION_DENIED');
+      assert.doesNotMatch(String(error), /secret-purchase-token|sensitive/);
+      return true;
+    });
+  }
+});
+
+test('an expired Play response remains inactive without attempting acknowledgement', async () => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const serviceAccountJson = JSON.stringify({ type: 'service_account', client_email: 'test@example.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) });
+  let ackCount = 0;
+  const fetcher = async url => {
+    if (url.endsWith('/token')) return Response.json({ access_token: 'google-access-token' });
+    if (url.endsWith(':acknowledge')) { ackCount++; return new Response('', { status: 200 }); }
+    return Response.json({ ...purchase('SUBSCRIPTION_STATE_EXPIRED', '2026-10-31T12:00:00Z'), acknowledgementState: 'ACKNOWLEDGEMENT_STATE_PENDING' });
+  };
+  const verified = await verifyPlayPurchase({ token: 'expired-token', firebaseUid: 'uid-123', serviceAccountJson, fetcher, now });
+  assert.equal(verified.access, false);
+  assert.equal(verified.state, 'SUBSCRIPTION_STATE_EXPIRED');
+  assert.equal(ackCount, 0);
+});
+
 test('authenticated Play purchase grants cross-platform access; a spoofed Android header grants none', async () => {
   const db = new DatabaseSync(':memory:');
   db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
