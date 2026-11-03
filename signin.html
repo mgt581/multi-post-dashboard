@@ -121,7 +121,8 @@
       createUserWithEmailAndPassword,
       GoogleAuthProvider,
       signInWithPopup,
-      sendPasswordResetEmail
+      sendPasswordResetEmail,
+      sendEmailVerification
     } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
@@ -188,6 +189,10 @@
         await setPersistence(auth, browserLocalPersistence);
         const action = mode === "login" ? signInWithEmailAndPassword : createUserWithEmailAndPassword;
         const result = await action(auth, emailInput.value.trim(), passwordInput.value);
+        if (mode === "signup" && !result.user.emailVerified) {
+          try { await sendEmailVerification(result.user); }
+          catch (_) { /* The Home page offers an explicit resend action. */ }
+        }
         openWorkspace(result.user);
       } catch (error) {
         setMessage(error?.message || "Sign-in failed. Please try again.");
