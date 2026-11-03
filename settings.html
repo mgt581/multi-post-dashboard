@@ -342,6 +342,9 @@
     let availableWorkspacePlans = [];
     let playCountryCode = null;
     let playPlansLoaded = false;
+    let playPlansError = "";
+    let playPlansTimeout = null;
+    let requestPlayPlans = null;
     let billingRefreshTimer = null;
     const OWNER_KEYS = ["alexbryant3234@gmail.com"];
     const normalizeUserKey = value => String(value || "").trim().toLowerCase();
@@ -438,7 +441,7 @@
     function renderPlayPlans() {
       if (!isAndroidWrapper()) return;
       const hasAccess = !!currentBilling?.access;
-      const readyForPurchase = currentBilling?.enabled === true && !hasAccess;
+      const readyForPurchase = currentBilling?.enabled === true && !hasAccess && !playPlansError;
       const note = document.getElementById("playPaymentNote");
       document.getElementById("billingProviderLabel").textContent = "Google Play subscription and restoration";
       for (const interval of ["monthly", "yearly"]) {
@@ -455,6 +458,8 @@
       note.hidden = false;
       note.textContent = !currentBilling?.enabled
         ? "Purchases are unavailable until the server confirms billing access. Retry the status check before choosing a plan."
+        : playPlansError
+          ? playPlansError
         : !playPlansLoaded
           ? "Checking eligible offers and local prices in Google Play…"
           : hasAccess
@@ -493,16 +498,26 @@
       }
     }
 
-    if (window.AndroidBilling && isAndroidWrapper()) {
-      const sendPlayAction = (action, details = {}) => {
-        window.AndroidBilling.postMessage(JSON.stringify({ action, ...details }));
-      };
+    if (isAndroidWrapper()) {
       document.getElementById("playControls").hidden = false;
       document.getElementById("openPricingBtn").hidden = true;
       document.getElementById("manageBillingBtn").hidden = true;
+      if (!window.AndroidBilling?.postMessage) {
+        playPlansError = "This Android build has no Google Play billing bridge. Update the app from the internal testing link, then reopen Profile.";
+        renderPlayPlans();
+      }
+    }
+
+    if (window.AndroidBilling?.postMessage && isAndroidWrapper()) {
+      const sendPlayAction = (action, details = {}) => {
+        window.AndroidBilling.postMessage(JSON.stringify({ action, ...details }));
+      };
       window.onMultiPostPlayPlans = plans => {
         availablePlayPlans = Array.isArray(plans) ? plans : [];
         playPlansLoaded = true;
+        clearTimeout(playPlansTimeout);
+        playPlansError = availablePlayPlans.some(plan => ["monthly", "yearly"].includes(plan.base_plan_id))
+          ? "" : "Google Play returned no eligible Pro subscription offers for this Play Store account and region.";
         renderPlayPlans();
       };
       window.onMultiPostWorkspacePlans = plans => {
@@ -513,7 +528,14 @@
         playCountryCode = String(country || '').toUpperCase();
         renderWorkspacePlans();
       };
-      window.onMultiPostPlayError = message => setBillingUi("Google Play", String(message), "warn");
+      window.onMultiPostPlayError = message => {
+        if (!playPlansLoaded) {
+          clearTimeout(playPlansTimeout);
+          playPlansError = String(message || "Google Play could not load plans.");
+          renderPlayPlans();
+        }
+        setBillingUi("Google Play", String(message), "warn");
+      };
       window.onMultiPostPlayPurchase = async purchase => {
         try {
           const response = await authenticatedFetch(`${apiBase}/billing/play-purchase`, {
@@ -545,7 +567,25 @@
       document.getElementById('workspaceRemoveBtn').addEventListener('click', () => changeWorkspaces(-1));
       document.getElementById("playRestoreBtn").addEventListener("click", () => sendPlayAction("restore"));
       document.getElementById("playManageBtn").addEventListener("click", () => sendPlayAction("openManage"));
-      sendPlayAction("queryPlans");
+      requestPlayPlans = () => {
+        clearTimeout(playPlansTimeout);
+        playPlansLoaded = false;
+        playPlansError = "";
+        renderPlayPlans();
+        try {
+          sendPlayAction("queryPlans");
+        } catch (_) {
+          playPlansError = "Could not contact Google Play Billing in this Android build.";
+          renderPlayPlans();
+          return;
+        }
+        playPlansTimeout = setTimeout(() => {
+          if (playPlansLoaded || playPlansError) return;
+          playPlansError = "Google Play did not return plans. Check your Play Store account, update Play Store and the app, then press Refresh.";
+          renderPlayPlans();
+        }, 12000);
+      };
+      requestPlayPlans();
     }
 
     async function openBillingPortal() {
@@ -581,6 +621,7 @@
     document.getElementById("manageBillingBtn").addEventListener("click", openBillingPortal);
     document.getElementById("refreshBillingBtn").addEventListener("click", () => {
       if (billingUser) loadBillingStatus(billingUser);
+      requestPlayPlans?.();
     });
 
     onAuthStateChanged(auth, (user) => {
