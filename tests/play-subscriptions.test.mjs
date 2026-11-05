@@ -85,6 +85,25 @@ test('stored tokens are encrypted and can be refreshed with the configured key',
   await assert.rejects(decryptPurchaseToken(encrypted, Buffer.alloc(32, 18).toString('base64')));
 });
 
+test('hex deployment keys and existing base64 keys encrypt with the same 256-bit key', async () => {
+  const raw = Buffer.from(Array.from({ length: 32 }, (_, i) => i * 7));
+  const base64Key = raw.toString('base64');
+  const hexKey = raw.toString('hex');
+  const token = 'synthetic-play-token';
+  const hexEncrypted = await encryptPurchaseToken(token, hexKey);
+  assert.equal(await decryptPurchaseToken(hexEncrypted, hexKey.toUpperCase()), token);
+  assert.equal(await decryptPurchaseToken(hexEncrypted, base64Key), token);
+  const base64Encrypted = await encryptPurchaseToken(token, base64Key);
+  assert.equal(await decryptPurchaseToken(base64Encrypted, hexKey), token);
+});
+
+test('invalid encryption key encodings and lengths are rejected', async () => {
+  for (const key of ['', 'not!base64', 'ab'.repeat(31), 'ab'.repeat(33),
+    Buffer.alloc(48, 17).toString('base64')]) {
+    await assert.rejects(encryptPurchaseToken('synthetic-play-token', key));
+  }
+});
+
 test('backend checks Google with a service account and acknowledges only a verified account purchase', async () => {
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const serviceAccountJson = JSON.stringify({ type: 'service_account', client_email: 'test@example.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) });

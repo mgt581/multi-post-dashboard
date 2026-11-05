@@ -111,7 +111,10 @@ export async function verifyPlayPurchase({ token, firebaseUid, serviceAccountJso
 
 async function encryptionKey(base64Key) {
   if (!base64Key) throw new Error('Play token encryption key is not configured');
-  const raw = unb64(base64Key);
+  // Deployment secrets may encode the same 256-bit key as hex or base64.
+  const raw = /^[0-9a-f]{64}$/i.test(base64Key)
+    ? Uint8Array.from(base64Key.match(/../g), (byte) => parseInt(byte, 16))
+    : unb64(base64Key);
   if (raw.length !== 32) throw new Error('Play token encryption key must be 32 bytes');
   return crypto.subtle.importKey('raw', raw, 'AES-GCM', false, ['encrypt', 'decrypt']);
 }
