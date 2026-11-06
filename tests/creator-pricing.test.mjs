@@ -7,17 +7,20 @@ test("staged Pro paywall presents proposed prices and monthly allowances", async
   assert.match(pricing, /<h2>Pro Monthly<\/h2>[\s\S]*?£9\.99/);
   assert.match(pricing, /<h2>Pro Yearly<\/h2>[\s\S]*?£79\.99/);
   assert.match(pricing, /150 AI credits and 150 successful platform publications every month, including on annual billing/);
-  assert.match(pricing, /This page is display-only/);
+  assert.match(pricing, /Web payments are being prepared/);
 });
 
-test("the staged paywall does not change legacy Stripe price mappings or enable checkout", async () => {
+test("checkout stays off until new Stripe account and webhook are configured", async () => {
   const [pricing, worker, config] = await Promise.all([
     readFile(new URL("../pricing.html", import.meta.url), "utf8"),
     readFile(new URL("../worker.js", import.meta.url), "utf8"),
     readFile(new URL("../wrangler.toml", import.meta.url), "utf8")
   ]);
-  assert.doesNotMatch(pricing, /billing\/create-checkout-session/);
-  assert.match(pricing, /disabled>Purchases coming after testing/);
+  assert.match(pricing, /billing\/create-checkout-session/);
+  assert.equal((config.match(/STRIPE_CHECKOUT_ENABLED = "false"/g) || []).length, 2);
+  assert.match(worker, /stripeCheckoutEnabled && Boolean\(stripeSecretKey && stripeWebhookSecret/);
+  assert.match(worker, /entitlement\.access/);
+  assert.match(worker, /SELECT 1 AS used FROM billing_play_purchases/);
   assert.match(worker, /key: "pro_plus",\s+label: "Pro"/);
   assert.match(worker, /\["pro", "pro_plus"\]\.includes\(requestedPlan\)/);
   assert.equal((config.match(/STRIPE_PRICE_PRO_PLUS_MONTHLY = "price_1UP25bPpTMFHe2pei04QVcwj"/g) || []).length, 1);
