@@ -46,3 +46,9 @@ test('rename uses the same on-page name form and the workspace owner identity',a
   f.elements.brandName.value='New name';await f.run(submit);
   assert.equal(url,'/api/rename-folder');assert.deepEqual(body,{id:'42',name:'New name',user_id:'legacy-owner@example.com'});assert.equal(authorization,'Bearer rename-token');
 });
+test('unverified email blocks another workspace creation while the existing list is hidden',()=>{
+  let requests=0;const f=setup(()=>{requests++;});
+  f.run('workspaceVerificationRequired=true; setDashboardNotice=()=>{}; createNewFolder()');
+  assert.equal(f.elements.createBrandDialog.open,false);
+  assert.equal(requests,0);
+});

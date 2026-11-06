@@ -121,6 +121,7 @@
       createUserWithEmailAndPassword,
       GoogleAuthProvider,
       signInWithPopup,
+      sendEmailVerification,
       sendPasswordResetEmail
     } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
@@ -148,6 +149,7 @@
     googleProvider.setCustomParameters({ prompt: "select_account" });
     let mode = "login";
     let redirecting = false;
+    let authActionPending = false;
 
     function setMessage(message, success = false) {
       messageEl.textContent = message || "";
@@ -182,20 +184,31 @@
 
     authForm.addEventListener("submit", async event => {
       event.preventDefault();
+      authActionPending = true;
       setBusy(true);
       setMessage("");
       try {
         await setPersistence(auth, browserLocalPersistence);
         const action = mode === "login" ? signInWithEmailAndPassword : createUserWithEmailAndPassword;
         const result = await action(auth, emailInput.value.trim(), passwordInput.value);
+        if (mode === "signup" && !result.user.emailVerified) {
+          try {
+            await sendEmailVerification(result.user);
+          } catch (_) {
+            // Home offers another attempt and explains why workspaces are locked.
+          }
+        }
         openWorkspace(result.user);
       } catch (error) {
         setMessage(error?.message || "Sign-in failed. Please try again.");
         setBusy(false);
+      } finally {
+        authActionPending = false;
       }
     });
 
     googleButton.addEventListener("click", async () => {
+      authActionPending = true;
       setBusy(true);
       setMessage("");
       try {
@@ -205,6 +218,8 @@
       } catch (error) {
         setMessage(error?.message || "Google sign-in failed. Please try again.");
         setBusy(false);
+      } finally {
+        authActionPending = false;
       }
     });
 
@@ -232,7 +247,7 @@
     signupTab.addEventListener("click", () => setMode("signup"));
 
     onAuthStateChanged(auth, user => {
-      if (user) openWorkspace(user);
+      if (user && !authActionPending) openWorkspace(user);
     });
 
     setPersistence(auth, browserLocalPersistence).catch(() => {});
