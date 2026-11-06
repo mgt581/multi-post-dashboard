@@ -445,6 +445,9 @@
         <strong id="facebookPublishSuccessMessage">Video submitted successfully.</strong>
         <a id="facebookPublishSuccessLink" class="btn" href="#" target="_blank" rel="noopener noreferrer">Go to Facebook Page</a>
       </div>
+      <div id="tiktokPublishSuccess" class="publish-success" role="status">
+        <strong id="tiktokPublishSuccessMessage">TikTok is processing your video.</strong>
+      </div>
     </section>
 
     <script type="module">
@@ -807,14 +810,25 @@
     document.getElementById("facebookPublishSuccess")?.classList.remove("visible");
   }
 
+  function showTikTokPublishSuccess(message) {
+    const panel = document.getElementById("tiktokPublishSuccess");
+    const messageEl = document.getElementById("tiktokPublishSuccessMessage");
+    if (!panel || !messageEl) return;
+    const firstShow = !panel.classList.contains("visible");
+    messageEl.textContent = message;
+    panel.classList.add("visible");
+    if (firstShow) panel.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   function showFacebookPublishSuccess({ message, url, label, disabled = false }) {
     const panel = document.getElementById("facebookPublishSuccess");
     const messageEl = document.getElementById("facebookPublishSuccessMessage");
     const link = document.getElementById("facebookPublishSuccessLink");
-    if (!panel || !messageEl || !link || !url) return;
+    if (!panel || !messageEl || !link) return;
     messageEl.textContent = message;
     link.textContent = label;
-    if (disabled) {
+    link.style.display = url ? "" : "none";
+    if (disabled || !url) {
       link.removeAttribute("href");
       link.setAttribute("aria-disabled", "true");
       link.style.pointerEvents = "none";
@@ -849,6 +863,7 @@
   async function waitForTikTokVideo(publishId, sessionId) {
     if (!publishId) return;
     const publishButton = document.querySelector('button[onclick="publishTikTok()"]');
+    let completionNotified = false;
     setTikTokViewButton({ label: "TikTok is processing…", disabled: true });
     for (let attempt = 0; attempt < 100; attempt += 1) {
       if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -864,6 +879,7 @@
         });
         const data = await response.json().catch(() => ({}));
         if (response.ok && data.success && data.failed) {
+          document.getElementById("tiktokPublishSuccess")?.classList.remove("visible");
           setTikTokViewButton({ label: "View on TikTok", disabled: true });
           setStatus(`TikTok publish failed for "${activeTikTokName}"`, "error");
           if (publishButton) {
@@ -882,11 +898,37 @@
           const viewUrl = data.tiktokUrl || data.viewUrl || data.tiktokProfileUrl || "https://www.tiktok.com/";
           const viewLabel = data.tiktokUrl ? "View on TikTok" : (data.viewLabel || "Open TikTok");
           setTikTokViewButton({ url: viewUrl, label: viewLabel, disabled: false });
-          setStatus(data.publiclyAvailable && data.tiktokUrl
+          setStatus(data.publiclyAvailable
             ? `Video is live on "${activeTikTokName}"`
-            : `TikTok published the video with restricted visibility. It is not publicly viewable.`, data.publiclyAvailable ? "success" : "working");
-          if (publishButton) publishButton.textContent = data.publiclyAvailable ? "✅ Published" : "Published privately";
+            : `TikTok published the video with restricted visibility. It is not publicly viewable.`, "success");
+          if (publishButton) publishButton.textContent = "✅ Published";
+          showTikTokPublishSuccess(data.publiclyAvailable
+            ? `Video published to "${activeTikTokName}"${data.tiktokUrl ? "." : ". Its link is still being prepared."}`
+            : `TikTok confirmed the post for "${activeTikTokName}". It is not publicly viewable.`);
+          if (!completionNotified) {
+            completionNotified = true;
+            if (data.tiktokUrl && confirm(`Published to "${activeTikTokName}".\n\nOpen the TikTok video now?`)) {
+              window.open(data.tiktokUrl, "_blank");
+            } else if (!data.tiktokUrl) {
+              alert(data.publiclyAvailable
+                ? `Published to "${activeTikTokName}". Its video link is still being prepared.`
+                : `TikTok confirmed the post for "${activeTikTokName}". It is not publicly viewable.`);
+            }
+          }
           return;
+        }
+        if (response.ok && data.success && data.complete) {
+          const message = data.privacyStatus === "PUBLIC_TO_EVERYONE"
+            ? `TikTok confirmed the post for "${activeTikTokName}". Its public link is still being prepared.`
+            : `TikTok confirmed the post for "${activeTikTokName}". It is not publicly viewable.`;
+          showTikTokPublishSuccess(message);
+          setStatus(message, "success");
+          if (publishButton) publishButton.textContent = "✅ Published";
+          if (!completionNotified) {
+            completionNotified = true;
+            alert(message);
+          }
+          continue;
         }
         if (response.ok && data.success) {
           setStatus(`TikTok is processing "${activeTikTokName}"…`, "working");
@@ -895,8 +937,10 @@
         console.warn("TikTok publish status check failed:", error);
       }
     }
-    setTikTokViewButton({ label: "TikTok still processing…", disabled: true });
-    if (publishButton) publishButton.textContent = "TikTok still processing…";
+    if (!completionNotified) {
+      setTikTokViewButton({ label: "TikTok still processing…", disabled: true });
+      if (publishButton) publishButton.textContent = "TikTok still processing…";
+    }
   }
 
   async function waitForFacebookVideo(videoId, pageUrl) {
@@ -913,17 +957,23 @@
           }
         });
         const data = await response.json().catch(() => ({}));
-        if (response.ok && data.success && data.ready && data.videoUrl) {
+        if (response.ok && data.success && data.ready) {
           showFacebookPublishSuccess({
             message: `Video is live on "${activeFacebookName}".`,
-            url: data.videoUrl,
-            label: "View Facebook Video"
+            url: data.videoUrl || data.pageUrl || pageUrl,
+            label: data.videoUrl ? "View Facebook Video" : "Go to Facebook Page"
           });
           setStatus(`Video is live on "${activeFacebookName}"`, "success");
           if (publishButton) publishButton.textContent = "✅ Published";
+          if (data.videoUrl && confirm(`Published to "${activeFacebookName}".\n\nOpen the Facebook video now?`)) {
+            window.open(data.videoUrl, "_blank");
+          } else if (!data.videoUrl) {
+            alert(`Facebook confirmed the Reel was published to "${activeFacebookName}". Open your Page to view it.`);
+          }
           return;
         } else {
           if (response.ok && data.success && data.failed) {
+            hideFacebookPublishSuccess();
             setStatus('Facebook could not publish the Reel. Your publication place was released; review the video and try again.', 'error');
             if (publishButton) {
               publishButton.disabled = false;
@@ -932,6 +982,7 @@
             return;
           }
           if (!response.ok && data.error) {
+            hideFacebookPublishSuccess();
             setStatus(data.error, "error");
             if (publishButton) {
               publishButton.disabled = false;
@@ -1506,6 +1557,7 @@
     try {
       btn.disabled = true;
       btn.textContent = "Uploading video...";
+      document.getElementById("tiktokPublishSuccess")?.classList.remove("visible");
       setTikTokViewButton({ label: "Uploading to TikTok…", disabled: true });
       setStatus(`Uploading to "${activeTikTokName}"…`, "working");
 

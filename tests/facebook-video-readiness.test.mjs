@@ -6,7 +6,7 @@ import {
   normalizeFacebookPermalink
 } from "../facebook-video-readiness.mjs";
 
-test("does not expose a URL when processing completes before a permalink exists", () => {
+test("confirms a published Reel even when its permalink is still unavailable", () => {
   const result = evaluateFacebookVideoReadiness("video-123", {
     id: "video-123",
     status: { video_status: "ready" },
@@ -15,7 +15,7 @@ test("does not expose a URL when processing completes before a permalink exists"
 
   assert.equal(result.processingReady, true);
   assert.equal(result.permalinkReady, false);
-  assert.equal(result.ready, false);
+  assert.equal(result.ready, true);
   assert.equal(result.permalinkUrl, "");
 });
 
