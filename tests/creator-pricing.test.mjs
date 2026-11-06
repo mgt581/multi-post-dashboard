@@ -18,7 +18,7 @@ test("checkout stays off until new Stripe account and webhook are configured", a
   ]);
   assert.match(pricing, /billing\/create-checkout-session/);
   assert.equal((config.match(/STRIPE_CHECKOUT_ENABLED = "false"/g) || []).length, 2);
-  assert.match(worker, /stripeCheckoutEnabled && Boolean\(stripeSecretKey && stripeWebhookSecret/);
+  assert.match(worker, /stripeCheckoutEnabled && Boolean\(stripeCheckoutAccountId && stripeSecretKey && stripeWebhookSecret/);
   assert.match(worker, /entitlement\.access/);
   assert.match(worker, /SELECT 1 AS used FROM billing_play_purchases/);
   assert.match(worker, /key: "pro_plus",\s+label: "Pro"/);
