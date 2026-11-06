@@ -225,6 +225,8 @@
 
     let userScope = null;
     let authUser = null;
+    let sendVerificationEmail = null;
+    let workspaceVerificationRequired = false;
     let nameDialogAction = null;
     let loadedFolders = [];
     const scopedKey = name => `${name}:${userScope}`;
@@ -247,6 +249,25 @@
       const explanation = document.createElement("span");
       explanation.textContent = message;
       notice.append(explanation);
+      if (action === "verification") {
+        const sendButton = document.createElement("button");
+        sendButton.type = "button";
+        sendButton.textContent = "Send verification email";
+        sendButton.style.marginLeft = "10px";
+        sendButton.addEventListener("click", async () => {
+          if (!sendVerificationEmail) return;
+          sendButton.disabled = true;
+          try {
+            await sendVerificationEmail();
+            explanation.textContent = `Verification link sent to ${authUser.email}. Open the link, then tap Retry.`;
+            sendButton.textContent = "Email sent";
+          } catch (error) {
+            explanation.textContent = error?.message || "Could not send the verification email. Please try again.";
+            sendButton.disabled = false;
+          }
+        });
+        notice.append(sendButton);
+      }
       if (action) {
         const retry = document.createElement("button");
         retry.type = "button";
@@ -383,7 +404,9 @@
       });
       if (!res.ok) {
         const detail = await res.json().catch(() => ({}));
-        throw new Error(detail.error || (res.status === 401 ? "Sign in again to load workspaces." : `Could not load workspaces (HTTP ${res.status}).`));
+        const error = new Error(detail.error || (res.status === 401 ? "Sign in again to load workspaces." : `Could not load workspaces (HTTP ${res.status}).`));
+        error.code = detail.code;
+        throw error;
       }
       return res.json();
     }
@@ -420,6 +443,7 @@
         }
 
         loadedFolders = folders;
+        workspaceVerificationRequired = false;
         renderGettingStarted(folders);
         setDashboardNotice("");
         if (folders.length === 0) {
@@ -509,12 +533,20 @@
         });
 
       } catch (err) {
-        container.innerHTML = `<p style="color:#f87171; text-align:center;">Workspaces could not be loaded. Use Retry above.</p>`;
-        setDashboardNotice(err.message || "Could not load workspaces. Check your connection and try again.", "folders");
+        workspaceVerificationRequired = err.code === "EMAIL_VERIFICATION_REQUIRED";
+        container.innerHTML = workspaceVerificationRequired
+          ? `<p style="color:#fda4af; text-align:center;">Verify your email to view your saved workspaces.</p>`
+          : `<p style="color:#f87171; text-align:center;">Workspaces could not be loaded. Use Retry above.</p>`;
+        setDashboardNotice(err.message || "Could not load workspaces. Check your connection and try again.",
+          workspaceVerificationRequired ? "verification" : "folders");
       }
     }
 
     function createNewFolder() {
+      if (workspaceVerificationRequired) {
+        setDashboardNotice("Verify your email and tap Retry before creating a workspace. A workspace you already created may be saved.", "verification");
+        return;
+      }
       nameDialogAction = null;
       const dialog = document.getElementById("createBrandDialog");
       document.getElementById("createBrandTitle").textContent = "Create Workspace";
@@ -583,7 +615,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getAuth, onAuthStateChanged, sendEmailVerification } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
@@ -596,6 +628,10 @@
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
+    sendVerificationEmail = async () => {
+      if (!auth.currentUser) throw new Error("Sign in again to send a verification email.");
+      await sendEmailVerification(auth.currentUser);
+    };
 
     onAuthStateChanged(auth, (user) => {
       if (!user) {
