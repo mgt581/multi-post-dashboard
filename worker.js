@@ -125,6 +125,7 @@ var worker_default = {
     const fbRedirectUri = `${siteBaseUrl}/api/auth/callback/facebook`;
     const tiktokLoginRedirectUri = `${siteBaseUrl}/api/auth/callback/tiktok`;
     const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
+    const MAX_FACEBOOK_VIDEO_SIZE_BYTES = 90 * 1024 * 1024;
     const MAX_IMAGE_SIZE_BYTES = 25 * 1024 * 1024;
     const UPLOAD_CHUNK_SIZE_BYTES = 10 * 1024 * 1024;
     const TOKEN_REFRESH_WINDOW_MS = 5 * 60 * 1e3;
@@ -3070,8 +3071,8 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
-        if (fileSize > MAX_VIDEO_SIZE_BYTES) {
-          return new Response(JSON.stringify({ success: false, error: "Video too large (>500MB)" }), {
+        if (fileSize > MAX_FACEBOOK_VIDEO_SIZE_BYTES) {
+          return new Response(JSON.stringify({ success: false, error: "Facebook Reel exceeds this upload route's 90MB limit. Compress or trim it before uploading." }), {
             status: 400,
             headers: jsonHeaders
           });

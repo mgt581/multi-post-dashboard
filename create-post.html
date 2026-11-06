@@ -633,7 +633,7 @@
         <textarea id="fbDetails" placeholder="Description, tags & keywords"></textarea>
 
         <div class="upload-box">
-          <label for="fbVideoFile">Video file <span class="small" style="color: var(--warning);">(≤500MB)</span></label>
+          <label for="fbVideoFile">Reel video <span class="small" style="color: var(--warning);">(≤90MB)</span></label>
           <input id="fbVideoFile" type="file" accept="video/*" style="margin-bottom: 12px;" />
           <div id="fbFileInfo" style="font-size: 12px; color: var(--muted); margin-bottom: 8px;"></div>
 
@@ -685,6 +685,8 @@
   const uploadApiBase = isPreviewHost
     ? "https://multipost-seo-worker-preview.alexbryant.workers.dev/api"
     : apiBase;
+  // Facebook's local Reel route sends one complete request through Cloudflare.
+  const facebookVideoMaxBytes = 90 * 1024 * 1024;
 
   const statusEl = document.getElementById("status");
   const generateBtn = document.getElementById("generateBtn");
@@ -1379,7 +1381,8 @@
       if (!file) return;
 
       const sizeMB = (file.size / (1024 * 1024)).toFixed(1);
-      const ok = file.size <= 500 * 1024 * 1024;
+      const maxBytes = inputId === "fbVideoFile" ? facebookVideoMaxBytes : 500 * 1024 * 1024;
+      const ok = file.size <= maxBytes;
       const color = ok ? "var(--success)" : "var(--error)";
 
       const strong = document.createElement("strong");
@@ -1390,7 +1393,9 @@
 
       const checkSpan = document.createElement("span");
       checkSpan.style.color = color;
-      checkSpan.textContent = ok ? "✓" : "✕";
+      checkSpan.textContent = ok ? "✓" : inputId === "fbVideoFile"
+        ? "✕ — Facebook uploads must be under 90MB; compress or trim this Reel."
+        : "✕ — Video must be under 500MB.";
       info.appendChild(checkSpan);
     });
   }
@@ -1650,8 +1655,8 @@
       return;
     }
 
-    if (file.size > 500 * 1024 * 1024) {
-      alert("Video too large. Max size is 500MB.");
+    if (file.size > facebookVideoMaxBytes) {
+      alert("Facebook Reel is over the 90MB upload limit. Compress or trim the video, then choose the smaller file.");
       return;
     }
 
@@ -1715,7 +1720,10 @@
 
       const upData = await upRes.json().catch(() => ({}));
       if (!upRes.ok || !upData.success) {
-        throw new Error(upData.error || "Facebook video upload failed");
+        const error = upRes.status === 413
+          ? "Facebook Reel is too large for this upload route (90MB max). Compress or trim it and try again."
+          : upData.error || `Facebook video upload failed (HTTP ${upRes.status}).`;
+        throw new Error(error);
       }
 
       btn.textContent = "Finishing upload...";

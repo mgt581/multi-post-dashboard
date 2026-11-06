@@ -385,6 +385,25 @@ test('TikTok provider failure releases a place; confirmed completion consumes on
   } finally { globalThis.fetch = original; sqlite.close(); }
 });
 
+test('Facebook rejects a 143MB Reel before creating a provider upload session', async () => {
+  const { sqlite, env } = fixture();
+  sqlite.prepare("INSERT INTO folders (id,user_id,name) VALUES (1,'uid-1','Main')").run();
+  const original = globalThis.fetch;
+  globalThis.fetch = async url => {
+    if (String(url).includes('identitytoolkit.googleapis.com')) return Response.json({ users:[{ localId:'uid-1', email:'one@example.com', emailVerified:true }] });
+    throw new Error(`Unexpected provider request: ${url}`);
+  };
+  try {
+    const response = await worker.fetch(new Request('https://test.invalid/api/facebook/init-upload', {
+      method:'POST', headers:{ Authorization:headers.Authorization, folder_id:'1', user_id:'uid-1', 'Content-Type':'application/json' },
+      body:JSON.stringify({ title:'Test Reel', description:'Test', fileSize:143 * 1024 * 1024 })
+    }), env);
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /90MB/);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) count FROM upload_sessions WHERE platform='facebook'").get().count, 0);
+  } finally { globalThis.fetch = original; sqlite.close(); }
+});
+
 test('Facebook Reel submission reserves a place and only confirmed status consumes it once', async () => {
   const { sqlite, env } = fixture();
   sqlite.prepare("INSERT INTO folders (id,user_id,name) VALUES (1,'uid-1','Main')").run();
