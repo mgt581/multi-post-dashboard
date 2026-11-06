@@ -399,7 +399,7 @@ test('Facebook Reel submission reserves a place and only confirmed status consum
       return Response.json({ post_id:'post-1' });
     }
     if (String(url).includes('upload.invalid')) return new Response('', { status:200 });
-    if (String(url).includes('/reel-1?')) return Response.json({ id:'reel-1', published, status: { video_status: published ? 'ready' : 'processing' },
+    if (String(url).includes('/reel-1?')) return Response.json({ id:'reel-1', published:false, status: { video_status: published ? 'ready' : 'processing', publishing_phase: { status: published ? 'complete' : 'in_progress' } },
       permalink_url: '' });
     throw new Error(`Unexpected request: ${url}`);
   };
@@ -417,7 +417,7 @@ test('Facebook Reel submission reserves a place and only confirmed status consum
     published = true;
     const confirmed = await (await status()).json();
     assert.equal(confirmed.ready, true);
-    assert.equal(confirmed.videoUrl, '', 'confirmed publication need not have a permalink yet');
+    assert.equal(confirmed.videoUrl, '', 'completed publishing phase need not have a permalink or published flag yet');
     assert.equal(sqlite.prepare("SELECT COUNT(*) count FROM billing_publish_slots WHERE status='completed'").get().count, 1);
     assert.equal((await (await status()).status), 404, 'status replay must not count again');
     assert.equal(sqlite.prepare("SELECT COUNT(*) count FROM billing_usage_events WHERE event_type='publish_metered'").get().count, 1);

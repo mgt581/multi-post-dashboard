@@ -19,6 +19,27 @@ test("confirms a published Reel even when its permalink is still unavailable", (
   assert.equal(result.permalinkUrl, "");
 });
 
+test("confirms Facebook's completed publishing phase when the published field lags", () => {
+  const result = evaluateFacebookVideoReadiness("video-123", {
+    id: "video-123",
+    status: { video_status: "processing", publishing_phase: { status: "complete" } },
+    published: false
+  });
+
+  assert.equal(result.ready, true);
+  assert.equal(result.published, false);
+});
+
+test("a processed video awaiting Facebook's publishing phase remains pending", () => {
+  const result = evaluateFacebookVideoReadiness("video-123", {
+    id: "video-123",
+    status: { video_status: "ready", publishing_phase: { status: "in_progress" } },
+    published: false
+  });
+
+  assert.equal(result.ready, false);
+});
+
 test("requires the returned Graph object to match the uploaded video", () => {
   const result = evaluateFacebookVideoReadiness("video-123", {
     id: "another-video",
