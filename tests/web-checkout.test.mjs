@@ -31,6 +31,7 @@ function checkoutRequest(extra = {}) {
 function testEnv(DB, extra = {}) {
   return {
     DB, WEB_BILLING_ENABLED: 'true', STRIPE_CHECKOUT_ENABLED: 'true',
+    STRIPE_CHECKOUT_ACCOUNT_ID: 'acct_test_multipost',
     STRIPE_SECRET_KEY: 'sk_test_example', STRIPE_WEBHOOK_SECRET: 'whsec_example',
     STRIPE_PRICE_PRO_MONTHLY: 'price_test_month', STRIPE_PRICE_PRO_YEARLY: 'price_test_year',
     ...extra
@@ -86,6 +87,8 @@ test('a previous Play purchase cannot receive another seven-day trial on web', a
   let checkoutBody = null;
   globalThis.fetch = async (url, init) => {
     if (String(url).includes('identitytoolkit.googleapis.com')) return Response.json({ users: [{ localId: 'uid-123', email: 'user@example.com', emailVerified: true }] });
+    if (String(url).endsWith('/v1/account')) return Response.json({ id: 'acct_test_multipost' });
+    if (String(url).endsWith('/v1/prices/price_test_month')) return Response.json({ active: true, currency: 'gbp', unit_amount: 999, recurring: { interval: 'month' } });
     if (String(url).endsWith('/v1/customers')) return Response.json({ id: 'cus_test' });
     if (String(url).endsWith('/v1/checkout/sessions')) {
       checkoutBody = new URLSearchParams(init.body);
@@ -99,5 +102,42 @@ test('a previous Play purchase cannot receive another seven-day trial on web', a
     assert.equal(checkoutBody.get('subscription_data[trial_period_days]'), null);
     assert.equal(checkoutBody.get('success_url'), 'https://multipostapp.co.uk/settings.html?billing=success');
     assert.equal(checkoutBody.get('line_items[0][price]'), 'price_test_month');
+  } finally { globalThis.fetch = originalFetch; sqlite.close(); }
+});
+
+test('checkout rejects a Stripe key for another account before creating a customer', async () => {
+  const { sqlite, DB } = createDb();
+  const originalFetch = globalThis.fetch;
+  let customerCalls = 0;
+  globalThis.fetch = async url => {
+    if (String(url).includes('identitytoolkit.googleapis.com')) return Response.json({ users: [{ localId: 'uid-123', email: 'user@example.com', emailVerified: true }] });
+    if (String(url).endsWith('/v1/account')) return Response.json({ id: 'acct_old_photo_studio' });
+    customerCalls++;
+    throw new Error('No price or customer should be requested');
+  };
+  try {
+    const result = await worker.fetch(checkoutRequest(), testEnv(DB));
+    assert.equal(result.status, 503);
+    assert.match((await result.json()).error, /account does not match/);
+    assert.equal(customerCalls, 0);
+  } finally { globalThis.fetch = originalFetch; sqlite.close(); }
+});
+
+test('checkout rejects an old £7.99 price when the page shows £9.99', async () => {
+  const { sqlite, DB } = createDb();
+  const originalFetch = globalThis.fetch;
+  let customerCalls = 0;
+  globalThis.fetch = async url => {
+    if (String(url).includes('identitytoolkit.googleapis.com')) return Response.json({ users: [{ localId: 'uid-123', email: 'user@example.com', emailVerified: true }] });
+    if (String(url).endsWith('/v1/account')) return Response.json({ id: 'acct_test_multipost' });
+    if (String(url).includes('/v1/prices/')) return Response.json({ active: true, currency: 'gbp', unit_amount: 799, recurring: { interval: 'month' } });
+    customerCalls++;
+    throw new Error('No customer should be created');
+  };
+  try {
+    const result = await worker.fetch(checkoutRequest(), testEnv(DB));
+    assert.equal(result.status, 503);
+    assert.match((await result.json()).error, /price does not match/);
+    assert.equal(customerCalls, 0);
   } finally { globalThis.fetch = originalFetch; sqlite.close(); }
 });

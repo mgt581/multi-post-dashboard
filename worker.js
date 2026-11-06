@@ -512,6 +512,7 @@ Follow for daily trending content! \u{1F44F}
     // Separate purchase readiness from entitlement enforcement. Existing subscribers
     // keep access while a new Stripe account is configured and verified.
     const stripeCheckoutEnabled = String(env.STRIPE_CHECKOUT_ENABLED || "false").toLowerCase() === "true";
+    const stripeCheckoutAccountId = String(env.STRIPE_CHECKOUT_ACCOUNT_ID || "").trim();
     const ownerUserIds = parseCsvSet(env.BILLING_OWNER_USER_IDS || "");
     const ownerEmails = parseCsvSet(env.BILLING_OWNER_EMAILS || "");
     const getFirebaseIdentity = /* @__PURE__ */ __name(async (request2) => {
@@ -1350,7 +1351,7 @@ Follow for daily trending content! \u{1F44F}
         const priceCatalog = getPriceCatalog();
         return new Response(JSON.stringify({
           success: true,
-          checkout_enabled: webBillingEnabled && stripeCheckoutEnabled && Boolean(stripeSecretKey && stripeWebhookSecret && priceCatalog.pro.monthly && priceCatalog.pro.yearly),
+          checkout_enabled: webBillingEnabled && stripeCheckoutEnabled && Boolean(stripeCheckoutAccountId && stripeSecretKey && stripeWebhookSecret && priceCatalog.pro.monthly && priceCatalog.pro.yearly),
           plans: {
             pro: {
               key: "pro",
@@ -1542,12 +1543,12 @@ Follow for daily trending content! \u{1F44F}
         if (!webBillingEnabled) {
           return new Response(JSON.stringify({ success: false, error: "Web billing is disabled" }), { status: 400, headers: jsonHeaders });
         }
-        if (!stripeCheckoutEnabled || !stripeSecretKey || !stripeWebhookSecret) {
+        if (!stripeCheckoutEnabled || !stripeCheckoutAccountId || !stripeSecretKey || !stripeWebhookSecret) {
           return new Response(JSON.stringify({ success: false, error: "Web checkout is being prepared" }), { status: 503, headers: jsonHeaders });
         }
         const requestedPlan = String(body?.plan_key || "pro").trim().toLowerCase();
         const requestedInterval = String(body?.billing_interval || "monthly").trim().toLowerCase();
-        if (!PLAN_LIMITS[requestedPlan]) {
+        if (requestedPlan !== "pro") {
           return new Response(JSON.stringify({ success: false, error: "Invalid plan selection" }), { status: 400, headers: jsonHeaders });
         }
         if (!["monthly", "yearly"].includes(requestedInterval)) {
@@ -1575,6 +1576,16 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify({ success: false, error: "An existing subscription is linked to this account. Manage it in Profile before starting another." }), { status: 409, headers: jsonHeaders });
         }
         const playHistory = await env.DB.prepare("SELECT 1 AS used FROM billing_play_purchases WHERE user_id = ? LIMIT 1").bind(authenticatedIdentity.userId).first();
+        const stripeAccount = await stripeApi("/v1/account", "GET");
+        if (stripeAccount?.id !== stripeCheckoutAccountId) {
+          return new Response(JSON.stringify({ success: false, error: "Stripe checkout account does not match the configured MultiPost account" }), { status: 503, headers: jsonHeaders });
+        }
+        const stripePrice = await stripeApi(`/v1/prices/${encodeURIComponent(chosenPriceId)}`, "GET");
+        const expectedAmount = requestedInterval === "monthly" ? 999 : 7999;
+        if (stripePrice?.active !== true || stripePrice?.currency !== "gbp" || stripePrice?.unit_amount !== expectedAmount ||
+            stripePrice?.recurring?.interval !== (requestedInterval === "monthly" ? "month" : "year")) {
+          return new Response(JSON.stringify({ success: false, error: "Stripe price does not match the displayed MultiPost plan" }), { status: 503, headers: jsonHeaders });
+        }
         let stripeCustomerId = await ensureStripeCustomerForUser(userId, userEmail, existing?.stripe_customer_id || null);
         const trialEligible = Number(existing?.trial_used || 0) !== 1 && !playHistory && !existing?.stripe_subscription_id;
         const payload = {
