@@ -124,6 +124,96 @@ test('backend checks Google with a service account and acknowledges only a verif
   assert.equal(calls.filter(call => call.url.endsWith(':acknowledge')).length, 1);
 });
 
+test('Google API and acknowledgement failures expose only safe status codes', async () => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const serviceAccountJson = JSON.stringify({ type: 'service_account', client_email: 'test@example.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) });
+  const token = 'secret-purchase-token';
+  for (const stage of ['GET', 'ACK']) {
+    const fetcher = async url => {
+      if (url.endsWith('/token')) return Response.json({ access_token: 'google-access-token' });
+      if ((stage === 'GET' && url.includes('/subscriptionsv2/')) || (stage === 'ACK' && url.endsWith(':acknowledge'))) {
+        return Response.json({ error: { status: 'PERMISSION_DENIED', errors: [{ reason: 'userInsufficientPermission' }], message: `sensitive ${token}` } }, { status: 403 });
+      }
+      return Response.json({ ...purchase('SUBSCRIPTION_STATE_ACTIVE', '2026-11-08T12:00:00Z'), acknowledgementState: 'ACKNOWLEDGEMENT_STATE_PENDING' });
+    };
+    await assert.rejects(verifyPlayPurchase({ token, firebaseUid: 'uid-123', serviceAccountJson, fetcher, now }), error => {
+      assert.equal(error.code, `PLAY_${stage}_HTTP_403`);
+      assert.equal(error.httpStatus, 403);
+      assert.equal(error.googleStatus, 'PERMISSION_DENIED');
+      assert.equal(error.googleReason, 'userInsufficientPermission');
+      assert.doesNotMatch(String(error), /secret-purchase-token|sensitive/);
+      return true;
+    });
+  }
+});
+
+test('Google free-form error fields cannot appear in diagnostic status', async () => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const serviceAccountJson = JSON.stringify({ type: 'service_account', client_email: 'test@example.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) });
+  const fetcher = async url => url.endsWith('/token')
+    ? Response.json({ access_token: 'google-access-token' })
+    : Response.json({ error: { status: 'SECRET_PURCHASE_TOKEN', errors: [{ reason: 'privatePurchaseToken' }], message: 'private account data' } }, { status: 403 });
+  await assert.rejects(verifyPlayPurchase({ token: 'secret', firebaseUid: 'uid-123', serviceAccountJson, fetcher, now }), error => {
+    assert.equal(error.code, 'PLAY_GET_HTTP_403');
+    assert.equal(error.googleStatus, null);
+    assert.equal(error.googleReason, null);
+    assert.doesNotMatch(JSON.stringify({ code: error.code, status: error.googleStatus }), /SECRET_PURCHASE_TOKEN|private account data/);
+    return true;
+  });
+});
+
+test('an expired Play response remains inactive without attempting acknowledgement', async () => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const serviceAccountJson = JSON.stringify({ type: 'service_account', client_email: 'test@example.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) });
+  let ackCount = 0;
+  const fetcher = async url => {
+    if (url.endsWith('/token')) return Response.json({ access_token: 'google-access-token' });
+    if (url.endsWith(':acknowledge')) { ackCount++; return new Response('', { status: 200 }); }
+    return Response.json({ ...purchase('SUBSCRIPTION_STATE_EXPIRED', '2026-10-31T12:00:00Z'), acknowledgementState: 'ACKNOWLEDGEMENT_STATE_PENDING' });
+  };
+  const verified = await verifyPlayPurchase({ token: 'expired-token', firebaseUid: 'uid-123', serviceAccountJson, fetcher, now });
+  assert.equal(verified.access, false);
+  assert.equal(verified.state, 'SUBSCRIPTION_STATE_EXPIRED');
+  assert.equal(ackCount, 0);
+});
+
+test('purchase endpoint logs a correlated safe code without recording credentials or tokens', async () => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const originalFetch = globalThis.fetch;
+  const originalWarn = console.warn;
+  const warnings = [];
+  try {
+    console.warn = (...args) => warnings.push(args);
+    globalThis.fetch = async url => {
+      if (String(url).includes('identitytoolkit.googleapis.com')) return Response.json({ users: [{ localId: 'uid-123', email: 'private@example.com', emailVerified: true }] });
+      if (String(url).endsWith('/token')) return Response.json({ access_token: 'secret-access-token' });
+      if (String(url).includes('/subscriptionsv2/')) {
+        return Response.json({ error: { status: 'PERMISSION_DENIED', errors: [{ reason: 'userInsufficientPermission' }], message: 'secret-purchase-token' } }, { status: 403 });
+      }
+      throw new Error('Unexpected request');
+    };
+    const response = await worker.fetch(new Request('https://example.test/api/billing/play-purchase', {
+      method: 'POST', headers: { Authorization: 'Bearer firebase-id-token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ purchase_token: 'secret-purchase-token' })
+    }), { PLAY_SERVICE_ACCOUNT_JSON: JSON.stringify({ type: 'service_account', client_email: 'test@example.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) }),
+      PLAY_TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 19).toString('base64') });
+    const body = await response.json();
+    assert.equal(response.status, 400);
+    assert.equal(body.code, 'PLAY_GET_HTTP_403');
+    assert.match(body.diagnostic_id, /^[0-9a-f-]{36}$/);
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0][1].diagnostic_id, body.diagnostic_id);
+    assert.equal(warnings[0][1].stage, 'verify');
+    assert.equal(warnings[0][1].google_http_status, 403);
+    assert.equal(warnings[0][1].google_status, 'PERMISSION_DENIED');
+    assert.equal(warnings[0][1].google_reason, 'userInsufficientPermission');
+    assert.doesNotMatch(JSON.stringify({ body, warnings }), /secret-purchase-token|secret-access-token|firebase-id-token|private@example.com|PRIVATE_KEY/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.warn = originalWarn;
+  }
+});
+
 test('authenticated Play purchase grants cross-platform access; a spoofed Android header grants none', async () => {
   const db = new DatabaseSync(':memory:');
   db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));

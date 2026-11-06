@@ -4,7 +4,7 @@ import { evaluateTikTokPublishStatus } from "./tiktok-publish-status.mjs";
 import { buildTikTokChunkProfiles } from "./tiktok-upload-chunks.mjs";
 import { FACEBOOK_PAGE_LINK_SCOPE } from "./facebook-oauth.mjs";
 import { generateSeo, normalizeSeoInput } from "./services/seoEngine.mjs";
-import { verifyPlayPurchase, sha256Hex, encryptPurchaseToken, decryptPurchaseToken } from "./play-subscriptions.mjs";
+import { verifyPlayPurchase, PlayVerificationError, sha256Hex, encryptPurchaseToken, decryptPurchaseToken } from "./play-subscriptions.mjs";
 import { reconcilePendingPublications } from "./publication-reconciliation.mjs";
 
 var __defProp = Object.defineProperty;
@@ -1386,9 +1386,11 @@ Follow for daily trending content! \u{1F44F}
         if (!env.PLAY_SERVICE_ACCOUNT_JSON || !env.PLAY_TOKEN_ENCRYPTION_KEY) {
           return Response.json({ success: false, error: "Play verification is not configured" }, { status: 503, headers: corsHeaders });
         }
+        let playPurchaseStage = "verify";
         try {
           // Only Google's API response and the authenticated Firebase UID establish access.
           const verified = await verifyPlayPurchase({ token, firebaseUid: identity.userId, serviceAccountJson: env.PLAY_SERVICE_ACCOUNT_JSON });
+          playPurchaseStage = "persist";
           const tokenHash = await sha256Hex(token);
           const existing = await env.DB.prepare("SELECT user_id FROM billing_play_token_claims WHERE token_hash = ? LIMIT 1").bind(tokenHash).first();
           if (existing && existing.user_id !== identity.userId) {
@@ -1428,8 +1430,16 @@ Follow for daily trending content! \u{1F44F}
             return Response.json({ success: false, error: "Subscription changed while restoring; retry with the current purchase" }, { status: 409, headers: corsHeaders });
           }
           return Response.json({ success: true, access: verified.access, status: verified.state, expires_at: verified.expiry, workspace_quantity: verified.workspaceQuantity }, { headers: corsHeaders });
-        } catch (_) {
-          return Response.json({ success: false, error: "Google Play purchase could not be verified" }, { status: 400, headers: corsHeaders });
+        } catch (error) {
+          const code = error instanceof PlayVerificationError ? error.code
+            : playPurchaseStage === "persist" ? "PLAY_PERSISTENCE_FAILED" : "PLAY_VERIFICATION_FAILED";
+          const diagnosticId = crypto.randomUUID();
+          console.warn("Play purchase verification failed", { diagnostic_id: diagnosticId, stage: playPurchaseStage, code,
+            google_http_status: error instanceof PlayVerificationError ? error.httpStatus : null,
+            google_status: error instanceof PlayVerificationError ? error.googleStatus : null,
+            google_reason: error instanceof PlayVerificationError ? error.googleReason : null });
+          return Response.json({ success: false, error: "Google Play purchase could not be verified", code, diagnostic_id: diagnosticId },
+            { status: playPurchaseStage === "persist" ? 503 : 400, headers: corsHeaders });
         }
       }
       if (url.pathname === "/api/billing/status" && request.method === "GET") {
