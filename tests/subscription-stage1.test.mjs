@@ -20,11 +20,9 @@ test("Stage 1 paywall displays the approved planned catalogue", () => {
   ]) assert.match(pricing, new RegExp(copy.replace(/[.*+?^$()|[\]\\]/g, "\\$&")));
 });
 
-test("Stage 1 paywall cannot initiate a transaction", () => {
-  assert.match(pricing, /display-only/i);
-  assert.match(pricing, /Purchases coming after testing/);
-  assert.doesNotMatch(pricing, /create-checkout-session/);
-  assert.doesNotMatch(pricing, /billing\/create-checkout-session/);
+test("web checkout is gated and uses the authenticated server endpoint", () => {
+  assert.match(pricing, /checkoutReady = response\.ok && result\.checkout_enabled === true/);
+  assert.match(pricing, /billing\/create-checkout-session/);
+  assert.match(pricing, /plan_key: "pro"/);
   assert.doesNotMatch(pricing, /buy\.stripe\.com/);
-  assert.doesNotMatch(pricing, /firebase-app\.js/);
 });

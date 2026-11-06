@@ -69,11 +69,13 @@ test("publishing pages use the authenticated server entitlement for owner mode",
   assert.match(worker, /identityMatchesBillingUser/);
 });
 
-test("pricing stays display-only until authenticated checkout is implemented", async () => {
+test("web pricing uses authenticated checkout only after the server reports readiness", async () => {
   const source = await readFile(new URL("../pricing.html", import.meta.url), "utf8");
-  assert.doesNotMatch(source, /billing\/create-checkout-session|auth\.currentUser\?\.getIdToken\(\)/);
-  assert.match(source, /This page is display-only/);
-  assert.match(source, /disabled>Purchases coming after testing/);
+  assert.match(source, /billing\/create-checkout-session/);
+  assert.match(source, /auth\.currentUser\.getIdToken\(\)/);
+  assert.match(source, /result\.checkout_enabled === true/);
+  assert.match(source, /billingActive/);
+  assert.match(source, /Subscribe in Google Play/);
 });
 
 test("profile uses the isolated preview billing service and shared Stripe countdown", async () => {

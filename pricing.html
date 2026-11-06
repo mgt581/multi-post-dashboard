@@ -43,7 +43,8 @@
     .saving { min-height:19px; color:#bbf7d0; font-size:12px; font-weight:800; }
     .features { margin:20px 0 0; padding:0; list-style:none; display:grid; gap:11px; color:#dce8f5; font-size:13px; }
     .features li::before { content:"✓"; display:inline-block; width:21px; color:var(--green); font-weight:800; }
-    .stage-button { width:100%; margin-top:23px; border:0; border-radius:11px; padding:12px; background:rgba(148,163,184,.16); color:#cbd5e1; font:inherit; font-size:12px; font-weight:800; cursor:not-allowed; }
+    .stage-button { width:100%; margin-top:23px; border:0; border-radius:11px; padding:12px; background:linear-gradient(110deg,var(--violet),var(--blue)); color:white; font:inherit; font-size:13px; font-weight:800; cursor:pointer; }
+    .stage-button:disabled { background:rgba(148,163,184,.16); color:#cbd5e1; cursor:not-allowed; }
     .allowance { margin-top:19px; padding:18px; border:1px solid var(--border); border-radius:17px; background:rgba(15, 31, 51, .78); }
     .allowance h2 { margin:0 0 12px; font-size:16px; }
     .allowance-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; }
@@ -69,13 +70,12 @@
     <section class="hero">
       <div class="eyebrow">Create once. Publish everywhere.</div>
       <h1>One workspace. Your next post.</h1>
-      <p class="lead">Compare the proposed plans. Eligible new subscribers may see a seven-day trial in Google Play; the final price and first payment date appear before purchase.</p>
+      <p class="lead">Compare MultiPost Pro plans. Eligible new subscribers can start a seven-day trial. Stripe shows the exact price and first payment date before web checkout; Google Play handles Android purchases.</p>
     </section>
 
-    <!-- Display-only while the complete billing release is tested. -->
     <div class="notice" role="status">
       <span aria-hidden="true">◈</span>
-      <div><strong>Plans are being prepared.</strong> This page is display-only while subscription and usage controls are tested. No purchase can be started here.</div>
+      <div id="checkoutNotice"><strong>Checking payment availability…</strong></div>
     </div>
 
     <section class="plans" aria-label="Subscription plans">
@@ -91,7 +91,7 @@
           <li>150 successful platform publications every month</li>
           <li>Manual editing is always free</li>
         </ul>
-        <button class="stage-button" type="button" disabled>Purchases coming after testing</button>
+        <button class="stage-button" type="button" data-interval="monthly" disabled>Checking availability…</button>
       </article>
 
       <article class="plan featured">
@@ -105,7 +105,7 @@
           <li>150 AI credits and 150 successful platform publications every month, including on annual billing</li>
           <li>Manual editing is always free</li>
         </ul>
-        <button class="stage-button" type="button" disabled>Purchases coming after testing</button>
+        <button class="stage-button" type="button" data-interval="yearly" disabled>Checking availability…</button>
       </article>
     </section>
 
@@ -129,7 +129,81 @@
       </article>
     </section>
 
-    <p class="fineprint">A platform publication is one confirmed successful delivery to YouTube, Facebook Page or TikTok. Failed publishing attempts do not use publication allowance. Trial, subscription, workspace and credit access will be enforced server-side before checkout is enabled.</p>
+    <p class="fineprint">A platform publication is one confirmed successful delivery to YouTube, Facebook Page or TikTok. Failed publishing attempts do not use publication allowance. Subscriptions renew automatically unless cancelled in the relevant billing provider. Your eligibility and the first payment date are shown at checkout.</p>
   </main>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
+      authDomain: "multi-post-daefc.firebaseapp.com",
+      projectId: "multi-post-daefc",
+      storageBucket: "multi-post-daefc.appspot.com",
+      messagingSenderId: "1099160429576",
+      appId: "1:1099160429576:web:6c31651e46d6ad1cd35dbd"
+    };
+    const auth = getAuth(initializeApp(firebaseConfig));
+    const host = location.hostname;
+    const apiBase = host === "multipostapp.co.uk" || host === "www.multipostapp.co.uk"
+      ? "/api" : "https://multipost-seo-worker-preview.alexbryant.workers.dev/api";
+    const isAndroid = /MultiPostAndroid\//i.test(navigator.userAgent || "") ||
+      (localStorage.getItem("app_platform") || "").toLowerCase() === "android";
+    const buttons = [...document.querySelectorAll("[data-interval]")];
+    const notice = document.getElementById("checkoutNotice");
+    let checkoutReady = false;
+    let billingActive = false;
+    let busy = false;
+    const setNotice = message => { notice.textContent = message; };
+    const render = () => {
+      for (const button of buttons) {
+        button.disabled = busy || isAndroid || !checkoutReady || billingActive;
+        button.textContent = isAndroid ? "Subscribe in Google Play" : billingActive ? "Subscription active — manage in Profile"
+          : !checkoutReady ? "Web payments being prepared" : !auth.currentUser ? "Sign in to subscribe"
+          : busy ? "Opening secure checkout…" : `Start ${button.dataset.interval} plan`;
+      }
+    };
+    async function authenticatedFetch(path, options = {}) {
+      const token = await auth.currentUser.getIdToken();
+      const headers = new Headers(options.headers || {});
+      headers.set("Authorization", `Bearer ${token}`);
+      return fetch(`${apiBase}${path}`, { ...options, headers });
+    }
+    async function updateBilling(user) {
+      if (!user || !checkoutReady || isAndroid) return;
+      const response = await authenticatedFetch(`/billing/status?user_id=${encodeURIComponent(user.uid)}&client_platform=web`);
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || "Could not verify your billing status");
+      billingActive = !!result.billing?.access;
+      setNotice(billingActive ? "Your subscription is already active. Use Profile to manage it."
+        : "Choose a plan to review your seven-day trial eligibility, price and first payment date in Stripe Checkout.");
+      render();
+    }
+    onAuthStateChanged(auth, async user => {
+      if (isAndroid) { setNotice("Android subscriptions are available in the app under Profile through Google Play."); render(); return; }
+      try {
+        const response = await fetch(`${apiBase}/billing/plans`);
+        const result = await response.json();
+        checkoutReady = response.ok && result.checkout_enabled === true;
+        if (!checkoutReady) { setNotice("Web payments are being prepared. Your existing subscription remains available in Profile."); render(); return; }
+        if (!user) { setNotice("Sign in to MultiPost, then return here to choose a plan."); render(); return; }
+        await updateBilling(user);
+      } catch (error) { checkoutReady = false; setNotice(error.message || "Could not check payment availability. Try again later."); render(); }
+    });
+    for (const button of buttons) button.addEventListener("click", async () => {
+      if (busy || isAndroid || !checkoutReady || billingActive) return;
+      if (!auth.currentUser) { window.location.assign("signin.html"); return; }
+      busy = true; render();
+      try {
+        const response = await authenticatedFetch("/billing/create-checkout-session", {
+          method: "POST", headers: { "Content-Type": "application/json", client_platform: "web" },
+          body: JSON.stringify({ user_id: auth.currentUser.uid, plan_key: "pro", billing_interval: button.dataset.interval, client_platform: "web" })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success || !/^https:\/\/checkout\.stripe\.com\//.test(result.url || "")) throw new Error(result.error || "Could not start checkout");
+        window.location.assign(result.url);
+      } catch (error) { setNotice(error.message || "Could not start checkout. Try again."); busy = false; render(); }
+    });
+  </script>
 </body>
 </html>
