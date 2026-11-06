@@ -28,7 +28,10 @@ export function evaluateFacebookVideoReadiness(videoId, video) {
   const permalinkReady = Boolean(permalinkUrl);
 
   return {
-    ready: videoMatches && published && processingReady && permalinkReady && !failed,
+    // Graph can mark a Reel published before it supplies permalink_url.
+    // The matching video id, published flag and completed processing phase
+    // confirm the post without requiring its public link to be ready.
+    ready: videoMatches && published && processingReady && !failed,
     failed: videoMatches && failed,
     published,
     processingReady,
