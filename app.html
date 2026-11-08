@@ -161,6 +161,12 @@
       <button id="cancelBrandButton" type="button" class="btn" style="margin-top:12px;background:#334155;" onclick="document.getElementById('createBrandDialog').close()">Cancel</button>
     </form>
   </dialog>
+  <dialog id="workspaceLimitDialog" aria-labelledby="workspaceLimitTitle" style="max-width:440px;width:calc(100% - 32px);background:#0b1829;color:#e2e8f0;border:1px solid #334155;border-radius:16px;padding:24px;">
+    <h2 id="workspaceLimitTitle">Make room for another workspace</h2>
+    <p id="workspaceLimitDescription" style="line-height:1.5;">Your Pro subscription includes one workspace. Review the extra workspace options in Profile.</p>
+    <a class="btn" href="settings.html#workspace-play" style="display:block;text-align:center;text-decoration:none;">Check price &amp; availability</a>
+    <button type="button" class="btn" style="margin-top:12px;background:#334155;" onclick="document.getElementById('workspaceLimitDialog').close()">Not now</button>
+  </dialog>
   <div class="page">
     <header>
       <div class="greeting">
@@ -229,6 +235,7 @@
     let workspaceVerificationRequired = false;
     let nameDialogAction = null;
     let loadedFolders = [];
+    let workspaceBilling = null;
     const scopedKey = name => `${name}:${userScope}`;
 
     function escapeHtml(value) {
@@ -308,6 +315,7 @@
         const result = await response.json();
         if (!response.ok || !result.success) throw new Error(result.error || "Could not verify the subscription.");
         const billing = result.billing || {};
+        workspaceBilling = billing;
         if (!billing.enabled) summary.textContent = "Subscription checkout is being prepared. Check Profile for current access.";
         else if (billing.owner_mode) summary.textContent = "Owner account: access enabled.";
         else if (billing.access && billing.reason === "play_verified") {
@@ -324,6 +332,7 @@
         else if (billing.status === "canceled" || billing.status === "expired") summary.textContent = "Your subscription has ended. Open Profile to review available plans or restore a purchase.";
         else summary.textContent = "A subscription is needed to create workspaces and use AI or publishing. Open Profile to see available plans and any eligible trial.";
       } catch (error) {
+        workspaceBilling = null;
         summary.textContent = "Subscription status could not be checked. Your workspaces may still be visible.";
         setDashboardNotice(error.message || "Could not check billing. Please retry.", "billing");
       }
@@ -547,6 +556,10 @@
         setDashboardNotice("Verify your email and tap Retry before creating a workspace. A workspace you already created may be saved.", "verification");
         return;
       }
+      if (isPlayWorkspaceLimitReached()) {
+        showWorkspaceLimit();
+        return;
+      }
       nameDialogAction = null;
       const dialog = document.getElementById("createBrandDialog");
       document.getElementById("createBrandTitle").textContent = "Create Workspace";
@@ -554,6 +567,20 @@
       document.getElementById("brandName").value = "";
       document.getElementById("createBrandError").textContent = "";
       dialog.showModal();
+    }
+
+    function isPlayWorkspaceLimitReached() {
+      return /MultiPostAndroid\//i.test(navigator.userAgent || "") &&
+        workspaceBilling?.reason === "play_verified" && workspaceBilling.access &&
+        Number.isInteger(workspaceBilling.workspace_allowance) &&
+        loadedFolders.length >= workspaceBilling.workspace_allowance;
+    }
+
+    function showWorkspaceLimit() {
+      const allowance = workspaceBilling?.workspace_allowance || 1;
+      document.getElementById("workspaceLimitDescription").textContent =
+        `Your Google Play Pro subscription includes ${allowance} workspace${allowance === 1 ? "" : "s"}, and you're using ${loadedFolders.length}. See the price for one more in Profile; Google Play will show the exact amount and renewal date before you confirm.`;
+      document.getElementById("workspaceLimitDialog").showModal();
     }
 
     function openRenameFolder(id, owner, name) {
@@ -590,7 +617,15 @@
           body: JSON.stringify(payload)
         });
         const data = await res.json();
-        if (!res.ok || data.success === false) throw new Error(data.error || "Could not save this workspace name. Please try again.");
+        if (!res.ok || data.success === false) {
+          if (!nameDialogAction && res.status === 429 && /MultiPostAndroid\//i.test(navigator.userAgent || "")) {
+            document.getElementById("createBrandDialog").close();
+            await loadAccountStatus();
+            showWorkspaceLimit();
+            return;
+          }
+          throw new Error(data.error || "Could not save this workspace name. Please try again.");
+        }
         document.getElementById("createBrandDialog").close();
         nameDialogAction = null;
         await loadFolders();

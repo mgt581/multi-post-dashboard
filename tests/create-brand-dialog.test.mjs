@@ -5,8 +5,8 @@ import vm from 'node:vm';
 const html=readFileSync(new URL('../app.html',import.meta.url),'utf8');
 function setup(fetch) {
   const listeners={};
-  const elements=Object.fromEntries(['createBrandDialog','createBrandTitle','brandName','createBrandError','saveBrandButton','cancelBrandButton'].map(id=>[id,{value:'',disabled:false,textContent:'',open:false,showModal(){this.open=true;},close(){this.open=false;},addEventListener(name,fn){listeners[name]=fn;}}]));
-  const context=vm.createContext({document:{getElementById:id=>elements[id]},window:{location:{hostname:'multipostapp.co.uk'}},fetch,prompt(){throw new Error('prompt() is not supported.');}});
+  const elements=Object.fromEntries(['createBrandDialog','createBrandTitle','brandName','createBrandError','saveBrandButton','cancelBrandButton','workspaceLimitDialog','workspaceLimitDescription'].map(id=>[id,{value:'',disabled:false,textContent:'',open:false,showModal(){this.open=true;},close(){this.open=false;},addEventListener(name,fn){listeners[name]=fn;}}]));
+  const context=vm.createContext({document:{getElementById:id=>elements[id]},window:{location:{hostname:'multipostapp.co.uk'}},navigator:{userAgent:'Desktop Chrome'},fetch,prompt(){throw new Error('prompt() is not supported.');}});
   vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],context);
   vm.runInContext('userScope="owner"; let reloadCount=0; loadFolders=async()=>{reloadCount++}',context);
   return {elements,context,listeners,run:code=>vm.runInContext(code,context)};
@@ -50,5 +50,15 @@ test('unverified email blocks another workspace creation while the existing list
   let requests=0;const f=setup(()=>{requests++;});
   f.run('workspaceVerificationRequired=true; setDashboardNotice=()=>{}; createNewFolder()');
   assert.equal(f.elements.createBrandDialog.open,false);
+  assert.equal(requests,0);
+});
+test('Android Play user at the workspace limit sees purchase options before the creation form opens',()=>{
+  let requests=0;const f=setup(()=>{requests++;});
+  f.context.navigator.userAgent='MultiPostAndroid/1.9.1';
+  f.run('workspaceBilling={reason:"play_verified",access:true,workspace_allowance:1}; loadedFolders=[{id:1}]');
+  f.run('createNewFolder()');
+  assert.equal(f.elements.workspaceLimitDialog.open,true);
+  assert.equal(f.elements.createBrandDialog.open,false);
+  assert.match(f.elements.workspaceLimitDescription.textContent,/1 workspace.*using 1.*price for one more/i);
   assert.equal(requests,0);
 });
