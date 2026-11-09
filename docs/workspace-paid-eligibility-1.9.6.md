@@ -19,8 +19,10 @@ This source change has **not** been uploaded to Google Play. Version 1.9.5
   native checkout rejects stale or repeated carts. Workspace rows are retained
   and locked, rather than deleted, when entitlement shrinks.
 - Monthly and yearly add-ons use their existing matching Play base plans. The
-  UK price verified for product 01 is £4.99/month or £39.99/year; no price was
-  changed. Google requires bundled items to share a billing period.
+  UK prices verified for all nine purchasable products are £4.99/month or
+  £39.99/year; no price was changed. Google requires bundled items to share a
+  billing period. Product 10 remains in the Play catalogue but is not offered
+  because one included plus nine extras reaches the configured limit.
 
 ## Release order
 
