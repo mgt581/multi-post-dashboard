@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <title>Return to MultiPost</title>
+  <style>body{margin:0;background:#071528;color:#e2e8f0;font:17px/1.6 system-ui;display:grid;min-height:100dvh;place-items:center}main{max-width:440px;margin:24px;padding:28px;border:1px solid #334155;border-radius:18px;background:#10213a}h1{line-height:1.2}a{display:block;text-align:center;background:linear-gradient(100deg,#9333ea,#0ea5e9);padding:14px 20px;border-radius:12px;color:white;text-decoration:none;font-weight:750}small{display:block;margin-top:18px;color:#94a3b8}</style>
+  <style>[hidden]{display:none!important}</style>
+</head>
+<body><main>
+  <h1>Return to MultiPost</h1>
+  <p id="message">Your connection attempt has finished. Return to the Android app to check your workspace.</p>
+  <a id="returnLink" hidden>Open MultiPost</a>
+  <small>Your sign-in stays in the Android app. This page does not sign you into the website.</small>
+</main>
+<script>
+  const params = new URLSearchParams(location.search);
+  const folder = params.get('folder_id') || '';
+  const provider = params.get('provider');
+  const result = params.get('result');
+  if (/^[A-Za-z0-9_-]{1,128}$/.test(folder) && ['youtube','facebook','tiktok'].includes(provider) && ['success','error'].includes(result)) {
+    const query = new URLSearchParams({ folder_id: folder, provider, result });
+    const intent = `intent://multipostapp.co.uk/android-return.html?${query}#Intent;scheme=https;package=uk.co.multipostapp;end`;
+    const link = document.getElementById('returnLink');
+    link.href = intent;
+    link.hidden = false;
+    document.getElementById('message').textContent = result === 'success'
+      ? 'The account connection is complete. Return to MultiPost to check the connected account.'
+      : 'The account connection was not completed. Return to MultiPost to try again.';
+    // Verified App Links normally return directly. A visible tap remains
+    // available when a browser blocks an automatic external-app redirect.
+    if (/Android/i.test(navigator.userAgent || '')) location.replace(intent);
+  } else document.getElementById('message').textContent = 'This return link is invalid. Open MultiPost from your home screen.';
+</script>
+</body></html>

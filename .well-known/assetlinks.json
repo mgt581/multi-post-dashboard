@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "uk.co.multipostapp",
+      "sha256_cert_fingerprints": ["0D:22:85:53:3A:B1:63:37:B8:E1:F6:E6:EB:0B:5E:07:51:7D:5D:C0:BF:DE:86:16:82:06:F6:43:11:9E:17:DC"]
+    }
+  }
+]

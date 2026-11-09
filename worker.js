@@ -6,6 +6,7 @@ import { FACEBOOK_PAGE_LINK_SCOPE } from "./facebook-oauth.mjs";
 import { generateSeo, normalizeSeoInput } from "./services/seoEngine.mjs";
 import { verifyPlayPurchase, sha256Hex, encryptPurchaseToken, decryptPurchaseToken } from "./play-subscriptions.mjs";
 import { reconcilePendingPublications } from "./publication-reconciliation.mjs";
+import { createAndroidOAuthHandoff, consumeAndroidOAuthHandoff, androidOAuthReturn } from "./android-oauth.mjs";
 
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
@@ -1680,9 +1681,18 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify({ success: false, error: err?.message || "Webhook handling failed" }), { status: 400, headers: jsonHeaders });
         }
       }
+      if (url.pathname === "/api/auth/android/start" && request.method === "GET") {
+        const handoff = await consumeAndroidOAuthHandoff(env.DB, url.searchParams.get("ticket"));
+        if (!handoff || !await ownedFolder(env.DB, handoff.folder_id, handoff.user_id)) {
+          return new Response("This connection link expired. Return to MultiPost and connect again.", { status: 400, headers: { "Cache-Control": "no-store" } });
+        }
+        const headers = new Headers({ Location: handoff.authorization_url, "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" });
+        if (handoff.browser_nonce) headers.set("Set-Cookie", tikTokLinkCookie(handoff.browser_nonce, 600, request.url));
+        return new Response(null, { status: 302, headers });
+      }
       if (url.pathname === "/api/auth/youtube") {
         if (request.method !== "POST") return new Response("Connect YouTube from your workspace while signed in.", { status: 405, headers: { ...jsonHeaders, Allow: "POST" } });
-        const { folder_id: folderId, user_id: requestedUserId } = await request.json();
+        const { folder_id: folderId, user_id: requestedUserId, return_to_app: returnToApp } = await request.json();
         const userId = requireUser(requestedUserId);
         if (!folderId || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), { status: 400, headers: jsonHeaders });
@@ -1698,9 +1708,9 @@ Follow for daily trending content! \u{1F44F}
         if (!env.GOOGLE_CLIENT_SECRET) {
           return new Response(JSON.stringify({ success: false, error: "Missing GOOGLE_CLIENT_SECRET env var" }), { status: 500, headers: jsonHeaders });
         }
-        const state = await encodeState({ folderId, platform: "youtube", userId }, env.GOOGLE_CLIENT_SECRET);
+        const state = await encodeState({ folderId, platform: "youtube", userId, returnToApp: returnToApp === true }, env.GOOGLE_CLIENT_SECRET);
         const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(env.GOOGLE_CLIENT_ID)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(YOUTUBE_OAUTH_SCOPE)}&access_type=offline&include_granted_scopes=false&prompt=${encodeURIComponent("consent select_account")}&state=${encodeURIComponent(state)}`;
-        return Response.json({ url: googleAuthUrl }, { headers: jsonHeaders });
+        return Response.json({ url: returnToApp === true ? await createAndroidOAuthHandoff(env.DB, { authorizationUrl: googleAuthUrl, folderId, userId }, siteBaseUrl) : googleAuthUrl }, { headers: jsonHeaders });
       }
       if (url.pathname === "/api/auth/login/tiktok") {
         const clientKey = getTikTokSigninClientKey();
@@ -1772,7 +1782,7 @@ Follow for daily trending content! \u{1F44F}
       }
       if (url.pathname === "/api/auth/tiktok") {
         if (request.method !== "POST") return new Response("Connect TikTok from your workspace while signed in.", { status: 405, headers: { ...jsonHeaders, Allow: "POST" } });
-        const { folder_id: folderId, user_id: userId } = await request.json();
+        const { folder_id: folderId, user_id: userId, return_to_app: returnToApp } = await request.json();
         const identity = await getFirebaseIdentity(request);
         if (!folderId || !userId || !matchesIdentity(userId, identity)) return new Response(JSON.stringify({ error: "Sign in again before connecting TikTok." }), { status: 401, headers: jsonHeaders });
         if (!await ownedFolder(env.DB, folderId, userId)) return new Response(JSON.stringify({ error: "Workspace not found" }), { status: 404, headers: jsonHeaders });
@@ -1781,13 +1791,14 @@ Follow for daily trending content! \u{1F44F}
         const linkGate = await ensureLinkingQuota({ userId, platform: "tiktok", folderId, evaluated: billingSnapshot.evaluated });
         if (!linkGate.ok) return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
         const link = await beginTikTokLink(env.DB, { folderId, userId, identity, authBase: tiktokAuthBaseUrl,
-          clientKey: getTikTokPublishClientKey(), redirectUri: tiktokLoginRedirectUri });
-        return new Response(JSON.stringify({ url: link.url }), { headers: { ...jsonHeaders,
+          clientKey: getTikTokPublishClientKey(), redirectUri: tiktokLoginRedirectUri, returnToApp: returnToApp === true });
+        const destination = returnToApp === true ? await createAndroidOAuthHandoff(env.DB, { authorizationUrl: link.url, folderId, userId, browserNonce: link.browserNonce }, siteBaseUrl) : link.url;
+        return new Response(JSON.stringify({ url: destination }), { headers: { ...jsonHeaders,
           "Cache-Control": "no-store", "Set-Cookie": tikTokLinkCookie(link.browserNonce, 600, request.url) } });
       }
       if (url.pathname === "/api/auth/facebook") {
         if (request.method !== "POST") return new Response("Connect Facebook from your workspace while signed in.", { status: 405, headers: { ...jsonHeaders, Allow: "POST" } });
-        const { folder_id: folderId, user_id: requestedUserId, refresh } = await request.json();
+        const { folder_id: folderId, user_id: requestedUserId, refresh, return_to_app: returnToApp } = await request.json();
         const userId = requireUser(requestedUserId);
         if (!folderId || !userId) return Response.json({ error: "Missing folder_id or user_id" }, { status: 400, headers: jsonHeaders });
         const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request), request, false, folderId);
@@ -1797,7 +1808,7 @@ Follow for daily trending content! \u{1F44F}
         if (!linkGate.ok) return Response.json(linkGate.body, { status: linkGate.statusCode, headers: jsonHeaders });
         const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
         requireEnv(env.FB_CLIENT_SECRET, "FB_CLIENT_SECRET");
-        const state = await encodeState({ folderId, platform: "facebook", userId }, env.FB_CLIENT_SECRET);
+        const state = await encodeState({ folderId, platform: "facebook", userId, returnToApp: returnToApp === true }, env.FB_CLIENT_SECRET);
         const fbAuthParams = new URLSearchParams({
           client_id: fbClientId,
           redirect_uri: fbRedirectUri,
@@ -1810,7 +1821,7 @@ Follow for daily trending content! \u{1F44F}
         // Facebook profile is signed in and which Pages it returns.
         if (refresh === true) fbAuthParams.set("auth_type", "rerequest");
         const fbAuthUrl = `https://www.facebook.com/v18.0/dialog/oauth?${fbAuthParams.toString()}`;
-        return Response.json({ url: fbAuthUrl }, { headers: jsonHeaders });
+        return Response.json({ url: returnToApp === true ? await createAndroidOAuthHandoff(env.DB, { authorizationUrl: fbAuthUrl, folderId, userId }, siteBaseUrl) : fbAuthUrl }, { headers: jsonHeaders });
       }
       if (url.pathname === "/api/auth/callback/youtube") {
         const code = url.searchParams.get("code");
@@ -1822,6 +1833,7 @@ Follow for daily trending content! \u{1F44F}
         }
         if (!code) {
           const err = url.searchParams.get("error") || "missing_code";
+          if (stateObj.returnToApp) return Response.redirect(androidOAuthReturn(frontendBaseUrl, folderId, "youtube", false));
           return new Response(JSON.stringify({ success: false, error: `YouTube OAuth failed: ${err}` }), { status: 400, headers: jsonHeaders });
         }
         const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
@@ -1839,7 +1851,7 @@ Follow for daily trending content! \u{1F44F}
         if (!tokens?.access_token || typeof tokens.access_token !== "string" || tokens.access_token === "undefined") {
           const oauthErr = tokens?.error_description || tokens?.error || "Token exchange failed";
           return Response.redirect(
-            `${frontendBaseUrl}/create-post.html?youtube_error=${encodeURIComponent(oauthErr)}&folder_id=${encodeURIComponent(folderId)}`
+            stateObj.returnToApp ? androidOAuthReturn(frontendBaseUrl, folderId, "youtube", false) : `${frontendBaseUrl}/create-post.html?youtube_error=${encodeURIComponent(oauthErr)}&folder_id=${encodeURIComponent(folderId)}`
           );
         }
         const userRes = await fetch(
@@ -1877,7 +1889,7 @@ Follow for daily trending content! \u{1F44F}
           scope: YOUTUBE_OAUTH_SCOPE
         });
         return Response.redirect(
-          `${frontendBaseUrl}/create-post.html?youtube_connected=1&account_name=${encodeURIComponent(channelName)}&folder_id=${encodeURIComponent(folderId)}`
+          stateObj.returnToApp ? androidOAuthReturn(frontendBaseUrl, folderId, "youtube", true) : `${frontendBaseUrl}/create-post.html?youtube_connected=1&account_name=${encodeURIComponent(channelName)}&folder_id=${encodeURIComponent(folderId)}`
         );
       }
       if (url.pathname === "/api/auth/callback/tiktok") {
@@ -1958,7 +1970,7 @@ Follow for daily trending content! \u{1F44F}
         const folderId = link.folder_id;
         const userId = link.user_id;
         const linkError = (message) => new Response(null, { status: 302, headers: {
-          Location: `${frontendBaseUrl}/folder.html?id=${encodeURIComponent(folderId)}&tiktok_error=${encodeURIComponent(message)}`,
+          Location: rawState.startsWith("ttlink_android_") ? androidOAuthReturn(frontendBaseUrl, folderId, "tiktok", false) : `${frontendBaseUrl}/folder.html?id=${encodeURIComponent(folderId)}&tiktok_error=${encodeURIComponent(message)}`,
           "Set-Cookie": tikTokLinkCookie("", 0, request.url), "Cache-Control": "no-store"
         } });
         if (!code || url.searchParams.get("error")) return linkError("TikTok authorization cancelled. Your existing connection is unchanged.");
@@ -2012,7 +2024,7 @@ Follow for daily trending content! \u{1F44F}
             expiresAt: nowMs() + Number(expiresIn) * 1e3, scope: String(scope)
           });
           return new Response(null, { status: 302, headers: {
-            Location: `${frontendBaseUrl}/folder.html?id=${encodeURIComponent(folderId)}&tiktok_connected=1`,
+            Location: rawState.startsWith("ttlink_android_") ? androidOAuthReturn(frontendBaseUrl, folderId, "tiktok", true) : `${frontendBaseUrl}/folder.html?id=${encodeURIComponent(folderId)}&tiktok_connected=1`,
             "Set-Cookie": tikTokLinkCookie("", 0, request.url), "Cache-Control": "no-store"
           } });
         } catch (_) {
@@ -2024,7 +2036,8 @@ Follow for daily trending content! \u{1F44F}
         const code = url.searchParams.get("code");
         const rawState = url.searchParams.get("state") || "";
         const cookies = parseCookies(request.headers.get("Cookie"));
-        if (cookies.mp_facebook_login_state) {
+        const linkingState = await decodeState(rawState, env.FB_CLIENT_SECRET, "facebook");
+        if (!linkingState && cookies.mp_facebook_login_state) {
           const expectedState = cookies.mp_facebook_login_state || "";
           const returnedState = rawState;
           const error = url.searchParams.get("error") || "";
@@ -2088,7 +2101,7 @@ Follow for daily trending content! \u{1F44F}
             return redirectWithError(err?.message || "Facebook sign-in failed");
           }
         }
-        const stateObj = await decodeState(rawState, env.FB_CLIENT_SECRET, "facebook");
+        const stateObj = linkingState;
         const folderId = stateObj?.folderId;
         const userId = requireUser(stateObj?.userId);
         if (!folderId || !userId) {
@@ -2096,6 +2109,7 @@ Follow for daily trending content! \u{1F44F}
         }
         if (!code) {
           const err = url.searchParams.get("error") || "missing_code";
+          if (stateObj.returnToApp) return Response.redirect(androidOAuthReturn(frontendBaseUrl, folderId, "facebook", false));
           return new Response(JSON.stringify({ success: false, error: `Facebook OAuth failed: ${err}` }), { status: 400, headers: jsonHeaders });
         }
         const fbClientId = requireEnv(env.FB_CLIENT_ID, "FB_CLIENT_ID");
@@ -2113,6 +2127,7 @@ Follow for daily trending content! \u{1F44F}
         const accessToken = tokens?.access_token ? String(tokens.access_token) : null;
         const expiresIn = Number(tokens?.expires_in || 0);
         if (!accessToken) {
+          if (stateObj.returnToApp) return Response.redirect(androidOAuthReturn(frontendBaseUrl, folderId, "facebook", false));
           return new Response(
             JSON.stringify({ success: false, error: "Facebook token missing", data: tokens }),
             { status: 400, headers: jsonHeaders }
@@ -2155,7 +2170,7 @@ Follow for daily trending content! \u{1F44F}
           scope: FACEBOOK_PAGE_LINK_SCOPE
         });
         return Response.redirect(
-          `${frontendBaseUrl}/folder.html?id=${encodeURIComponent(folderId)}&facebook=pages`
+          stateObj.returnToApp ? androidOAuthReturn(frontendBaseUrl, folderId, "facebook", true) : `${frontendBaseUrl}/folder.html?id=${encodeURIComponent(folderId)}&facebook=pages`
         );
       }
       if (url.pathname === "/api/facebook/pages" && request.method === "GET") {

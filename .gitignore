@@ -27,6 +27,8 @@ work/
 # Android local build and Firebase configuration
 android/.gradle/
 android/.gradle-user/
+.gradle-user/
+android/.android-local/
 android/.kotlin/
 android/build/
 android/app/build/

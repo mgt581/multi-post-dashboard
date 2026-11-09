@@ -12,6 +12,8 @@ kramdown:
   syntax_highlighter: rouge
 
 # Exclusions
+include:
+  - .well-known
 exclude:
   - node_modules
   - vendor

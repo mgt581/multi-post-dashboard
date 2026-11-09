@@ -41,13 +41,6 @@ class PlayBillingManager(
                 connecting = false
                 ready = result.responseCode == BillingClient.BillingResponseCode.OK
                 if (ready) {
-                    client.getBillingConfigAsync(GetBillingConfigParams.newBuilder().build()) { configResult, config ->
-                        if (configResult.responseCode == BillingClient.BillingResponseCode.OK) {
-                            playCountryCode = config?.countryCode
-                            sendToPage("onMultiPostPlayCountry", JSONObject.quote(playCountryCode ?: ""))
-                            queryPlans()
-                        }
-                    }
                     queryPlans()
                     if (restoreOnConnect) { restoreOnConnect = false; restore() }
                 } else error("Google Play Billing is unavailable")
@@ -58,6 +51,17 @@ class PlayBillingManager(
 
     fun queryPlans() {
         if (!ready) { start(); return }
+        // Refresh must retry region detection too, and replay it for each page.
+        client.getBillingConfigAsync(GetBillingConfigParams.newBuilder().build()) { result, config ->
+            if (result.responseCode == BillingClient.BillingResponseCode.OK) {
+                playCountryCode = config?.countryCode
+            }
+            sendToPage("onMultiPostPlayCountry", JSONObject.quote(playCountryCode ?: ""))
+            queryProductPlans()
+        }
+    }
+
+    private fun queryProductPlans() {
         val products = (listOf(PRODUCT_ID) + WORKSPACE_PRODUCT_IDS).map { productId ->
             QueryProductDetailsParams.Product.newBuilder().setProductId(productId)
                 .setProductType(BillingClient.ProductType.SUBS).build()

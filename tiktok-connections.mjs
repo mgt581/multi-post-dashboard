@@ -14,10 +14,10 @@ export function matchesIdentity(userId, identity) {
 export async function ownedFolder(db, folderId, userId) {
   return db.prepare('SELECT id FROM folders WHERE id = ? AND user_id = ?').bind(String(folderId), String(userId)).first();
 }
-export async function beginTikTokLink(db, { folderId, userId, identity, authBase, clientKey, redirectUri }) {
+export async function beginTikTokLink(db, { folderId, userId, identity, authBase, clientKey, redirectUri, returnToApp = false }) {
   if (!matchesIdentity(userId, identity)) throw new Error('Sign in again before connecting TikTok.');
   if (!await ownedFolder(db, folderId, userId)) throw new Error('Workspace not found.');
-  const state = `ttlink_${crypto.randomUUID()}`;
+  const state = `${returnToApp ? 'ttlink_android_' : 'ttlink_'}${crypto.randomUUID()}`;
   const browserNonce = crypto.randomUUID();
   await db.prepare('DELETE FROM tiktok_oauth_states WHERE expires_at < ?').bind(Date.now()).run();
   await db.prepare('INSERT INTO tiktok_oauth_states (state, browser_nonce, folder_id, user_id, expires_at) VALUES (?, ?, ?, ?, ?)')
