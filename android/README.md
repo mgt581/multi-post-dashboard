@@ -1,4 +1,24 @@
-# MultiPost Android (Stage 2 branch)
+# MultiPost Android 1.9.2 (version code 11)
+
+Prepared 9 November 2026 to repair workspace add-on purchases. The published
+code-10 bundle was inspected and does not include the workspace billing bridge.
+This build includes it. Debug and unsigned release builds succeeded with JDK 17,
+Gradle 8.11.1, and the existing Android Gradle Plugin 8.10.1.
+
+Open this folder in Android Studio. In **Settings → Build, Execution,
+Deployment → Build Tools → Gradle**, select JDK 17. This Mac has it installed at
+`/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home`.
+
+Use **Build → Generate Signed App Bundle / APK → Android App Bundle**, select
+the existing MultiPost upload keystore and alias, and enter the signing passwords
+locally. Do not put passwords in chat or commit them. Upload the signed code-11
+bundle to internal testing first. Test that the extra workspace price appears,
+Add opens Google Play checkout, and server-verified payment permits creation of
+one more workspace. See `docs/android-workspace-release-1.9.2.md` in the repository.
+
+The generated unsigned bundle is not ready to upload to Play Console.
+
+## Historical setup notes (superseded where different above)
 
 This source was copied from the confirmed version 1.8 Android Studio project at
 `/Users/alexb/Documents/Codex/2026-10-16/new-chat-7/MultiPost-Android`.
