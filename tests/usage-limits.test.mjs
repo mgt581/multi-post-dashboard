@@ -11,7 +11,7 @@ function fixture() {
     'migrations/0010_play_trial_phase.sql', 'migrations/0011_usage_workspace_entitlements.sql',
     'migrations/0012_publication_reservations.sql', 'migrations/0013_workspace_item_entitlements.sql',
     'migrations/0014_workspace_choices.sql',
-    'migrations/0015_publication_reconciliation.sql']) {
+    'migrations/0015_publication_reconciliation.sql', 'migrations/0017_play_paid_pro_order.sql']) {
     sqlite.exec(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'));
   }
   sqlite.exec(readFileSync(new URL('../migrations/0004_create_upload_sessions.sql', import.meta.url), 'utf8'));
@@ -87,7 +87,7 @@ test('workspace creation enforces one included place across UID and verified ema
       (user_id,token_hash,encrypted_token,product_id,base_plan_id,subscription_state,expiry_time,last_verified_at,workspace_quantity,workspace_expiry)
       VALUES ('uid-1','hash','encrypted','multipost_pro','monthly','SUBSCRIPTION_STATE_ACTIVE',?,?,2,?)`)
       .run(Math.floor(Date.now()/1000)+3600, Math.floor(Date.now()/1000), Math.floor(Date.now()/1000)+3600);
-    sqlite.prepare("UPDATE billing_play_purchases SET workspace_items_json = ? WHERE user_id = 'uid-1'")
+    sqlite.prepare("UPDATE billing_play_purchases SET pro_paid_order_id = 'GPA.paid', workspace_items_json = ? WHERE user_id = 'uid-1'")
       .run(JSON.stringify([1, 2].map(n => ({ productId: `multipost_workspace_0${n}`, expiry: Math.floor(Date.now()/1000)+3600, renewing: true }))));
     assert.equal((await add('uid-1')).status, 200);
     assert.equal((await add('uid-1')).status, 200);
@@ -102,8 +102,8 @@ test('downsized workspace entitlements lock excess folders without deleting them
   const { sqlite, env } = fixture();
   const now = Math.floor(Date.now() / 1000);
   sqlite.prepare(`INSERT INTO billing_play_purchases
-    (user_id,token_hash,encrypted_token,product_id,base_plan_id,subscription_state,expiry_time,last_verified_at,workspace_items_json)
-    VALUES ('uid-1','hash','encrypted','multipost_pro','monthly','SUBSCRIPTION_STATE_ACTIVE',?,?,?)`)
+    (user_id,token_hash,encrypted_token,product_id,base_plan_id,subscription_state,expiry_time,last_verified_at,workspace_items_json,pro_paid_order_id)
+    VALUES ('uid-1','hash','encrypted','multipost_pro','monthly','SUBSCRIPTION_STATE_ACTIVE',?,?,?,'GPA.paid')`)
     .run(now + 3600, now, JSON.stringify([1,2].map(n => ({ productId: `multipost_workspace_0${n}`, expiry: now + 3600, renewing: true }))));
   for (const id of [1,2,3]) sqlite.prepare('INSERT INTO folders (id,user_id,name) VALUES (?, ?, ?)').run(id, 'uid-1', `Workspace ${id}`);
   const original = globalThis.fetch;
@@ -138,8 +138,8 @@ test('one verified additional Play workspace grants its own social account place
   env.GOOGLE_CLIENT_ID = 'test-client';
   env.GOOGLE_CLIENT_SECRET = 'test-secret';
   sqlite.prepare(`INSERT INTO billing_play_purchases
-    (user_id,token_hash,encrypted_token,product_id,base_plan_id,subscription_state,expiry_time,last_verified_at,workspace_items_json)
-    VALUES ('uid-1','hash','encrypted','multipost_pro','monthly','SUBSCRIPTION_STATE_ACTIVE',?,?,?)`)
+    (user_id,token_hash,encrypted_token,product_id,base_plan_id,subscription_state,expiry_time,last_verified_at,workspace_items_json,pro_paid_order_id)
+    VALUES ('uid-1','hash','encrypted','multipost_pro','monthly','SUBSCRIPTION_STATE_ACTIVE',?,?,?,'GPA.paid')`)
     .run(now + 3600, now, JSON.stringify([{ productId:'multipost_workspace_01', expiry:now + 3600, renewing:true }]));
   for (const id of [1,2]) sqlite.prepare('INSERT INTO folders (id,user_id,name) VALUES (?, ?, ?)').run(id, 'uid-1', `Workspace ${id}`);
   sqlite.prepare("INSERT INTO accounts (user_id,folder_id,platform,access_token) VALUES ('uid-1',1,'youtube','existing')").run();

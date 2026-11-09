@@ -59,6 +59,7 @@ export function interpretPlaySubscription(data, expectedAccountId, now = Date.no
     workspaceItems,
     linkedPurchaseToken: data.linkedPurchaseToken || null,
     trialEnd: line.offerPhase?.freeTrial && ['trial-7d-monthly', 'trial-7d-yearly'].includes(line.offerDetails?.offerId) ? expiry : null,
+    proOrderId: line.latestSuccessfulOrderId || null,
     needsAcknowledgement: data.acknowledgementState === 'ACKNOWLEDGEMENT_STATE_PENDING',
     access
   };
@@ -91,7 +92,13 @@ async function googleAccessToken(serviceAccount, fetcher) {
   return result.access_token;
 }
 
-export async function verifyPlayPurchase({ token, firebaseUid, serviceAccountJson, fetcher = fetch, now = Date.now() }) {
+const positiveMoney = (money) => {
+  const units = Number(money?.units || 0);
+  const nanos = Number(money?.nanos || 0);
+  return Number.isFinite(units) && Number.isFinite(nanos) && (units > 0 || (units === 0 && nanos > 0));
+};
+
+export async function verifyPlayPurchase({ token, firebaseUid, serviceAccountJson, previousPaidOrderId = null, fetcher = fetch, now = Date.now() }) {
   if (!token || typeof token !== 'string' || token.length > 4096 || !firebaseUid) throw new Error('Invalid purchase token');
   const account = typeof serviceAccountJson === 'string' ? JSON.parse(serviceAccountJson) : serviceAccountJson;
   const bearer = await googleAccessToken(account, fetcher);
@@ -100,6 +107,34 @@ export async function verifyPlayPurchase({ token, firebaseUid, serviceAccountJso
   });
   if (!response.ok) throw new Error('Google Play purchase verification failed');
   const verified = interpretPlaySubscription(await response.json(), await obfuscatedAccountId(firebaseUid), now);
+  // A trial can have a successful zero-value order. Check the actual Pro line
+  // charge, and retain an earlier paid order when an add-on creates a new
+  // zero-value KEEP_EXISTING Pro line. An unavailable order API locks only
+  // add-on eligibility; it must not interrupt the verified Pro subscription.
+  const candidateOrderIds = [...new Set([verified.proOrderId, previousPaidOrderId].filter(Boolean))];
+  verified.paidProOrderId = null;
+  if (!verified.trialEnd && verified.access) {
+    for (const orderId of candidateOrderIds) {
+      try {
+        const orderResponse = await fetcher(`https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}/orders/${encodeURIComponent(orderId)}`, {
+          headers: { Authorization: `Bearer ${bearer}` }
+        });
+        if (!orderResponse.ok) continue;
+        const order = await orderResponse.json();
+        if (order.orderId === orderId && order.state === 'PROCESSED' &&
+            order.lineItems?.some((item) => item.productId === PRODUCT_ID && positiveMoney(item.total))) {
+          verified.paidProOrderId = orderId;
+          break;
+        }
+      } catch (_) { /* Missing order evidence never unlocks add-on purchases. */ }
+    }
+  }
+  verified.paidPro = Boolean(verified.paidProOrderId);
+  if (!verified.paidPro) {
+    verified.workspaceItems = [];
+    verified.workspaceQuantity = 0;
+    verified.workspaceExpiry = null;
+  }
   if (verified.access && verified.needsAcknowledgement) {
     const ack = await fetcher(`https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}/purchases/subscriptions/${PRODUCT_ID}/tokens/${encodeURIComponent(token)}:acknowledge`, {
       method: 'POST', headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' }, body: '{}'

@@ -32,6 +32,7 @@ class PlayBillingManager(
     private var ready = false
     private var connecting = false
     private var restoreOnConnect = false
+    @Volatile private var workspaceCheckoutInProgress = false
 
     fun start() {
         if (ready || connecting) return
@@ -115,17 +116,24 @@ class PlayBillingManager(
     }
 
     /** All products in a change share the verified Pro period and one Play purchase token. */
-    fun changeWorkspaces(target: Int, interval: String, firebaseUid: String, renewingIds: List<String>) {
-        if (!ready || playCountryCode == null || playCountryCode == "KR" || target !in 0..10 ||
+    fun changeWorkspaces(target: Int, interval: String, firebaseUid: String, renewingIds: List<String>, ownedIds: List<String>) {
+        if (workspaceCheckoutInProgress) return
+        if (!ready || playCountryCode == null || playCountryCode == "KR" || target !in 0..9 ||
             interval !in BASE_PLANS || firebaseUid.isBlank() || renewingIds.distinct().size != renewingIds.size ||
-            renewingIds.any { it !in WORKSPACE_PRODUCT_IDS }) {
+            ownedIds.distinct().size != ownedIds.size || renewingIds.any { it !in WORKSPACE_PRODUCT_IDS } ||
+            ownedIds.any { it !in WORKSPACE_PRODUCT_IDS } || renewingIds.any { it !in ownedIds }) {
             error("Workspace purchase is unavailable for this account or region"); return
         }
+        workspaceCheckoutInProgress = true
         client.queryPurchasesAsync(QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build()) { result, purchases ->
             val current = purchases.singleOrNull { PRODUCT_ID in it.products && it.purchaseState == Purchase.PurchaseState.PURCHASED }
             if (result.responseCode != BillingClient.BillingResponseCode.OK || current == null ||
                 renewingIds.any { it !in current.products }) { error("Restore your Pro purchase before changing workspaces"); return@queryPurchasesAsync }
             val active = current.products.filter { it in WORKSPACE_PRODUCT_IDS }
+            if (active.toSet() != ownedIds.toSet()) {
+                error("Your workspace purchase status changed. Tap Refresh and try again")
+                return@queryPurchasesAsync
+            }
             val desired = renewingIds.take(target).toMutableList()
             // A scheduled removal is still paid. KEEP_EXISTING must not be
             // mistaken for re-enabling renewal on that same product.
@@ -134,7 +142,7 @@ class PlayBillingManager(
                 desired.add(id)
             }
             if (desired.size != target) {
-                error("All ten workspace products are in use until a scheduled removal expires"); return@queryPurchasesAsync
+                error("All nine extra workspace places are in use until a scheduled removal expires"); return@queryPurchasesAsync
             }
             if (desired.size == renewingIds.size && desired.toSet() == renewingIds.toSet()) {
                 error("No workspace change is needed"); return@queryPurchasesAsync
@@ -204,6 +212,7 @@ class PlayBillingManager(
     }
 
     override fun onPurchasesUpdated(result: BillingResult, purchases: MutableList<Purchase>?) {
+        workspaceCheckoutInProgress = false
         if (result.responseCode == BillingClient.BillingResponseCode.OK) purchases.orEmpty().forEach(::deliverPurchase)
         else if (result.responseCode != BillingClient.BillingResponseCode.USER_CANCELED)
             error("Google Play purchase was not completed (${playError(result)})")
@@ -216,7 +225,10 @@ class PlayBillingManager(
         sendToPage("onMultiPostPlayPurchase", JSONObject().put("purchase_token", purchase.purchaseToken).toString())
     }
 
-    private fun error(message: String) = sendToPage("onMultiPostPlayError", JSONObject.quote(message))
+    private fun error(message: String) {
+        workspaceCheckoutInProgress = false
+        sendToPage("onMultiPostPlayError", JSONObject.quote(message))
+    }
     private fun playError(result: BillingResult): String =
         "Play code ${result.responseCode}${result.debugMessage.takeIf { it.isNotBlank() }?.let { ": $it" } ?: ""}"
     fun close() = client.endConnection()
