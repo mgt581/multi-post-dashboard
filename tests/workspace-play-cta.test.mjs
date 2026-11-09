@@ -30,13 +30,34 @@ test('a verified Pro user can see an add-on purchase when Play returned the full
   assert.match(ui.workspaceAddBtn.textContent, /£4\.99\/month/);
 });
 
-test('a partial or missing Play add-on catalogue explains why purchase is unavailable without enabling payment', () => {
-  for (const plans of [[], catalogue.slice(0, 1)]) {
+test('the first workspace can be bought when Play returns only its matching plan', () => {
+  const ui = renderWorkspaceStatus(catalogue.slice(0, 1), pro);
+  assert.equal(ui.workspaceAddBtn.disabled, false);
+  assert.match(ui.workspaceAddBtn.textContent, /£4\.99\/month/);
+});
+
+test('unrelated prices do not block the next workspace or change its displayed price', () => {
+  const plans = catalogue.map((plan, n) => ({ ...plan, price: n === 0 ? '£4.99' : '£6.99' }));
+  const ui = renderWorkspaceStatus(plans, pro);
+  assert.equal(ui.workspaceAddBtn.disabled, false);
+  assert.match(ui.workspaceAddBtn.textContent, /£4\.99\/month/);
+});
+
+test('a missing next plan or wrong billing period cannot enable payment', () => {
+  for (const plans of [[], catalogue.slice(1), [{ ...catalogue[0], base_plan_id: 'yearly' }]]) {
     const ui = renderWorkspaceStatus(plans, pro);
     assert.equal(ui.workspacePlayControls.hidden, false);
     assert.equal(ui.workspaceAddBtn.disabled, true);
-    assert.match(ui.workspacePlayNote.textContent, /not available yet/i);
+    assert.match(ui.workspacePlayNote.textContent, /has not returned.*next workspace/i);
   }
+});
+
+test('scheduled removals stay occupied and renewing plans must be available', () => {
+  const billing = { ...pro, workspace_product_ids: ['multipost_workspace_01', 'multipost_workspace_02'],
+    workspace_renewing_ids: ['multipost_workspace_02'] };
+  assert.equal(renderWorkspaceStatus([catalogue[1], catalogue[2]], billing).workspaceAddBtn.disabled, false);
+  assert.equal(renderWorkspaceStatus([catalogue[2]], billing).workspaceAddBtn.disabled, true);
+  assert.equal(renderWorkspaceStatus([catalogue[0], catalogue[1]], billing).workspaceAddBtn.disabled, true);
 });
 
 test('a canceled Pro plan cannot start a workspace purchase', () => {

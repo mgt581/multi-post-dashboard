@@ -419,10 +419,13 @@
       const active = billing?.workspace_product_ids?.length || 0;
       const renewing = billing?.workspace_renewing_ids || [];
       const matchingPlans = availableWorkspacePlans.filter(plan => plan.base_plan_id === interval);
-      const prices = new Set(matchingPlans.map(plan => plan.price).filter(Boolean));
-      const completeCatalogue = matchingPlans.length === 10 &&
-        new Set(matchingPlans.map(plan => plan.product_id)).size === 10 && prices.size === 1;
-      const price = completeCatalogue ? [...prices][0] : null;
+      // Match native changeWorkspaces: retain renewing items and buy the first
+      // unused product. Unrelated, unused products must not block this purchase.
+      const workspaceIds = Array.from({ length: 10 }, (_, n) => `multipost_workspace_${String(n + 1).padStart(2, '0')}`);
+      const nextId = workspaceIds.find(id => !(billing?.workspace_product_ids || []).includes(id));
+      const nextPlan = matchingPlans.find(plan => plan.product_id === nextId && plan.price);
+      const retainedPlansAvailable = renewing.every(id => matchingPlans.some(plan => plan.product_id === id));
+      const price = retainedPlansAvailable ? nextPlan?.price : null;
       // Native Billing already omits add-on plans in unsupported Play regions.
       // The country callback can arrive before this page registers its listener.
       const eligible = billing?.reason === 'play_verified' && billing?.access &&
@@ -443,7 +446,7 @@
           ? 'Google Play does not support extra workspace add-ons in your region. Your existing Pro workspace remains available.'
           : billing?.status === 'canceled'
             ? 'Your Pro renewal is canceled. Extra workspace purchases require an active, renewing Google Play Pro plan.'
-            : 'Extra workspace purchasing is not available yet: Google Play has not returned all the plans needed for your account and region. Tap Refresh to check again. No extra payment will be taken.';
+            : 'Google Play has not returned the plans needed for your next workspace. Tap Refresh above to reload your purchase options. If this continues, check that you installed the latest MultiPost update from Google Play. No extra payment will be taken.';
       if (!workspaceAnchorHandled && window.location.hash === '#workspace-play') {
         workspaceAnchorHandled = true;
         requestAnimationFrame(() => document.getElementById('workspace-play').scrollIntoView({ block: 'start' }));
