@@ -12,8 +12,8 @@ android {
         applicationId = "uk.co.multipostapp"
         minSdk = 24
         targetSdk = 36
-        versionCode = 13
-        versionName = "1.9.4"
+        versionCode = 14
+        versionName = "1.9.5"
     }
     buildTypes {
         release {

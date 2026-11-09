@@ -157,20 +157,24 @@ class PlayBillingManager(
                         error("Workspace plan $id is unavailable in Google Play")
                         return@queryProductDetailsAsync
                     }
-                    val offer = product.subscriptionOfferDetails.orEmpty().firstOrNull {
-                        it.basePlanId == interval && it.offerId == null
-                    } ?: run {
-                        error("A matching $interval workspace plan is unavailable")
-                        return@queryProductDetailsAsync
-                    }
                     val builder = BillingFlowParams.ProductDetailsParams.newBuilder()
-                        .setProductDetails(product).setOfferToken(offer.offerToken)
+                        .setProductDetails(product)
                     if (id in current.products) {
+                        // KEEP_EXISTING retains the current offer. Play rejects
+                        // an offer token on a retained product (response code 5).
                         builder.setSubscriptionProductReplacementParams(
                             BillingFlowParams.ProductDetailsParams.SubscriptionProductReplacementParams.newBuilder()
                                 .setOldProductId(id)
                                 .setReplacementMode(BillingFlowParams.ProductDetailsParams.SubscriptionProductReplacementParams.ReplacementMode.KEEP_EXISTING)
                                 .build())
+                    } else {
+                        val offer = product.subscriptionOfferDetails.orEmpty().firstOrNull {
+                            it.basePlanId == interval && it.offerId == null
+                        } ?: run {
+                            error("A matching $interval workspace plan is unavailable")
+                            return@queryProductDetailsAsync
+                        }
+                        builder.setOfferToken(offer.offerToken)
                     }
                     builder.build()
                 }
