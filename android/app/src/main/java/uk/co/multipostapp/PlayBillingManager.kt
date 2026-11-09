@@ -140,31 +140,51 @@ class PlayBillingManager(
                 error("No workspace change is needed"); return@queryPurchasesAsync
             }
             val selected = listOf(PRODUCT_ID) + desired
-            val params = selected.map { id ->
-                val product = details[id] ?: run { error("Workspace plans are loading"); return@queryPurchasesAsync }
-                val offer = product.subscriptionOfferDetails.orEmpty().firstOrNull {
-                    it.basePlanId == interval && it.offerId == null
-                } ?: run { error("A matching billing period is unavailable"); return@queryPurchasesAsync }
-                val builder = BillingFlowParams.ProductDetailsParams.newBuilder()
-                    .setProductDetails(product).setOfferToken(offer.offerToken)
-                if (id in current.products) {
-                    builder.setSubscriptionProductReplacementParams(
-                        BillingFlowParams.ProductDetailsParams.SubscriptionProductReplacementParams.newBuilder()
-                            .setOldProductId(id)
-                            .setReplacementMode(BillingFlowParams.ProductDetailsParams.SubscriptionProductReplacementParams.ReplacementMode.KEEP_EXISTING)
-                            .build())
+            // Offer tokens can go stale while the settings page stays open. Get
+            // fresh ProductDetails for the exact cart before opening checkout.
+            val request = QueryProductDetailsParams.newBuilder().setProductList(selected.map { id ->
+                QueryProductDetailsParams.Product.newBuilder().setProductId(id)
+                    .setProductType(BillingClient.ProductType.SUBS).build()
+            }).build()
+            client.queryProductDetailsAsync(request) { planResult, queried ->
+                if (planResult.responseCode != BillingClient.BillingResponseCode.OK) {
+                    error("Could not refresh workspace offers (${playError(planResult)})")
+                    return@queryProductDetailsAsync
                 }
-                builder.build()
+                val freshDetails = queried.productDetailsList.associateBy { it.productId }
+                val params = selected.map { id ->
+                    val product = freshDetails[id] ?: run {
+                        error("Workspace plan $id is unavailable in Google Play")
+                        return@queryProductDetailsAsync
+                    }
+                    val offer = product.subscriptionOfferDetails.orEmpty().firstOrNull {
+                        it.basePlanId == interval && it.offerId == null
+                    } ?: run {
+                        error("A matching $interval workspace plan is unavailable")
+                        return@queryProductDetailsAsync
+                    }
+                    val builder = BillingFlowParams.ProductDetailsParams.newBuilder()
+                        .setProductDetails(product).setOfferToken(offer.offerToken)
+                    if (id in current.products) {
+                        builder.setSubscriptionProductReplacementParams(
+                            BillingFlowParams.ProductDetailsParams.SubscriptionProductReplacementParams.newBuilder()
+                                .setOldProductId(id)
+                                .setReplacementMode(BillingFlowParams.ProductDetailsParams.SubscriptionProductReplacementParams.ReplacementMode.KEEP_EXISTING)
+                                .build())
+                    }
+                    builder.build()
+                }
+                val accountHash = MessageDigest.getInstance("SHA-256")
+                    .digest("multipost:$firebaseUid".toByteArray(Charsets.UTF_8))
+                    .joinToString("") { "%02x".format(it) }
+                val flow = BillingFlowParams.newBuilder().setProductDetailsParamsList(params)
+                    .setSubscriptionUpdateParams(BillingFlowParams.SubscriptionUpdateParams.newBuilder()
+                        .setOldPurchaseToken(current.purchaseToken).build())
+                    .setObfuscatedAccountId(accountHash).build()
+                val launch = client.launchBillingFlow(activity, flow)
+                if (launch.responseCode != BillingClient.BillingResponseCode.OK)
+                    error("Could not open the workspace purchase (${playError(launch)})")
             }
-            val accountHash = MessageDigest.getInstance("SHA-256")
-                .digest("multipost:$firebaseUid".toByteArray(Charsets.UTF_8))
-                .joinToString("") { "%02x".format(it) }
-            val flow = BillingFlowParams.newBuilder().setProductDetailsParamsList(params)
-                .setSubscriptionUpdateParams(BillingFlowParams.SubscriptionUpdateParams.newBuilder()
-                    .setOldPurchaseToken(current.purchaseToken).build())
-                .setObfuscatedAccountId(accountHash).build()
-            val launch = client.launchBillingFlow(activity, flow)
-            if (launch.responseCode != BillingClient.BillingResponseCode.OK) error("Could not open the workspace purchase")
         }
     }
 
@@ -181,7 +201,8 @@ class PlayBillingManager(
 
     override fun onPurchasesUpdated(result: BillingResult, purchases: MutableList<Purchase>?) {
         if (result.responseCode == BillingClient.BillingResponseCode.OK) purchases.orEmpty().forEach(::deliverPurchase)
-        else if (result.responseCode != BillingClient.BillingResponseCode.USER_CANCELED) error("Google Play purchase was not completed")
+        else if (result.responseCode != BillingClient.BillingResponseCode.USER_CANCELED)
+            error("Google Play purchase was not completed (${playError(result)})")
     }
 
     private fun deliverPurchase(purchase: Purchase) {
@@ -192,6 +213,8 @@ class PlayBillingManager(
     }
 
     private fun error(message: String) = sendToPage("onMultiPostPlayError", JSONObject.quote(message))
+    private fun playError(result: BillingResult): String =
+        "Play code ${result.responseCode}${result.debugMessage.takeIf { it.isNotBlank() }?.let { ": $it" } ?: ""}"
     fun close() = client.endConnection()
 
     private fun ProductDetails.SubscriptionOfferDetails.hasSevenDayTrial(): Boolean =
