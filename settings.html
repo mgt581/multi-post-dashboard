@@ -234,7 +234,8 @@
       </div>
       <div id="playPaymentNote" class="billing-note" hidden></div>
       <div id="workspacePlayControls" hidden>
-        <div class="billing-note" id="workspacePlayNote"></div>
+        <div class="section-title" id="workspace-play" style="margin:14px 0 8px;">Extra workspaces</div>
+        <div class="billing-note" id="workspacePlayNote" role="status"></div>
         <div class="billing-actions">
           <button id="workspaceAddBtn" class="mini-btn primary" type="button" disabled>Add one workspace</button>
           <button id="workspaceRemoveBtn" class="mini-btn" type="button" disabled>Remove one at renewal</button>
@@ -342,6 +343,7 @@
     let availableWorkspacePlans = [];
     let playCountryCode = null;
     let playPlansLoaded = false;
+    let workspaceAnchorHandled = false;
     let billingRefreshTimer = null;
     const OWNER_KEYS = ["alexbryant3234@gmail.com"];
     const normalizeUserKey = value => String(value || "").trim().toLowerCase();
@@ -421,18 +423,31 @@
       const completeCatalogue = matchingPlans.length === 10 &&
         new Set(matchingPlans.map(plan => plan.product_id)).size === 10 && prices.size === 1;
       const price = completeCatalogue ? [...prices][0] : null;
+      // Native Billing already omits add-on plans in unsupported Play regions.
+      // The country callback can arrive before this page registers its listener.
       const eligible = billing?.reason === 'play_verified' && billing?.access &&
-        billing?.status !== 'canceled' && playCountryCode && playCountryCode !== 'KR' &&
+        billing?.status !== 'canceled' && playCountryCode !== 'KR' &&
         ['monthly', 'yearly'].includes(interval) && !!price;
-      controls.hidden = !eligible;
-      if (!eligible) return;
-      document.getElementById('workspacePlayNote').textContent =
-        `${active} paid extra workspace${active === 1 ? '' : 's'} available now; ${renewing.length} set to renew. Each additional workspace costs ${price}/${interval === 'monthly' ? 'month' : 'year'} in your Play region. Adding one may charge a prorated amount today. Removing one stops renewal; it remains usable until its paid period ends. Review the exact total and date in Play before confirming.`;
+      controls.hidden = billing?.reason !== 'play_verified' || !billing?.access;
+      if (controls.hidden) return;
       const add = document.getElementById('workspaceAddBtn');
       const remove = document.getElementById('workspaceRemoveBtn');
-      add.disabled = renewing.length >= 10 || active >= 10;
+      add.disabled = !eligible || renewing.length >= 10 || active >= 10;
       remove.disabled = renewing.length === 0;
-      add.textContent = `Add one (${price}/${interval === 'monthly' ? 'month' : 'year'})`;
+      add.textContent = eligible ? `Add one workspace (${price}/${interval === 'monthly' ? 'month' : 'year'})` : 'Add one workspace';
+      document.getElementById('workspacePlayNote').textContent = renewing.length >= 10 || active >= 10
+        ? 'The ten extra workspace places are in use. A place becomes available after a scheduled removal expires.'
+        : eligible
+          ? `${active} paid extra workspace${active === 1 ? '' : 's'} available now; ${renewing.length} set to renew. Each additional workspace costs ${price}/${interval === 'monthly' ? 'month' : 'year'} in your Play region. Adding one may charge a prorated amount today. Removing one stops renewal; it remains usable until its paid period ends. Review the exact total and date in Play before confirming.`
+          : playCountryCode === 'KR'
+          ? 'Google Play does not support extra workspace add-ons in your region. Your existing Pro workspace remains available.'
+          : billing?.status === 'canceled'
+            ? 'Your Pro renewal is canceled. Extra workspace purchases require an active, renewing Google Play Pro plan.'
+            : 'Extra workspace purchasing is not available yet: Google Play has not returned all the plans needed for your account and region. Tap Refresh to check again. No extra payment will be taken.';
+      if (!workspaceAnchorHandled && window.location.hash === '#workspace-play') {
+        workspaceAnchorHandled = true;
+        requestAnimationFrame(() => document.getElementById('workspace-play').scrollIntoView({ block: 'start' }));
+      }
     }
 
     function renderPlayPlans() {
@@ -581,6 +596,7 @@
     document.getElementById("manageBillingBtn").addEventListener("click", openBillingPortal);
     document.getElementById("refreshBillingBtn").addEventListener("click", () => {
       if (billingUser) loadBillingStatus(billingUser);
+      if (window.AndroidBilling && isAndroidWrapper()) window.AndroidBilling.postMessage(JSON.stringify({ action: 'queryPlans' }));
     });
 
     onAuthStateChanged(auth, (user) => {
