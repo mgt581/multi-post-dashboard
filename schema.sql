@@ -73,3 +73,8 @@ CREATE TABLE IF NOT EXISTS tiktok_oauth_states (
   state TEXT PRIMARY KEY, browser_nonce TEXT NOT NULL, folder_id TEXT NOT NULL,
   user_id TEXT NOT NULL, expires_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS android_oauth_handoffs (
+  ticket_hash TEXT PRIMARY KEY, authorization_url TEXT NOT NULL, browser_nonce TEXT,
+  folder_id TEXT NOT NULL, user_id TEXT NOT NULL, expires_at INTEGER NOT NULL
+);

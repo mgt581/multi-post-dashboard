@@ -11,7 +11,7 @@ args = parser.parse_args()
 with zipfile.ZipFile(args.bundle) as bundle:
     dex = b"".join(bundle.read(name) for name in bundle.namelist() if name.endswith(".dex"))
 required = [b"changeWorkspaces", b"onMultiPostWorkspacePlans", b"onMultiPostPlayCountry",
-            b"multipost_workspace_%02d"]
+            b"multipost_workspace_%02d", b"AndroidConnections", b"connectionReturnUrl", b"/android-return.html"]
 missing = [marker.decode() for marker in required if marker not in dex]
 if missing:
     print("Workspace billing is missing: " + ", ".join(missing), file=sys.stderr)

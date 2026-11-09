@@ -462,13 +462,15 @@
 
     async function startPlatformConnection(platform, folderId, refresh = false) {
       try {
+        const returnToApp = !!window.AndroidConnections?.postMessage && /MultiPostAndroid\//i.test(navigator.userAgent || '');
         const response = await fetch(`${apiBase}/auth/${platform}`, {
           method: "POST", headers: await accountHeaders(),
-          body: JSON.stringify({ folder_id: folderId, user_id: userScope, refresh })
+          body: JSON.stringify({ folder_id: folderId, user_id: userScope, refresh, return_to_app: returnToApp })
         });
         const result = await response.json();
         if (!response.ok || !result.url) throw new Error(result.error || `Could not connect ${platform}.`);
-        window.location.assign(result.url);
+        if (returnToApp) window.AndroidConnections.postMessage(JSON.stringify({ action: 'connect', url: result.url }));
+        else window.location.assign(result.url);
       } catch (error) {
         alert(error.message || `Could not connect ${platform}. Please try again.`);
       }
@@ -478,13 +480,15 @@
       const status = document.getElementById("tiktokLinkStatus");
       status.hidden = true;
       try {
+        const returnToApp = !!window.AndroidConnections?.postMessage && /MultiPostAndroid\//i.test(navigator.userAgent || '');
         const response = await fetch(`${apiBase}/auth/tiktok`, {
           method: "POST", credentials: "same-origin", headers: await accountHeaders(),
-          body: JSON.stringify({ folder_id: folderId, user_id: userScope })
+          body: JSON.stringify({ folder_id: folderId, user_id: userScope, return_to_app: returnToApp })
         });
         const result = await response.json();
         if (!response.ok || !result.url) throw new Error(result.error || "Could not start TikTok connection.");
-        window.location.assign(result.url);
+        if (returnToApp) window.AndroidConnections.postMessage(JSON.stringify({ action: 'connect', url: result.url }));
+        else window.location.assign(result.url);
       } catch (error) {
         status.textContent = error.message || "Could not start TikTok connection. Please try again.";
         status.hidden = false;
@@ -640,6 +644,8 @@
         history.replaceState(null, "", `folder.html?id=${encodeURIComponent(getUrlParam("id") || getLS("activeFolderId"))}`);
       }
       if (params.has("tiktok_connected")) document.getElementById("count").textContent += " · TikTok connected. Check the account name below before posting.";
+      if (params.has("youtube_connected")) document.getElementById("count").textContent += " · YouTube connected. Check the channel below before posting.";
+      if (params.has("connection_error")) document.getElementById("count").textContent += " · Connection was not completed. Please try again.";
       // After Facebook OAuth the callback redirects here with ?facebook=pages
       if (new URLSearchParams(window.location.search).get("facebook") === "pages") {
         openFbModal();

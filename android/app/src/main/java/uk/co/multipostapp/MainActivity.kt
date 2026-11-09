@@ -16,6 +16,7 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import androidx.browser.customtabs.CustomTabsIntent
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
@@ -39,7 +40,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
             .onFailure { error ->
-                reportGoogleSignInFailure(error.message ?: "Google sign-in was cancelled")
+                val message = if (error is ApiException && error.statusCode == 10)
+                    "Google sign-in is not configured for this app's signing certificate. Contact MultiPost support."
+                else error.message ?: "Google sign-in was cancelled"
+                reportGoogleSignInFailure(message)
             }
     }
     private val chooseFile = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -64,7 +68,7 @@ class MainActivity : ComponentActivity() {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.mediaPlaybackRequiresUserGesture = false
-            settings.userAgentString = settings.userAgentString + " MultiPostAndroid/1.5"
+            settings.userAgentString = settings.userAgentString + " MultiPostAndroid/${BuildConfig.VERSION_NAME}"
             // JavascriptInterface cannot identify the caller's frame. Both
             // native actions require a trusted main-frame message instead.
             if (WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
@@ -75,6 +79,22 @@ class MainActivity : ComponentActivity() {
                     if (!isMainFrame || !isTrustedPage(sourceOrigin.toString()) ||
                         !isTrustedPage(view.url) || message.data != "requestGoogleSignIn") return@addWebMessageListener
                     runOnUiThread { if (isTrustedPage(webView.url)) launchGoogleSignIn() }
+                }
+                WebViewCompat.addWebMessageListener(
+                    this, "AndroidConnections",
+                    setOf("https://multipostapp.co.uk", "https://www.multipostapp.co.uk")
+                ) { view, message, sourceOrigin, isMainFrame, _ ->
+                    if (!isMainFrame || !isTrustedPage(sourceOrigin.toString()) || !isTrustedPage(view.url)) return@addWebMessageListener
+                    val payload = runCatching { JSONObject(message.data ?: "") }.getOrNull() ?: return@addWebMessageListener
+                    val target = Uri.parse(payload.optString("url"))
+                    if (payload.optString("action") != "connect" || !isTrustedPage(target.toString()) ||
+                        target.path != "/api/auth/android/start" ||
+                        !Regex("[a-f0-9]{64}").matches(target.getQueryParameter("ticket") ?: "")) return@addWebMessageListener
+                    runOnUiThread {
+                        if (isTrustedPage(webView.url)) runCatching {
+                            CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(this@MainActivity, target)
+                        }.onFailure { openOutsideApp(target) }
+                    }
                 }
                 WebViewCompat.addWebMessageListener(
                     this, "AndroidBilling",
@@ -108,7 +128,7 @@ class MainActivity : ComponentActivity() {
             webViewClient = MultiPostWebViewClient()
             webChromeClient = MultiPostChromeClient()
             setDownloadListener { url, _, _, _, _ -> openOutsideApp(Uri.parse(url)) }
-            loadUrl(HOME_URL)
+            loadUrl(connectionReturnUrl(intent?.data) ?: HOME_URL)
         }
         setContentView(webView)
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -122,6 +142,28 @@ class MainActivity : ComponentActivity() {
         }.onFailure {
             Toast.makeText(this, "Could not open link", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        connectionReturnUrl(intent.data)?.let { webView.loadUrl(it) }
+    }
+
+    private fun connectionReturnUrl(uri: Uri?): String? {
+        if (uri == null || !isTrustedPage(uri.toString()) || uri.path != "/android-return.html") return null
+        val folderId = uri.getQueryParameter("folder_id") ?: return null
+        val provider = uri.getQueryParameter("provider") ?: return null
+        val result = uri.getQueryParameter("result") ?: return null
+        if (!Regex("[A-Za-z0-9_-]{1,128}").matches(folderId) || provider !in setOf("youtube", "facebook", "tiktok") || result !in setOf("success", "error")) return null
+        val target = Uri.parse("https://multipostapp.co.uk/folder.html").buildUpon().appendQueryParameter("id", folderId)
+        if (result == "error") target.appendQueryParameter("connection_error", "1")
+        else when (provider) {
+            "facebook" -> target.appendQueryParameter("facebook", "pages")
+            "tiktok" -> target.appendQueryParameter("tiktok_connected", "1")
+            "youtube" -> target.appendQueryParameter("youtube_connected", "1")
+        }
+        return target.build().toString()
     }
 
     private fun launchGoogleSignIn() {
@@ -141,7 +183,8 @@ class MainActivity : ComponentActivity() {
 
     private fun isTrustedPage(url: String?): Boolean {
         val uri = Uri.parse(url ?: "")
-        return uri.scheme == "https" && uri.host in setOf("multipostapp.co.uk", "www.multipostapp.co.uk")
+        return uri.scheme == "https" && uri.host in setOf("multipostapp.co.uk", "www.multipostapp.co.uk") &&
+            uri.port in setOf(-1, 443) && uri.userInfo == null
     }
 
     private fun deliverGoogleSignInResult(callback: String, value: String) {

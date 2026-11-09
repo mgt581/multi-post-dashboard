@@ -7,6 +7,7 @@ plugins {
 android {
     namespace = "uk.co.multipostapp"
     compileSdk = 36
+    buildFeatures { buildConfig = true }
     defaultConfig {
         applicationId = "uk.co.multipostapp"
         minSdk = 24
@@ -31,4 +32,5 @@ dependencies {
     implementation("com.google.android.gms:play-services-auth:21.4.0")
     implementation("com.android.billingclient:billing:9.1.0")
     implementation("androidx.webkit:webkit:1.15.0")
+    implementation("androidx.browser:browser:1.8.0")
 }
