@@ -113,9 +113,11 @@ class MainActivity : ComponentActivity() {
                             )
                             "changeWorkspaces" -> {
                                 val ids = payload.optJSONArray("renewing_ids")
+                                val owned = payload.optJSONArray("owned_ids")
                                 playBilling.changeWorkspaces(payload.optInt("target", -1),
                                     payload.optString("base_plan_id"), payload.optString("firebase_uid"),
-                                    (0 until (ids?.length() ?: 0)).map { ids!!.optString(it) })
+                                    (0 until (ids?.length() ?: 0)).map { ids!!.optString(it) },
+                                    (0 until (owned?.length() ?: 0)).map { owned!!.optString(it) })
                             }
                             "restore" -> playBilling.restore()
                             "openManage" -> openOutsideApp(Uri.parse(

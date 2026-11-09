@@ -428,24 +428,29 @@
       const price = retainedPlansAvailable ? nextPlan?.price : null;
       // Native Billing already omits add-on plans in unsupported Play regions.
       // The country callback can arrive before this page registers its listener.
-      const eligible = billing?.reason === 'play_verified' && billing?.access &&
-        billing?.status !== 'canceled' && playCountryCode !== 'KR' &&
+      const paidPro = billing?.play?.paid_pro === true;
+      const eligible = billing?.reason === 'play_verified' && billing?.access && paidPro &&
+        billing?.play?.state === 'SUBSCRIPTION_STATE_ACTIVE' && playCountryCode !== 'KR' &&
         ['monthly', 'yearly'].includes(interval) && !!price;
       controls.hidden = billing?.reason !== 'play_verified' || !billing?.access;
       if (controls.hidden) return;
       const add = document.getElementById('workspaceAddBtn');
       const remove = document.getElementById('workspaceRemoveBtn');
-      add.disabled = !eligible || renewing.length >= 10 || active >= 10;
+      add.disabled = !eligible || renewing.length >= 9 || active >= 9;
       remove.disabled = renewing.length === 0;
       add.textContent = eligible ? `Add one workspace (${price}/${interval === 'monthly' ? 'month' : 'year'})` : 'Add one workspace';
-      document.getElementById('workspacePlayNote').textContent = renewing.length >= 10 || active >= 10
-        ? 'The ten extra workspace places are in use. A place becomes available after a scheduled removal expires.'
+      document.getElementById('workspacePlayNote').textContent = !paidPro && (billing?.status === 'trialing' || billing?.play?.trial_end)
+        ? 'Additional workspaces become available after your first successful Pro subscription payment.'
+        : renewing.length >= 9 || active >= 9
+        ? 'The ten total workspace places are in use. A place becomes available after a scheduled removal expires.'
         : eligible
           ? `${active} paid extra workspace${active === 1 ? '' : 's'} available now; ${renewing.length} set to renew. Each additional workspace costs ${price}/${interval === 'monthly' ? 'month' : 'year'} in your Play region. Adding one may charge a prorated amount today. Removing one stops renewal; it remains usable until its paid period ends. Review the exact total and date in Play before confirming.`
           : playCountryCode === 'KR'
           ? 'Google Play does not support extra workspace add-ons in your region. Your existing Pro workspace remains available.'
-          : billing?.status === 'canceled'
-            ? 'Your Pro renewal is canceled. Extra workspace purchases require an active, renewing Google Play Pro plan.'
+            : billing?.play?.state !== 'SUBSCRIPTION_STATE_ACTIVE'
+            ? 'Extra workspace purchases require an active, renewing Google Play Pro plan.'
+            : !paidPro
+            ? 'Additional workspaces become available after your first successful Pro subscription payment.'
             : 'Google Play has not returned the plans needed for your next workspace. Tap Refresh above to reload your purchase options. If this continues, check that you installed the latest MultiPost update from Google Play. No extra payment will be taken.';
       if (!workspaceAnchorHandled && window.location.hash === '#workspace-play') {
         workspaceAnchorHandled = true;
@@ -555,8 +560,10 @@
       const changeWorkspaces = delta => {
         const renewal = currentBilling?.workspace_renewing_ids || [];
         if (!auth.currentUser || currentBilling?.reason !== 'play_verified' || !currentBilling.play?.base_plan_id) return;
+        if (delta > 0 && (currentBilling.play.paid_pro !== true || currentBilling.play.state !== 'SUBSCRIPTION_STATE_ACTIVE' ||
+          (currentBilling.workspace_product_ids || []).length >= 9 || renewal.length >= 9)) return;
         sendPlayAction('changeWorkspaces', { target: renewal.length + delta,
-          renewing_ids: renewal, base_plan_id: currentBilling.play.base_plan_id,
+          renewing_ids: renewal, owned_ids: currentBilling.workspace_product_ids || [], base_plan_id: currentBilling.play.base_plan_id,
           firebase_uid: auth.currentUser.uid });
       };
       document.getElementById('workspaceAddBtn').addEventListener('click', () => changeWorkspaces(1));

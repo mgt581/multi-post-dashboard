@@ -792,10 +792,10 @@ Follow for daily trending content! \u{1F44F}
       if (Number(row.last_verified_at || 0) + 300 < nowUnix()) {
         try {
           const token = await decryptPurchaseToken(row.encrypted_token, env.PLAY_TOKEN_ENCRYPTION_KEY);
-          const verified = await verifyPlayPurchase({ token, firebaseUid: identity.userId, serviceAccountJson: env.PLAY_SERVICE_ACCOUNT_JSON });
-          await env.DB.prepare(`UPDATE billing_play_purchases SET subscription_state = ?, expiry_time = ?, base_plan_id = ?, trial_end = ?, workspace_quantity = ?, workspace_expiry = ?, workspace_items_json = ?, last_verified_at = strftime('%s','now') WHERE user_id = ?`)
+          const verified = await verifyPlayPurchase({ token, firebaseUid: identity.userId, serviceAccountJson: env.PLAY_SERVICE_ACCOUNT_JSON, previousPaidOrderId: row.pro_paid_order_id });
+          await env.DB.prepare(`UPDATE billing_play_purchases SET subscription_state = ?, expiry_time = ?, base_plan_id = ?, trial_end = ?, workspace_quantity = ?, workspace_expiry = ?, workspace_items_json = ?, pro_paid_order_id = ?, last_verified_at = strftime('%s','now') WHERE user_id = ?`)
             .bind(verified.state, verified.expiry, verified.basePlanId, verified.trialEnd, verified.workspaceQuantity,
-              verified.workspaceExpiry, JSON.stringify(verified.workspaceItems), identity.userId).run();
+              verified.workspaceExpiry, JSON.stringify(verified.workspaceItems), verified.paidProOrderId, identity.userId).run();
           return verified;
         } catch (_) {
           // A failed refresh cannot extend a Play entitlement.
@@ -810,9 +810,10 @@ Follow for daily trending content! \u{1F44F}
         expiry: Number(row.expiry_time || 0),
         basePlanId: row.base_plan_id,
         trialEnd: Number(row.trial_end || 0) > nowUnix() ? Number(row.trial_end) : null,
-        workspaceQuantity: workspaceItems.length,
+        paidPro: Boolean(row.pro_paid_order_id),
+        workspaceQuantity: row.pro_paid_order_id ? workspaceItems.length : 0,
         workspaceExpiry: Number(row.workspace_expiry || 0),
-        workspaceItems,
+        workspaceItems: row.pro_paid_order_id ? workspaceItems : [],
         access: ["SUBSCRIPTION_STATE_ACTIVE", "SUBSCRIPTION_STATE_IN_GRACE_PERIOD", "SUBSCRIPTION_STATE_CANCELED"].includes(state) && Number(row.expiry_time || 0) > nowUnix()
       };
     }, "getPlayEntitlement");
@@ -850,7 +851,7 @@ Follow for daily trending content! \u{1F44F}
           reason: "play_verified",
           status: playEntitlement.state === "SUBSCRIPTION_STATE_CANCELED" ? "canceled" : playEntitlement.trialEnd > nowUnix() ? "trialing" : "active",
           owner: false,
-          workspaceAllowance: 1 + Number(playEntitlement.workspaceQuantity || 0),
+          workspaceAllowance: Math.min(10, 1 + Number(playEntitlement.workspaceQuantity || 0)),
           plan: { planKey: "pro", interval: playEntitlement.basePlanId, limits: PLAN_LIMITS.pro }
         };
       }
@@ -1031,7 +1032,7 @@ Follow for daily trending content! \u{1F44F}
       const limits = evaluated?.plan?.limits || PLAN_LIMITS.pro;
       const baseCap = Number(limits?.account_caps?.[platform] || 0);
       const cap = evaluated.reason === 'play_verified'
-        ? baseCap * Math.max(1, Math.min(11, Number(evaluated.workspaceAllowance || 1))) : baseCap;
+        ? baseCap * Math.max(1, Math.min(10, Number(evaluated.workspaceAllowance || 1))) : baseCap;
       if (!cap) return { ok: true };
       const existingInFolder = await env.DB.prepare(`
         SELECT COUNT(*) AS count FROM accounts WHERE user_id = ? AND folder_id = ? AND platform = ?
@@ -1395,7 +1396,8 @@ Follow for daily trending content! \u{1F44F}
         }
         try {
           // Only Google's API response and the authenticated Firebase UID establish access.
-          const verified = await verifyPlayPurchase({ token, firebaseUid: identity.userId, serviceAccountJson: env.PLAY_SERVICE_ACCOUNT_JSON });
+          const priorPaid = await env.DB.prepare("SELECT pro_paid_order_id FROM billing_play_purchases WHERE user_id = ? LIMIT 1").bind(identity.userId).first();
+          const verified = await verifyPlayPurchase({ token, firebaseUid: identity.userId, serviceAccountJson: env.PLAY_SERVICE_ACCOUNT_JSON, previousPaidOrderId: priorPaid?.pro_paid_order_id });
           const tokenHash = await sha256Hex(token);
           const existing = await env.DB.prepare("SELECT user_id FROM billing_play_token_claims WHERE token_hash = ? LIMIT 1").bind(tokenHash).first();
           if (existing && existing.user_id !== identity.userId) {
@@ -1418,23 +1420,23 @@ Follow for daily trending content! \u{1F44F}
           }
           const encrypted = await encryptPurchaseToken(token, env.PLAY_TOKEN_ENCRYPTION_KEY);
           await env.DB.prepare(`INSERT INTO billing_play_purchases
-            (user_id, token_hash, encrypted_token, product_id, base_plan_id, subscription_state, expiry_time, trial_end, workspace_quantity, workspace_expiry, workspace_items_json, last_verified_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
+            (user_id, token_hash, encrypted_token, product_id, base_plan_id, subscription_state, expiry_time, trial_end, workspace_quantity, workspace_expiry, workspace_items_json, pro_paid_order_id, last_verified_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
             ON CONFLICT(user_id) DO UPDATE SET token_hash = excluded.token_hash, encrypted_token = excluded.encrypted_token,
             product_id = excluded.product_id, base_plan_id = excluded.base_plan_id,
             subscription_state = excluded.subscription_state, expiry_time = excluded.expiry_time, trial_end = excluded.trial_end,
             workspace_quantity = excluded.workspace_quantity, workspace_expiry = excluded.workspace_expiry,
-            workspace_items_json = excluded.workspace_items_json,
+            workspace_items_json = excluded.workspace_items_json, pro_paid_order_id = excluded.pro_paid_order_id,
             last_verified_at = excluded.last_verified_at
             WHERE billing_play_purchases.token_hash = ? OR billing_play_purchases.token_hash = excluded.token_hash`)
             .bind(identity.userId, tokenHash, encrypted, verified.productId, verified.basePlanId, verified.state, verified.expiry,
-              verified.trialEnd, verified.workspaceQuantity, verified.workspaceExpiry, JSON.stringify(verified.workspaceItems),
+              verified.trialEnd, verified.workspaceQuantity, verified.workspaceExpiry, JSON.stringify(verified.workspaceItems), verified.paidProOrderId,
               prior?.token_hash || tokenHash).run();
           const current = await env.DB.prepare("SELECT token_hash FROM billing_play_purchases WHERE user_id = ?").bind(identity.userId).first();
           if (current?.token_hash !== tokenHash) {
             return Response.json({ success: false, error: "Subscription changed while restoring; retry with the current purchase" }, { status: 409, headers: corsHeaders });
           }
-          return Response.json({ success: true, access: verified.access, status: verified.state, expires_at: verified.expiry, workspace_quantity: verified.workspaceQuantity }, { headers: corsHeaders });
+          return Response.json({ success: true, access: verified.access, status: verified.state, expires_at: verified.expiry, workspace_quantity: verified.workspaceQuantity, paid_pro: verified.paidPro }, { headers: corsHeaders });
         } catch (_) {
           return Response.json({ success: false, error: "Google Play purchase could not be verified" }, { status: 400, headers: corsHeaders });
         }
@@ -1503,7 +1505,7 @@ Follow for daily trending content! \u{1F44F}
               trial_used: Number(row?.trial_used || 0) === 1,
               is_owner: Number(row?.is_owner || 0) === 1
             },
-            play: playEntitlement ? { state: playEntitlement.state, expires_at: playEntitlement.expiry, base_plan_id: playEntitlement.basePlanId, trial_end: playEntitlement.trialEnd || null } : null
+            play: playEntitlement ? { state: playEntitlement.state, expires_at: playEntitlement.expiry, base_plan_id: playEntitlement.basePlanId, trial_end: playEntitlement.trialEnd || null, paid_pro: playEntitlement.paidPro === true } : null
           }
         }), { headers: jsonHeaders });
       }

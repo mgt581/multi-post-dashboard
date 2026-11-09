@@ -18,7 +18,7 @@ function renderWorkspaceStatus(plans, billing, country = null, android = true) {
 }
 
 const pro = { reason: 'play_verified', access: true, status: 'active',
-  play: { base_plan_id: 'monthly' }, workspace_product_ids: [], workspace_renewing_ids: [] };
+  play: { base_plan_id: 'monthly', state: 'SUBSCRIPTION_STATE_ACTIVE', paid_pro: true }, workspace_product_ids: [], workspace_renewing_ids: [] };
 const catalogue = Array.from({ length: 10 }, (_, n) => ({
   base_plan_id: 'monthly', product_id: `multipost_workspace_${String(n + 1).padStart(2, '0')}`, price: '£4.99'
 }));
@@ -61,9 +61,27 @@ test('scheduled removals stay occupied and renewing plans must be available', ()
 });
 
 test('a canceled Pro plan cannot start a workspace purchase', () => {
-  const ui = renderWorkspaceStatus(catalogue, { ...pro, status: 'canceled' });
+  const ui = renderWorkspaceStatus(catalogue, { ...pro, status: 'canceled', play: { ...pro.play, state: 'SUBSCRIPTION_STATE_CANCELED' } });
   assert.equal(ui.workspaceAddBtn.disabled, true);
-  assert.match(ui.workspacePlayNote.textContent, /canceled/i);
+  assert.match(ui.workspacePlayNote.textContent, /active, renewing/i);
+});
+
+test('a trial and an unverified first payment never offer a chargeable workspace', () => {
+  for (const billing of [
+    { ...pro, status: 'trialing', play: { ...pro.play, paid_pro: false, trial_end: 1790000000 } },
+    { ...pro, play: { ...pro.play, paid_pro: false } }
+  ]) {
+    const ui = renderWorkspaceStatus(catalogue, billing);
+    assert.equal(ui.workspaceAddBtn.disabled, true);
+    assert.equal(ui.workspacePlayNote.textContent, 'Additional workspaces become available after your first successful Pro subscription payment.');
+  }
+});
+
+test('nine purchased extras fill the ten total workspace limit', () => {
+  const ids = catalogue.slice(0, 9).map(plan => plan.product_id);
+  const ui = renderWorkspaceStatus(catalogue, { ...pro, workspace_product_ids: ids, workspace_renewing_ids: ids });
+  assert.equal(ui.workspaceAddBtn.disabled, true);
+  assert.match(ui.workspacePlayNote.textContent, /ten total workspace places/);
 });
 
 test('extra Play workspace checkout remains hidden on web and disabled in an unsupported Play country', () => {
@@ -81,4 +99,10 @@ test('the dashboard offers Play subscribers a clear route when their workspace a
   assert.match(dashboard, /href="settings\.html#workspace-play"/);
   context.navigator.userAgent = 'Desktop Chrome';
   assert.equal(vm.runInNewContext('isPlayWorkspaceLimitReached()', context), false);
+  const limitSource = dashboard.slice(dashboard.indexOf('    function showWorkspaceLimit() {'), dashboard.indexOf('    function openRenameFolder('));
+  const description = { textContent: '' };
+  const trialContext = { workspaceBilling: { ...context.workspaceBilling, status: 'trialing' }, loadedFolders: [{ id: 1 }],
+    document: { getElementById: id => id === 'workspaceLimitDescription' ? description : { showModal() {} } } };
+  vm.runInNewContext(`${limitSource}\nshowWorkspaceLimit()`, trialContext);
+  assert.equal(description.textContent, 'Additional workspaces become available after your first successful Pro subscription payment.');
 });

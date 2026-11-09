@@ -22,5 +22,7 @@ test('settings posts purchase actions only through the origin-aware bridge on An
   assert.match(settings, /playControls" class="billing-actions" hidden/);
   assert.match(settings, /window\.AndroidBilling && isAndroidWrapper\(\)/);
   assert.match(native, /private const val HOME_URL = "https:\/\/multipostapp\.co\.uk\/app\.html"/);
+  assert.match(settings, /owned_ids: currentBilling\.workspace_product_ids/);
+  assert.match(native, /payload\.optJSONArray\("owned_ids"\)/);
   assert.match(app, /href=['"]settings\.html['"]|location\.href=['"]settings\.html['"]/);
 });

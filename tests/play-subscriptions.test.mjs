@@ -124,6 +124,46 @@ test('backend checks Google with a service account and acknowledges only a verif
   assert.equal(calls.filter(call => call.url.endsWith(':acknowledge')).length, 1);
 });
 
+test('backend requires a processed positive Pro charge before granting an add-on', async () => {
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const serviceAccountJson = JSON.stringify({ type: 'service_account', client_email: 'test@example.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }) });
+  const bundle = purchase('SUBSCRIPTION_STATE_ACTIVE', '2026-11-08T12:00:00Z');
+  bundle.lineItems[0].latestSuccessfulOrderId = 'GPA.pro';
+  bundle.lineItems.push({ productId: 'multipost_workspace_01', expiryTime: '2026-11-08T12:00:00Z',
+    latestSuccessfulOrderId: 'GPA.extra', offerDetails: { basePlanId: 'monthly' }, autoRenewingPlan: { autoRenewEnabled: true } });
+  let orderState = 'PROCESSED';
+  let amount = { units: '4', nanos: 990000000 };
+  let orderAvailable = true;
+  const fetcher = async (url) => {
+    if (url.endsWith('/token')) return Response.json({ access_token: 'google-token' });
+    if (url.includes('/orders/')) return orderAvailable ? Response.json({ orderId: url.split('/').at(-1), state: orderState,
+      lineItems: [{ productId: 'multipost_pro', total: amount }] }) : new Response('', { status: 403 });
+    return Response.json(bundle);
+  };
+  const verify = () => verifyPlayPurchase({ token: 'play-token', firebaseUid: 'uid-123', serviceAccountJson, fetcher, now });
+  assert.equal((await verify()).workspaceQuantity, 1);
+  assert.equal((await verify()).paidProOrderId, 'GPA.pro');
+  amount = { units: '0', nanos: 0 };
+  assert.equal((await verify()).workspaceQuantity, 0, 'a zero-value trial order is not a payment');
+  orderState = 'REFUNDED';
+  amount = { units: '4', nanos: 990000000 };
+  assert.equal((await verify()).workspaceQuantity, 0, 'a fully refunded order cannot prove payment');
+  orderState = 'PROCESSED';
+  orderAvailable = false;
+  assert.equal((await verify()).access, true, 'order lookup failure preserves the Pro subscription');
+  assert.equal((await verify()).workspaceQuantity, 0, 'order lookup failure locks add-ons');
+  orderAvailable = true;
+  bundle.lineItems[0].latestSuccessfulOrderId = 'GPA.pro-zero-change';
+  const restored = await verifyPlayPurchase({ token: 'play-token', firebaseUid: 'uid-123', serviceAccountJson,
+    previousPaidOrderId: 'GPA.pro', fetcher: async (url, init) => {
+      if (url.endsWith('/orders/GPA.pro-zero-change')) return Response.json({ orderId: 'GPA.pro-zero-change', state: 'PROCESSED',
+        lineItems: [{ productId: 'multipost_pro', total: { units: '0', nanos: 0 } }] });
+      return fetcher(url, init);
+    }, now });
+  assert.equal(restored.paidProOrderId, 'GPA.pro', 'a zero-value add-on change retains an earlier paid Pro order');
+  assert.equal(restored.workspaceQuantity, 1);
+});
+
 test('authenticated Play purchase grants cross-platform access; a spoofed Android header grants none', async () => {
   const db = new DatabaseSync(':memory:');
   db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
@@ -132,6 +172,7 @@ test('authenticated Play purchase grants cross-platform access; a spoofed Androi
   db.exec(readFileSync(new URL('../migrations/0011_usage_workspace_entitlements.sql', import.meta.url), 'utf8'));
   db.exec(readFileSync(new URL('../migrations/0012_publication_reservations.sql', import.meta.url), 'utf8'));
   db.exec(readFileSync(new URL('../migrations/0013_workspace_item_entitlements.sql', import.meta.url), 'utf8'));
+  db.exec(readFileSync(new URL('../migrations/0017_play_paid_pro_order.sql', import.meta.url), 'utf8'));
   const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
   const env = {
     WEB_BILLING_ENABLED: 'true',
@@ -172,6 +213,8 @@ test('authenticated Play purchase grants cross-platform access; a spoofed Androi
     assert.equal(status.reason, 'play_verified');
     assert.equal(status.status, 'trialing');
     assert.equal(status.play.trial_end > Math.floor(Date.now() / 1000), true);
+    assert.equal(status.play.paid_pro, false);
+    assert.equal(status.workspace_allowance, 1);
     assert.equal(db.prepare('SELECT encrypted_token FROM billing_play_purchases').get().encrypted_token.includes('valid-play-token'), false);
     const replacement = await worker.fetch(new Request('https://example.test/api/billing/play-purchase', {
       method:'POST', headers:{ ...headers, 'Content-Type':'application/json' }, body:JSON.stringify({ purchase_token:'new-token' })
