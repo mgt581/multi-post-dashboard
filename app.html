@@ -579,7 +579,9 @@
     function showWorkspaceLimit() {
       const allowance = workspaceBilling?.workspace_allowance || 1;
       document.getElementById("workspaceLimitDescription").textContent =
-        `Your Google Play Pro subscription includes ${allowance} workspace${allowance === 1 ? "" : "s"}, and you're using ${loadedFolders.length}. See the price for one more in Profile; Google Play will show the exact amount and renewal date before you confirm.`;
+        workspaceBilling?.status === 'trialing'
+          ? 'Additional workspaces become available after your first successful Pro subscription payment.'
+          : `Your Google Play Pro subscription includes ${allowance} workspace${allowance === 1 ? "" : "s"}, and you're using ${loadedFolders.length}. See the price for one more in Profile; Google Play will show the exact amount and renewal date before you confirm.`;
       document.getElementById("workspaceLimitDialog").showModal();
     }
 

@@ -99,4 +99,10 @@ test('the dashboard offers Play subscribers a clear route when their workspace a
   assert.match(dashboard, /href="settings\.html#workspace-play"/);
   context.navigator.userAgent = 'Desktop Chrome';
   assert.equal(vm.runInNewContext('isPlayWorkspaceLimitReached()', context), false);
+  const limitSource = dashboard.slice(dashboard.indexOf('    function showWorkspaceLimit() {'), dashboard.indexOf('    function openRenameFolder('));
+  const description = { textContent: '' };
+  const trialContext = { workspaceBilling: { ...context.workspaceBilling, status: 'trialing' }, loadedFolders: [{ id: 1 }],
+    document: { getElementById: id => id === 'workspaceLimitDescription' ? description : { showModal() {} } } };
+  vm.runInNewContext(`${limitSource}\nshowWorkspaceLimit()`, trialContext);
+  assert.equal(description.textContent, 'Additional workspaces become available after your first successful Pro subscription payment.');
 });
