@@ -537,11 +537,11 @@
       }
     }
 
-    // Android 1.9.7+ buys each extra workspace as its own Play subscription. Older
+    // Android 1.9.8+ buys each extra workspace as its own Play subscription. Older
     // app versions (including the live production app) keep the add-on flow unchanged.
     function supportsStandaloneWorkspaces() {
       const m = (navigator.userAgent || '').match(/MultiPostAndroid\/(\d+)\.(\d+)(?:\.(\d+))?/);
-      return Boolean(m) && (Number(m[1]) * 10000 + Number(m[2]) * 100 + Number(m[3] || 0)) >= 10907;
+      return Boolean(m) && (Number(m[1]) * 10000 + Number(m[2]) * 100 + Number(m[3] || 0)) >= 10908;
     }
 
     function renderWorkspacePlans() {

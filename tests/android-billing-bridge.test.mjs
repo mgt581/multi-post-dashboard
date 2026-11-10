@@ -27,7 +27,7 @@ test('settings posts purchase actions only through the origin-aware bridge on An
   assert.match(app, /href=['"]settings\.html['"]|location\.href=['"]settings\.html['"]/);
 });
 
-test('Android 1.9.7 buys extra workspaces as standalone subscriptions, not Pro add-on lines', async () => {
+test('Android 1.9.8 buys extra workspaces as standalone subscriptions, not Pro add-on lines', async () => {
   const { readFile } = await import('node:fs/promises');
   const billing = await readFile(new URL('../android/app/src/main/java/uk/co/multipostapp/PlayBillingManager.kt', import.meta.url), 'utf8');
   const main = await readFile(new URL('../android/app/src/main/java/uk/co/multipostapp/MainActivity.kt', import.meta.url), 'utf8');
@@ -41,5 +41,5 @@ test('Android 1.9.7 buys extra workspaces as standalone subscriptions, not Pro a
   assert.match(main, /"buyWorkspace" ->/);
   assert.match(main, /"manageWorkspace" ->/);
   assert.match(gradle, /versionCode = 16/);
-  assert.match(gradle, /versionName = "1\.9\.7"/);
+  assert.match(gradle, /versionName = "1\.9\.8"/);
 });

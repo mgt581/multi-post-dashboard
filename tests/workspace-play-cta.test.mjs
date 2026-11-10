@@ -128,15 +128,15 @@ test('the website limit dialog links straight to buying another workspace', () =
   assert.match(dashboard, /if \(!nameDialogAction && res\.status === 429\) \{/);
 });
 
-test('Android 1.9.7+ describes extra workspaces as separate subscriptions; older apps keep the add-on text', () => {
+test('Android 1.9.8+ describes extra workspaces as separate subscriptions; older apps keep the add-on text', () => {
   const paidPro = { ...pro, play: { ...pro.play, paid_pro: true } };
   const oldApp = renderWorkspaceStatus(catalogue, paidPro, 'GB', true, '1.9.5');
-  const newApp = renderWorkspaceStatus(catalogue, paidPro, 'GB', true, '1.9.7');
+  const newApp = renderWorkspaceStatus(catalogue, paidPro, 'GB', true, '1.9.8');
   assert.match(oldApp.workspacePlayNote.textContent, /prorated amount/);
   assert.match(newApp.workspacePlayNote.textContent, /its own .* Google Play subscription, charged from today/);
   assert.equal(newApp.workspaceAddBtn.disabled, false);
   const gate = settings.slice(settings.indexOf('    function supportsStandaloneWorkspaces() {'), settings.indexOf('    function renderWorkspacePlans() {'));
-  for (const [ua, expected] of [['MultiPostAndroid/1.9.6', false], ['MultiPostAndroid/1.9.7', true], ['MultiPostAndroid/1.10.0', true], ['MultiPostAndroid/2.0', true], ['Desktop Chrome', false]])
+  for (const [ua, expected] of [['MultiPostAndroid/1.9.6', false], ['MultiPostAndroid/1.9.7', false], ['MultiPostAndroid/1.9.8', true], ['MultiPostAndroid/1.10.0', true], ['MultiPostAndroid/2.0', true], ['Desktop Chrome', false]])
     assert.equal(vm.runInNewContext(`${gate}\nsupportsStandaloneWorkspaces()`, { navigator: { userAgent: ua } }), expected, ua);
   assert.match(settings, /sendPlayAction\('buyWorkspace'/);
   assert.match(settings, /billing\/play-workspace-purchase/);
