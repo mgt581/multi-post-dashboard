@@ -81,7 +81,7 @@ test("web pricing uses authenticated checkout only after the server reports read
 test("profile uses the isolated preview billing service and shared Stripe countdown", async () => {
   const source = await readFile(new URL("../settings.html", import.meta.url), "utf8");
   assert.match(source, /multipost-seo-worker-preview\.alexbryant\.workers\.dev\/api/);
-  assert.match(source, /import \{ getBillingDisplay \} from "\.\/billing-ui\.mjs"/);
+  assert.match(source, /import \{ getBillingDisplay, getWorkspacePurchaseState \} from "\.\/billing-ui\.mjs"/);
   assert.match(source, /setInterval\([\s\S]{0,180}60 \* 1000/);
   assert.match(source, /visibilitychange/);
 });

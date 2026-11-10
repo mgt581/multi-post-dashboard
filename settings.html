@@ -163,6 +163,20 @@
       color: var(--muted);
       line-height: 1.45;
     }
+    .workspace-card {
+      width: 100%;
+      padding: 18px;
+      border: 1px solid rgba(56, 189, 248, 0.42);
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.16), rgba(124, 58, 237, 0.12));
+      display: grid;
+      gap: 10px;
+    }
+    .workspace-card[hidden], .workspace-card [hidden] { display: none !important; }
+    .workspace-card-title { font-size: 16px; font-weight: 800; color: white; }
+    .workspace-card-price { font-size: 19px; font-weight: 800; color: #7dd3fc; }
+    .workspace-card-description { margin: 0; font-size: 13px; line-height: 1.5; }
+    .workspace-card .workspace-cta { padding: 12px 15px; font-size: 13px; text-decoration: none; }
     /* Bottom Nav */
     .bottom-nav {
       position: fixed;
@@ -241,12 +255,15 @@
           <button id="workspaceRemoveBtn" class="mini-btn" type="button" disabled>Remove one at renewal</button>
         </div>
       </div>
-      <div id="workspaceWebControls" hidden>
-        <div class="section-title" id="workspace-web" style="margin:14px 0 8px;">Extra workspaces</div>
+      <div id="workspaceWebControls" class="workspace-card" hidden>
+        <div class="workspace-card-title" id="workspace-web">Additional Workspace</div>
+        <div class="workspace-card-price" id="workspaceWebPrice">£4.99/month per workspace</div>
+        <p class="workspace-card-description" id="workspaceWebDescription">Expand your MultiPost account with another workspace and additional supported social-account connections.</p>
         <div class="billing-note" id="workspaceWebNote" role="status"></div>
         <div class="billing-actions">
-          <button id="workspaceWebAddBtn" class="mini-btn primary" type="button" disabled>Add one workspace · £4.99/month</button>
-          <button id="workspaceWebRemoveBtn" class="mini-btn" type="button" disabled>Stop one renewal</button>
+          <button id="workspaceWebAddBtn" class="mini-btn primary workspace-cta" type="button" hidden>+ Add Another Workspace — £4.99/month</button>
+          <a id="workspaceWebPlayLink" class="mini-btn primary workspace-cta" href="https://play.google.com/store/apps/details?id=uk.co.multipostapp" target="_blank" rel="noopener" hidden>Manage Additional Workspaces in Android App</a>
+          <button id="workspaceWebRemoveBtn" class="mini-btn" type="button" hidden>Stop one renewal</button>
           <button id="workspaceWebResumeBtn" class="mini-btn" type="button" hidden>Resume renewal</button>
         </div>
       </div>
@@ -322,7 +339,7 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
     import { getAuth, onAuthStateChanged, signOut, deleteUser } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
-    import { getBillingDisplay } from "./billing-ui.mjs";
+    import { getBillingDisplay, getWorkspacePurchaseState } from "./billing-ui.mjs";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
@@ -353,6 +370,7 @@
     let playCountryCode = null;
     let playPlansLoaded = false;
     let workspaceAnchorHandled = false;
+    let workspaceWebAnchorHandled = false;
     let billingRefreshTimer = null;
     const OWNER_KEYS = ["alexbryant3234@gmail.com"];
     const normalizeUserKey = value => String(value || "").trim().toLowerCase();
@@ -413,6 +431,8 @@
               : "Existing web subscription access. Manage billing in your Stripe portal."
             : display.message;
       setBillingUi(display.message, note, display.access ? "ok" : "warn");
+      document.getElementById("manageBillingBtn").textContent = currentBilling.reason === "play_verified"
+        ? "Manage Pro in Google Play" : "Manage Billing";
       const allowance = document.getElementById("allowanceNote");
       allowance.hidden = !currentBilling.access || !currentBilling.ai_credits || !currentBilling.publications;
       if (!allowance.hidden) allowance.textContent = `This month: ${Math.max(0, 150 - currentBilling.ai_credits.used)} of 150 AI credits and ${Math.max(0, 150 - currentBilling.publications.used)} of 150 successful publications remaining. ${currentBilling.workspace_allowance == null ? "Owner workspace access." : `${currentBilling.workspace_allowance} workspace${currentBilling.workspace_allowance === 1 ? "" : "s"} included in your current entitlement.`}`;
@@ -423,28 +443,42 @@
 
     function renderWebWorkspacePlans() {
       const controls = document.getElementById('workspaceWebControls');
-      if (isAndroidWrapper()) { controls.hidden = true; return; }
       const billing = currentBilling;
-      controls.hidden = !billing?.access || billing?.reason === 'play_verified' || billing?.owner_mode || billing?.plan?.key !== 'pro';
+      const state = getWorkspacePurchaseState(billing, isAndroidWrapper());
+      controls.hidden = !state.showWebsiteCard;
       if (controls.hidden) return;
-      const addons = billing.stripe_workspace_addons || [];
+      const addons = state.addons;
       const renewing = addons.filter(item => !item.cancel_at_period_end);
       const stopping = addons.filter(item => item.cancel_at_period_end);
       const paid = billing.stripe_workspace_paid_pro === true && billing.status === 'active';
       const add = document.getElementById('workspaceWebAddBtn');
       const remove = document.getElementById('workspaceWebRemoveBtn');
       const resume = document.getElementById('workspaceWebResumeBtn');
-      add.disabled = !paid || !billing.stripe_workspace_checkout_enabled || addons.length >= 9 || workspaceWebBusy;
-      remove.disabled = !renewing.length || workspaceWebBusy;
-      resume.hidden = !stopping.length;
+      const play = state.provider === 'play';
+      document.getElementById('workspaceWebPrice').textContent = play ? 'Price shown in Google Play' : '£4.99/month per workspace';
+      document.getElementById('workspaceWebDescription').textContent = play
+        ? 'Your Google Play workspaces are available on this website when you use the same MultiPost account.'
+        : 'Expand your MultiPost account with another workspace and additional supported social-account connections.';
+      add.hidden = !state.canBuyStripe;
+      add.disabled = workspaceWebBusy;
+      document.getElementById('workspaceWebPlayLink').hidden = !play;
+      remove.hidden = play || !renewing.length;
+      remove.disabled = workspaceWebBusy;
+      resume.hidden = play || !stopping.length;
       resume.disabled = workspaceWebBusy || !billing.stripe_workspace_checkout_enabled;
-      document.getElementById('workspaceWebNote').textContent = !paid
+      document.getElementById('workspaceWebNote').textContent = play
+        ? `${billing.workspace_allowance || 1} total workspace${billing.workspace_allowance === 1 ? '' : 's'} available on this account. Open MultiPost on Android → Profile → Extra workspaces to manage Google Play add-ons. ${billing.play?.paid_pro ? 'Google Play shows the price for your plan and region before purchase.' : 'Additional workspaces become available after your first successful Pro subscription payment.'}`
+        : !paid
         ? 'Additional workspaces become available after your first successful Pro subscription payment.'
+        : state.atLimit
+          ? 'You have the maximum of ten total workspaces. A place becomes available when a scheduled removal ends.'
         : !billing.stripe_workspace_checkout_enabled
           ? 'Resume your Pro renewal before buying another workspace. Existing paid workspace access continues until its paid period ends.'
-        : addons.length >= 9
-          ? 'You have the maximum of ten total workspaces. A place becomes available when a scheduled removal ends.'
           : `${addons.length} paid extra workspace${addons.length === 1 ? '' : 's'} available now. Each new workspace is £4.99 per month. It becomes available only after Stripe confirms payment. Stopping renewal keeps access until the paid period ends.`;
+      if (!workspaceWebAnchorHandled && window.location.hash === '#workspace-web') {
+        workspaceWebAnchorHandled = true;
+        requestAnimationFrame(() => document.getElementById('workspace-web').scrollIntoView({ block: 'start' }));
+      }
     }
 
     function renderWorkspacePlans() {
@@ -650,6 +684,10 @@
       if (!billingUser) return;
       const platform = getClientPlatform();
       if (platform === "android") return;
+      if (currentBilling?.reason === "play_verified") {
+        window.open("https://play.google.com/store/account/subscriptions?sku=multipost_pro&package=uk.co.multipostapp", "_blank", "noopener");
+        return;
+      }
       const btn = document.getElementById("manageBillingBtn");
       const old = btn.textContent;
       btn.disabled = true;

@@ -1,5 +1,20 @@
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+export function getWorkspacePurchaseState(billing = {}, androidWrapper = false) {
+  const provider = androidWrapper || billing.reason === "play_verified" ? "play"
+    : billing.access && billing.reason === "ok" && billing.plan?.key === "pro" && !billing.owner_mode ? "stripe" : "none";
+  const addons = Array.isArray(billing.stripe_workspace_addons) ? billing.stripe_workspace_addons : [];
+  const atLimit = addons.length >= 9 || Number(billing.workspace_allowance || 0) >= 10;
+  return {
+    provider,
+    addons,
+    atLimit,
+    showWebsiteCard: !androidWrapper && billing.access === true && billing.plan?.key === "pro" && !billing.owner_mode,
+    canBuyStripe: provider === "stripe" && billing.status === "active" &&
+      billing.stripe_workspace_paid_pro === true && billing.stripe_workspace_checkout_enabled === true && !atLimit
+  };
+}
+
 export function getBillingDisplay(billing = {}, nowMs = Date.now()) {
   if (billing.owner_mode) {
     return { kind: "owner", message: "Owner Mode — Subscription Active", access: true };
