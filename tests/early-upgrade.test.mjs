@@ -152,3 +152,23 @@ test('Android and non-trial accounts cannot use the website early upgrade', asyn
     assert.ok(!stripe.state.calls.some(c => c.body?.get('trial_end') === 'now'));
   } finally { globalThis.fetch = originalFetch; sqlite.close(); }
 });
+
+test('a Stripe permission error never reaches the customer and leaves the trial unchanged', async () => {
+  const { sqlite, env } = setup();
+  const stripe = fakeStripe();
+  const inner = stripe.fetch;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    if (String(url).endsWith('/v1/subscriptions/sub_pro') && init.method === 'POST')
+      return Response.json({ error: { message: "Permission denied. The provided key 'rk_live_...PIDW' does not have the required permissions for this endpoint on account 'acct_1UYcD8AIIxddZy1r'." } }, { status: 403 });
+    return inner(url, init);
+  };
+  try {
+    const res = await worker.fetch(post('/billing/end-trial-early', { user_id: 'uid-123' }), env);
+    const text = await res.text();
+    assert.equal(res.status, 503);
+    assert.match(text, /trial is unchanged and nothing was charged/);
+    assert.doesNotMatch(text, /rk_live|acct_|Permission/);
+    assert.equal(stripe.state.bonusCreates, 0);
+  } finally { globalThis.fetch = originalFetch; sqlite.close(); }
+});

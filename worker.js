@@ -644,6 +644,13 @@ Follow for daily trending content! \u{1F44F}
       const data = await safeJson(res);
       if (!res.ok) {
         const message = data?.error?.message || `Stripe API error ${res.status}`;
+        // Never show customers Stripe key, permission or account details.
+        if (res.status === 401 || res.status === 403 || /\b(rk|sk)_(live|test)_|permission|acct_/i.test(message)) {
+          console.error("Stripe API refused request", method, path.split("?")[0], res.status, message);
+          const safe = new Error("Billing is temporarily unavailable. Please try again later.");
+          safe.stripeConfig = true;
+          throw safe;
+        }
         throw new Error(message);
       }
       return data;
@@ -1908,10 +1915,15 @@ Follow for daily trending content! \u{1F44F}
             ? "Resume your Pro renewal in Manage Billing before subscribing early."
             : "Your trial has already ended." }, { status: 409, headers: corsHeaders });
         // pending_if_incomplete: if the card is declined, Stripe leaves the trial untouched.
-        sub = await stripeApi(`/v1/subscriptions/${encodeURIComponent(sub.id)}`, "POST", {
-          trial_end: "now", proration_behavior: "none", payment_behavior: "pending_if_incomplete",
-          "expand[0]": "latest_invoice"
-        }, { "Idempotency-Key": `multipost-end-trial-${sub.id}-${Math.floor(nowUnix() / 60)}` });
+        try {
+          sub = await stripeApi(`/v1/subscriptions/${encodeURIComponent(sub.id)}`, "POST", {
+            trial_end: "now", proration_behavior: "none", payment_behavior: "pending_if_incomplete",
+            "expand[0]": "latest_invoice"
+          }, { "Idempotency-Key": `multipost-end-trial-${sub.id}-${Math.floor(nowUnix() / 60)}` });
+        } catch (error) {
+          console.error("End trial early failed", error?.message || error);
+          return Response.json({ success: false, error: "Subscribing early is unavailable right now. Your free trial is unchanged and nothing was charged. Please try again later." }, { status: 503, headers: corsHeaders });
+        }
         const invoice = sub.latest_invoice && typeof sub.latest_invoice === "object" ? sub.latest_invoice : null;
         if (sub.pending_update || sub.status !== "active" || !invoice || await verifiedStripeInvoicePaymentAmount(invoice) <= 0) {
           if (invoice?.id && invoice.status === "open") {
