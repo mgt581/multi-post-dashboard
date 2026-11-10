@@ -565,8 +565,10 @@ Follow for daily trending content! \u{1F44F}
         key: "pro",
         label: "Creator",
         account_caps: { youtube: 1, tiktok: 1, facebook_page: 1 },
-        daily_total_posts: 6,
-        daily_per_platform_posts: { youtube: 2, tiktok: 2, facebook: 2 }
+        // No daily cap on Pro: customers are promised 150 publications a month per workspace.
+        daily_total_posts: 0,
+        daily_per_platform_posts: { youtube: 0, tiktok: 0, facebook: 0 },
+        monthly_publications_per_workspace: 150
       },
       pro_plus: {
         key: "pro_plus",
@@ -1229,13 +1231,17 @@ Follow for daily trending content! \u{1F44F}
       } catch (_) {
       }
     }, "recordPublishUsage");
+    // 150 successful publications a month for each workspace the account is entitled to.
+    const monthlyPublicationAllowance = /* @__PURE__ */ __name((evaluated) =>
+      150 * Math.max(1, Math.min(10, Number(evaluated?.workspaceAllowance || 1))), "monthlyPublicationAllowance");
     const ensurePlanQuota = /* @__PURE__ */ __name(async (userId, platform, evaluated) => {
       if (!evaluated?.enabled || evaluated?.reason === "owner_bypass") {
         return { ok: true };
       }
       const limits = evaluated?.plan?.limits || PLAN_LIMITS.pro;
-      if (await countMonthlyPublications(evaluated?.identityAliases || [userId]) >= 150) {
-        return { ok: false, statusCode: 429, body: { success: false, error: "150 successful platform publications reached this month" } };
+      const monthlyAllowance = monthlyPublicationAllowance(evaluated);
+      if (await countMonthlyPublications(evaluated?.identityAliases || [userId]) >= monthlyAllowance) {
+        return { ok: false, statusCode: 429, body: { success: false, error: `${monthlyAllowance} successful platform publications reached this month` } };
       }
       const usage = await countDailyPosts(evaluated?.identityAliases || [userId], platform);
       const platformLimit = Number(limits?.daily_per_platform_posts?.[platform] || 0);
@@ -1250,7 +1256,7 @@ Follow for daily trending content! \u{1F44F}
       const monthStart = aiMonthStart();
       const slotId = crypto.randomUUID();
       // SQLite/D1 serializes this conditional insert. Legacy successes and
-      // pending/completed slots occupy one of the 150 monthly places.
+      // pending/completed slots occupy one of the monthly places (150 per workspace).
       const reserved = await env.DB.prepare(`INSERT INTO billing_publish_slots (id, user_id, platform, month_start, status)
         SELECT ?, ?, ?, ?, 'pending' WHERE
           (SELECT COUNT(*) FROM billing_usage_events WHERE user_id IN (${sqlPlaceholders(aliases)})
@@ -1258,13 +1264,13 @@ Follow for daily trending content! \u{1F44F}
             AND ((event_type = 'publish' AND platform IN ('youtube','facebook'))
               OR (event_type = 'publish_confirmed' AND platform IN ('youtube','facebook','tiktok'))))
           + (SELECT COUNT(*) FROM billing_publish_slots WHERE user_id = ? AND
-             ((status = 'pending' AND month_start = ?) OR (status = 'completed' AND completed_at >= ? AND completed_at < ?))) < 150`)
+             ((status = 'pending' AND month_start = ?) OR (status = 'completed' AND completed_at >= ? AND completed_at < ?))) < ?`)
         .bind(slotId, evaluated.canonicalUserId || userId, platform, monthStart, ...aliases,
           monthStart, Math.floor(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1) / 1000),
           evaluated.canonicalUserId || userId, monthStart, monthStart,
-          Math.floor(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1) / 1000)).run();
+          Math.floor(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1) / 1000), monthlyAllowance).run();
       if (!Number(reserved?.meta?.changes ?? reserved?.changes ?? 0)) {
-        return { ok: false, statusCode: 429, body: { success: false, error: "150 platform publication places are in use this month. Pending uploads release their place if they fail." } };
+        return { ok: false, statusCode: 429, body: { success: false, error: `${monthlyAllowance} platform publication places are in use this month. Pending uploads release their place if they fail.` } };
       }
       publicationSlotId = slotId;
       publicationCanonicalUserId = evaluated.canonicalUserId || userId;
@@ -1282,8 +1288,8 @@ Follow for daily trending content! \u{1F44F}
       if (!evaluated?.enabled || evaluated?.reason === "owner_bypass") return { ok: true };
       const limits = evaluated?.plan?.limits || PLAN_LIMITS.pro;
       const baseCap = Number(limits?.account_caps?.[platform] || 0);
-      const cap = evaluated.reason === 'play_verified'
-        ? baseCap * Math.max(1, Math.min(10, Number(evaluated.workspaceAllowance || 1))) : baseCap;
+      // Each entitled workspace (Play or Stripe) can link its own accounts.
+      const cap = baseCap * Math.max(1, Math.min(10, Number(evaluated.workspaceAllowance || 1)));
       if (!cap) return { ok: true };
       const existingInFolder = await env.DB.prepare(`
         SELECT COUNT(*) AS count FROM accounts WHERE user_id = ? AND folder_id = ? AND platform = ?
@@ -1813,7 +1819,7 @@ Follow for daily trending content! \u{1F44F}
             workspace_renewing_ids: playEntitlement?.access ? (playEntitlement.workspaceItems || []).filter((item) => item.renewing).map((item) => item.productId) : [],
             workspace_standalone_ids: playEntitlement?.access ? (playEntitlement.workspaceItems || []).filter((item) => item.standalone).map((item) => item.productId) : [],
             ai_credits: { used: Number(aiUsed?.count || 0), allowance: 150 },
-            publications: { used: publicationsThisMonth, allowance: 150 },
+            publications: { used: publicationsThisMonth, allowance: monthlyPublicationAllowance(evaluated) },
             trial_days_default: stripeTrialDays,
             plan: {
               key: effPlan.planKey,

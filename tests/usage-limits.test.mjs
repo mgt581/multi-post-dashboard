@@ -491,3 +491,32 @@ test('reconciler confirms provider success once, releases explicit failures, and
     assert.equal(sqlite.prepare("SELECT COUNT(*) count FROM billing_usage_events WHERE event_type='publish_metered'").get().count, 1);
   } finally { sqlite.close(); }
 });
+
+test('Pro has no daily posting cap and gets 150 publications a month per entitled workspace', async () => {
+  const { sqlite, env } = fixture();
+  sqlite.prepare("INSERT INTO folders (user_id,name) VALUES ('uid-1','Main')").run();
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ users: [{ localId: 'uid-1', email: 'one@example.com', emailVerified: true }] });
+  const publish = () => worker.fetch(new Request('https://test.invalid/api/youtube/init-upload', {
+    method: 'POST', headers: { ...headers, folder_id: '1', user_id: 'uid-1' }, body: JSON.stringify({ title: 'Test', fileSize: 100 })
+  }), env);
+  try {
+    const insert = sqlite.prepare('INSERT INTO billing_usage_events (user_id,event_type,platform,created_at) VALUES (?,?,?,?)');
+    const now = Math.floor(Date.now() / 1000);
+    // Ten YouTube and ten Facebook posts already today: the old 2-per-day / 6-total cap is gone.
+    for (let i = 0; i < 10; i++) { insert.run('uid-1', 'publish_confirmed', 'youtube', now); insert.run('uid-1', 'publish_confirmed', 'facebook', now); }
+    const res = await publish();
+    assert.notEqual(res.status, 429, await res.clone().text());
+    const status = await (await worker.fetch(new Request('https://test.invalid/api/billing/status?user_id=uid-1', { headers }), env)).json();
+    assert.equal(status.billing.publications.allowance, 150);
+    // Two entitled workspaces (Play Pro + one paid extra) double the monthly allowance.
+    sqlite.prepare(`INSERT INTO billing_play_purchases (user_id,token_hash,encrypted_token,product_id,base_plan_id,subscription_state,expiry_time,last_verified_at,pro_paid_order_id,workspace_items_json)
+      VALUES ('uid-1','h','e','multipost_pro','monthly','SUBSCRIPTION_STATE_ACTIVE',?,?,'GPA.1',?)`)
+      .run(now + 3600, now, JSON.stringify([{ productId: 'multipost_workspace_01', expiry: now + 3600, renewing: true }]));
+    const status2 = await (await worker.fetch(new Request('https://test.invalid/api/billing/status?user_id=uid-1', { headers }), env)).json();
+    assert.equal(status2.billing.workspace_allowance, 2);
+    assert.equal(status2.billing.publications.allowance, 300);
+    for (let i = 0; i < 160; i++) insert.run('uid-1', 'publish_confirmed', 'tiktok', now);
+    const late = await publish(); assert.notEqual(late.status, 429, '180 of 300 used: ' + await late.text());
+  } finally { globalThis.fetch = original; sqlite.close(); }
+});

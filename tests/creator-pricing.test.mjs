@@ -6,7 +6,7 @@ test("staged Pro paywall presents proposed prices and monthly allowances", async
   const pricing = await readFile(new URL("../pricing.html", import.meta.url), "utf8");
   assert.match(pricing, /<h2>Pro Monthly<\/h2>[\s\S]*?£9\.99/);
   assert.match(pricing, /<h2>Pro Yearly<\/h2>[\s\S]*?£79\.99/);
-  assert.match(pricing, /150 AI credits and 150 successful platform publications every month, including on annual billing/);
+  assert.match(pricing, /150 AI credits and 150 successful platform publications per workspace every month, including on annual billing/);
   assert.match(pricing, /Web payments are being prepared/);
 });
 

@@ -285,7 +285,7 @@
           <button id="workspaceRemoveBtn" class="mini-btn" type="button" disabled>Remove one at renewal</button>
         </div>
       </div>
-      <div class="billing-note">Pro includes one workspace and an allowance of 150 AI credits and 150 successful platform publications each month. On the website, extra workspaces become available after your first successful Pro payment. In the Android app, extra workspace offers depend on the plans Google Play returns for your region. See <a href="help.html" style="color:#7dd3fc;">How it works</a> before subscribing. Your checkout shows the final terms and first payment date. Subscriptions renew automatically unless cancelled in Google Play or your Stripe billing portal.</div>
+      <div class="billing-note">Pro includes one workspace, 150 AI credits a month, and 150 successful platform publications a month for each workspace, with no daily posting limit. On the website, extra workspaces become available after your first successful Pro payment. In the Android app, extra workspace offers depend on the plans Google Play returns for your region. See <a href="help.html" style="color:#7dd3fc;">How it works</a> before subscribing. Your checkout shows the final terms and first payment date. Subscriptions renew automatically unless cancelled in Google Play or your Stripe billing portal.</div>
     </div>
 
     <div class="section-title">Security</div>
@@ -453,7 +453,7 @@
         ? "Manage Pro in Google Play" : "Manage Billing";
       const allowance = document.getElementById("allowanceNote");
       allowance.hidden = !currentBilling.access || !currentBilling.ai_credits || !currentBilling.publications;
-      if (!allowance.hidden) allowance.textContent = `This month: ${Math.max(0, 150 - currentBilling.ai_credits.used)} of 150 AI credits and ${Math.max(0, 150 - currentBilling.publications.used)} of 150 successful publications remaining. ${currentBilling.workspace_allowance == null ? "Owner workspace access." : `${currentBilling.workspace_allowance} workspace${currentBilling.workspace_allowance === 1 ? "" : "s"} included in your current entitlement.`}`;
+      if (!allowance.hidden) allowance.textContent = `This month: ${Math.max(0, 150 - currentBilling.ai_credits.used)} of 150 AI credits and ${Math.max(0, Number(currentBilling.publications.allowance || 150) - currentBilling.publications.used)} of ${Number(currentBilling.publications.allowance || 150)} successful publications remaining. ${currentBilling.workspace_allowance == null ? "Owner workspace access." : `${currentBilling.workspace_allowance} workspace${currentBilling.workspace_allowance === 1 ? "" : "s"} included in your current entitlement.`}`;
       renderPlayPlans();
       renderWorkspacePlans();
       renderWebWorkspacePlans();
