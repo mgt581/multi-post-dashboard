@@ -37,7 +37,8 @@ export function getBillingDisplay(billing = {}, nowMs = Date.now()) {
   }
 
   if (billing.access) {
-    return { kind: "active", message: "Subscription Active", access: true };
+    return { kind: "active", message: status === "canceled" && billing.reason === "ok"
+      ? "Pro Access Active — Renewal Canceled" : "Subscription Active", access: true };
   }
 
   if (status === "trialing" || (trialEndMs && trialEndMs <= nowMs)) {

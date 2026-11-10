@@ -18,6 +18,7 @@ test("renders trial ending today and expired states", () => {
 test("renders active, canceled and owner states", () => {
   assert.equal(getBillingDisplay({ access: true, status: "active" }, NOW).message, "Subscription Active");
   assert.equal(getBillingDisplay({ access: true, status: "canceled" }, NOW).message, "Subscription Active");
+  assert.equal(getBillingDisplay({ access: true, status: "canceled", reason: "ok" }, NOW).message, "Pro Access Active — Renewal Canceled");
   assert.equal(getBillingDisplay({ access: false, status: "canceled" }, NOW).message, "Subscription Ended — Choose a plan to continue");
   assert.equal(getBillingDisplay({ access: true, owner_mode: true }, NOW).message, "Owner Mode — Subscription Active");
 });

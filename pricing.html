@@ -237,7 +237,9 @@
       if (!response.ok || !result.success) throw new Error(result.error || "Could not verify your billing status");
       billingActive = !!result.billing?.access;
       renderWorkspaceCard(result.billing);
-      setNotice(billingActive ? "Your subscription is already active. Use Profile to manage it."
+      setNotice(billingActive ? (result.billing?.status === 'canceled'
+        ? "Your Pro access remains available, but renewal is canceled. Check your previous billing before starting another plan."
+        : "Your subscription is already active. Use Profile to manage it.")
         : checkoutReady ? "Choose a plan to review your seven-day trial eligibility, price and first payment date in Stripe Checkout."
         : "Web payments are being prepared. Your existing subscription remains available in Profile.");
       render();
