@@ -52,6 +52,38 @@ function webhook(type, object) {
     headers: { 'stripe-signature': `t=${timestamp},v1=${signature}` }, body: raw });
 }
 
+test('portal refuses an inaccessible legacy Pro subscription without replacing its customer', async () => {
+  const { sqlite, env } = setup();
+  const originalFetch = globalThis.fetch;
+  let subscriptionFound = false;
+  let customerCreates = 0;
+  globalThis.fetch = async (url) => {
+    const path = String(url);
+    if (path.includes('identitytoolkit.googleapis.com'))
+      return Response.json({ users: [{ localId: 'uid-123', email: 'paid@example.com', emailVerified: true }] });
+    if (path.endsWith('/v1/subscriptions/sub_pro')) return subscriptionFound
+      ? Response.json({ id: 'sub_pro', customer: 'cus_test', status: 'active' })
+      : Response.json({ error: { message: "No such subscription: 'sub_pro'" } }, { status: 404 });
+    if (path.endsWith('/v1/customers/cus_test')) return Response.json({ id: 'cus_test' });
+    if (path.endsWith('/v1/customers')) { customerCreates++; return Response.json({ id: 'cus_new' }); }
+    if (path.endsWith('/v1/billing_portal/sessions')) return Response.json({ url: 'https://billing.stripe.com/p/session/test' });
+    throw new Error(`Unexpected Stripe request ${path}`);
+  };
+  try {
+    const request = () => post('/billing/create-portal-session', { user_id: 'uid-123', return_url: 'https://multipostapp.co.uk/settings.html' });
+    const legacy = await worker.fetch(request(), env);
+    assert.equal(legacy.status, 409);
+    assert.match((await legacy.json()).error, /not available in the current Stripe account/);
+    assert.equal(sqlite.prepare('SELECT stripe_customer_id FROM billing_subscriptions WHERE user_id = ?').get('uid-123').stripe_customer_id, 'cus_test');
+    assert.equal(customerCreates, 0);
+    subscriptionFound = true;
+    const current = await worker.fetch(request(), env);
+    assert.equal(current.status, 200);
+    assert.match((await current.json()).url, /^https:\/\/billing\.stripe\.com\//);
+    assert.equal(customerCreates, 0);
+  } finally { globalThis.fetch = originalFetch; sqlite.close(); }
+});
+
 test('trial is blocked; checkout and subscription events never grant a workspace; a paid invoice does', async () => {
   const { sqlite, env } = setup();
   const originalFetch = globalThis.fetch;

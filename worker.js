@@ -681,6 +681,9 @@ Follow for daily trending content! \u{1F44F}
       const message = String(error?.message || "").toLowerCase();
       return message.includes("no such customer");
     }, "isStripeNoSuchCustomerError");
+    const isStripeNoSuchSubscriptionError = /* @__PURE__ */ __name((error) => {
+      return String(error?.message || "").toLowerCase().includes("no such subscription");
+    }, "isStripeNoSuchSubscriptionError");
     const createStripeCustomerForUser = /* @__PURE__ */ __name(async (userId, userEmail) => {
       const customerPayload = {
         "metadata[user_id]": String(userId),
@@ -1856,6 +1859,17 @@ Follow for daily trending content! \u{1F44F}
         }
         await ensureBillingRow(userId, userEmail);
         const row = await getBillingRow(userId);
+        if (row?.stripe_subscription_id) {
+          let subscription;
+          try {
+            subscription = await stripeApi(`/v1/subscriptions/${encodeURIComponent(row.stripe_subscription_id)}`, "GET");
+          } catch (error) {
+            if (!isStripeNoSuchSubscriptionError(error)) throw error;
+            return Response.json({ success: false, error: "This Pro subscription is not available in the current Stripe account. Contact MultiPost support to review previous billing before making another payment." }, { status: 409, headers: corsHeaders });
+          }
+          if (subscription.customer !== row.stripe_customer_id)
+            return Response.json({ success: false, error: "This Pro subscription does not match this billing customer. Contact MultiPost support before making another payment." }, { status: 409, headers: corsHeaders });
+        }
         const stripeCustomerId = await ensureStripeCustomerForUser(userId, userEmail, row?.stripe_customer_id || null);
         const returnUrl = body?.return_url && String(body.return_url).trim() ? String(body.return_url).trim() : `${frontendBaseUrl}/settings.html`;
         const portal = await stripeApi("/v1/billing_portal/sessions", "POST", {
