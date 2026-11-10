@@ -13,11 +13,11 @@ const paidStripe = { access: true, reason: 'ok', status: 'active', plan: { key: 
 function profileCard(billing, android = false) {
   const ids = ['workspaceWebControls', 'workspaceWebPrice', 'workspaceWebDescription', 'workspaceWebAddBtn',
     'workspaceWebPlayLink', 'workspaceWebRemoveBtn', 'workspaceWebResumeBtn', 'workspaceWebNote',
-    'workspaceWebSubscribeLink', 'workspaceWebCount'];
+    'workspaceWebSubscribeLink', 'workspaceWebCount', 'earlyUpgradeCard', 'earlyUpgradeDescription', 'earlyUpgradeBtn', 'earlyUpgradeNote'];
   const nodes = Object.fromEntries(ids.map(id => [id, { hidden: true, disabled: true, textContent: '' }]));
-  const source = settings.slice(settings.indexOf('    function renderWebWorkspacePlans() {'), settings.indexOf('    function renderWorkspacePlans() {'));
+  const source = settings.slice(settings.indexOf('    function renderEarlyUpgrade() {'), settings.indexOf('    function renderWorkspacePlans() {'));
   const context = { document: { getElementById: id => nodes[id] }, currentBilling: billing,
-    getWorkspacePurchaseState, isAndroidWrapper: () => android, workspaceWebBusy: false,
+    getWorkspacePurchaseState, isAndroidWrapper: () => android, workspaceWebBusy: false, earlyUpgradeBusy: false,
     workspaceWebAnchorHandled: false, window: { location: { hash: '' } } };
   vm.runInNewContext(`${source}\nrenderWebWorkspacePlans()`, context);
   return nodes;
@@ -169,4 +169,18 @@ test('workspace card sits directly under the subscription status', () => {
   const card = settings.indexOf('id="workspaceWebControls"');
   const actions = settings.indexOf('id="openPricingBtn"');
   assert.ok(status < card && card < actions);
+});
+
+test('website Pro trial sees the subscribe-early offer; Android and paid accounts do not', () => {
+  const trial = { ...paidStripe, status: 'trialing', stripe_workspace_paid_pro: false, stripe_early_upgrade_available: true,
+    plan: { key: 'pro', interval: 'monthly' } };
+  const profile = profileCard(trial);
+  assert.equal(profile.earlyUpgradeCard.hidden, false);
+  assert.match(profile.earlyUpgradeDescription.textContent, /1 extra workspace free for 1 month/);
+  assert.match(profile.earlyUpgradeDescription.textContent, /£4\.99\/month/);
+  assert.match(profile.workspaceWebNote.textContent, /Subscribe now above/);
+  assert.equal(profileCard(trial, true).earlyUpgradeCard.hidden, true);
+  assert.equal(profileCard(paidStripe).earlyUpgradeCard.hidden, true);
+  assert.match(settings, /billing\/end-trial-early/);
+  assert.ok(settings.indexOf('id="earlyUpgradeCard"') < settings.indexOf('id="workspaceWebControls"'));
 });

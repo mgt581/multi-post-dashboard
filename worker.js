@@ -629,10 +629,11 @@ Follow for daily trending content! \u{1F44F}
       }
       return { planKey: "pro", limits: PLAN_LIMITS.pro, interval: normalizeBillingInterval(row?.billing_interval) || "monthly" };
     }, "getEffectivePlan");
-    const stripeApi = /* @__PURE__ */ __name(async (path, method, payload) => {
+    const stripeApi = /* @__PURE__ */ __name(async (path, method, payload, extraHeaders = null) => {
       if (!stripeSecretKey) throw new Error("Stripe secret key is not configured");
       const headers = {
-        Authorization: `Bearer ${stripeSecretKey}`
+        Authorization: `Bearer ${stripeSecretKey}`,
+        ...(extraHeaders || {})
       };
       let body;
       if (payload) {
@@ -823,15 +824,17 @@ Follow for daily trending content! \u{1F44F}
       const addons = (await env.DB.prepare(`SELECT stripe_subscription_id, subscription_status, cancel_at_period_end
         FROM billing_stripe_workspace_addons WHERE user_id = ? AND stripe_price_id = ?`)
         .bind(row.user_id, stripeWorkspacePriceId).all()).results || [];
-      for (const addon of addons.filter((item) => !item.cancel_at_period_end && ["active", "past_due"].includes(item.subscription_status))) {
+      for (const addon of addons.filter((item) => !item.cancel_at_period_end && ["active", "past_due", "trialing"].includes(item.subscription_status))) {
         const updated = await stripeApi(`/v1/subscriptions/${encodeURIComponent(addon.stripe_subscription_id)}`, "POST",
           { cancel_at_period_end: "true" });
         await persistStripeWorkspaceSubscription(updated);
       }
     }, "stopStripeWorkspaceRenewalsWithPro");
+    let lastCheckedProSubscription = null;
     const isStripeProRenewing = /* @__PURE__ */ __name(async (row) => {
       if (!row?.stripe_subscription_id || !row?.stripe_customer_id) return false;
       const subscription = await stripeApi(`/v1/subscriptions/${encodeURIComponent(row.stripe_subscription_id)}`, "GET");
+      lastCheckedProSubscription = subscription;
       return subscription.id === row.stripe_subscription_id && subscription.customer === row.stripe_customer_id &&
         subscription.status === "active" && !subscription.cancel_at_period_end &&
         subscription.metadata?.kind !== "workspace_addon";
@@ -841,6 +844,57 @@ Follow for daily trending content! \u{1F44F}
       const addons = await getStripeWorkspaceAddons(userId);
       return { ...evaluated, workspaceAllowance: Math.min(10, Number(evaluated.workspaceAllowance || 1) + addons.length), stripeWorkspaceAddons: addons };
     }, "withStripeWorkspaceAllowance");
+    // Website only: a Stripe Pro trial can be ended early. The first Pro payment is
+    // taken now and, once it is verified, one bonus workspace is added free for one
+    // month (then £4.99/month unless renewal is stopped). One bonus per account.
+    const EARLY_UPGRADE_PENDING = "pending_bonus";
+    const earlyUpgradeConfigured = /* @__PURE__ */ __name(() => Boolean(webBillingEnabled && stripeCheckoutEnabled &&
+      stripeWorkspacePriceId && stripeSecretKey && stripeWebhookSecret), "earlyUpgradeConfigured");
+    const earlyUpgradeAvailable = /* @__PURE__ */ __name((row, evaluated, playEntitlement) => earlyUpgradeConfigured() &&
+      !playEntitlement?.access && evaluated?.reason === "ok" && evaluated?.access === true &&
+      evaluated?.plan?.planKey === "pro" && String(row?.subscription_status || "") === "trialing" &&
+      Boolean(row?.stripe_subscription_id && row?.stripe_customer_id), "earlyUpgradeAvailable");
+    const addOneCalendarMonth = /* @__PURE__ */ __name((unixSeconds) => {
+      const d = new Date(unixSeconds * 1000);
+      const day = d.getUTCDate();
+      d.setUTCDate(1);
+      d.setUTCMonth(d.getUTCMonth() + 1);
+      const lastDay = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+      d.setUTCDate(Math.min(day, lastDay));
+      return Math.floor(d.getTime() / 1000);
+    }, "addOneCalendarMonth");
+    const grantEarlyUpgradeBonus = /* @__PURE__ */ __name(async (userId, proSubscription) => {
+      const marker = String(proSubscription?.metadata?.early_upgrade || "");
+      if (marker.startsWith("sub_")) return { granted: false, already: true };
+      if (marker !== EARLY_UPGRADE_PENDING) return { granted: false };
+      const addons = await getStripeWorkspaceAddons(userId);
+      if (addons.length >= 9) return { granted: false, full: true };
+      const now = nowUnix();
+      const trialEnd = addOneCalendarMonth(now);
+      const payload = {
+        customer: String(proSubscription.customer),
+        "items[0][price]": stripeWorkspacePriceId,
+        "items[0][quantity]": "1",
+        trial_end: String(trialEnd),
+        "trial_settings[end_behavior][missing_payment_method]": "cancel",
+        "metadata[user_id]": userId, "metadata[kind]": "workspace_addon", "metadata[app]": "multipost",
+        "metadata[promo]": "early_upgrade_free_month"
+      };
+      if (proSubscription.default_payment_method)
+        payload.default_payment_method = String(proSubscription.default_payment_method?.id || proSubscription.default_payment_method);
+      const bonus = await stripeApi("/v1/subscriptions", "POST", payload,
+        { "Idempotency-Key": `multipost-early-upgrade-bonus-${proSubscription.id}-${Math.floor(now / 60)}` });
+      if (!isStripeWorkspaceSubscription(bonus) || bonus.customer !== proSubscription.customer)
+        throw new Error("Bonus workspace could not be created");
+      await persistStripeWorkspaceSubscription(bonus, userId);
+      // The free month is granted by us, not by a paid invoice, so set access here.
+      await env.DB.prepare(`UPDATE billing_stripe_workspace_addons SET paid_through = MAX(paid_through, ?),
+        updated_at = strftime('%s','now') WHERE stripe_subscription_id = ? AND user_id = ? AND stripe_customer_id = ?`)
+        .bind(Number(bonus.trial_end || trialEnd), bonus.id, userId, String(proSubscription.customer)).run();
+      await stripeApi(`/v1/subscriptions/${encodeURIComponent(proSubscription.id)}`, "POST",
+        { "metadata[early_upgrade]": bonus.id });
+      return { granted: true, subscription_id: bonus.id, free_until: Number(bonus.trial_end || trialEnd) };
+    }, "grantEarlyUpgradeBonus");
     const stripeInvoiceSubscriptionId = /* @__PURE__ */ __name((invoice) => String(
       invoice?.subscription || invoice?.parent?.subscription_details?.subscription ||
       (invoice?.lines?.data || []).find((line) => line?.parent?.subscription_item_details?.subscription)
@@ -1601,6 +1655,16 @@ Follow for daily trending content! \u{1F44F}
           try { workspaceCheckoutEnabled = await isStripeProRenewing(row); } catch (error) {
             console.warn("Stripe Pro renewal check failed", error?.message || error);
           }
+          // Finish an early-upgrade bonus whose setup was interrupted after payment.
+          const checked = lastCheckedProSubscription;
+          if (checked?.id === row.stripe_subscription_id && checked.customer === row.stripe_customer_id &&
+              checked.status === "active" && String(checked.metadata?.early_upgrade || "") === EARLY_UPGRADE_PENDING) {
+            try {
+              const bonus = await grantEarlyUpgradeBonus(userId, checked);
+              if (bonus.granted) Object.assign(evaluated, await withStripeWorkspaceAllowance(
+                evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement), userId));
+            } catch (error) { console.warn("Early upgrade bonus retry failed", error?.message || error); }
+          }
         }
         return new Response(JSON.stringify({
           success: true,
@@ -1616,6 +1680,7 @@ Follow for daily trending content! \u{1F44F}
             stripe_workspace_addons: evaluated.stripeWorkspaceAddons || [],
             stripe_workspace_paid_pro: evaluated.reason === "ok" && Number(row?.stripe_pro_paid_at || 0) > 0,
             stripe_workspace_checkout_enabled: workspaceCheckoutEnabled,
+            stripe_early_upgrade_available: earlyUpgradeAvailable(row, evaluated, playEntitlement),
             workspace_product_ids: playEntitlement?.access ? (playEntitlement.workspaceItems || []).map((item) => item.productId) : [],
             workspace_renewing_ids: playEntitlement?.access ? (playEntitlement.workspaceItems || []).filter((item) => item.renewing).map((item) => item.productId) : [],
             ai_credits: { used: Number(aiUsed?.count || 0), allowance: 150 },
@@ -1815,6 +1880,61 @@ Follow for daily trending content! \u{1F44F}
             .bind(userId, expiresAt).run();
           throw error;
         }
+      }
+      if (url.pathname === "/api/billing/end-trial-early" && request.method === "POST") {
+        const identity = await getFirebaseIdentity(request);
+        const body = await request.json().catch(() => ({}));
+        const userId = requireUser(body.user_id);
+        if (!identityMatchesBillingUser(null, userId, identity)) return Response.json({ success: false, error: "Sign in to manage your own subscription" }, { status: 401, headers: corsHeaders });
+        if (getClientPlatform(request, body.client_platform) === "android") return Response.json({ success: false, error: "Use Google Play to manage your Android subscription" }, { status: 400, headers: corsHeaders });
+        if (!earlyUpgradeConfigured()) return Response.json({ success: false, error: "Subscribing early is unavailable right now" }, { status: 503, headers: corsHeaders });
+        let row = await refreshBillingFromStripe(await getBillingRow(userId));
+        const play = await getPlayEntitlement(identity);
+        const access = evaluateBillingAccess(row, "web", userId, identity, play);
+        if (play?.access || access.reason !== "ok" || access.plan?.planKey !== "pro" || !row?.stripe_subscription_id || !row?.stripe_customer_id)
+          return Response.json({ success: false, error: "Subscribing early is only available on a website Pro trial." }, { status: 403, headers: corsHeaders });
+        const account = await stripeApi("/v1/account", "GET");
+        if (account.id !== stripeCheckoutAccountId) return Response.json({ success: false, error: "Stripe account mismatch" }, { status: 503, headers: corsHeaders });
+        let sub = await stripeApi(`/v1/subscriptions/${encodeURIComponent(row.stripe_subscription_id)}`, "GET");
+        if (sub.customer !== row.stripe_customer_id || isStripeWorkspaceBillingSubscription(sub))
+          return Response.json({ success: false, error: "Subscription mismatch" }, { status: 409, headers: corsHeaders });
+        // Retry path: payment already taken, bonus not yet created.
+        if (sub.status === "active" && String(sub.metadata?.early_upgrade || "") === EARLY_UPGRADE_PENDING) {
+          const bonus = await grantEarlyUpgradeBonus(userId, sub);
+          return Response.json({ success: true, charged: false, bonus }, { headers: corsHeaders });
+        }
+        if (sub.status !== "trialing" || sub.cancel_at_period_end)
+          return Response.json({ success: false, error: sub.cancel_at_period_end
+            ? "Resume your Pro renewal in Manage Billing before subscribing early."
+            : "Your trial has already ended." }, { status: 409, headers: corsHeaders });
+        // pending_if_incomplete: if the card is declined, Stripe leaves the trial untouched.
+        sub = await stripeApi(`/v1/subscriptions/${encodeURIComponent(sub.id)}`, "POST", {
+          trial_end: "now", proration_behavior: "none", payment_behavior: "pending_if_incomplete",
+          "expand[0]": "latest_invoice"
+        }, { "Idempotency-Key": `multipost-end-trial-${sub.id}-${Math.floor(nowUnix() / 60)}` });
+        const invoice = sub.latest_invoice && typeof sub.latest_invoice === "object" ? sub.latest_invoice : null;
+        if (sub.pending_update || sub.status !== "active" || !invoice || await verifiedStripeInvoicePaymentAmount(invoice) <= 0) {
+          if (invoice?.id && invoice.status === "open") {
+            try { await stripeApi(`/v1/invoices/${encodeURIComponent(invoice.id)}/void`, "POST", {}); }
+            catch (error) { console.warn("Could not void unpaid early-upgrade invoice", error?.message || error); }
+          }
+          await refreshBillingFromStripe(await getBillingRow(userId));
+          return Response.json({ success: false, error: "Your card could not be charged, so your free trial carries on unchanged. Update your card in Manage Billing and try again." }, { status: 402, headers: corsHeaders });
+        }
+        await env.DB.prepare(`UPDATE billing_subscriptions SET stripe_pro_paid_at = COALESCE(stripe_pro_paid_at, ?), updated_at = strftime('%s','now')
+          WHERE user_id = ? AND stripe_subscription_id = ?`)
+          .bind(Number(invoice.status_transitions?.paid_at || nowUnix()), userId, sub.id).run();
+        await persistStripeSubscription(sub, userId);
+        sub = await stripeApi(`/v1/subscriptions/${encodeURIComponent(sub.id)}`, "POST",
+          { "metadata[early_upgrade]": EARLY_UPGRADE_PENDING });
+        let bonus;
+        try { bonus = await grantEarlyUpgradeBonus(userId, sub); }
+        catch (error) {
+          console.warn("Early upgrade bonus failed", error?.message || error);
+          return Response.json({ success: true, charged: true, bonus: { granted: false, retry: true },
+            error: "Pro is active. Your free workspace did not finish setting up. Tap Subscribe now again to finish it, at no extra charge." }, { headers: corsHeaders });
+        }
+        return Response.json({ success: true, charged: true, bonus }, { headers: corsHeaders });
       }
       if (url.pathname === "/api/billing/workspaces/renewal" && request.method === "POST") {
         const identity = await getFirebaseIdentity(request);
