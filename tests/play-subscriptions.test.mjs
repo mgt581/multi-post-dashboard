@@ -280,3 +280,38 @@ test('authenticated Play purchase grants cross-platform access; a spoofed Androi
     db.close();
   }
 });
+
+test('a failed Google re-check keeps the last verified Play result for up to three days, never past expiry', async () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
+  for (const m of ['0009_play_subscriptions', '0010_play_trial_phase', '0011_usage_workspace_entitlements', '0012_publication_reservations', '0013_workspace_item_entitlements', '0017_play_paid_pro_order'])
+    for (const stmt of readFileSync(new URL(`../migrations/${m}.sql`, import.meta.url), 'utf8').split(';').map(x => x.trim()).filter(Boolean))
+      try { db.exec(stmt); } catch (_) { /* already in schema.sql */ }
+  const env = { WEB_BILLING_ENABLED: 'true', PLAY_SERVICE_ACCOUNT_JSON: '{}', PLAY_TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 19).toString('base64'),
+    DB: { prepare(sql) { let args = []; return { bind(...v) { args = v; return this; },
+      async first() { return db.prepare(sql).get(...args) || null; }, async all() { return { results: db.prepare(sql).all(...args) }; },
+      async run() { return db.prepare(sql).run(...args); } }; } } };
+  const original = globalThis.fetch;
+  globalThis.fetch = async url => {
+    if (String(url).includes('identitytoolkit.googleapis.com')) return Response.json({ users: [{ localId: 'uid-123', email: 'user@example.com', emailVerified: true }] });
+    throw new Error('Google unavailable');
+  };
+  const nowS = Math.floor(Date.now() / 1000);
+  const setRow = (verifiedAgo, expiresIn) => {
+    db.exec('DELETE FROM billing_play_purchases');
+    db.prepare(`INSERT INTO billing_play_purchases (user_id, token_hash, encrypted_token, product_id, base_plan_id, subscription_state, expiry_time, last_verified_at, pro_paid_order_id)
+      VALUES ('uid-123', 'h', 'not-decryptable', 'multipost_pro', 'monthly', 'SUBSCRIPTION_STATE_ACTIVE', ?, ?, 'GPA.1')`).run(nowS + expiresIn, nowS - verifiedAgo);
+  };
+  const status = async () => (await (await worker.fetch(new Request('https://example.test/api/billing/status?user_id=uid-123',
+    { headers: { Authorization: 'Bearer firebase-token' } }), env)).json()).billing;
+  try {
+    setRow(3600, 20 * 86400);
+    let b = await status();
+    assert.equal(b.access, true);
+    assert.equal(b.reason, 'play_verified');
+    setRow(4 * 86400, 20 * 86400);
+    assert.equal((await status()).access, false, 'stale beyond the grace period');
+    setRow(3600, -10);
+    assert.equal((await status()).access, false, 'never past the verified expiry');
+  } finally { globalThis.fetch = original; db.close(); }
+});

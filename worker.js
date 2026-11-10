@@ -965,6 +965,7 @@ Follow for daily trending content! \u{1F44F}
         return row;
       }
     }, "refreshBillingFromStripe");
+    const PLAY_REFRESH_GRACE_SECONDS = 3 * 86400;
     const getPlayEntitlement = /* @__PURE__ */ __name(async (identity) => {
       if (!identity?.userId) return null;
       let row;
@@ -983,9 +984,12 @@ Follow for daily trending content! \u{1F44F}
             .bind(verified.state, verified.expiry, verified.basePlanId, verified.trialEnd, verified.workspaceQuantity,
               verified.workspaceExpiry, JSON.stringify(verified.workspaceItems), verified.paidProOrderId, identity.userId).run();
           return verified;
-        } catch (_) {
-          // A failed refresh cannot extend a Play entitlement.
-          return null;
+        } catch (error) {
+          // Log why Google re-verification failed (never the token itself).
+          console.warn("Play entitlement refresh failed", identity.userId, error?.message || String(error));
+          // Keep the last Google-verified result, but never past its verified
+          // expiry and only for a short time since the last successful check.
+          if (Number(row.last_verified_at || 0) + PLAY_REFRESH_GRACE_SECONDS < nowUnix()) return null;
         }
       }
       const state = String(row.subscription_state || "");
