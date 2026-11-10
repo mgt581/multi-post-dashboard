@@ -192,6 +192,11 @@ test('dashboard requests keyed by email still find a Stripe subscription saved u
       const res = await worker.fetch(post('/add-folder', { name, user_id: 'paid@example.com' }), env);
       assert.equal(res.status, 200, await res.text());
     }
+    const list = await worker.fetch(new Request(`${base}/get-folders?user_id=paid%40example.com`, { headers: { Authorization: 'Bearer firebase-token' } }), env);
+    const folders = await list.json();
+    assert.equal(list.status, 200, JSON.stringify(folders));
+    assert.equal(folders.length, 2);
+    assert.ok(folders.every(f => f.workspace_locked === false), JSON.stringify(folders));
     const third = await worker.fetch(post('/add-folder', { name: 'Brand three', user_id: 'paid@example.com' }), env);
     assert.equal(third.status, 429);
     // Someone else's email can never be used to reach this subscription.

@@ -1385,10 +1385,10 @@ Follow for daily trending content! \u{1F44F}
         const { results } = await env.DB.prepare(
           `SELECT f.*, (SELECT nickname FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_channel, (SELECT profile_picture FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform = 'youtube' LIMIT 1) as youtube_picture, (SELECT COUNT(*) FROM accounts WHERE folder_id = f.id AND user_id = f.user_id AND platform IN ('youtube', 'facebook_page', 'tiktok')) as connected_account_count, EXISTS(SELECT 1 FROM billing_usage_events e WHERE e.user_id = f.user_id AND ((e.event_type = 'publish' AND e.platform IN ('youtube', 'facebook')) OR (e.event_type = 'publish_confirmed' AND e.platform IN ('tiktok', 'facebook')) OR e.event_type = 'publish_metered')) as has_first_post FROM folders f WHERE f.user_id IN (${sqlPlaceholders(userAliases)}) ORDER BY f.created_at DESC`
         ).bind(...userAliases).all();
-        let row = await getBillingRow(userId);
+        let row = await getBillingRowForIdentity(userId, identity);
         row = await refreshBillingFromStripe(row);
         const entitlement = await withStripeWorkspaceAllowance(
-          evaluateBillingAccess(row, 'web', userId, identity, await getPlayEntitlement(identity)), userId);
+          evaluateBillingAccess(row, 'web', userId, identity, await getPlayEntitlement(identity)), row?.user_id || userId);
         const selection = await workspaceSelection(identity, entitlement);
         return new Response(JSON.stringify(results.map((folder) => ({ ...folder,
           workspace_locked: !selection.active.has(String(folder.id)) }))), { headers: jsonHeaders });
