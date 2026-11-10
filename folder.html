@@ -102,6 +102,13 @@
 
     .platform-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
 
+    /* Phones: move the buttons onto their own row under the account so they never overlap the text */
+    @media (max-width: 560px) {
+      .platform-card { flex-wrap: wrap; }
+      .platform-actions { flex: 1 1 100%; flex-direction: row; flex-wrap: wrap; gap: 8px; }
+      .platform-actions .btn { flex: 1 1 auto; white-space: normal; text-align: center; min-height: 40px; }
+    }
+
     .btn {
       border: none; border-radius: 999px; padding: 8px 16px;
       font-weight: 800; font-size: 13px; cursor: pointer; white-space: nowrap;
