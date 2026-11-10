@@ -51,13 +51,13 @@
     .allowance-item { padding:13px; border-radius:12px; background:rgba(255,255,255,.035); }
     .allowance-item strong { display:block; color:var(--blue); font-size:19px; }
     .allowance-item span { color:var(--muted); font-size:11px; line-height:1.35; }
-    .extras { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; margin-top:16px; }
+    .extras { display:grid; grid-template-columns:1fr; gap:16px; margin-top:16px; }
     .extra { padding:19px; border:1px solid var(--border); border-radius:17px; background:rgba(14,28,48,.84); }
     .extra h3 { margin:0 0 7px; font-size:15px; }
     .extra p { margin:0; color:var(--muted); font-size:12px; line-height:1.55; }
     .price-line { color:white; font-weight:800; }
     .fineprint { margin:21px 0 0; color:#93a9c2; font-size:11px; line-height:1.55; text-align:center; }
-    @media (max-width:650px) { .plans, .extras { grid-template-columns:1fr; } .allowance-grid { grid-template-columns:1fr; } .hero { margin-top:37px; } }
+    @media (max-width:650px) { .plans { grid-template-columns:1fr; } .allowance-grid { grid-template-columns:1fr; } .hero { margin-top:37px; } }
   </style>
 </head>
 <body>
@@ -121,11 +121,8 @@
     <section class="extras" aria-label="Optional add-ons">
       <article class="extra">
         <h3>Additional workspace</h3>
-        <p><span class="price-line">£4.99/month</span> or <span class="price-line">£39.99/year</span><br>Add one more workspace and one additional account slot on each supported platform. Credits stay in your account-level allowance.</p>
-      </article>
-      <article class="extra">
-        <h3>Extra AI credits</h3>
-        <p><span class="price-line">25 for £2.99</span> · <span class="price-line">100 for £8.99</span> · <span class="price-line">250 for £17.99</span><br>Available after secure purchase verification is implemented.</p>
+        <p><span class="price-line">£4.99/month on the website</span><br>Add one more workspace and one additional account slot on each supported platform after your first successful Pro payment. Credits stay in your account-level allowance. Android subscribers can review their available monthly or yearly add-ons in Google Play.</p>
+        <a href="settings.html#workspace-web" style="color:#7dd3fc;font-weight:800;">Manage additional workspaces in Profile</a>
       </article>
     </section>
 

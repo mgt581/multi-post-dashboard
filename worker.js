@@ -558,6 +558,7 @@ Follow for daily trending content! \u{1F44F}
     const ownerAdminToken = env.OWNER_ADMIN_TOKEN ? String(env.OWNER_ADMIN_TOKEN).trim() : "";
     const stripeSecretKey = env.STRIPE_SECRET_KEY ? String(env.STRIPE_SECRET_KEY).trim() : "";
     const stripeWebhookSecret = env.STRIPE_WEBHOOK_SECRET ? String(env.STRIPE_WEBHOOK_SECRET).trim() : "";
+    const stripeWorkspacePriceId = String(env.STRIPE_PRICE_WORKSPACE_MONTHLY || "").trim();
     const stripeTrialDays = Number(env.STRIPE_TRIAL_DAYS || 7) > 0 ? Number(env.STRIPE_TRIAL_DAYS || 7) : 7;
     const PLAN_LIMITS = {
       pro: {
@@ -732,6 +733,9 @@ Follow for daily trending content! \u{1F44F}
         ON CONFLICT(user_id) DO UPDATE SET
           stripe_customer_id = COALESCE(excluded.stripe_customer_id, billing_subscriptions.stripe_customer_id),
           stripe_subscription_id = COALESCE(excluded.stripe_subscription_id, billing_subscriptions.stripe_subscription_id),
+          stripe_pro_paid_at = CASE WHEN excluded.stripe_subscription_id IS NOT NULL
+            AND excluded.stripe_subscription_id != billing_subscriptions.stripe_subscription_id
+            THEN NULL ELSE billing_subscriptions.stripe_pro_paid_at END,
           stripe_price_id = COALESCE(excluded.stripe_price_id, billing_subscriptions.stripe_price_id),
           plan_key = COALESCE(excluded.plan_key, billing_subscriptions.plan_key),
           billing_interval = COALESCE(excluded.billing_interval, billing_subscriptions.billing_interval),
@@ -756,6 +760,9 @@ Follow for daily trending content! \u{1F44F}
     const persistStripeSubscription = /* @__PURE__ */ __name(async (subscription, fallbackUserId = null) => {
       if (!subscription || subscription.deleted) return;
       const firstItem = subscription?.items?.data?.[0] || null;
+      // Add-ons must never replace the customer's primary Pro subscription.
+      if (subscription?.metadata?.kind === "workspace_addon" ||
+          (stripeWorkspacePriceId && (subscription?.items?.data || []).some((item) => item?.price?.id === stripeWorkspacePriceId))) return;
       await persistBillingFromSubscription({
         userId: subscription?.metadata?.user_id || fallbackUserId,
         stripeCustomerId: subscription?.customer || null,
@@ -768,6 +775,111 @@ Follow for daily trending content! \u{1F44F}
         trialEnd: subscription?.trial_end || null
       });
     }, "persistStripeSubscription");
+    const isStripeWorkspaceSubscription = /* @__PURE__ */ __name((subscription) => {
+      const items = subscription?.items?.data || [];
+      return Boolean(stripeWorkspacePriceId && items.length === 1 &&
+        items[0]?.price?.id === stripeWorkspacePriceId && Number(items[0]?.quantity || 1) === 1 &&
+        subscription?.metadata?.kind === "workspace_addon");
+    }, "isStripeWorkspaceSubscription");
+    const isStripeWorkspaceBillingSubscription = /* @__PURE__ */ __name((subscription) =>
+      subscription?.metadata?.kind === "workspace_addon" ||
+      Boolean(stripeWorkspacePriceId && (subscription?.items?.data || []).some((item) =>
+        item?.price?.id === stripeWorkspacePriceId)), "isStripeWorkspaceBillingSubscription");
+    const persistStripeWorkspaceSubscription = /* @__PURE__ */ __name(async (subscription, fallbackUserId = null) => {
+      if (!isStripeWorkspaceSubscription(subscription)) return false;
+      const userId = String(subscription.metadata.user_id || fallbackUserId || "");
+      const customerId = String(subscription.customer || "");
+      const pro = userId ? await getBillingRow(userId) : null;
+      if (!pro || pro.stripe_customer_id !== customerId || !subscription.id) return false;
+      await env.DB.prepare(`INSERT INTO billing_stripe_workspace_addons
+        (stripe_subscription_id, user_id, stripe_customer_id, stripe_price_id, subscription_status, cancel_at_period_end)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(stripe_subscription_id) DO UPDATE SET
+          subscription_status = excluded.subscription_status,
+          cancel_at_period_end = excluded.cancel_at_period_end,
+          updated_at = strftime('%s','now')
+        WHERE billing_stripe_workspace_addons.user_id = excluded.user_id
+          AND billing_stripe_workspace_addons.stripe_customer_id = excluded.stripe_customer_id`)
+        .bind(String(subscription.id), userId, customerId, stripeWorkspacePriceId,
+          String(subscription.status || "unknown"), subscription.cancel_at_period_end ? 1 : 0).run();
+      return true;
+    }, "persistStripeWorkspaceSubscription");
+    const getStripeWorkspaceAddons = /* @__PURE__ */ __name(async (userId) => {
+      if (!stripeWorkspacePriceId || !userId) return [];
+      const result = await env.DB.prepare(`SELECT stripe_subscription_id, subscription_status, paid_through,
+        cancel_at_period_end FROM billing_stripe_workspace_addons WHERE user_id = ? AND stripe_price_id = ?
+        AND paid_through > ? ORDER BY created_at, stripe_subscription_id`)
+        .bind(String(userId), stripeWorkspacePriceId, nowUnix()).all();
+      return result.results || [];
+    }, "getStripeWorkspaceAddons");
+    const stopStripeWorkspaceRenewalsWithPro = /* @__PURE__ */ __name(async (proSubscription) => {
+      if (!proSubscription?.cancel_at_period_end && !["canceled", "unpaid", "incomplete_expired", "paused"].includes(proSubscription?.status)) return;
+      const row = await env.DB.prepare(`SELECT user_id FROM billing_subscriptions WHERE stripe_subscription_id = ? AND stripe_customer_id = ?`)
+        .bind(String(proSubscription.id || ""), String(proSubscription.customer || "")).first();
+      if (!row) return;
+      const addons = (await env.DB.prepare(`SELECT stripe_subscription_id, subscription_status, cancel_at_period_end
+        FROM billing_stripe_workspace_addons WHERE user_id = ? AND stripe_price_id = ?`)
+        .bind(row.user_id, stripeWorkspacePriceId).all()).results || [];
+      for (const addon of addons.filter((item) => !item.cancel_at_period_end && ["active", "past_due"].includes(item.subscription_status))) {
+        const updated = await stripeApi(`/v1/subscriptions/${encodeURIComponent(addon.stripe_subscription_id)}`, "POST",
+          { cancel_at_period_end: "true" });
+        await persistStripeWorkspaceSubscription(updated);
+      }
+    }, "stopStripeWorkspaceRenewalsWithPro");
+    const isStripeProRenewing = /* @__PURE__ */ __name(async (row) => {
+      if (!row?.stripe_subscription_id || !row?.stripe_customer_id) return false;
+      const subscription = await stripeApi(`/v1/subscriptions/${encodeURIComponent(row.stripe_subscription_id)}`, "GET");
+      return subscription.id === row.stripe_subscription_id && subscription.customer === row.stripe_customer_id &&
+        subscription.status === "active" && !subscription.cancel_at_period_end &&
+        subscription.metadata?.kind !== "workspace_addon";
+    }, "isStripeProRenewing");
+    const withStripeWorkspaceAllowance = /* @__PURE__ */ __name(async (evaluated, userId) => {
+      if (evaluated.reason !== "ok" || !evaluated.access || evaluated.plan?.planKey !== "pro" || !stripeWorkspacePriceId) return evaluated;
+      const addons = await getStripeWorkspaceAddons(userId);
+      return { ...evaluated, workspaceAllowance: Math.min(10, Number(evaluated.workspaceAllowance || 1) + addons.length), stripeWorkspaceAddons: addons };
+    }, "withStripeWorkspaceAllowance");
+    const stripeInvoiceSubscriptionId = /* @__PURE__ */ __name((invoice) => String(
+      invoice?.subscription || invoice?.parent?.subscription_details?.subscription ||
+      (invoice?.lines?.data || []).find((line) => line?.parent?.subscription_item_details?.subscription)
+        ?.parent?.subscription_item_details?.subscription || ""
+    ), "stripeInvoiceSubscriptionId");
+    const verifiedStripeInvoicePaymentAmount = /* @__PURE__ */ __name(async (invoice) => {
+      if (!invoice?.id || invoice.status !== "paid" || invoice.paid_out_of_band === true ||
+          invoice.collection_method !== "charge_automatically" ||
+          Number(invoice.amount_paid || 0) <= 0 || Number(invoice.amount_remaining) !== 0 ||
+          !Number(invoice.status_transitions?.paid_at || 0)) return 0;
+      // Newer Stripe invoices omit the old `paid` flag. Verify the actual
+      // succeeded PaymentIntent, rather than treating an invoice status alone
+      // (which can also be marked paid manually) as collected money.
+      const payments = await stripeApi(`/v1/invoice_payments?invoice=${encodeURIComponent(invoice.id)}&limit=100`, "GET");
+      let collected = 0;
+      for (const payment of payments.data || []) {
+        const paymentIntentId = payment.payment?.type === "payment_intent" ? payment.payment.payment_intent : null;
+        if (payment.status !== "paid" || !paymentIntentId || Number(payment.amount_paid || 0) <= 0) continue;
+        const intent = await stripeApi(`/v1/payment_intents/${encodeURIComponent(paymentIntentId)}`, "GET");
+        if (intent.status === "succeeded" && intent.customer === invoice.customer &&
+            intent.currency === invoice.currency && Number(intent.amount_received || 0) >= Number(payment.amount_paid))
+          collected += Number(payment.amount_paid);
+      }
+      return collected;
+    }, "verifiedStripeInvoicePaymentAmount");
+    const hasPaidStripeProInvoice = /* @__PURE__ */ __name(async (row) => {
+      if (!row?.stripe_subscription_id || !row?.stripe_customer_id) return false;
+      if (Number(row.stripe_pro_paid_at || 0) > 0) return true;
+      // This also recognizes customers who paid before this migration was deployed.
+      const invoices = await stripeApi(`/v1/invoices?subscription=${encodeURIComponent(row.stripe_subscription_id)}&status=paid&limit=100`, "GET");
+      let paid = null;
+      for (const invoice of invoices.data || []) {
+        if (invoice.customer === row.stripe_customer_id &&
+            stripeInvoiceSubscriptionId(invoice) === row.stripe_subscription_id &&
+            await verifiedStripeInvoicePaymentAmount(invoice) > 0) { paid = invoice; break; }
+      }
+      if (!paid) return false;
+      await env.DB.prepare(`UPDATE billing_subscriptions SET stripe_pro_paid_at = ?, updated_at = strftime('%s','now')
+        WHERE user_id = ? AND stripe_subscription_id = ?`)
+        .bind(Number(paid.status_transitions?.paid_at || paid.created || nowUnix()), row.user_id, row.stripe_subscription_id).run();
+      return true;
+    }, "hasPaidStripeProInvoice");
     const refreshBillingFromStripe = /* @__PURE__ */ __name(async (row) => {
       if (!row?.stripe_subscription_id || !stripeSecretKey) return row;
       try {
@@ -1055,7 +1167,8 @@ Follow for daily trending content! \u{1F44F}
         return { ok: false, statusCode: 401, body: { success: false, error: "Authenticated account does not match this billing account" } };
       }
       const playEntitlement = await getPlayEntitlement(authenticatedIdentity);
-      const evaluated = evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement);
+      const evaluated = await withStripeWorkspaceAllowance(
+        evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement), userId);
       if (evaluated.access) {
         const folderId = requestedFolderId || request2.headers.get('folder_id') || new URL(request2.url).searchParams.get('folder_id');
         if (folderId && !(await workspaceSelection(authenticatedIdentity, evaluated)).active.has(String(folderId))) {
@@ -1167,6 +1280,8 @@ Follow for daily trending content! \u{1F44F}
       const sigPart = parts.find((p) => p.startsWith("v1="));
       if (!timestampPart || !sigPart) throw new Error("Invalid Stripe signature header");
       const timestamp = timestampPart.slice(2);
+      if (!/^\d+$/.test(timestamp) || Math.abs(nowUnix() - Number(timestamp)) > 300)
+        throw new Error("Stripe signature timestamp is outside the allowed window");
       const received = sigPart.slice(3);
       const signedPayload = `${timestamp}.${rawBody}`;
       const enc = new TextEncoder();
@@ -1198,7 +1313,8 @@ Follow for daily trending content! \u{1F44F}
         ).bind(...userAliases).all();
         let row = await getBillingRow(userId);
         row = await refreshBillingFromStripe(row);
-        const entitlement = evaluateBillingAccess(row, 'web', userId, identity, await getPlayEntitlement(identity));
+        const entitlement = await withStripeWorkspaceAllowance(
+          evaluateBillingAccess(row, 'web', userId, identity, await getPlayEntitlement(identity)), userId);
         const selection = await workspaceSelection(identity, entitlement);
         return new Response(JSON.stringify(results.map((folder) => ({ ...folder,
           workspace_locked: !selection.active.has(String(folder.id)) }))), { headers: jsonHeaders });
@@ -1454,7 +1570,14 @@ Follow for daily trending content! \u{1F44F}
         }
         row = await refreshBillingFromStripe(row);
         const playEntitlement = await getPlayEntitlement(authenticatedIdentity);
-        const evaluated = evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement);
+        if (row?.stripe_subscription_id && row.subscription_status === "active" &&
+            !row.stripe_pro_paid_at && !playEntitlement?.access) {
+          try {
+            if (await hasPaidStripeProInvoice(row)) row = await getBillingRow(userId);
+          } catch (error) { console.warn("Stripe paid Pro verification failed", error?.message || error); }
+        }
+        const evaluated = await withStripeWorkspaceAllowance(
+          evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement), userId);
         const effPlan = evaluated.plan || getEffectivePlan(row);
         const usageAliases = [authenticatedIdentity.userId,
           ...(authenticatedIdentity.emailVerified && authenticatedIdentity.email ? [authenticatedIdentity.email] : []),
@@ -1469,6 +1592,13 @@ Follow for daily trending content! \u{1F44F}
         const publicationsThisMonth = await countMonthlyPublications([authenticatedIdentity.userId,
           ...(authenticatedIdentity.emailVerified && authenticatedIdentity.email ? [authenticatedIdentity.email] : []),
           ...(authenticatedIdentity.workspaceOwnerIds || [])]);
+        let workspaceCheckoutEnabled = false;
+        if (evaluated.reason === "ok" && evaluated.status === "active" && row?.stripe_pro_paid_at &&
+            stripeCheckoutEnabled && stripeWorkspacePriceId && stripeSecretKey && stripeWebhookSecret) {
+          try { workspaceCheckoutEnabled = await isStripeProRenewing(row); } catch (error) {
+            console.warn("Stripe Pro renewal check failed", error?.message || error);
+          }
+        }
         return new Response(JSON.stringify({
           success: true,
           billing: {
@@ -1479,7 +1609,10 @@ Follow for daily trending content! \u{1F44F}
             platform,
             owner_mode: evaluated.reason === "owner_bypass",
             workspace_allowance: evaluated.workspaceAllowance || (evaluated.reason === "owner_bypass" ? null : 1),
-            additional_workspaces: playEntitlement?.access ? Number(playEntitlement.workspaceQuantity || 0) : 0,
+            additional_workspaces: playEntitlement?.access ? Number(playEntitlement.workspaceQuantity || 0) : (evaluated.stripeWorkspaceAddons?.length || 0),
+            stripe_workspace_addons: evaluated.stripeWorkspaceAddons || [],
+            stripe_workspace_paid_pro: evaluated.reason === "ok" && Number(row?.stripe_pro_paid_at || 0) > 0,
+            stripe_workspace_checkout_enabled: workspaceCheckoutEnabled,
             workspace_product_ids: playEntitlement?.access ? (playEntitlement.workspaceItems || []).map((item) => item.productId) : [],
             workspace_renewing_ids: playEntitlement?.access ? (playEntitlement.workspaceItems || []).filter((item) => item.renewing).map((item) => item.productId) : [],
             ai_credits: { used: Number(aiUsed?.count || 0), allowance: 150 },
@@ -1624,6 +1757,89 @@ Follow for daily trending content! \u{1F44F}
         }
         return new Response(JSON.stringify({ success: true, url: session.url || null, session_id: session.id || null }), { headers: jsonHeaders });
       }
+      if (url.pathname === "/api/billing/workspaces/checkout" && request.method === "POST") {
+        const identity = await getFirebaseIdentity(request);
+        const body = await request.json().catch(() => ({}));
+        const userId = requireUser(body.user_id);
+        if (!identityMatchesBillingUser(null, userId, identity)) return Response.json({ success: false, error: "Sign in to manage your own workspaces" }, { status: 401, headers: corsHeaders });
+        if (getClientPlatform(request, body.client_platform) === "android") return Response.json({ success: false, error: "Use Google Play for Android workspace purchases" }, { status: 400, headers: corsHeaders });
+        if (!webBillingEnabled || !stripeCheckoutEnabled || !stripeWorkspacePriceId || !stripeSecretKey || !stripeWebhookSecret)
+          return Response.json({ success: false, error: "Website workspace checkout is unavailable" }, { status: 503, headers: corsHeaders });
+        let row = await refreshBillingFromStripe(await getBillingRow(userId));
+        const play = await getPlayEntitlement(identity);
+        const access = evaluateBillingAccess(row, "web", userId, identity, play);
+        if (play?.access || access.reason !== "ok" || access.status !== "active" || access.plan?.planKey !== "pro" || !row?.stripe_subscription_id)
+          return Response.json({ success: false, error: "Additional workspaces become available after your first successful Pro subscription payment." }, { status: 403, headers: corsHeaders });
+        if (!await hasPaidStripeProInvoice(row))
+          return Response.json({ success: false, error: "Additional workspaces become available after your first successful Pro subscription payment." }, { status: 403, headers: corsHeaders });
+        row = await getBillingRow(userId);
+        if (!await isStripeProRenewing(row))
+          return Response.json({ success: false, error: "Your Pro renewal must be active before buying another workspace." }, { status: 403, headers: corsHeaders });
+        const addons = await getStripeWorkspaceAddons(userId);
+        if (addons.length >= 9) return Response.json({ success: false, error: "The maximum is ten total workspaces." }, { status: 409, headers: corsHeaders });
+        const account = await stripeApi("/v1/account", "GET");
+        if (account.id !== stripeCheckoutAccountId) return Response.json({ success: false, error: "Stripe account mismatch" }, { status: 503, headers: corsHeaders });
+        const price = await stripeApi(`/v1/prices/${encodeURIComponent(stripeWorkspacePriceId)}`, "GET");
+        if (price.active !== true || price.currency !== "gbp" || Number(price.unit_amount) !== 499 ||
+            price.recurring?.interval !== "month") return Response.json({ success: false, error: "Stripe workspace price mismatch" }, { status: 503, headers: corsHeaders });
+        const expiresAt = nowUnix() + 1860;
+        const lock = await env.DB.prepare(`INSERT INTO billing_stripe_workspace_checkout_locks (user_id, expires_at)
+          VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET stripe_session_id = NULL,
+            stripe_subscription_id = NULL, expires_at = excluded.expires_at
+          WHERE billing_stripe_workspace_checkout_locks.expires_at < ?`)
+          .bind(userId, expiresAt, nowUnix()).run();
+        if (!Number(lock?.meta?.changes ?? lock?.changes ?? 0))
+          return Response.json({ success: false, error: "A workspace checkout is already open. Finish it or wait for it to expire before trying again." }, { status: 409, headers: corsHeaders });
+        try {
+          const session = await stripeApi("/v1/checkout/sessions", "POST", {
+            mode: "subscription", customer: row.stripe_customer_id,
+            success_url: `${frontendBaseUrl}/settings.html?workspace=success`,
+            cancel_url: `${frontendBaseUrl}/settings.html?workspace=cancelled`,
+            expires_at: String(expiresAt - 60),
+            "line_items[0][price]": stripeWorkspacePriceId,
+            "line_items[0][quantity]": "1",
+            "metadata[user_id]": userId, "metadata[kind]": "workspace_addon", "metadata[app]": "multipost",
+            "subscription_data[metadata][user_id]": userId,
+            "subscription_data[metadata][kind]": "workspace_addon",
+            "subscription_data[metadata][app]": "multipost",
+            client_reference_id: userId
+          });
+          await env.DB.prepare(`UPDATE billing_stripe_workspace_checkout_locks SET stripe_session_id = ? WHERE user_id = ? AND expires_at = ?`)
+            .bind(session.id, userId, expiresAt).run();
+          return Response.json({ success: true, url: session.url, session_id: session.id }, { headers: corsHeaders });
+        } catch (error) {
+          await env.DB.prepare(`DELETE FROM billing_stripe_workspace_checkout_locks WHERE user_id = ? AND expires_at = ? AND stripe_session_id IS NULL`)
+            .bind(userId, expiresAt).run();
+          throw error;
+        }
+      }
+      if (url.pathname === "/api/billing/workspaces/renewal" && request.method === "POST") {
+        const identity = await getFirebaseIdentity(request);
+        const body = await request.json().catch(() => ({}));
+        const userId = requireUser(body.user_id);
+        const subscriptionId = String(body.subscription_id || "");
+        if (!identityMatchesBillingUser(null, userId, identity)) return Response.json({ success: false, error: "Sign in to manage your own workspaces" }, { status: 401, headers: corsHeaders });
+        if (getClientPlatform(request, body.client_platform) === "android" || !/^sub_[A-Za-z0-9]+$/.test(subscriptionId))
+          return Response.json({ success: false, error: "Invalid website workspace subscription" }, { status: 400, headers: corsHeaders });
+        const addon = await env.DB.prepare(`SELECT * FROM billing_stripe_workspace_addons WHERE user_id = ? AND stripe_subscription_id = ? AND stripe_price_id = ?`)
+          .bind(userId, subscriptionId, stripeWorkspacePriceId).first();
+        if (!addon || Number(addon.paid_through || 0) <= nowUnix()) return Response.json({ success: false, error: "No paid workspace subscription found" }, { status: 404, headers: corsHeaders });
+        const cancel = body.action === "cancel";
+        if (!cancel && body.action !== "resume") return Response.json({ success: false, error: "Invalid renewal action" }, { status: 400, headers: corsHeaders });
+        if (!cancel && (!await hasPaidStripeProInvoice(await getBillingRow(userId)) ||
+            !await isStripeProRenewing(await getBillingRow(userId))))
+          return Response.json({ success: false, error: "Resume Pro renewal before resuming an extra workspace." }, { status: 403, headers: corsHeaders });
+        if (Boolean(addon.cancel_at_period_end) === cancel) return Response.json({ success: false, error: "Renewal already has this setting" }, { status: 409, headers: corsHeaders });
+        const account = await stripeApi("/v1/account", "GET");
+        if (account.id !== stripeCheckoutAccountId) return Response.json({ success: false, error: "Stripe account mismatch" }, { status: 503, headers: corsHeaders });
+        const current = await stripeApi(`/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, "GET");
+        if (!isStripeWorkspaceSubscription(current) || current.customer !== addon.stripe_customer_id || current.metadata.user_id !== userId ||
+            !["active", "past_due"].includes(current.status) || Boolean(current.cancel_at_period_end) === cancel)
+          return Response.json({ success: false, error: "Workspace renewal changed; refresh and try again" }, { status: 409, headers: corsHeaders });
+        const updated = await stripeApi(`/v1/subscriptions/${encodeURIComponent(subscriptionId)}`, "POST", { cancel_at_period_end: cancel ? "true" : "false" });
+        await persistStripeWorkspaceSubscription(updated);
+        return Response.json({ success: true, cancel_at_period_end: Boolean(updated.cancel_at_period_end) }, { headers: corsHeaders });
+      }
       if (url.pathname === "/api/billing/create-portal-session" && request.method === "POST") {
         const body = await request.json().catch(() => ({}));
         const userId = requireUser(body?.user_id);
@@ -1659,24 +1875,78 @@ Follow for daily trending content! \u{1F44F}
             const userId = obj?.client_reference_id || obj?.metadata?.user_id || null;
             if (obj?.subscription) {
               const subscription = await stripeApi(`/v1/subscriptions/${encodeURIComponent(obj.subscription)}`, "GET");
-              await persistStripeSubscription(subscription, userId);
+              if (isStripeWorkspaceSubscription(subscription)) {
+                await persistStripeWorkspaceSubscription(subscription, userId);
+                await env.DB.prepare(`UPDATE billing_stripe_workspace_checkout_locks SET stripe_subscription_id = ?
+                  WHERE user_id = ? AND stripe_session_id = ?`)
+                  .bind(subscription.id, userId, obj.id).run();
+                await env.DB.prepare(`DELETE FROM billing_stripe_workspace_checkout_locks
+                  WHERE user_id = ? AND stripe_subscription_id = ? AND EXISTS
+                  (SELECT 1 FROM billing_stripe_workspace_addons WHERE stripe_subscription_id = ? AND paid_through > ?)`)
+                  .bind(userId, subscription.id, subscription.id, nowUnix()).run();
+                // Checkout completion is not payment proof. The invoice event grants access.
+              } else await persistStripeSubscription(subscription, userId);
             }
           } else if (eventType === "customer.subscription.created" || eventType === "customer.subscription.updated" || eventType === "customer.subscription.deleted") {
             const sub = event?.data?.object || {};
-            await persistStripeSubscription(sub);
-          } else if (eventType === "invoice.paid") {
-            const invoice = event?.data?.object || {};
-            if (invoice?.subscription) {
-              const subscription = await stripeApi(`/v1/subscriptions/${encodeURIComponent(invoice.subscription)}`, "GET");
-              await persistStripeSubscription(subscription);
+            if (isStripeWorkspaceSubscription(sub)) await persistStripeWorkspaceSubscription(sub);
+            else {
+              await persistStripeSubscription(sub);
+              await stopStripeWorkspaceRenewalsWithPro(sub);
             }
-          } else if (eventType === "invoice.payment_failed") {
-            const invoice = event?.data?.object || {};
-            await persistBillingFromSubscription({
-              userId: null,
-              stripeCustomerId: invoice?.customer || null,
-              status: "past_due"
-            });
+          } else if (eventType === "invoice.paid" || eventType === "v1.invoice.paid") {
+            const invoiceId = event?.data?.object?.id || event?.related_object?.id;
+            const invoice = invoiceId ? await stripeApi(`/v1/invoices/${encodeURIComponent(invoiceId)}`, "GET") : null;
+            const invoiceSubscriptionId = stripeInvoiceSubscriptionId(invoice);
+            if (invoiceSubscriptionId) {
+              const subscription = await stripeApi(`/v1/subscriptions/${encodeURIComponent(invoiceSubscriptionId)}`, "GET");
+              if (isStripeWorkspaceSubscription(subscription)) {
+                if (await persistStripeWorkspaceSubscription(subscription) && invoice.customer === subscription.customer &&
+                    invoice.currency === "gbp" && await verifiedStripeInvoicePaymentAmount(invoice) >= 499) {
+                  const matchingLine = (invoice.lines?.data || []).find((line) =>
+                    (line.price?.id || line.pricing?.price_details?.price) === stripeWorkspacePriceId &&
+                    Number(line.quantity || 1) === 1 && Number(line.period?.end || 0) > nowUnix());
+                  if (matchingLine) {
+                    await env.DB.prepare(`UPDATE billing_stripe_workspace_addons
+                      SET paid_through = MAX(paid_through, ?), updated_at = strftime('%s','now')
+                      WHERE stripe_subscription_id = ? AND stripe_customer_id = ?`)
+                      .bind(Number(matchingLine.period.end), subscription.id, subscription.customer).run();
+                    await env.DB.prepare(`DELETE FROM billing_stripe_workspace_checkout_locks
+                      WHERE user_id = ? AND stripe_subscription_id = ?`)
+                      .bind(subscription.metadata.user_id, subscription.id).run();
+                    const pro = await getBillingRow(subscription.metadata.user_id);
+                    if (pro?.stripe_subscription_id) {
+                      const proSubscription = await stripeApi(`/v1/subscriptions/${encodeURIComponent(pro.stripe_subscription_id)}`, "GET");
+                      await stopStripeWorkspaceRenewalsWithPro(proSubscription);
+                    }
+                  }
+                }
+              } else if (!isStripeWorkspaceBillingSubscription(subscription)) {
+                await persistStripeSubscription(subscription);
+                const row = await getBillingRow(subscription.metadata?.user_id || "");
+                if (row?.stripe_subscription_id === subscription.id && row.stripe_customer_id === invoice.customer &&
+                    await verifiedStripeInvoicePaymentAmount(invoice) > 0) {
+                  await env.DB.prepare(`UPDATE billing_subscriptions SET stripe_pro_paid_at = COALESCE(stripe_pro_paid_at, ?)
+                    WHERE user_id = ? AND stripe_subscription_id = ?`)
+                    .bind(Number(invoice.status_transitions?.paid_at || invoice.created || nowUnix()), row.user_id, subscription.id).run();
+                }
+              }
+            }
+          } else if (eventType === "invoice.payment_failed" || eventType === "v1.invoice.payment_failed") {
+            const invoiceId = event?.data?.object?.id || event?.related_object?.id;
+            const invoice = invoiceId ? await stripeApi(`/v1/invoices/${encodeURIComponent(invoiceId)}`, "GET") : null;
+            const invoiceSubscriptionId = stripeInvoiceSubscriptionId(invoice);
+            if (invoiceSubscriptionId) {
+              const sub = await stripeApi(`/v1/subscriptions/${encodeURIComponent(invoiceSubscriptionId)}`, "GET");
+              if (isStripeWorkspaceBillingSubscription(sub)) {
+                if (!isStripeWorkspaceSubscription(sub))
+                  return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
+                await persistStripeWorkspaceSubscription(sub);
+                await env.DB.prepare(`UPDATE billing_stripe_workspace_addons SET subscription_status = 'past_due',
+                  updated_at = strftime('%s','now') WHERE stripe_subscription_id = ? AND stripe_customer_id = ?`)
+                  .bind(sub.id, sub.customer).run();
+              } else await persistBillingFromSubscription({ userId: null, stripeCustomerId: invoice.customer || null, status: "past_due" });
+            }
           }
           return new Response(JSON.stringify({ success: true }), { headers: jsonHeaders });
         } catch (err) {

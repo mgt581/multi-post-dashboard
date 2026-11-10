@@ -241,7 +241,16 @@
           <button id="workspaceRemoveBtn" class="mini-btn" type="button" disabled>Remove one at renewal</button>
         </div>
       </div>
-      <div class="billing-note">Pro includes one workspace and an allowance of 150 AI credits and 150 successful platform publications each month. Additional workspace purchasing is shown only when Google Play returns supported plans for your region and your Pro entitlement is verified. See <a href="help.html" style="color:#7dd3fc;">How it works</a> before subscribing. Google Play shows the final terms and first payment date before purchase. Subscriptions renew automatically unless cancelled in Google Play. Existing web subscribers can manage their Stripe subscription in the billing portal.</div>
+      <div id="workspaceWebControls" hidden>
+        <div class="section-title" id="workspace-web" style="margin:14px 0 8px;">Extra workspaces</div>
+        <div class="billing-note" id="workspaceWebNote" role="status"></div>
+        <div class="billing-actions">
+          <button id="workspaceWebAddBtn" class="mini-btn primary" type="button" disabled>Add one workspace · £4.99/month</button>
+          <button id="workspaceWebRemoveBtn" class="mini-btn" type="button" disabled>Stop one renewal</button>
+          <button id="workspaceWebResumeBtn" class="mini-btn" type="button" hidden>Resume renewal</button>
+        </div>
+      </div>
+      <div class="billing-note">Pro includes one workspace and an allowance of 150 AI credits and 150 successful platform publications each month. On the website, extra workspaces become available after your first successful Pro payment. In the Android app, extra workspace offers depend on the plans Google Play returns for your region. See <a href="help.html" style="color:#7dd3fc;">How it works</a> before subscribing. Your checkout shows the final terms and first payment date. Subscriptions renew automatically unless cancelled in Google Play or your Stripe billing portal.</div>
     </div>
 
     <div class="section-title">Security</div>
@@ -409,6 +418,33 @@
       if (!allowance.hidden) allowance.textContent = `This month: ${Math.max(0, 150 - currentBilling.ai_credits.used)} of 150 AI credits and ${Math.max(0, 150 - currentBilling.publications.used)} of 150 successful publications remaining. ${currentBilling.workspace_allowance == null ? "Owner workspace access." : `${currentBilling.workspace_allowance} workspace${currentBilling.workspace_allowance === 1 ? "" : "s"} included in your current entitlement.`}`;
       renderPlayPlans();
       renderWorkspacePlans();
+      renderWebWorkspacePlans();
+    }
+
+    function renderWebWorkspacePlans() {
+      const controls = document.getElementById('workspaceWebControls');
+      if (isAndroidWrapper()) { controls.hidden = true; return; }
+      const billing = currentBilling;
+      controls.hidden = !billing?.access || billing?.reason === 'play_verified' || billing?.owner_mode || billing?.plan?.key !== 'pro';
+      if (controls.hidden) return;
+      const addons = billing.stripe_workspace_addons || [];
+      const renewing = addons.filter(item => !item.cancel_at_period_end);
+      const stopping = addons.filter(item => item.cancel_at_period_end);
+      const paid = billing.stripe_workspace_paid_pro === true && billing.status === 'active';
+      const add = document.getElementById('workspaceWebAddBtn');
+      const remove = document.getElementById('workspaceWebRemoveBtn');
+      const resume = document.getElementById('workspaceWebResumeBtn');
+      add.disabled = !paid || !billing.stripe_workspace_checkout_enabled || addons.length >= 9 || workspaceWebBusy;
+      remove.disabled = !renewing.length || workspaceWebBusy;
+      resume.hidden = !stopping.length;
+      resume.disabled = workspaceWebBusy || !billing.stripe_workspace_checkout_enabled;
+      document.getElementById('workspaceWebNote').textContent = !paid
+        ? 'Additional workspaces become available after your first successful Pro subscription payment.'
+        : !billing.stripe_workspace_checkout_enabled
+          ? 'Resume your Pro renewal before buying another workspace. Existing paid workspace access continues until its paid period ends.'
+        : addons.length >= 9
+          ? 'You have the maximum of ten total workspaces. A place becomes available when a scheduled removal ends.'
+          : `${addons.length} paid extra workspace${addons.length === 1 ? '' : 's'} available now. Each new workspace is £4.99 per month. It becomes available only after Stripe confirms payment. Stopping renewal keeps access until the paid period ends.`;
     }
 
     function renderWorkspacePlans() {
@@ -515,6 +551,43 @@
         setBillingUi("Billing unavailable", err?.message || "Could not load billing status.", "warn");
       }
     }
+
+    let workspaceWebBusy = false;
+    async function updateWorkspaceRenewal(action) {
+      if (workspaceWebBusy || !billingUser) return;
+      const addons = currentBilling?.stripe_workspace_addons || [];
+      const selected = action === 'cancel' ? addons.filter(item => !item.cancel_at_period_end).at(-1)
+        : addons.find(item => item.cancel_at_period_end);
+      if (!selected) return;
+      workspaceWebBusy = true; renderWebWorkspacePlans();
+      try {
+        const res = await authenticatedFetch(`${apiBase}/billing/workspaces/renewal`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', client_platform: 'web' },
+          body: JSON.stringify({ user_id: resolveBillingUserId(billingUser), subscription_id: selected.stripe_subscription_id, action })
+        });
+        const out = await res.json();
+        if (!res.ok || !out.success) throw new Error(out.error || 'Could not update workspace renewal');
+        await loadBillingStatus(billingUser);
+      } catch (error) { setBillingUi('Workspace renewal', error.message || 'Please try again.', 'warn'); }
+      finally { workspaceWebBusy = false; renderWebWorkspacePlans(); }
+    }
+    document.getElementById('workspaceWebAddBtn').addEventListener('click', async () => {
+      if (workspaceWebBusy || !billingUser || !currentBilling?.stripe_workspace_paid_pro) return;
+      workspaceWebBusy = true; renderWebWorkspacePlans();
+      try {
+        const res = await authenticatedFetch(`${apiBase}/billing/workspaces/checkout`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', client_platform: 'web' },
+          body: JSON.stringify({ user_id: resolveBillingUserId(billingUser), client_platform: 'web' })
+        });
+        const out = await res.json();
+        if (!res.ok || !out.success || !/^https:\/\/checkout\.stripe\.com\//.test(out.url || ''))
+          throw new Error(out.error || 'Could not open secure checkout');
+        window.location.href = out.url;
+      } catch (error) { setBillingUi('Workspace checkout', error.message || 'Please try again.', 'warn');
+        workspaceWebBusy = false; renderWebWorkspacePlans(); }
+    });
+    document.getElementById('workspaceWebRemoveBtn').addEventListener('click', () => updateWorkspaceRenewal('cancel'));
+    document.getElementById('workspaceWebResumeBtn').addEventListener('click', () => updateWorkspaceRenewal('resume'));
 
     if (window.AndroidBilling && isAndroidWrapper()) {
       const sendPlayAction = (action, details = {}) => {
