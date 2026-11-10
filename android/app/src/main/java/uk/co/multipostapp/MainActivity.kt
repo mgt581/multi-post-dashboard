@@ -119,6 +119,16 @@ class MainActivity : ComponentActivity() {
                                     (0 until (ids?.length() ?: 0)).map { ids!!.optString(it) },
                                     (0 until (owned?.length() ?: 0)).map { owned!!.optString(it) })
                             }
+                            "buyWorkspace" -> {
+                                val owned = payload.optJSONArray("owned_ids")
+                                playBilling.buyWorkspace(payload.optString("base_plan_id"), payload.optString("firebase_uid"),
+                                    (0 until (owned?.length() ?: 0)).map { owned!!.optString(it) })
+                            }
+                            "manageWorkspace" -> {
+                                val product = payload.optString("product_id")
+                                val sku = if (Regex("multipost_workspace_(0[1-9]|10)").matches(product)) "sku=$product&" else ""
+                                openOutsideApp(Uri.parse("https://play.google.com/store/account/subscriptions?${sku}package=uk.co.multipostapp"))
+                            }
                             "restore" -> playBilling.restore()
                             "openManage" -> openOutsideApp(Uri.parse(
                                 "https://play.google.com/store/account/subscriptions?package=uk.co.multipostapp"

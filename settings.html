@@ -537,6 +537,13 @@
       }
     }
 
+    // Android 1.9.7+ buys each extra workspace as its own Play subscription. Older
+    // app versions (including the live production app) keep the add-on flow unchanged.
+    function supportsStandaloneWorkspaces() {
+      const m = (navigator.userAgent || '').match(/MultiPostAndroid\/(\d+)\.(\d+)(?:\.(\d+))?/);
+      return Boolean(m) && (Number(m[1]) * 10000 + Number(m[2]) * 100 + Number(m[3] || 0)) >= 10907;
+    }
+
     function renderWorkspacePlans() {
       const controls = document.getElementById('workspacePlayControls');
       if (!controls || !isAndroidWrapper()) return;
@@ -570,7 +577,9 @@
         : renewing.length >= 9 || active >= 9
         ? 'The ten total workspace places are in use. A place becomes available after a scheduled removal expires.'
         : eligible
-          ? `${active} paid extra workspace${active === 1 ? '' : 's'} available now; ${renewing.length} set to renew. Each additional workspace costs ${price}/${interval === 'monthly' ? 'month' : 'year'} in your Play region. Adding one may charge a prorated amount today. Removing one stops renewal; it remains usable until its paid period ends. Review the exact total and date in Play before confirming.`
+          ? supportsStandaloneWorkspaces()
+            ? `${active} paid extra workspace${active === 1 ? '' : 's'} available now; ${renewing.length} set to renew. Each extra workspace is its own ${price}/${interval === 'monthly' ? 'month' : 'year'} Google Play subscription, charged from today, up to 10 workspaces in total. Remove one cancels its renewal in Google Play; it stays usable until its paid period ends.`
+            : `${active} paid extra workspace${active === 1 ? '' : 's'} available now; ${renewing.length} set to renew. Each additional workspace costs ${price}/${interval === 'monthly' ? 'month' : 'year'} in your Play region. Adding one may charge a prorated amount today. Removing one stops renewal; it remains usable until its paid period ends. Review the exact total and date in Play before confirming.`
           : playCountryCode === 'KR'
           ? 'Google Play does not support extra workspace add-ons in your region. Your existing Pro workspace remains available.'
             : billing?.play?.state !== 'SUBSCRIPTION_STATE_ACTIVE'
@@ -751,8 +760,36 @@
           renewing_ids: renewal, owned_ids: currentBilling.workspace_product_ids || [], base_plan_id: currentBilling.play.base_plan_id,
           firebase_uid: auth.currentUser.uid });
       };
-      document.getElementById('workspaceAddBtn').addEventListener('click', () => changeWorkspaces(1));
-      document.getElementById('workspaceRemoveBtn').addEventListener('click', () => changeWorkspaces(-1));
+      window.onMultiPostWorkspacePurchase = async purchase => {
+        try {
+          const response = await authenticatedFetch(`${apiBase}/billing/play-workspace-purchase`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ purchase_token: purchase.purchase_token })
+          });
+          const result = await response.json();
+          if (!response.ok || !result.success) throw new Error(result.error || "Workspace verification failed");
+          if (billingUser) await loadBillingStatus(billingUser);
+          if (result.warning) setBillingUi("Extra workspace", result.warning, "warn");
+        } catch (error) {
+          setBillingUi("Workspace verification pending", error.message || "Tap Restore purchases to try again.", "warn");
+        }
+      };
+      const addWorkspace = () => {
+        if (!supportsStandaloneWorkspaces()) return changeWorkspaces(1);
+        if (!auth.currentUser || currentBilling?.reason !== 'play_verified' || !currentBilling.play?.base_plan_id ||
+          currentBilling.play.paid_pro !== true || currentBilling.play.state !== 'SUBSCRIPTION_STATE_ACTIVE' ||
+          (currentBilling.workspace_product_ids || []).length >= 9) return;
+        sendPlayAction('buyWorkspace', { base_plan_id: currentBilling.play.base_plan_id, firebase_uid: auth.currentUser.uid,
+          owned_ids: currentBilling.workspace_product_ids || [] });
+      };
+      const removeWorkspace = () => {
+        if (!supportsStandaloneWorkspaces()) return changeWorkspaces(-1);
+        const renewingStandalone = (currentBilling?.workspace_standalone_ids || [])
+          .filter(id => (currentBilling?.workspace_renewing_ids || []).includes(id));
+        sendPlayAction('manageWorkspace', { product_id: renewingStandalone[renewingStandalone.length - 1] || '' });
+      };
+      document.getElementById('workspaceAddBtn').addEventListener('click', addWorkspace);
+      document.getElementById('workspaceRemoveBtn').addEventListener('click', removeWorkspace);
       document.getElementById("playRestoreBtn").addEventListener("click", () => sendPlayAction("restore"));
       document.getElementById("playManageBtn").addEventListener("click", () => sendPlayAction("openManage"));
       sendPlayAction("queryPlans");

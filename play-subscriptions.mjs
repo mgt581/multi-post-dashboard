@@ -144,6 +144,66 @@ export async function verifyPlayPurchase({ token, firebaseUid, serviceAccountJso
   return verified;
 }
 
+/**
+ * A standalone extra-workspace subscription (its own purchase token). Some Play
+ * Store builds reject add-on lines on the Pro token, so Android 1.9.7+ buys
+ * each extra workspace as a normal subscription instead.
+ */
+export function interpretWorkspaceSubscription(data, expectedAccountId, now = Date.now()) {
+  const lines = Array.isArray(data?.lineItems) ? data.lineItems : [];
+  if (lines.length !== 1 || !WORKSPACE_PRODUCTS.has(lines[0]?.productId) ||
+      !BASE_PLANS.has(lines[0]?.offerDetails?.basePlanId) ||
+      data?.externalAccountIdentifiers?.obfuscatedExternalAccountId !== expectedAccountId) {
+    throw new Error('Workspace purchase product or account does not match');
+  }
+  const line = lines[0];
+  const expiry = Math.floor(Date.parse(line.expiryTime) / 1000);
+  if (!Number.isFinite(expiry)) throw new Error('Workspace purchase expiry is invalid');
+  const state = String(data.subscriptionState || 'SUBSCRIPTION_STATE_UNSPECIFIED');
+  return {
+    productId: line.productId,
+    basePlanId: line.offerDetails.basePlanId,
+    state,
+    expiry,
+    renewing: line.autoRenewingPlan?.autoRenewEnabled === true,
+    orderId: line.latestSuccessfulOrderId || null,
+    needsAcknowledgement: data.acknowledgementState === 'ACKNOWLEDGEMENT_STATE_PENDING',
+    // A workspace counts only once Google reports a successful paid order.
+    access: PLAY_STATES_WITH_ACCESS.has(state) && expiry * 1000 > now && Boolean(line.latestSuccessfulOrderId) &&
+      data.regionCode !== 'KR'
+  };
+}
+
+export async function verifyPlayWorkspacePurchase({ token, firebaseUid, serviceAccountJson, fetcher = fetch, now = Date.now() }) {
+  if (!token || typeof token !== 'string' || token.length > 4096 || !firebaseUid) throw new Error('Invalid purchase token');
+  const account = typeof serviceAccountJson === 'string' ? JSON.parse(serviceAccountJson) : serviceAccountJson;
+  const bearer = await googleAccessToken(account, fetcher);
+  const response = await fetcher(`https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}/purchases/subscriptionsv2/tokens/${encodeURIComponent(token)}`, {
+    headers: { Authorization: `Bearer ${bearer}` }
+  });
+  if (!response.ok) throw new Error('Google Play workspace verification failed');
+  const verified = interpretWorkspaceSubscription(await response.json(), await obfuscatedAccountId(firebaseUid), now);
+  if (verified.access && verified.needsAcknowledgement) {
+    const ack = await fetcher(`https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}/purchases/subscriptions/${verified.productId}/tokens/${encodeURIComponent(token)}:acknowledge`, {
+      method: 'POST', headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' }, body: '{}'
+    });
+    if (!ack.ok) throw new Error('Google Play workspace acknowledgment failed');
+  }
+  return verified;
+}
+
+/** Stops renewal of a standalone workspace subscription; access lasts until its paid expiry. */
+export async function cancelPlayWorkspaceSubscription({ token, productId, serviceAccountJson, fetcher = fetch }) {
+  if (!WORKSPACE_PRODUCTS.has(productId)) throw new Error('Unknown workspace product');
+  const account = typeof serviceAccountJson === 'string' ? JSON.parse(serviceAccountJson) : serviceAccountJson;
+  const bearer = await googleAccessToken(account, fetcher);
+  const response = await fetcher(`https://androidpublisher.googleapis.com/androidpublisher/v3/applications/${PACKAGE_NAME}/purchases/subscriptions/${productId}/tokens/${encodeURIComponent(token)}:cancel`, {
+    method: 'POST', headers: { Authorization: `Bearer ${bearer}`, 'Content-Type': 'application/json' }, body: '{}'
+  });
+  if (!response.ok) throw new Error('Google Play workspace cancellation failed');
+  return true;
+}
+
 async function encryptionKey(base64Key) {
   if (!base64Key) throw new Error('Play token encryption key is not configured');
   // Deployment secrets may encode the same 256-bit key as hex or base64.

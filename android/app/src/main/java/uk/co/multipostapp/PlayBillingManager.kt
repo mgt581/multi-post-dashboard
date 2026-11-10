@@ -200,6 +200,52 @@ class PlayBillingManager(
         }
     }
 
+    /**
+     * Buys the next unused extra workspace as its own subscription. Some Play
+     * Store builds reject add-on lines on the Pro purchase ("Server error"), so
+     * this uses a normal standalone subscription purchase instead.
+     */
+    fun buyWorkspace(interval: String, firebaseUid: String, ownedIds: List<String>) {
+        if (workspaceCheckoutInProgress) return
+        if (!ready || playCountryCode == null || playCountryCode == "KR" || interval !in BASE_PLANS ||
+            firebaseUid.isBlank() || ownedIds.any { it !in WORKSPACE_PRODUCT_IDS } || ownedIds.size >= 9) {
+            error("Workspace purchase is unavailable for this account or region"); return
+        }
+        workspaceCheckoutInProgress = true
+        client.queryPurchasesAsync(QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build()) { result, purchases ->
+            if (result.responseCode != BillingClient.BillingResponseCode.OK ||
+                purchases.none { PRODUCT_ID in it.products && it.purchaseState == Purchase.PurchaseState.PURCHASED }) {
+                error("Restore your Pro purchase before adding a workspace"); return@queryPurchasesAsync
+            }
+            // Never sell a product this Google account already holds, even if the server has not seen it yet.
+            val held = purchases.flatMap { it.products }.filter { it in WORKSPACE_PRODUCT_IDS }.toSet()
+            val nextId = WORKSPACE_PRODUCT_IDS.take(9).firstOrNull { it !in held && it !in ownedIds }
+                ?: run { error("All nine extra workspace places are in use"); return@queryPurchasesAsync }
+            val request = QueryProductDetailsParams.newBuilder().setProductList(listOf(
+                QueryProductDetailsParams.Product.newBuilder().setProductId(nextId)
+                    .setProductType(BillingClient.ProductType.SUBS).build())).build()
+            client.queryProductDetailsAsync(request) { planResult, queried ->
+                if (planResult.responseCode != BillingClient.BillingResponseCode.OK) {
+                    error("Could not load the workspace offer (${playError(planResult)})"); return@queryProductDetailsAsync
+                }
+                val product = queried.productDetailsList.firstOrNull { it.productId == nextId }
+                    ?: run { error("Workspace plan $nextId is unavailable in Google Play"); return@queryProductDetailsAsync }
+                val offer = product.subscriptionOfferDetails.orEmpty().firstOrNull { it.basePlanId == interval && it.offerId == null }
+                    ?: run { error("A matching $interval workspace plan is unavailable"); return@queryProductDetailsAsync }
+                val accountHash = MessageDigest.getInstance("SHA-256")
+                    .digest("multipost:$firebaseUid".toByteArray(Charsets.UTF_8))
+                    .joinToString("") { "%02x".format(it) }
+                val flow = BillingFlowParams.newBuilder()
+                    .setProductDetailsParamsList(listOf(BillingFlowParams.ProductDetailsParams.newBuilder()
+                        .setProductDetails(product).setOfferToken(offer.offerToken).build()))
+                    .setObfuscatedAccountId(accountHash).build()
+                val launch = client.launchBillingFlow(activity, flow)
+                if (launch.responseCode != BillingClient.BillingResponseCode.OK)
+                    error("Could not open the workspace purchase (${playError(launch)})")
+            }
+        }
+    }
+
     fun restore() {
         if (!ready) { restoreOnConnect = true; start(); return }
         val params = QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build()
@@ -219,7 +265,13 @@ class PlayBillingManager(
     }
 
     private fun deliverPurchase(purchase: Purchase) {
-        if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED || PRODUCT_ID !in purchase.products) return
+        if (purchase.purchaseState != Purchase.PurchaseState.PURCHASED) return
+        if (PRODUCT_ID !in purchase.products) {
+            // A standalone extra workspace: the server verifies it and acknowledges it.
+            if (purchase.products.size == 1 && purchase.products[0] in WORKSPACE_PRODUCT_IDS)
+                sendToPage("onMultiPostWorkspacePurchase", JSONObject().put("purchase_token", purchase.purchaseToken).toString())
+            return
+        }
         // The page sends the token to our backend with its Firebase ID token.
         // Initial purchase acknowledgment is performed only after server verification.
         sendToPage("onMultiPostPlayPurchase", JSONObject().put("purchase_token", purchase.purchaseToken).toString())

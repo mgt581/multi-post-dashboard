@@ -4,7 +4,7 @@ import { evaluateTikTokPublishStatus } from "./tiktok-publish-status.mjs";
 import { buildTikTokChunkProfiles } from "./tiktok-upload-chunks.mjs";
 import { FACEBOOK_PAGE_LINK_SCOPE } from "./facebook-oauth.mjs";
 import { generateSeo, normalizeSeoInput } from "./services/seoEngine.mjs";
-import { verifyPlayPurchase, sha256Hex, encryptPurchaseToken, decryptPurchaseToken } from "./play-subscriptions.mjs";
+import { verifyPlayPurchase, verifyPlayWorkspacePurchase, cancelPlayWorkspaceSubscription, sha256Hex, encryptPurchaseToken, decryptPurchaseToken } from "./play-subscriptions.mjs";
 import { reconcilePendingPublications } from "./publication-reconciliation.mjs";
 import { createAndroidOAuthHandoff, consumeAndroidOAuthHandoff, androidOAuthReturn } from "./android-oauth.mjs";
 
@@ -966,7 +966,7 @@ Follow for daily trending content! \u{1F44F}
       }
     }, "refreshBillingFromStripe");
     const PLAY_REFRESH_GRACE_SECONDS = 3 * 86400;
-    const getPlayEntitlement = /* @__PURE__ */ __name(async (identity) => {
+    const getPlayProEntitlement = /* @__PURE__ */ __name(async (identity) => {
       if (!identity?.userId) return null;
       let row;
       try {
@@ -1006,6 +1006,67 @@ Follow for daily trending content! \u{1F44F}
         workspaceItems: row.pro_paid_order_id ? workspaceItems : [],
         access: ["SUBSCRIPTION_STATE_ACTIVE", "SUBSCRIPTION_STATE_IN_GRACE_PERIOD", "SUBSCRIPTION_STATE_CANCELED"].includes(state) && Number(row.expiry_time || 0) > nowUnix()
       };
+    }, "getPlayProEntitlement");
+    // Standalone Play workspace subscriptions (Android 1.9.7+), one token each.
+    const getPlayStandaloneWorkspaces = /* @__PURE__ */ __name(async (userId) => {
+      let rows;
+      try {
+        rows = (await env.DB.prepare(`SELECT * FROM billing_play_workspace_purchases WHERE user_id = ? ORDER BY created_at, token_hash`)
+          .bind(userId).all()).results || [];
+      } catch (_) { return []; /* table not created yet */ }
+      const items = [];
+      for (const row of rows) {
+        let current = row;
+        if (Number(row.last_verified_at || 0) + 300 < nowUnix() && Number(row.expiry_time || 0) + 86400 > nowUnix()) {
+          try {
+            const token = await decryptPurchaseToken(row.encrypted_token, env.PLAY_TOKEN_ENCRYPTION_KEY);
+            const v = await verifyPlayWorkspacePurchase({ token, firebaseUid: userId, serviceAccountJson: env.PLAY_SERVICE_ACCOUNT_JSON });
+            await env.DB.prepare(`UPDATE billing_play_workspace_purchases SET subscription_state = ?, expiry_time = ?, renewing = ?,
+              order_id = COALESCE(?, order_id), last_verified_at = strftime('%s','now') WHERE token_hash = ? AND user_id = ?`)
+              .bind(v.state, v.expiry, v.renewing ? 1 : 0, v.orderId, row.token_hash, userId).run();
+            current = { ...row, subscription_state: v.state, expiry_time: v.expiry, renewing: v.renewing ? 1 : 0, order_id: v.orderId || row.order_id,
+              last_verified_at: nowUnix() };
+          } catch (error) {
+            console.warn("Play workspace refresh failed", userId, error?.message || String(error));
+            if (Number(row.last_verified_at || 0) + PLAY_REFRESH_GRACE_SECONDS < nowUnix()) continue;
+          }
+        }
+        const active = ["SUBSCRIPTION_STATE_ACTIVE", "SUBSCRIPTION_STATE_IN_GRACE_PERIOD", "SUBSCRIPTION_STATE_CANCELED"]
+          .includes(String(current.subscription_state)) && Number(current.expiry_time || 0) > nowUnix() && Boolean(current.order_id);
+        if (active) items.push({ productId: current.product_id, expiry: Number(current.expiry_time), renewing: Number(current.renewing) === 1,
+          standalone: true, tokenHash: current.token_hash });
+      }
+      return items;
+    }, "getPlayStandaloneWorkspaces");
+    // When Pro is no longer renewing, stop renewing standalone workspaces too,
+    // so nobody keeps paying for workspaces without Pro. Access lasts until each paid expiry.
+    const stopPlayStandaloneWorkspaceRenewals = /* @__PURE__ */ __name(async (userId) => {
+      let rows;
+      try {
+        rows = (await env.DB.prepare(`SELECT token_hash, encrypted_token, product_id FROM billing_play_workspace_purchases
+          WHERE user_id = ? AND renewing = 1 AND expiry_time > ?`).bind(userId, nowUnix()).all()).results || [];
+      } catch (_) { return; }
+      for (const row of rows) {
+        try {
+          const token = await decryptPurchaseToken(row.encrypted_token, env.PLAY_TOKEN_ENCRYPTION_KEY);
+          await cancelPlayWorkspaceSubscription({ token, productId: row.product_id, serviceAccountJson: env.PLAY_SERVICE_ACCOUNT_JSON });
+          await env.DB.prepare(`UPDATE billing_play_workspace_purchases SET renewing = 0 WHERE token_hash = ? AND user_id = ?`)
+            .bind(row.token_hash, userId).run();
+        } catch (error) { console.warn("Play workspace renewal stop failed", userId, error?.message || String(error)); }
+      }
+    }, "stopPlayStandaloneWorkspaceRenewals");
+    const getPlayEntitlement = /* @__PURE__ */ __name(async (identity) => {
+      if (!identity?.userId) return null;
+      const pro = await getPlayProEntitlement(identity);
+      const proRenewing = Boolean(pro?.access) && String(pro.state) !== "SUBSCRIPTION_STATE_CANCELED";
+      if (!proRenewing) await stopPlayStandaloneWorkspaceRenewals(identity.userId);
+      if (!pro?.access || !pro.paidPro) return pro;
+      const standalone = await getPlayStandaloneWorkspaces(identity.userId);
+      const seen = new Set();
+      const workspaceItems = [...(pro.workspaceItems || []), ...standalone].filter((item) =>
+        !seen.has(item.productId) && seen.add(item.productId)).slice(0, 9);
+      return { ...pro, workspaceItems, workspaceQuantity: workspaceItems.length,
+        workspaceExpiry: workspaceItems.length ? Math.max(...workspaceItems.map((item) => Number(item.expiry || 0))) : pro.workspaceExpiry };
     }, "getPlayEntitlement");
     const evaluateBillingAccess = /* @__PURE__ */ __name((row, platform, requestedUserId = "", authenticatedIdentity = null, playEntitlement = null) => {
       const userId = String(row?.user_id || "").trim();
@@ -1575,6 +1636,52 @@ Follow for daily trending content! \u{1F44F}
           }
         }), { headers: jsonHeaders });
       }
+      if (url.pathname === "/api/billing/play-workspace-purchase" && request.method === "POST") {
+        const identity = await getFirebaseIdentity(request);
+        if (!identity?.userId) {
+          return Response.json({ success: false, error: "Firebase authentication required" }, { status: 401, headers: corsHeaders });
+        }
+        const body = await request.json().catch(() => ({}));
+        const token = body?.purchase_token;
+        if (typeof token !== "string" || !token || token.length > 4096) {
+          return Response.json({ success: false, error: "Invalid purchase token" }, { status: 400, headers: corsHeaders });
+        }
+        if (!env.PLAY_SERVICE_ACCOUNT_JSON || !env.PLAY_TOKEN_ENCRYPTION_KEY) {
+          return Response.json({ success: false, error: "Play verification is not configured" }, { status: 503, headers: corsHeaders });
+        }
+        try {
+          const verified = await verifyPlayWorkspacePurchase({ token, firebaseUid: identity.userId, serviceAccountJson: env.PLAY_SERVICE_ACCOUNT_JSON });
+          const tokenHash = await sha256Hex(token);
+          await env.DB.prepare("INSERT OR IGNORE INTO billing_play_token_claims (token_hash, user_id) VALUES (?, ?)")
+            .bind(tokenHash, identity.userId).run();
+          const claim = await env.DB.prepare("SELECT user_id FROM billing_play_token_claims WHERE token_hash = ?").bind(tokenHash).first();
+          if (claim?.user_id !== identity.userId) {
+            return Response.json({ success: false, error: "Purchase belongs to another account" }, { status: 409, headers: corsHeaders });
+          }
+          // Always record a verified paid purchase so it is never lost; only paid,
+          // active Play Pro lets it count (getPlayEntitlement enforces this and the cap).
+          const encrypted = await encryptPurchaseToken(token, env.PLAY_TOKEN_ENCRYPTION_KEY);
+          await env.DB.prepare(`INSERT INTO billing_play_workspace_purchases
+            (token_hash, user_id, encrypted_token, product_id, base_plan_id, subscription_state, expiry_time, renewing, order_id, last_verified_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s','now'))
+            ON CONFLICT(token_hash) DO UPDATE SET encrypted_token = excluded.encrypted_token, subscription_state = excluded.subscription_state,
+              expiry_time = excluded.expiry_time, renewing = excluded.renewing, order_id = COALESCE(excluded.order_id, billing_play_workspace_purchases.order_id),
+              last_verified_at = excluded.last_verified_at
+            WHERE billing_play_workspace_purchases.user_id = excluded.user_id`)
+            .bind(tokenHash, identity.userId, encrypted, verified.productId, verified.basePlanId, verified.state, verified.expiry,
+              verified.renewing ? 1 : 0, verified.orderId).run();
+          const entitlement = await getPlayEntitlement(identity);
+          const counted = Boolean(entitlement?.access && entitlement.paidPro &&
+            (entitlement.workspaceItems || []).some((item) => item.productId === verified.productId));
+          return Response.json({ success: true, access: verified.access, counted, product_id: verified.productId,
+            workspace_quantity: entitlement?.workspaceQuantity || 0,
+            ...(counted ? {} : { warning: entitlement?.paidPro ? "This workspace is beyond the 10-workspace limit." : "Extra workspaces need an active, paid Google Play Pro subscription." }) },
+            { headers: corsHeaders });
+        } catch (error) {
+          console.warn("Play workspace purchase verification failed", identity.userId, error?.message || String(error));
+          return Response.json({ success: false, error: "Google Play workspace purchase could not be verified" }, { status: 400, headers: corsHeaders });
+        }
+      }
       if (url.pathname === "/api/billing/play-purchase" && request.method === "POST") {
         const identity = await getFirebaseIdentity(request);
         if (!identity?.userId) {
@@ -1704,6 +1811,7 @@ Follow for daily trending content! \u{1F44F}
             stripe_early_upgrade_available: earlyUpgradeAvailable(row, evaluated, playEntitlement),
             workspace_product_ids: playEntitlement?.access ? (playEntitlement.workspaceItems || []).map((item) => item.productId) : [],
             workspace_renewing_ids: playEntitlement?.access ? (playEntitlement.workspaceItems || []).filter((item) => item.renewing).map((item) => item.productId) : [],
+            workspace_standalone_ids: playEntitlement?.access ? (playEntitlement.workspaceItems || []).filter((item) => item.standalone).map((item) => item.productId) : [],
             ai_credits: { used: Number(aiUsed?.count || 0), allowance: 150 },
             publications: { used: publicationsThisMonth, allowance: 150 },
             trial_days_default: stripeTrialDays,
