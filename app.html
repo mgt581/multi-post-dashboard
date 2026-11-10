@@ -164,7 +164,7 @@
   <dialog id="workspaceLimitDialog" aria-labelledby="workspaceLimitTitle" style="max-width:440px;width:calc(100% - 32px);background:#0b1829;color:#e2e8f0;border:1px solid #334155;border-radius:16px;padding:24px;">
     <h2 id="workspaceLimitTitle">Make room for another workspace</h2>
     <p id="workspaceLimitDescription" style="line-height:1.5;">Your Pro subscription includes one workspace. Review the extra workspace options in Profile.</p>
-    <a class="btn" href="settings.html#workspace-play" style="display:block;text-align:center;text-decoration:none;">Check price &amp; availability</a>
+    <a id="workspaceLimitLink" class="btn" href="settings.html#workspace-play" style="display:block;text-align:center;text-decoration:none;">Check price &amp; availability</a>
     <button type="button" class="btn" style="margin-top:12px;background:#334155;" onclick="document.getElementById('workspaceLimitDialog').close()">Not now</button>
   </dialog>
   <div class="page">
@@ -636,6 +636,24 @@
 
     function showWorkspaceLimit() {
       const allowance = workspaceBilling?.workspace_allowance || 1;
+      const link = document.getElementById("workspaceLimitLink");
+      if (!/MultiPostAndroid\//i.test(navigator.userAgent || "")) {
+        // Website: send people straight to the £4.99 add-on on Profile.
+        const atMax = allowance >= 10;
+        const trial = workspaceBilling?.status === "trialing";
+        document.getElementById("workspaceLimitTitle").textContent = atMax ? "You've reached 10 workspaces" : "Add another workspace";
+        document.getElementById("workspaceLimitDescription").textContent = atMax
+          ? `You're using all 10 workspaces, the maximum on Pro. Delete one you no longer need to make room.`
+          : trial
+            ? "Extra workspaces unlock after your first Pro payment. Subscribe now on Profile to unlock them today and get one free for a month."
+            : `You're using ${loadedFolders.length} of ${allowance} workspace${allowance === 1 ? "" : "s"}. Add another for £4.99/month, up to 10 in total. It's ready as soon as payment is confirmed.`;
+        link.hidden = atMax;
+        link.style.display = atMax ? "none" : "block";
+        link.href = "settings.html#workspace-web";
+        link.textContent = trial ? "Subscribe now on Profile" : "+ Add a workspace — £4.99/month";
+        document.getElementById("workspaceLimitDialog").showModal();
+        return;
+      }
       document.getElementById("workspaceLimitDescription").textContent =
         workspaceBilling?.status === 'trialing'
           ? 'Additional workspaces become available after your first successful Pro subscription payment.'
@@ -678,7 +696,7 @@
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
-          if (!nameDialogAction && res.status === 429 && /MultiPostAndroid\//i.test(navigator.userAgent || "")) {
+          if (!nameDialogAction && res.status === 429) {
             document.getElementById("createBrandDialog").close();
             await loadAccountStatus();
             showWorkspaceLimit();

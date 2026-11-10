@@ -101,8 +101,29 @@ test('the dashboard offers Play subscribers a clear route when their workspace a
   assert.equal(vm.runInNewContext('isPlayWorkspaceLimitReached()', context), false);
   const limitSource = dashboard.slice(dashboard.indexOf('    function showWorkspaceLimit() {'), dashboard.indexOf('    function openRenameFolder('));
   const description = { textContent: '' };
-  const trialContext = { workspaceBilling: { ...context.workspaceBilling, status: 'trialing' }, loadedFolders: [{ id: 1 }],
+  const trialContext = { navigator: { userAgent: 'MultiPostAndroid/1.5' }, workspaceBilling: { ...context.workspaceBilling, status: 'trialing' }, loadedFolders: [{ id: 1 }],
     document: { getElementById: id => id === 'workspaceLimitDescription' ? description : { showModal() {} } } };
   vm.runInNewContext(`${limitSource}\nshowWorkspaceLimit()`, trialContext);
   assert.equal(description.textContent, 'Additional workspaces become available after your first successful Pro subscription payment.');
+});
+
+test('the website limit dialog links straight to buying another workspace', () => {
+  const limitSource = dashboard.slice(dashboard.indexOf('    function showWorkspaceLimit() {'), dashboard.indexOf('    function openRenameFolder('));
+  const nodes = {};
+  const el = id => (nodes[id] ||= { textContent: '', hidden: false, style: {}, href: '', showModal() { this.open = true; } });
+  const run = (billing, count) => {
+    for (const k of Object.keys(nodes)) delete nodes[k];
+    vm.runInNewContext(`${limitSource}\nshowWorkspaceLimit()`, { navigator: { userAgent: 'Desktop Chrome' },
+      workspaceBilling: billing, loadedFolders: Array(count).fill({}), document: { getElementById: el } });
+    return nodes;
+  };
+  const paid = run({ reason: 'ok', access: true, status: 'active', workspace_allowance: 3 }, 3);
+  assert.equal(paid.workspaceLimitLink.href, 'settings.html#workspace-web');
+  assert.match(paid.workspaceLimitLink.textContent, /Add a workspace — £4\.99\/month/);
+  assert.match(paid.workspaceLimitDescription.textContent, /using 3 of 3 workspaces/);
+  assert.equal(paid.workspaceLimitDialog.open, true);
+  const full = run({ reason: 'ok', access: true, status: 'active', workspace_allowance: 10 }, 10);
+  assert.equal(full.workspaceLimitLink.hidden, true);
+  assert.match(full.workspaceLimitDescription.textContent, /maximum on Pro/);
+  assert.match(dashboard, /if \(!nameDialogAction && res\.status === 429\) \{/);
 });
