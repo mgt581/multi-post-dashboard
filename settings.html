@@ -174,6 +174,9 @@
     }
     .workspace-card[hidden], .workspace-card [hidden] { display: none !important; }
     .workspace-card-title { font-size: 16px; font-weight: 800; color: white; }
+    .workspace-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+    .workspace-count { font-size: 12px; font-weight: 800; color: #7dd3fc; background: rgba(14,165,233,0.14); border: 1px solid rgba(56,189,248,0.42); border-radius: 999px; padding: 4px 10px; }
+    .workspace-card .workspace-cta { flex: 1 1 auto; text-align: center; }
     .workspace-card-price { font-size: 19px; font-weight: 800; color: #7dd3fc; }
     .workspace-card-description { margin: 0; font-size: 13px; line-height: 1.5; }
     .workspace-card .workspace-cta { padding: 12px 15px; font-size: 13px; text-decoration: none; }
@@ -236,6 +239,22 @@
           <div id="allowanceNote" class="billing-note" hidden></div>
         </div>
       </div>
+      <div id="workspaceWebControls" class="workspace-card" hidden>
+        <div class="workspace-card-head">
+          <div class="workspace-card-title" id="workspace-web">Add extra workspaces</div>
+          <span class="workspace-count" id="workspaceWebCount" hidden></span>
+        </div>
+        <div class="workspace-card-price" id="workspaceWebPrice">£4.99/month per workspace</div>
+        <p class="workspace-card-description" id="workspaceWebDescription">Run up to 10 workspaces in total on your monthly or yearly Pro plan. Each extra workspace is £4.99/month and comes with its own social-account connections.</p>
+        <div class="billing-note" id="workspaceWebNote" role="status"></div>
+        <div class="billing-actions">
+          <button id="workspaceWebAddBtn" class="mini-btn primary workspace-cta" type="button" hidden>+ Add a workspace — £4.99/month</button>
+          <a id="workspaceWebSubscribeLink" class="mini-btn primary workspace-cta" href="pricing.html" hidden>Subscribe to Pro to unlock</a>
+          <a id="workspaceWebPlayLink" class="mini-btn primary workspace-cta" href="https://play.google.com/store/apps/details?id=uk.co.multipostapp" target="_blank" rel="noopener" hidden>Manage Additional Workspaces in Android App</a>
+          <button id="workspaceWebRemoveBtn" class="mini-btn" type="button" hidden>Stop one renewal</button>
+          <button id="workspaceWebResumeBtn" class="mini-btn" type="button" hidden>Resume renewal</button>
+        </div>
+      </div>
       <div class="billing-actions">
         <button id="openPricingBtn" class="mini-btn primary" type="button">View Pricing</button>
         <button id="manageBillingBtn" class="mini-btn" type="button">Manage Billing</button>
@@ -254,18 +273,6 @@
         <div class="billing-actions">
           <button id="workspaceAddBtn" class="mini-btn primary" type="button" disabled>Add one workspace</button>
           <button id="workspaceRemoveBtn" class="mini-btn" type="button" disabled>Remove one at renewal</button>
-        </div>
-      </div>
-      <div id="workspaceWebControls" class="workspace-card" hidden>
-        <div class="workspace-card-title" id="workspace-web">Additional Workspace</div>
-        <div class="workspace-card-price" id="workspaceWebPrice">£4.99/month per workspace</div>
-        <p class="workspace-card-description" id="workspaceWebDescription">Expand your MultiPost account with another workspace and additional supported social-account connections.</p>
-        <div class="billing-note" id="workspaceWebNote" role="status"></div>
-        <div class="billing-actions">
-          <button id="workspaceWebAddBtn" class="mini-btn primary workspace-cta" type="button" hidden>+ Add Another Workspace — £4.99/month</button>
-          <a id="workspaceWebPlayLink" class="mini-btn primary workspace-cta" href="https://play.google.com/store/apps/details?id=uk.co.multipostapp" target="_blank" rel="noopener" hidden>Manage Additional Workspaces in Android App</a>
-          <button id="workspaceWebRemoveBtn" class="mini-btn" type="button" hidden>Stop one renewal</button>
-          <button id="workspaceWebResumeBtn" class="mini-btn" type="button" hidden>Resume renewal</button>
         </div>
       </div>
       <div class="billing-note">Pro includes one workspace and an allowance of 150 AI credits and 150 successful platform publications each month. On the website, extra workspaces become available after your first successful Pro payment. In the Android app, extra workspace offers depend on the plans Google Play returns for your region. See <a href="help.html" style="color:#7dd3fc;">How it works</a> before subscribing. Your checkout shows the final terms and first payment date. Subscriptions renew automatically unless cancelled in Google Play or your Stripe billing portal.</div>
@@ -446,8 +453,28 @@
       const controls = document.getElementById('workspaceWebControls');
       const billing = currentBilling;
       const state = getWorkspacePurchaseState(billing, isAndroidWrapper());
-      controls.hidden = !state.showWebsiteCard;
+      // Website only: the Android app keeps its own Google Play workspace controls.
+      // Shown to every website account (not just paying Pro) so the offer is always clear.
+      controls.hidden = isAndroidWrapper() || !billing || billing.owner_mode === true;
       if (controls.hidden) return;
+      const locked = !state.showWebsiteCard && state.provider !== 'play';
+      const subscribe = document.getElementById('workspaceWebSubscribeLink');
+      const count = document.getElementById('workspaceWebCount');
+      const total = Math.max(1, Math.min(10, Number(billing.workspace_allowance || 1)));
+      count.hidden = locked;
+      count.textContent = `${total} of 10 workspaces`;
+      if (locked) {
+        document.getElementById('workspaceWebPrice').textContent = '£4.99/month per workspace';
+        document.getElementById('workspaceWebDescription').textContent = 'Run up to 10 workspaces in total on your monthly or yearly Pro plan. Each extra workspace is £4.99/month and comes with its own social-account connections.';
+        for (const id of ['workspaceWebAddBtn', 'workspaceWebPlayLink', 'workspaceWebRemoveBtn', 'workspaceWebResumeBtn'])
+          document.getElementById(id).hidden = true;
+        subscribe.hidden = false;
+        document.getElementById('workspaceWebNote').textContent = billing.access
+          ? 'Extra workspaces are part of the Pro plan. Switch to Pro to add them.'
+          : 'Subscribe to Pro monthly or yearly first. Extra workspaces unlock after your first successful Pro payment.';
+        return;
+      }
+      subscribe.hidden = true;
       const addons = state.addons;
       const renewing = addons.filter(item => !item.cancel_at_period_end);
       const stopping = addons.filter(item => item.cancel_at_period_end);
@@ -459,7 +486,7 @@
       document.getElementById('workspaceWebPrice').textContent = play ? 'Price shown in Google Play' : '£4.99/month per workspace';
       document.getElementById('workspaceWebDescription').textContent = play
         ? 'Your Google Play workspaces are available on this website when you use the same MultiPost account.'
-        : 'Expand your MultiPost account with another workspace and additional supported social-account connections.';
+        : 'Run up to 10 workspaces in total on your monthly or yearly Pro plan. Each extra workspace is £4.99/month and comes with its own social-account connections.';
       add.hidden = state.provider !== 'stripe';
       add.disabled = !state.canBuyStripe || workspaceWebBusy;
       document.getElementById('workspaceWebPlayLink').hidden = !play;

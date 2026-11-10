@@ -12,7 +12,8 @@ const paidStripe = { access: true, reason: 'ok', status: 'active', plan: { key: 
 
 function profileCard(billing, android = false) {
   const ids = ['workspaceWebControls', 'workspaceWebPrice', 'workspaceWebDescription', 'workspaceWebAddBtn',
-    'workspaceWebPlayLink', 'workspaceWebRemoveBtn', 'workspaceWebResumeBtn', 'workspaceWebNote'];
+    'workspaceWebPlayLink', 'workspaceWebRemoveBtn', 'workspaceWebResumeBtn', 'workspaceWebNote',
+    'workspaceWebSubscribeLink', 'workspaceWebCount'];
   const nodes = Object.fromEntries(ids.map(id => [id, { hidden: true, disabled: true, textContent: '' }]));
   const source = settings.slice(settings.indexOf('    function renderWebWorkspacePlans() {'), settings.indexOf('    function renderWorkspacePlans() {'));
   const context = { document: { getElementById: id => nodes[id] }, currentBilling: billing,
@@ -135,4 +136,37 @@ test('pricing CTA opens authenticated Stripe Checkout only for a paid Stripe acc
   await handler();
   assert.equal(requests.length, 0);
   assert.equal(redirects.length, 0);
+});
+
+test('website accounts without Pro still see the workspace offer with a subscribe route', () => {
+  for (const billing of [{ access: false, reason: 'no_subscription', status: 'inactive', plan: { key: 'free' } },
+    { access: true, reason: 'ok', status: 'active', plan: { key: 'pro_plus' } }]) {
+    const profile = profileCard(billing);
+    assert.equal(profile.workspaceWebControls.hidden, false);
+    assert.equal(profile.workspaceWebSubscribeLink.hidden, false);
+    assert.equal(profile.workspaceWebAddBtn.hidden, true);
+    assert.equal(profile.workspaceWebPlayLink.hidden, true);
+    assert.match(profile.workspaceWebDescription.textContent, /up to 10 workspaces in total on your monthly or yearly Pro plan/);
+  }
+});
+
+test('paid Pro sees a clear workspace count and no subscribe link', () => {
+  const profile = profileCard({ ...paidStripe, workspace_allowance: 3,
+    stripe_workspace_addons: [{ cancel_at_period_end: false }, { cancel_at_period_end: false }] });
+  assert.equal(profile.workspaceWebSubscribeLink.hidden, true);
+  assert.equal(profile.workspaceWebCount.hidden, false);
+  assert.equal(profile.workspaceWebCount.textContent, '3 of 10 workspaces');
+  assert.equal(profile.workspaceWebAddBtn.disabled, false);
+});
+
+test('owner mode and the Android wrapper never show the website workspace card', () => {
+  assert.equal(profileCard({ ...paidStripe, owner_mode: true }).workspaceWebControls.hidden, true);
+  assert.equal(profileCard({ access: false, status: 'inactive' }, true).workspaceWebControls.hidden, true);
+});
+
+test('workspace card sits directly under the subscription status', () => {
+  const status = settings.indexOf('id="allowanceNote"');
+  const card = settings.indexOf('id="workspaceWebControls"');
+  const actions = settings.indexOf('id="openPricingBtn"');
+  assert.ok(status < card && card < actions);
 });
