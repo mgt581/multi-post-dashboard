@@ -80,6 +80,7 @@
     .back-home { display: inline-block; margin: 0 0 18px; color: #bae6fd; font-size: 13px; font-weight: 800; text-decoration: none; }
     .back-home:hover, .brand-link:hover { color: #fff; }
   </style>
+  <script src="meta-pixel.js" defer></script>
 </head>
 <body>
   <main class="card">
@@ -120,6 +121,7 @@
       signInWithEmailAndPassword,
       createUserWithEmailAndPassword,
       GoogleAuthProvider,
+      getAdditionalUserInfo,
       signInWithPopup,
       sendEmailVerification,
       sendPasswordResetEmail
@@ -173,6 +175,13 @@
       setBusy(false);
     }
 
+    // Meta Pixel sign-up event; a no-op unless the visitor accepted ad cookies.
+    async function trackSignup(method) {
+      try {
+        await window.mpTrack?.("CompleteRegistration", { content_name: "MultiPost account", method });
+      } catch (_) {}
+    }
+
     function openWorkspace(user) {
       if (!user || redirecting) return;
       redirecting = true;
@@ -201,6 +210,7 @@
             // Home offers another attempt and explains why workspaces are locked.
           }
         }
+        if (mode === "signup") await trackSignup("email");
         openWorkspace(result.user);
       } catch (error) {
         setMessage(error?.message || "Sign-in failed. Please try again.");
@@ -217,6 +227,7 @@
       try {
         await setPersistence(auth, browserLocalPersistence);
         const result = await signInWithPopup(auth, googleProvider);
+        if (getAdditionalUserInfo(result)?.isNewUser) await trackSignup("google");
         openWorkspace(result.user);
       } catch (error) {
         setMessage(error?.message || "Google sign-in failed. Please try again.");
