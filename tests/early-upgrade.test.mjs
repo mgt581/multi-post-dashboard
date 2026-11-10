@@ -11,8 +11,9 @@ const base = 'https://multipostapp.co.uk/api';
 function setup() {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'));
-  for (const m of ['0009_play_subscriptions', '0010_play_trial_phase', '0011_usage_workspace_entitlements', '0013_workspace_item_entitlements'])
-    sqlite.exec(readFileSync(new URL(`../migrations/${m}.sql`, import.meta.url), 'utf8'));
+  for (const m of ['0009_play_subscriptions', '0010_play_trial_phase', '0011_usage_workspace_entitlements', '0012_publication_reservations', '0013_workspace_item_entitlements', '0014_workspace_choices', '0015_publication_reconciliation'])
+    for (const stmt of readFileSync(new URL(`../migrations/${m}.sql`, import.meta.url), 'utf8').split(';').map(x => x.trim()).filter(Boolean))
+      try { sqlite.exec(stmt); } catch (_) { /* already in schema.sql */ }
   const DB = { prepare(sql) {
     let args = [];
     return {
@@ -170,5 +171,31 @@ test('a Stripe permission error never reaches the customer and leaves the trial 
     assert.match(text, /trial is unchanged and nothing was charged/);
     assert.doesNotMatch(text, /rk_live|acct_|Permission/);
     assert.equal(stripe.state.bonusCreates, 0);
+  } finally { globalThis.fetch = originalFetch; sqlite.close(); }
+});
+
+test('dashboard requests keyed by email still find a Stripe subscription saved under the Firebase user ID', async () => {
+  const { sqlite, env } = setup();
+  const stripe = fakeStripe();
+  stripe.state.proStatus = 'active';
+  sqlite.prepare(`UPDATE billing_subscriptions SET subscription_status = 'active', stripe_pro_paid_at = ?, trial_end = NULL`).run(now() - 60);
+  sqlite.prepare(`INSERT INTO billing_stripe_workspace_addons (stripe_subscription_id, user_id, stripe_customer_id, stripe_price_id, subscription_status, paid_through)
+    VALUES ('sub_bonus', 'uid-123', 'cus_test', ?, 'trialing', ?)`).run(product, now() + 20 * 86400);
+  const originalFetch = globalThis.fetch; globalThis.fetch = stripe.fetch;
+  try {
+    const status = await worker.fetch(new Request(`${base}/billing/status?user_id=paid%40example.com`, { headers: { Authorization: 'Bearer firebase-token' } }), env);
+    const out = await status.json();
+    assert.equal(status.status, 200, JSON.stringify(out));
+    assert.equal(out.billing.access, true);
+    assert.equal(out.billing.workspace_allowance, 2);
+    for (const name of ['Brand one', 'Brand two']) {
+      const res = await worker.fetch(post('/add-folder', { name, user_id: 'paid@example.com' }), env);
+      assert.equal(res.status, 200, await res.text());
+    }
+    const third = await worker.fetch(post('/add-folder', { name: 'Brand three', user_id: 'paid@example.com' }), env);
+    assert.equal(third.status, 429);
+    // Someone else's email can never be used to reach this subscription.
+    const other = await worker.fetch(post('/add-folder', { name: 'Nope', user_id: 'someone@else.com' }), env);
+    assert.equal(other.status, 401);
   } finally { globalThis.fetch = originalFetch; sqlite.close(); }
 });

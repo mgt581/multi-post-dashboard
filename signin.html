@@ -190,7 +190,10 @@
       try {
         await setPersistence(auth, browserLocalPersistence);
         const action = mode === "login" ? signInWithEmailAndPassword : createUserWithEmailAndPassword;
-        const result = await action(auth, emailInput.value.trim(), passwordInput.value);
+        // A trailing dot ("name@gmail.com.") is accepted by Firebase but undeliverable.
+        const email = emailInput.value.trim().replace(/\.+$/, "");
+        emailInput.value = email;
+        const result = await action(auth, email, passwordInput.value);
         if (mode === "signup" && !result.user.emailVerified) {
           try {
             await sendEmailVerification(result.user);

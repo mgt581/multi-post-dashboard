@@ -267,7 +267,7 @@
           sendButton.disabled = true;
           try {
             await sendVerificationEmail();
-            explanation.textContent = `Verification link sent to ${authUser.email}. Open the link, then tap Retry.`;
+            explanation.textContent = `Verification link sent to ${authUser.email}. Check your inbox and Spam/Junk folder, open the link, then tap Retry.`;
             sendButton.textContent = "Email sent";
           } catch (error) {
             explanation.textContent = error?.message || "Could not send the verification email. Please try again.";
@@ -311,7 +311,7 @@
           save.disabled = true;
           try {
             await changeAccountEmail(next);
-            explanation.textContent = `Confirmation link sent to ${next}. Open it to change and verify your email, then sign in again with ${next}.`;
+            explanation.textContent = `Confirmation link sent to ${next}. Check your inbox and Spam/Junk folder, open the link to change and verify your email, then sign in again with ${next}.`;
             form.hidden = true; form.style.display = "none";
             changeButton.textContent = "Link sent";
             changeButton.disabled = true;
@@ -324,6 +324,10 @@
           } finally { save.disabled = false; }
         });
         notice.append(changeButton, form);
+        const spamTip = document.createElement("p");
+        spamTip.style.cssText = "margin:10px 0 0;width:100%;font-size:13px;line-height:1.45;opacity:.85;";
+        spamTip.textContent = "Can't see the email? Check your Spam or Junk folder and mark it \"Not spam\". It comes from noreply@multi-post-daefc.firebaseapp.com and can take a few minutes.";
+        notice.append(spamTip);
       }
       if (action) {
         const retry = document.createElement("button");
@@ -334,6 +338,8 @@
         notice.append(retry);
         const emailForm = notice.querySelector("form");
         if (emailForm) notice.append(emailForm);
+        const tip = notice.querySelector("p");
+        if (tip) notice.append(tip);
       }
     }
 

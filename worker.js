@@ -669,6 +669,16 @@ Follow for daily trending content! \u{1F44F}
         LIMIT 1
       `).bind(String(userId)).first();
     }, "getBillingRow");
+    // Pages may send the account email as user_id, but Stripe billing rows are saved
+    // under the Firebase user ID. When the requested key has no subscription, use the
+    // signed-in account's own (Firebase-verified) user ID instead.
+    const getBillingRowForIdentity = /* @__PURE__ */ __name(async (userId, identity) => {
+      const row = await getBillingRow(userId);
+      const uid = String(identity?.userId || "").trim();
+      if (row?.stripe_subscription_id || !uid || uid === String(userId || "").trim()) return row;
+      const uidRow = await getBillingRow(uid);
+      return uidRow?.stripe_subscription_id ? uidRow : row;
+    }, "getBillingRowForIdentity");
     const identityMatchesBillingUser = /* @__PURE__ */ __name((row, requestedUserId, identity) => {
       if (!identity) return false;
       const requested = String(requestedUserId || "").trim().toLowerCase();
@@ -1225,14 +1235,14 @@ Follow for daily trending content! \u{1F44F}
       if (!userId) {
         return { ok: false, statusCode: 400, body: { success: false, error: "Missing user_id" } };
       }
-      const row = await getBillingRow(userId);
       const authenticatedIdentity = await getFirebaseIdentity(request2);
-      if (!identityMatchesBillingUser(row, userId, authenticatedIdentity)) {
+      if (!identityMatchesBillingUser(null, userId, authenticatedIdentity)) {
         return { ok: false, statusCode: 401, body: { success: false, error: "Authenticated account does not match this billing account" } };
       }
+      const row = await getBillingRowForIdentity(userId, authenticatedIdentity);
       const playEntitlement = await getPlayEntitlement(authenticatedIdentity);
       const evaluated = await withStripeWorkspaceAllowance(
-        evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement), userId);
+        evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement), row?.user_id || userId);
       if (evaluated.access) {
         const folderId = requestedFolderId || request2.headers.get('folder_id') || new URL(request2.url).searchParams.get('folder_id');
         if (folderId && !(await workspaceSelection(authenticatedIdentity, evaluated)).active.has(String(folderId))) {
@@ -1627,21 +1637,21 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
         }
         const platform = getClientPlatform(request, null, url.searchParams.get("client_platform"));
-        let row = await getBillingRow(userId);
         const authenticatedIdentity = await getFirebaseIdentity(request);
-        if (!identityMatchesBillingUser(row, userId, authenticatedIdentity)) {
+        if (!identityMatchesBillingUser(null, userId, authenticatedIdentity)) {
           return new Response(JSON.stringify({ success: false, error: "Authenticated account does not match this billing account" }), { status: 401, headers: jsonHeaders });
         }
+        let row = await getBillingRowForIdentity(userId, authenticatedIdentity);
         row = await refreshBillingFromStripe(row);
         const playEntitlement = await getPlayEntitlement(authenticatedIdentity);
         if (row?.stripe_subscription_id && row.subscription_status === "active" &&
             !row.stripe_pro_paid_at && !playEntitlement?.access) {
           try {
-            if (await hasPaidStripeProInvoice(row)) row = await getBillingRow(userId);
+            if (await hasPaidStripeProInvoice(row)) row = await getBillingRow(row.user_id);
           } catch (error) { console.warn("Stripe paid Pro verification failed", error?.message || error); }
         }
         const evaluated = await withStripeWorkspaceAllowance(
-          evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement), userId);
+          evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement), row?.user_id || userId);
         const effPlan = evaluated.plan || getEffectivePlan(row);
         const usageAliases = [authenticatedIdentity.userId,
           ...(authenticatedIdentity.emailVerified && authenticatedIdentity.email ? [authenticatedIdentity.email] : []),
@@ -1667,9 +1677,9 @@ Follow for daily trending content! \u{1F44F}
           if (checked?.id === row.stripe_subscription_id && checked.customer === row.stripe_customer_id &&
               checked.status === "active" && String(checked.metadata?.early_upgrade || "") === EARLY_UPGRADE_PENDING) {
             try {
-              const bonus = await grantEarlyUpgradeBonus(userId, checked);
+              const bonus = await grantEarlyUpgradeBonus(row.user_id, checked);
               if (bonus.granted) Object.assign(evaluated, await withStripeWorkspaceAllowance(
-                evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement), userId));
+                evaluateBillingAccess(row, platform, userId, authenticatedIdentity, playEntitlement), row.user_id));
             } catch (error) { console.warn("Early upgrade bonus retry failed", error?.message || error); }
           }
         }
