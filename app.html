@@ -232,6 +232,7 @@
     let userScope = null;
     let authUser = null;
     let sendVerificationEmail = null;
+    let changeAccountEmail = null;
     let workspaceVerificationRequired = false;
     let nameDialogAction = null;
     let loadedFolders = [];
@@ -274,6 +275,55 @@
           }
         });
         notice.append(sendButton);
+        // Lets someone who mistyped their email fix it. Firebase emails a link to the
+        // new address; opening it changes the account email and verifies it in one step.
+        const changeButton = document.createElement("button");
+        changeButton.type = "button";
+        changeButton.textContent = "Change email";
+        changeButton.style.marginLeft = "10px";
+        const form = document.createElement("form");
+        form.hidden = true;
+        form.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;width:100%;";
+        const input = document.createElement("input");
+        input.type = "email";
+        input.required = true;
+        input.autocomplete = "email";
+        input.placeholder = "Correct email address";
+        input.style.cssText = "flex:1 1 220px;min-width:0;padding:10px 12px;border-radius:10px;border:1px solid rgba(148,163,184,.5);background:rgba(15,23,42,.6);color:inherit;font:inherit;";
+        const save = document.createElement("button");
+        save.type = "submit";
+        save.textContent = "Send link to new email";
+        form.append(input, save);
+        changeButton.addEventListener("click", () => {
+          form.hidden = !form.hidden;
+          form.style.display = form.hidden ? "none" : "flex";
+          if (!form.hidden) { input.value = (authUser?.email || "").replace(/\.+$/, ""); input.focus(); }
+        });
+        form.style.display = "none";
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const next = input.value.trim().replace(/\.+$/, "");
+          if (!changeAccountEmail || !next) return;
+          if (next.toLowerCase() === String(authUser?.email || "").toLowerCase()) {
+            explanation.textContent = "That is already your email. Tap Send verification email instead.";
+            return;
+          }
+          save.disabled = true;
+          try {
+            await changeAccountEmail(next);
+            explanation.textContent = `Confirmation link sent to ${next}. Open it to change and verify your email, then sign in again with ${next}.`;
+            form.hidden = true; form.style.display = "none";
+            changeButton.textContent = "Link sent";
+            changeButton.disabled = true;
+          } catch (error) {
+            explanation.textContent = error?.code === "auth/requires-recent-login"
+              ? "For security, sign out and sign in again, then tap Change email."
+              : error?.code === "auth/invalid-email" ? "That email address doesn't look right. Check it and try again."
+              : error?.code === "auth/email-already-in-use" ? "That email is already used by another MultiPost account."
+              : "Could not change your email. Please try again.";
+          } finally { save.disabled = false; }
+        });
+        notice.append(changeButton, form);
       }
       if (action) {
         const retry = document.createElement("button");
@@ -282,6 +332,8 @@
         retry.style.marginLeft = "10px";
         retry.addEventListener("click", () => action === "billing" ? loadAccountStatus() : loadFolders());
         notice.append(retry);
+        const emailForm = notice.querySelector("form");
+        if (emailForm) notice.append(emailForm);
       }
     }
 
@@ -652,7 +704,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-    import { getAuth, onAuthStateChanged, sendEmailVerification } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+    import { getAuth, onAuthStateChanged, sendEmailVerification, verifyBeforeUpdateEmail } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDJBCJrMwyjLiMFG7QhfG09cKZa_2Y4UGM",
@@ -668,6 +720,10 @@
     sendVerificationEmail = async () => {
       if (!auth.currentUser) throw new Error("Sign in again to send a verification email.");
       await sendEmailVerification(auth.currentUser);
+    };
+    changeAccountEmail = async (newEmail) => {
+      if (!auth.currentUser) throw new Error("Sign in again to change your email.");
+      await verifyBeforeUpdateEmail(auth.currentUser, newEmail);
     };
 
     onAuthStateChanged(auth, (user) => {
