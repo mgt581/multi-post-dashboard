@@ -177,6 +177,7 @@
     .workspace-card-price { font-size: 19px; font-weight: 800; color: #7dd3fc; }
     .workspace-card-description { margin: 0; font-size: 13px; line-height: 1.5; }
     .workspace-card .workspace-cta { padding: 12px 15px; font-size: 13px; text-decoration: none; }
+    .workspace-card .workspace-cta:disabled { opacity: .62; cursor: not-allowed; }
     /* Bottom Nav */
     .bottom-nav {
       position: fixed;
@@ -459,8 +460,8 @@
       document.getElementById('workspaceWebDescription').textContent = play
         ? 'Your Google Play workspaces are available on this website when you use the same MultiPost account.'
         : 'Expand your MultiPost account with another workspace and additional supported social-account connections.';
-      add.hidden = !state.canBuyStripe;
-      add.disabled = workspaceWebBusy;
+      add.hidden = state.provider !== 'stripe';
+      add.disabled = !state.canBuyStripe || workspaceWebBusy;
       document.getElementById('workspaceWebPlayLink').hidden = !play;
       remove.hidden = play || !renewing.length;
       remove.disabled = workspaceWebBusy;
@@ -468,8 +469,12 @@
       resume.disabled = workspaceWebBusy || !billing.stripe_workspace_checkout_enabled;
       document.getElementById('workspaceWebNote').textContent = play
         ? `${billing.workspace_allowance || 1} total workspace${billing.workspace_allowance === 1 ? '' : 's'} available on this account. Open MultiPost on Android → Profile → Extra workspaces to manage Google Play add-ons. ${billing.play?.paid_pro ? 'Google Play shows the price for your plan and region before purchase.' : 'Additional workspaces become available after your first successful Pro subscription payment.'}`
-        : !paid
+        : billing.status === 'trialing'
         ? 'Additional workspaces become available after your first successful Pro subscription payment.'
+        : !billing.stripe_workspace_paid_pro
+          ? 'No Pro payment has been verified for this account in the current Stripe billing system. Your existing workspace remains available. Check your Pro billing before buying another.'
+        : !paid
+          ? 'Resume your paid Pro renewal before buying another workspace.'
         : state.atLimit
           ? 'You have the maximum of ten total workspaces. A place becomes available when a scheduled removal ends.'
         : !billing.stripe_workspace_checkout_enabled

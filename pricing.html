@@ -25,6 +25,7 @@
     }
     .page { width: min(940px, 100%); margin: 0 auto; }
     .top { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+    .top-actions { display:flex; align-items:center; gap:9px; }
     .brand { font-size: 22px; font-weight: 800; letter-spacing: -.7px; }
     .back { color: var(--text); text-decoration:none; border:1px solid var(--border); border-radius:10px; padding:9px 13px; font-weight:800; font-size:13px; }
     .hero { text-align:center; max-width: 650px; margin: 50px auto 28px; }
@@ -51,18 +52,20 @@
     .allowance-item { padding:13px; border-radius:12px; background:rgba(255,255,255,.035); }
     .allowance-item strong { display:block; color:var(--blue); font-size:19px; }
     .allowance-item span { color:var(--muted); font-size:11px; line-height:1.35; }
-    .extras { display:grid; grid-template-columns:1fr; gap:16px; margin-top:16px; }
-    .extra { padding:19px; border:1px solid var(--border); border-radius:17px; background:rgba(14,28,48,.84); }
-    .extra h3 { margin:0 0 7px; font-size:15px; }
-    .extra p { margin:0; color:var(--muted); font-size:12px; line-height:1.55; }
-    .price-line { display:block; margin:8px 0; color:white; font-weight:800; }
+    .extras { display:grid; grid-template-columns:1fr; gap:16px; margin:0 0 18px; scroll-margin-top:16px; }
+    .extra { padding:24px; border:1px solid rgba(56,189,248,.6); border-radius:20px; background:linear-gradient(135deg,rgba(14,165,233,.17),rgba(124,58,237,.15)); box-shadow:0 18px 42px rgba(2,6,23,.22); }
+    .extra h3 { margin:0 0 9px; font-size:22px; }
+    .extra p { margin:0; color:var(--muted); font-size:13px; line-height:1.55; }
+    .price-line { display:block; margin:12px 0; color:white; font-size:24px; font-weight:800; }
     .extra-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:13px; }
     .extra-cta { display:inline-block; border:0; border-radius:11px; padding:11px 14px; background:linear-gradient(110deg,var(--violet),var(--blue)); color:white; font:inherit; font-size:12px; font-weight:800; text-decoration:none; cursor:pointer; }
     .extra-cta.secondary { border:1px solid var(--border); background:var(--card-soft); }
+    .extra-cta:disabled { opacity:.62; cursor:not-allowed; }
     .extra-cta[hidden] { display:none; }
+    .extra-status { margin-top:11px !important; color:#d9f2ff !important; }
     .android-billing .plans { display:none; }
     .fineprint { margin:21px 0 0; color:#93a9c2; font-size:11px; line-height:1.55; text-align:center; }
-    @media (max-width:650px) { .plans { grid-template-columns:1fr; } .allowance-grid { grid-template-columns:1fr; } .hero { margin-top:37px; } }
+    @media (max-width:650px) { .plans { grid-template-columns:1fr; } .allowance-grid { grid-template-columns:1fr; } .hero { margin-top:28px; } .extra-actions > * { width:100%; text-align:center; } .top-actions .back:first-child { display:none; } }
   </style>
   <script>
     try {
@@ -77,7 +80,10 @@
   <main class="page">
     <header class="top">
       <div class="brand">MultiPost</div>
-      <a class="back" href="help.html">How it works</a>
+      <nav class="top-actions" aria-label="Page links">
+        <a class="back" href="help.html">How it works</a>
+        <a class="back" href="#additional-workspace">Extra workspace</a>
+      </nav>
     </header>
 
     <section class="hero">
@@ -90,6 +96,21 @@
       <span aria-hidden="true">◈</span>
       <div id="checkoutNotice"><strong>Checking payment availability…</strong></div>
     </div>
+
+    <section class="extras" id="additional-workspace" aria-label="Optional add-ons">
+      <article class="extra">
+        <h3>Additional workspace</h3>
+        <p id="workspacePricingDescription">Expand your MultiPost account with another workspace and additional supported social-account connections.</p>
+        <strong class="price-line" id="workspacePricingPrice">Checking workspace options…</strong>
+        <div class="extra-actions">
+          <button class="extra-cta" id="workspacePricingAdd" type="button" hidden>+ Add Another Workspace — £4.99/month</button>
+          <a class="extra-cta" id="workspacePricingPlayLink" href="https://play.google.com/store/apps/details?id=uk.co.multipostapp" target="_blank" rel="noopener" hidden>Manage Additional Workspaces in Android App</a>
+          <button class="extra-cta secondary" id="workspacePricingManage" type="button" hidden>Check Pro billing in Stripe</button>
+          <a class="extra-cta secondary" id="workspacePricingInfo" href="settings.html#workspace-web">View workspace options in Profile</a>
+        </div>
+        <p class="extra-status" id="workspacePricingStatus" role="status"></p>
+      </article>
+    </section>
 
     <section class="plans" aria-label="Subscription plans">
       <article class="plan">
@@ -131,19 +152,6 @@
       </div>
     </section>
 
-    <section class="extras" aria-label="Optional add-ons">
-      <article class="extra">
-        <h3>Additional workspace</h3>
-        <p id="workspacePricingDescription">Expand your MultiPost account with another workspace and additional supported social-account connections.</p>
-        <strong class="price-line" id="workspacePricingPrice">Checking workspace options…</strong>
-        <div class="extra-actions">
-          <button class="extra-cta" id="workspacePricingAdd" type="button" hidden>+ Add Another Workspace — £4.99/month</button>
-          <a class="extra-cta" id="workspacePricingPlayLink" href="https://play.google.com/store/apps/details?id=uk.co.multipostapp" target="_blank" rel="noopener" hidden>Manage Additional Workspaces in Android App</a>
-          <a class="extra-cta secondary" id="workspacePricingInfo" href="settings.html#workspace-web">View workspace options in Profile</a>
-        </div>
-      </article>
-    </section>
-
     <p class="fineprint">A platform publication is one confirmed successful delivery to YouTube, Facebook Page or TikTok. Failed publishing attempts do not use publication allowance. Subscriptions renew automatically unless cancelled in the relevant billing provider. Your eligibility and the first payment date are shown at checkout.</p>
   </main>
   <script type="module">
@@ -179,24 +187,34 @@
       const play = workspaceState.provider === 'play';
       const add = document.getElementById('workspacePricingAdd');
       const playLink = document.getElementById('workspacePricingPlayLink');
+      const manage = document.getElementById('workspacePricingManage');
       const info = document.getElementById('workspacePricingInfo');
       document.getElementById('workspacePricingPrice').textContent = play
         ? 'Price shown in Google Play' : '£4.99/month per workspace';
       document.getElementById('workspacePricingDescription').textContent = play
         ? 'Your Google Play workspaces work on the website too. Open MultiPost on Android → Profile → Extra workspaces to manage add-ons.'
         : 'Expand your MultiPost account with another workspace and additional supported social-account connections.';
-      add.hidden = !workspaceState.canBuyStripe;
-      add.disabled = workspaceBusy;
+      add.hidden = workspaceState.provider !== 'stripe';
+      add.disabled = !workspaceState.canBuyStripe || workspaceBusy;
       add.textContent = workspaceBusy ? 'Opening secure checkout…' : '+ Add Another Workspace — £4.99/month';
       playLink.hidden = !play;
       playLink.href = isAndroid ? 'settings.html#workspace-play' : 'https://play.google.com/store/apps/details?id=uk.co.multipostapp';
       playLink.target = isAndroid ? '_self' : '_blank';
-      info.hidden = play || workspaceState.canBuyStripe;
+      manage.hidden = workspaceState.provider !== 'stripe' || workspaceState.canBuyStripe || workspaceState.atLimit;
+      info.hidden = play || (workspaceState.provider === 'stripe' && !workspaceState.atLimit);
       info.href = auth.currentUser ? 'settings.html#workspace-web' : 'signin.html';
       info.textContent = !auth.currentUser ? 'Sign in to see workspace options'
         : billing?.status === 'trialing' ? 'Extra workspaces unlock after your first successful Pro payment'
         : workspaceState.atLimit ? 'Manage your ten workspaces in Profile'
         : 'View workspace options in Profile';
+      document.getElementById('workspacePricingStatus').textContent = play
+        ? 'Your existing workspace allowance is shared with the website.'
+        : workspaceState.canBuyStripe ? 'Stripe Checkout opens when you choose the extra workspace. Access starts only after payment is confirmed.'
+        : workspaceState.provider === 'stripe' && workspaceState.atLimit ? 'Your account has reached the maximum of ten total workspaces.'
+        : workspaceState.provider === 'stripe' && billing?.status === 'trialing' ? 'Additional workspaces unlock after your first successful Pro payment.'
+        : workspaceState.provider === 'stripe' && !billing?.stripe_workspace_paid_pro ? 'No Pro payment has been verified in the current Stripe billing system. Your existing workspace remains available.'
+        : workspaceState.provider === 'stripe' ? 'Resume your paid Pro renewal before buying another workspace.'
+        : billing?.status === 'trialing' ? 'Additional workspaces unlock after your first successful Pro payment.' : '';
     }
     const render = () => {
       for (const button of buttons) {
@@ -250,6 +268,23 @@
         window.location.assign(result.url);
       } catch (error) {
         setNotice(error.message || 'Could not open secure checkout. Try again.');
+        workspaceBusy = false; renderWorkspaceCard(workspaceBilling);
+      }
+    });
+    document.getElementById('workspacePricingManage').addEventListener('click', async () => {
+      if (workspaceBusy || workspaceState.provider !== 'stripe' || !auth.currentUser) return;
+      workspaceBusy = true; renderWorkspaceCard(workspaceBilling);
+      try {
+        const response = await authenticatedFetch('/billing/create-portal-session', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', client_platform: 'web' },
+          body: JSON.stringify({ user_id: auth.currentUser.uid, return_url: `${location.origin}/pricing.html` })
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success || !/^https:\/\/billing\.stripe\.com\//.test(result.url || ''))
+          throw new Error(result.error || 'Could not open Stripe billing');
+        window.location.assign(result.url);
+      } catch (error) {
+        setNotice(error.message || 'Could not open Stripe billing. Try again.');
         workspaceBusy = false; renderWorkspaceCard(workspaceBilling);
       }
     });

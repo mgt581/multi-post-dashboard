@@ -24,7 +24,7 @@ function profileCard(billing, android = false) {
 
 function pricingCard(billing, android = false) {
   const ids = ['workspacePricingPrice', 'workspacePricingDescription', 'workspacePricingAdd',
-    'workspacePricingPlayLink', 'workspacePricingInfo'];
+    'workspacePricingPlayLink', 'workspacePricingManage', 'workspacePricingInfo', 'workspacePricingStatus'];
   const nodes = Object.fromEntries(ids.map(id => [id, { hidden: true, disabled: false, textContent: '', href: '' }]));
   const source = pricing.slice(pricing.indexOf('    function renderWorkspaceCard(billing = null) {'), pricing.indexOf('    const render = () => {'));
   const context = { document: { getElementById: id => nodes[id] }, getWorkspacePurchaseState,
@@ -62,11 +62,38 @@ test('Google Play Pro sees Android management on the website and never a Stripe 
 
 test('trial and full accounts cannot see a chargeable Stripe workspace CTA', () => {
   const trial = { ...paidStripe, status: 'trialing', stripe_workspace_paid_pro: false };
-  assert.equal(profileCard(trial).workspaceWebAddBtn.hidden, true);
+  assert.equal(profileCard(trial).workspaceWebAddBtn.hidden, false);
+  assert.equal(profileCard(trial).workspaceWebAddBtn.disabled, true);
   assert.match(profileCard(trial).workspaceWebNote.textContent, /first successful Pro subscription payment/);
   const full = { ...paidStripe, stripe_workspace_addons: Array(9).fill({ cancel_at_period_end: false }), workspace_allowance: 10 };
-  assert.equal(profileCard(full).workspaceWebAddBtn.hidden, true);
-  assert.equal(pricingCard(full).workspacePricingAdd.hidden, true);
+  assert.equal(profileCard(full).workspaceWebAddBtn.disabled, true);
+  assert.equal(pricingCard(full).workspacePricingAdd.disabled, true);
+});
+
+test('unverified web Pro retains a visible locked CTA and a direct Stripe payment route', () => {
+  const unpaid = { ...paidStripe, stripe_workspace_paid_pro: false, stripe_workspace_checkout_enabled: false };
+  const profile = profileCard(unpaid);
+  const plans = pricingCard(unpaid);
+  assert.equal(profile.workspaceWebAddBtn.hidden, false);
+  assert.equal(profile.workspaceWebAddBtn.disabled, true);
+  assert.equal(plans.workspacePricingAdd.hidden, false);
+  assert.equal(plans.workspacePricingAdd.disabled, true);
+  assert.equal(plans.workspacePricingManage.hidden, false);
+  assert.equal(plans.workspacePricingInfo.hidden, true);
+  assert.match(plans.workspacePricingStatus.textContent, /No Pro payment has been verified/);
+  assert.ok(pricing.indexOf('class="extras"') < pricing.indexOf('class="allowance"'));
+});
+
+test('legacy canceled yearly Pro cannot buy an add-on without payment verification', () => {
+  const legacy = { ...paidStripe, status: 'canceled', plan: { key: 'pro', interval: 'yearly' },
+    stripe_workspace_paid_pro: false, stripe_workspace_checkout_enabled: false };
+  const profile = profileCard(legacy);
+  const plans = pricingCard(legacy);
+  assert.equal(profile.workspaceWebAddBtn.hidden, false);
+  assert.equal(profile.workspaceWebAddBtn.disabled, true);
+  assert.match(profile.workspaceWebNote.textContent, /No Pro payment has been verified/);
+  assert.equal(plans.workspacePricingAdd.disabled, true);
+  assert.equal(plans.workspacePricingManage.hidden, false);
 });
 
 test('Android wrapper keeps the native Play controls and no website Stripe card', () => {
@@ -80,7 +107,7 @@ test('Android wrapper keeps the native Play controls and no website Stripe card'
 
 test('pricing CTA opens authenticated Stripe Checkout only for a paid Stripe account', async () => {
   const start = pricing.indexOf("    document.getElementById('workspacePricingAdd').addEventListener('click', async () => {");
-  const end = pricing.indexOf('    for (const button of buttons)', start);
+  const end = pricing.indexOf("    document.getElementById('workspacePricingManage').addEventListener", start);
   let handler;
   const requests = [];
   const redirects = [];
