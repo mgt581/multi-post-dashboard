@@ -79,6 +79,26 @@
     .notice { padding:14px; border:1px solid #64748b; border-radius:12px; background:#13253d; font-size:13px; line-height:1.5; }
     .notice p { margin:5px 0 0; }
     .notice a { color:#7dd3fc; }
+    .notice-btn { margin-left:10px; padding:7px 14px; border-radius:10px; border:1px solid rgba(255,255,255,.18); background:rgba(255,255,255,.08); color:#fff; font:inherit; font-weight:700; cursor:pointer; }
+    .notice.verify-card { padding:24px 20px 20px; border:1px solid rgba(125,211,252,.35); border-radius:18px; background:linear-gradient(160deg,#13253d,#101b33); text-align:center; font-size:14px; box-shadow:0 18px 40px rgba(0,0,0,.25); }
+    .verify-icon { width:64px; height:64px; margin:0 auto 12px; border-radius:50%; display:grid; place-items:center; font-size:26px; color:#fff; background:linear-gradient(135deg,#7c3aed,#0ea5e9); box-shadow:0 10px 28px rgba(14,165,233,.35); }
+    .verify-card h2 { margin:0 0 6px; font-size:21px; }
+    .verify-card .verify-body { margin:0 0 18px; color:#cbd5e1; }
+    .verify-card .verify-body strong { color:#fff; overflow-wrap:anywhere; }
+    .verify-card .verify-primary { width:100%; }
+    .verify-links { display:flex; justify-content:center; align-items:center; gap:10px; margin-top:14px; }
+    .verify-link { background:none; border:0; padding:6px 2px; color:#7dd3fc; font:inherit; font-weight:700; cursor:pointer; }
+    .verify-link:disabled { color:#86efac; cursor:default; }
+    .verify-dot { color:var(--muted); }
+    .verify-form { display:flex; gap:8px; margin-top:10px; }
+    .verify-form[hidden] { display:none; }
+    .verify-form input { flex:1 1 auto; min-width:0; padding:10px 12px; border-radius:10px; border:1px solid rgba(148,163,184,.5); background:rgba(15,23,42,.6); color:inherit; font:inherit; }
+    .verify-form .notice-btn { margin-left:0; }
+    .verify-card .verify-status { margin:10px 0 0; color:#86efac; font-size:13px; }
+    .verify-card .verify-status:empty { display:none; }
+    .verify-card .verify-status.error { color:#fda4af; }
+    .verify-card .verify-tip { margin:14px 0 0; color:var(--muted); font-size:12px; word-break:break-word; }
+    body.needs-verification .account-line, body.needs-verification #gettingStartedCard, body.needs-verification #createWorkspaceButton, body.needs-verification #workspacesSection { display:none !important; }
     #dashboardNotice[hidden] { display:none; }
 
     .card {
@@ -197,7 +217,7 @@
       </button>
     </div>
 
-    <div>
+    <div id="workspacesSection">
       <div class="section-title">Your Workspaces</div>
       <div id="folderContainer" style="margin-top: 10px;">
         <div class="card" style="justify-content: center; border-style: dashed; opacity: 0.7;">
@@ -249,94 +269,121 @@
       const notice = document.getElementById("dashboardNotice");
       notice.hidden = !message;
       notice.replaceChildren();
+      notice.classList.toggle("verify-card", action === "verification");
+      document.body.classList.toggle("needs-verification", Boolean(message) && action === "verification");
       if (!message) return;
+      if (action === "verification") {
+        renderVerificationCard(notice);
+        return;
+      }
       const explanation = document.createElement("span");
       explanation.textContent = message;
       notice.append(explanation);
-      if (action === "verification") {
-        const sendButton = document.createElement("button");
-        sendButton.type = "button";
-        sendButton.textContent = "Send verification email";
-        sendButton.style.marginLeft = "10px";
-        sendButton.addEventListener("click", async () => {
-          if (!sendVerificationEmail) return;
-          sendButton.disabled = true;
-          try {
-            await sendVerificationEmail();
-            explanation.textContent = `Verification link sent to ${authUser.email}. Check your inbox and Spam/Junk folder, open the link, then tap Retry.`;
-            sendButton.textContent = "Email sent";
-          } catch (error) {
-            explanation.textContent = error?.message || "Could not send the verification email. Please try again.";
-            sendButton.disabled = false;
-          }
-        });
-        notice.append(sendButton);
-        // Lets someone who mistyped their email fix it. Firebase emails a link to the
-        // new address; opening it changes the account email and verifies it in one step.
-        const changeButton = document.createElement("button");
-        changeButton.type = "button";
-        changeButton.textContent = "Change email";
-        changeButton.style.marginLeft = "10px";
-        const form = document.createElement("form");
-        form.hidden = true;
-        form.style.cssText = "display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;width:100%;";
-        const input = document.createElement("input");
-        input.type = "email";
-        input.required = true;
-        input.autocomplete = "email";
-        input.placeholder = "Correct email address";
-        input.style.cssText = "flex:1 1 220px;min-width:0;padding:10px 12px;border-radius:10px;border:1px solid rgba(148,163,184,.5);background:rgba(15,23,42,.6);color:inherit;font:inherit;";
-        const save = document.createElement("button");
-        save.type = "submit";
-        save.textContent = "Send link to new email";
-        form.append(input, save);
-        changeButton.addEventListener("click", () => {
-          form.hidden = !form.hidden;
-          form.style.display = form.hidden ? "none" : "flex";
-          if (!form.hidden) { input.value = (authUser?.email || "").replace(/\.+$/, ""); input.focus(); }
-        });
-        form.style.display = "none";
-        form.addEventListener("submit", async (event) => {
-          event.preventDefault();
-          const next = input.value.trim().replace(/\.+$/, "");
-          if (!changeAccountEmail || !next) return;
-          if (next.toLowerCase() === String(authUser?.email || "").toLowerCase()) {
-            explanation.textContent = "That is already your email. Tap Send verification email instead.";
-            return;
-          }
-          save.disabled = true;
-          try {
-            await changeAccountEmail(next);
-            explanation.textContent = `Confirmation link sent to ${next}. Check your inbox and Spam/Junk folder, open the link to change and verify your email, then sign in again with ${next}.`;
-            form.hidden = true; form.style.display = "none";
-            changeButton.textContent = "Link sent";
-            changeButton.disabled = true;
-          } catch (error) {
-            explanation.textContent = error?.code === "auth/requires-recent-login"
-              ? "For security, sign out and sign in again, then tap Change email."
-              : error?.code === "auth/invalid-email" ? "That email address doesn't look right. Check it and try again."
-              : error?.code === "auth/email-already-in-use" ? "That email is already used by another MultiPost account."
-              : "Could not change your email. Please try again.";
-          } finally { save.disabled = false; }
-        });
-        notice.append(changeButton, form);
-        const spamTip = document.createElement("p");
-        spamTip.style.cssText = "margin:10px 0 0;width:100%;font-size:13px;line-height:1.45;opacity:.85;";
-        spamTip.textContent = "Can't see the email? Check your Spam or Junk folder and mark it \"Not spam\". It comes from noreply@multi-post-daefc.firebaseapp.com and can take a few minutes.";
-        notice.append(spamTip);
-      }
       if (action) {
         const retry = document.createElement("button");
         retry.type = "button";
+        retry.className = "notice-btn";
         retry.textContent = "Retry";
-        retry.style.marginLeft = "10px";
         retry.addEventListener("click", () => action === "billing" ? loadAccountStatus() : loadFolders());
         notice.append(retry);
-        const emailForm = notice.querySelector("form");
-        if (emailForm) notice.append(emailForm);
-        const tip = notice.querySelector("p");
-        if (tip) notice.append(tip);
       }
+    }
+
+    // New email sign-ups land here until they open the link Firebase sent them.
+    function renderVerificationCard(notice) {
+      const email = authUser?.email || "your email";
+      const el = (tag, cls, text) => {
+        const node = document.createElement(tag);
+        if (cls) node.className = cls;
+        if (text) node.textContent = text;
+        return node;
+      };
+      const icon = el("div", "verify-icon");
+      icon.innerHTML = '<i class="fa-solid fa-envelope-open-text"></i>';
+      const title = el("h2", "", "Check your email");
+      const body = el("p", "verify-body");
+      body.append("We've sent a verification link to ", el("strong", "", email), ". Tap the link, then come back here.");
+      const status = el("p", "verify-status");
+      status.setAttribute("role", "status");
+      const setStatus = (text, isError = false) => {
+        status.textContent = text;
+        status.classList.toggle("error", isError);
+      };
+
+      const done = el("button", "btn verify-primary", "I've verified my email");
+      done.type = "button";
+      done.addEventListener("click", async () => {
+        done.disabled = true;
+        done.textContent = "Checking…";
+        await loadFolders();
+        done.disabled = false;
+        done.textContent = "I've verified my email";
+        if (workspaceVerificationRequired) setStatus("Not verified yet. Open the link in the email first. It can take a minute to arrive.", true);
+      });
+
+      const resend = el("button", "verify-link", "Resend email");
+      resend.type = "button";
+      resend.addEventListener("click", async () => {
+        if (!sendVerificationEmail) return;
+        resend.disabled = true;
+        try {
+          await sendVerificationEmail();
+          setStatus(`New link sent to ${email}.`);
+          resend.textContent = "Sent ✓";
+        } catch (error) {
+          setStatus(error?.code === "auth/too-many-requests"
+            ? "Too many emails sent. Wait a few minutes, then try again."
+            : error?.message || "Could not send the email. Please try again.", true);
+          resend.disabled = false;
+        }
+      });
+
+      // Lets someone who mistyped their email fix it. Firebase emails a link to the
+      // new address; opening it changes the account email and verifies it in one step.
+      const change = el("button", "verify-link", "Wrong email?");
+      change.type = "button";
+      const form = el("form", "verify-form");
+      form.hidden = true;
+      const input = el("input");
+      input.type = "email";
+      input.required = true;
+      input.autocomplete = "email";
+      input.placeholder = "Correct email address";
+      const save = el("button", "notice-btn", "Send link");
+      save.type = "submit";
+      form.append(input, save);
+      change.addEventListener("click", () => {
+        form.hidden = !form.hidden;
+        if (!form.hidden) { input.value = (authUser?.email || "").replace(/\.+$/, ""); input.focus(); }
+      });
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const next = input.value.trim().replace(/\.+$/, "");
+        if (!changeAccountEmail || !next) return;
+        if (next.toLowerCase() === String(authUser?.email || "").toLowerCase()) {
+          setStatus("That's already your email. Tap Resend email instead.", true);
+          return;
+        }
+        save.disabled = true;
+        try {
+          await changeAccountEmail(next);
+          setStatus(`Link sent to ${next}. Open it to change and verify your email, then sign in again with ${next}.`);
+          form.hidden = true;
+          change.textContent = "Link sent ✓";
+          change.disabled = true;
+        } catch (error) {
+          setStatus(error?.code === "auth/requires-recent-login"
+            ? "For security, sign out and sign in again, then tap Wrong email?"
+            : error?.code === "auth/invalid-email" ? "That email address doesn't look right. Check it and try again."
+            : error?.code === "auth/email-already-in-use" ? "That email is already used by another MultiPost account."
+            : "Could not change your email. Please try again.", true);
+        } finally { save.disabled = false; }
+      });
+
+      const links = el("div", "verify-links");
+      links.append(resend, el("span", "verify-dot", "·"), change);
+      const tip = el("p", "verify-tip", "Can't find it? Check Spam or Junk. It comes from noreply@multi-post-daefc.firebaseapp.com.");
+      notice.append(icon, title, body, done, links, form, status, tip);
     }
 
     function renderGettingStarted(folders = loadedFolders) {
@@ -619,7 +666,7 @@
       } catch (err) {
         workspaceVerificationRequired = err.code === "EMAIL_VERIFICATION_REQUIRED";
         container.innerHTML = workspaceVerificationRequired
-          ? `<p style="color:#fda4af; text-align:center;">Verify your email to view your saved workspaces.</p>`
+          ? ""
           : `<p style="color:#f87171; text-align:center;">Workspaces could not be loaded. Use Retry above.</p>`;
         setDashboardNotice(err.message || "Could not load workspaces. Check your connection and try again.",
           workspaceVerificationRequired ? "verification" : "folders");
