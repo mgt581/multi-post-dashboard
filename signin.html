@@ -175,10 +175,13 @@
       setBusy(false);
     }
 
-    // Meta Pixel sign-up event; a no-op unless the visitor accepted ad cookies.
+    // Meta Pixel and Google Ads sign-up events; no-ops unless the visitor accepted ad cookies.
     async function trackSignup(method) {
       try {
-        await window.mpTrack?.("CompleteRegistration", { content_name: "MultiPost account", method });
+        await Promise.all([
+          window.mpTrack?.("CompleteRegistration", { content_name: "MultiPost account", method }),
+          window.mpGoogleConversion?.("signup")
+        ]);
       } catch (_) {}
     }
 

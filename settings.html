@@ -212,6 +212,7 @@
     .nav-item.active { color: var(--accent-2); }
     .nav-item i { font-size: 20px; }
   </style>
+  <script src="meta-pixel.js" defer></script>
 </head>
 <body>
   <div class="page">
@@ -630,6 +631,31 @@
       }, 60 * 1000);
     }
 
+    // After returning from Stripe Checkout, report the subscription to Google Ads and
+    // Meta (only if the visitor accepted ad cookies), once, then tidy the address bar.
+    function recordCheckoutConversion(billing) {
+      if (isAndroidWrapper()) return;
+      const params = new URLSearchParams(window.location.search);
+      const pro = params.get('billing') === 'success';
+      const workspace = params.get('workspace') === 'success';
+      if (!pro && !workspace) return;
+      const yearly = ['yearly', 'year'].includes(String(billing?.plan?.interval || ''));
+      const value = workspace ? 4.99 : (yearly ? 79.99 : 9.99);
+      const addons = Array.isArray(billing?.stripe_workspace_addons) ? billing.stripe_workspace_addons : [];
+      const id = workspace ? (addons[addons.length - 1]?.stripe_subscription_id || '') : (billing?.subscription?.stripe_subscription_id || '');
+      const key = `mp_conversion_sent:${workspace ? 'workspace' : 'pro'}:${id || Date.now()}`;
+      let alreadySent = false;
+      try { alreadySent = localStorage.getItem(key) === '1'; localStorage.setItem(key, '1'); } catch (_) {}
+      if (!alreadySent) {
+        window.mpGoogleConversion?.('subscription', value, id || undefined);
+        window.mpTrack?.('Subscribe', { value, currency: 'GBP', predicted_ltv: value,
+          content_name: workspace ? 'MultiPost extra workspace' : `MultiPost Pro ${yearly ? 'yearly' : 'monthly'}` });
+      }
+      params.delete('billing'); params.delete('workspace');
+      const rest = params.toString();
+      history.replaceState(null, '', window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash);
+    }
+
     async function loadBillingStatus(user) {
       billingUser = user;
       const manageBtn = document.getElementById("manageBillingBtn");
@@ -646,6 +672,7 @@
           return;
         }
         renderCurrentBilling();
+        recordCheckoutConversion(billing);
       } catch (err) {
         setBillingUi("Billing unavailable", err?.message || "Could not load billing status.", "warn");
       }
