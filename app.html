@@ -73,6 +73,9 @@
     .guide-steps li span { color:var(--muted); }
     .guide-steps li.done span { color:#86efac; }
     .guide-steps a { margin-left:auto; flex-shrink:0; min-height:32px; display:inline-flex; align-items:center; }
+    .guide-progress { font-size:13px; font-weight:700; color:var(--muted); white-space:nowrap; }
+    .account-line { margin:-6px 4px 0; font-size:12px; line-height:1.5; color:var(--muted); }
+    .account-line a { color:#7dd3fc; font-weight:700; margin-left:4px; }
     .notice { padding:14px; border:1px solid #64748b; border-radius:12px; background:#13253d; font-size:13px; line-height:1.5; }
     .notice p { margin:5px 0 0; }
     .notice a { color:#7dd3fc; }
@@ -178,19 +181,12 @@
       </button>
     </header>
 
-    <section class="guide" aria-labelledby="welcomeTitle">
-      <h2 id="welcomeTitle">Welcome to MultiPost</h2>
-      <p>A workspace keeps one brand's social accounts together. Connect a YouTube account, Facebook Page or TikTok account, prepare platform-specific content with AI, then publish through the available platform flows. Publishing may require you to finish a draft in TikTok.</p>
-      <p id="accountSummary" role="status">Checking your subscription…</p>
-      <a href="settings.html">Subscription and purchases</a> · <a href="help.html">Getting started help</a>
-    </section>
+    <p class="account-line"><span id="accountSummary" role="status">Checking your subscription…</span> <a href="help.html">Help</a></p>
 
-    <section class="guide" aria-labelledby="gettingStartedTitle">
-      <h2 id="gettingStartedTitle">Getting started <span id="onboardingProgress" style="font-size:13px;color:var(--muted);"></span></h2>
-      <p>Progress comes from your saved workspace, connected account and a recorded post. An AI draft alone does not count as published.</p>
-      <ol class="guide-steps" id="onboardingSteps">
-        <li><span>Checking your workspaces…</span></li>
-      </ol>
+    <section class="guide" id="gettingStartedCard" aria-labelledby="gettingStartedTitle" hidden>
+      <h2 id="gettingStartedTitle">Let's get your first post out <span id="onboardingProgress" class="guide-progress"></span></h2>
+      <p>Connect your socials once, then MultiPost writes the titles, captions and hashtags for YouTube, TikTok and Facebook.</p>
+      <ol class="guide-steps" id="onboardingSteps"></ol>
     </section>
 
     <div id="dashboardNotice" class="notice" role="alert" hidden></div>
@@ -348,18 +344,38 @@
       const connected = folders.some(folder => Number(folder.connected_account_count || 0) > 0);
       const firstPost = folders.some(folder => Number(folder.has_first_post || 0) > 0);
       const next = count ? `folder.html?id=${encodeURIComponent(folders[0].id)}` : "#create-workspace";
+      const planNeeded = needsPlan();
       const steps = [
-        { done: count > 0, label: "Create a workspace", href: "#create-workspace", action: "Create" },
-        { done: connected, label: "Connect a social account", href: next, action: "Connect" },
-        { done: firstPost, label: "Create your first post", href: next, action: "Open workspace" }
+        ...(planNeeded ? [{ done: false, label: planNeeded.label, href: "settings.html#billingCard", action: planNeeded.action }] : []),
+        { done: count > 0, label: "Create a workspace for your brand", href: "#create-workspace", action: "Create" },
+        { done: connected, label: "Connect your social accounts", href: next, action: "Connect" },
+        { done: firstPost, label: "Publish your first post", href: next, action: "Start" }
       ];
-      document.getElementById("onboardingProgress").textContent = `${steps.filter(s => s.done).length} of 3`;
+      const doneCount = steps.filter(s => s.done).length;
+      document.getElementById("onboardingProgress").textContent = `${doneCount} of ${steps.length}`;
+      // Once setup is finished the card only pushes workspaces down, so hide it.
+      document.getElementById("gettingStartedCard").hidden = doneCount === steps.length;
       document.getElementById("onboardingSteps").innerHTML = steps.map((step, index) =>
         `<li class="${step.done ? "done" : ""}"><span>${step.done ? "✓" : index + 1 + "."} ${step.label}</span>${step.done ? "" : `<a href="${step.href}">${step.action}</a>`}</li>`
       ).join("");
       document.querySelectorAll('#onboardingSteps a[href="#create-workspace"]').forEach(link =>
         link.addEventListener("click", event => { event.preventDefault(); createNewFolder(); })
       );
+      // Without a subscription the server refuses new workspaces, so the main
+      // button leads to the trial instead of a form that can only fail.
+      const button = document.getElementById("createWorkspaceButton");
+      if (button) button.innerHTML = planNeeded
+        ? `<i class="fa-solid fa-rocket" style="margin-right:8px;"></i> ${planNeeded.button}`
+        : `<i class="fa-solid fa-plus" style="margin-right:8px;"></i> Create Workspace`;
+    }
+
+    // Returns what to offer when this account has no access yet, or null.
+    function needsPlan() {
+      const billing = workspaceBilling;
+      if (!billing || !billing.enabled || billing.access || billing.owner_mode) return null;
+      return billing.status === "canceled" || billing.status === "expired"
+        ? { label: "Renew your subscription", action: "Renew", button: "Choose a plan" }
+        : { label: "Start your 7-day free trial", action: "Start", button: "Start 7-day free trial" };
     }
 
     async function loadAccountStatus() {
@@ -374,21 +390,22 @@
         if (!response.ok || !result.success) throw new Error(result.error || "Could not verify the subscription.");
         const billing = result.billing || {};
         workspaceBilling = billing;
-        if (!billing.enabled) summary.textContent = "Subscription checkout is being prepared. Check Profile for current access.";
+        if (!billing.enabled) summary.textContent = "Subscriptions are being set up. See Profile for access.";
         else if (billing.owner_mode) summary.textContent = "Owner account: access enabled.";
         else if (billing.access && billing.reason === "play_verified") {
           const interval = billing.play?.base_plan_id === "yearly" ? "yearly" : "monthly";
           summary.textContent = billing.status === "trialing"
-            ? `Your Google Play Pro ${interval} trial is active until ${new Date(billing.play.trial_end * 1000).toLocaleDateString()}. Manage or cancel in Profile.`
+            ? `Pro free trial active until ${new Date(billing.play.trial_end * 1000).toLocaleDateString()}.`
             : billing.status === "canceled"
-              ? `Your Google Play Pro ${interval} subscription is cancelled. Access continues until ${new Date(billing.play.expires_at * 1000).toLocaleDateString()}.`
-              : `Google Play Pro access active (${interval}). Manage or restore your purchase in Profile.`;
-        } else if (billing.access && billing.status === "trialing") summary.textContent = "Your web subscription trial is active. See Profile for its end date and billing controls.";
+              ? `Pro cancelled. Access continues until ${new Date(billing.play.expires_at * 1000).toLocaleDateString()}.`
+              : `Pro active (${interval}, Google Play).`;
+        } else if (billing.access && billing.status === "trialing") summary.textContent = "Pro free trial active. See Profile for the end date.";
         else if (billing.access) summary.textContent = billing.status === "canceled"
-          ? "Your subscription is cancelled but access remains until its end date. See Profile."
-          : "Your web subscription is active. See Profile for billing controls.";
-        else if (billing.status === "canceled" || billing.status === "expired") summary.textContent = "Your subscription has ended. Open Profile to review available plans or restore a purchase.";
-        else summary.textContent = "A subscription is needed to create workspaces and use AI or publishing. Open Profile to see available plans and any eligible trial.";
+          ? "Pro cancelled. Access continues until the end date in Profile."
+          : "Pro active.";
+        else if (billing.status === "canceled" || billing.status === "expired") summary.textContent = "Your subscription has ended. Open Profile to renew or restore a purchase.";
+        else summary.textContent = "Start your free trial to create workspaces and post.";
+        renderGettingStarted();
       } catch (error) {
         workspaceBilling = null;
         summary.textContent = "Subscription status could not be checked. Your workspaces may still be visible.";
@@ -610,6 +627,10 @@
     }
 
     function createNewFolder() {
+      if (needsPlan()) {
+        location.href = "settings.html#billingCard";
+        return;
+      }
       if (workspaceVerificationRequired) {
         setDashboardNotice("Verify your email and tap Retry before creating a workspace. A workspace you already created may be saved.", "verification");
         return;
@@ -696,6 +717,11 @@
         });
         const data = await res.json();
         if (!res.ok || data.success === false) {
+          if (!nameDialogAction && res.status === 402) {
+            document.getElementById("createBrandDialog").close();
+            location.href = "settings.html#billingCard";
+            return;
+          }
           if (!nameDialogAction && res.status === 429) {
             document.getElementById("createBrandDialog").close();
             await loadAccountStatus();

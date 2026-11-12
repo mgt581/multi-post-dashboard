@@ -63,3 +63,36 @@ test('dashboard shows action steps from server data and escapes stored workspace
   assert.doesNotMatch(escaped, /<script>|" onmouseover/);
   assert.equal(vm.runInContext('safeImageUrl(`javascript:alert(1)`)', context), '');
 });
+
+test('accounts without a subscription are sent to the free trial before creating a workspace', () => {
+  const elements = new Map();
+  const get = id => {
+    if (!elements.has(id)) elements.set(id, { innerHTML: '', textContent: '', hidden: false, replaceChildren() {}, append() {}, addEventListener() {}, querySelectorAll() { return []; }, close() {}, showModal() { this.opened = true; } });
+    return elements.get(id);
+  };
+  const location = { hostname: 'multipostapp.co.uk', href: '' };
+  const context = vm.createContext({
+    document: { getElementById: get, querySelectorAll: () => [] },
+    window: { location }, location, navigator: { userAgent: '' },
+    localStorage: { getItem: () => null, setItem() {} },
+    URL, encodeURIComponent
+  });
+  vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], context);
+
+  vm.runInContext('workspaceBilling = { enabled: true, access: false, status: "none" }; renderGettingStarted([])', context);
+  assert.equal(get('onboardingProgress').textContent, '0 of 4');
+  assert.match(get('onboardingSteps').innerHTML, /Start your 7-day free trial.*settings\.html#billingCard/);
+  assert.match(get('createWorkspaceButton').innerHTML, /Start 7-day free trial/);
+  vm.runInContext('createNewFolder()', context);
+  assert.equal(location.href, 'settings.html#billingCard');
+  assert.notEqual(get('createBrandDialog').opened, true);
+
+  vm.runInContext('workspaceBilling = { enabled: true, access: false, status: "expired" }; renderGettingStarted([])', context);
+  assert.match(get('createWorkspaceButton').innerHTML, /Choose a plan/);
+
+  vm.runInContext('workspaceBilling = { enabled: true, access: true, status: "trialing" }; renderGettingStarted([])', context);
+  assert.equal(get('onboardingProgress').textContent, '0 of 3');
+  assert.match(get('createWorkspaceButton').innerHTML, /Create Workspace/);
+  vm.runInContext('renderGettingStarted([{id:1, connected_account_count:1, has_first_post:1}])', context);
+  assert.equal(get('gettingStartedCard').hidden, true);
+});
