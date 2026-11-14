@@ -2,28 +2,20 @@
 
 ## Google Cloud & Firebase Project Reference
 
-The app uses **two separate Google Cloud projects**:
+Everything runs in **one Google Cloud / Firebase project**: `multi-post-daefc` (project number `1099160429576`).
 
-| Service | GCP Project Name | GCP Project Number / Firebase Project ID | Purpose |
-|---------|-----------------|------------------------------------------|---------|
-| Firebase Authentication + Hosting | `multi-post-daefc` | `1099160429576` | User auth, web hosting |
-| YouTube / Google OAuth API | `multipost-youtube-api` | `72559136598` | YouTube Data API v3, OAuth 2.0 credentials |
+| Service | Where it lives |
+|---------|----------------|
+| Firebase Authentication | `multi-post-daefc` |
+| YouTube Data API v3 + Google OAuth client | `multi-post-daefc` |
+| Google Play billing service account (`multipost-play-billing@…`) | `multi-post-daefc` |
 
-### Firebase (Authentication & Hosting)
-
-- **Firebase project ID**: `multi-post-daefc`
-- Configured in `.firebaserc` as the default project.
-- All HTML files use `projectId: "multi-post-daefc"` in their `firebaseConfig`.
-- Deploy to Firebase Hosting with: `firebase deploy`
-
-### Google Cloud — YouTube API
-
-- **GCP project**: `multipost-youtube-api` (project number `72559136598`)
-- Hosts the **YouTube Data API v3** and the **OAuth 2.0 client** used for YouTube account linking.
-- The active OAuth client ID is:  
-  `1099160429576-38kfvgqfgahc80oc11v1abl79n1gdspm.apps.googleusercontent.com`
-- The corresponding client secret is stored as the `GOOGLE_CLIENT_SECRET` Cloudflare Worker secret (and GitHub Actions secret).
-- **Do not use the `multi-post-daefc` Firebase project** for YouTube API credentials — keep them on the dedicated `multipost-youtube-api` GCP project.
+- All HTML files use `projectId: "multi-post-daefc"` in their `firebaseConfig`, and `android/app/google-services.json` points at the same project.
+- The active OAuth client ID is  
+  `1099160429576-38kfvgqfgahc80oc11v1abl79n1gdspm.apps.googleusercontent.com`  
+  (set as `GOOGLE_CLIENT_ID` in `wrangler.toml`; its secret is the `GOOGLE_CLIENT_SECRET` Worker secret).
+- The old `multipost-youtube-api` project was unused and was shut down on 14 Nov 2026.
+- `.firebaserc` sets `multi-post-daefc` as the default Firebase project.
 
 ---
 
