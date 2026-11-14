@@ -736,6 +736,11 @@
     return `${name}:${userScope}`;
   }
 
+  function adoptWorkspaceOwner(response) {
+    const owner = String(response?.headers?.get("X-Workspace-Owner") || "").trim();
+    if (owner && owner !== userScope) userScope = owner;
+  }
+
   function getUrlParam(name) {
     return new URLSearchParams(window.location.search).get(name);
   }
@@ -1185,6 +1190,10 @@
       if (!res.ok) {
         throw new Error("Failed to load accounts");
       }
+      // The server only answers after checking this sign-in may use the workspace,
+      // then names the ID the workspace is saved under (email or Firebase UID).
+      // Uploads check ownership against that exact ID, so use it from here on.
+      adoptWorkspaceOwner(res);
 
       const accounts = await res.json();
       const yt     = accounts.find((acc) => acc.platform === "youtube");
