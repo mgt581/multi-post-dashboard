@@ -12,7 +12,9 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="multipostapp.co.uk" android:path="/android-return.html" />
-                <data android:scheme="https" android:host="www.multipostapp.co.uk" android:path="/android-return.html" />
+                <!-- Only the apex host: www 301-redirects to it, and Android App Links
+                     verification does not follow redirects for assetlinks.json, so a www
+                     entry here always fails Play's deep-link domain check. -->
             </intent-filter>
         </activity>
     </application>
