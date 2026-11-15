@@ -793,6 +793,30 @@
       return unique;
     }
 
+    // The AI caption often already ends in hashtags and the hashtag box repeats them,
+    // so posting both stacked the same tags two or three times. Build the published
+    // caption once: description, then only hashtags it doesn't already contain,
+    // de-duplicated and capped. SEO keywords stay internal and are never posted.
+    const MAX_FACEBOOK_HASHTAGS = 8;
+    function buildFacebookCaption(description, hashtags) {
+      const seen = new Set();
+      const keepTag = (tag) => {
+        const key = tag.toLowerCase();
+        if (seen.has(key) || seen.size >= MAX_FACEBOOK_HASHTAGS) return false;
+        seen.add(key);
+        return true;
+      };
+      const body = String(description || "")
+        .split("\n")
+        .filter((line) => !/^\s*keywords\s*:/i.test(line))
+        .map((line) => line.replace(/#[a-zA-Z0-9_]+/g, (tag) => (keepTag(tag) ? tag : "")).replace(/[ \t]{2,}/g, " ").trimEnd())
+        .join("\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+      const extraTags = extractHashtags(hashtags).filter(keepTag);
+      return [body, extraTags.join(" ")].filter(Boolean).join("\n\n");
+    }
+
     function buildHashtagsFromKeywords(keywords) {
       return String(keywords || "")
         .split(",")
@@ -880,7 +904,7 @@
         ];
 
         const hashtags = hashtagPool.length
-          ? hashtagPool.join(" ")
+          ? extractHashtags(hashtagPool.join(" ")).join(" ")
           : buildHashtagsFromKeywords(generatedKeywords).join(" ");
 
         document.getElementById("fbImageTitle").value = generatedTitle;
@@ -914,18 +938,13 @@
       const title = document.getElementById("fbImageTitle").value.trim();
       const description = document.getElementById("fbImageDescription").value.trim();
       const hashtags = document.getElementById("fbImageHashtags").value.trim();
-      const keywords = document.getElementById("fbImageKeywords").value.trim();
 
       if (!title) {
         alert("Please provide a post title.");
         return;
       }
 
-      const fullDescription = [
-        description,
-        hashtags,
-        keywords ? `Keywords: ${keywords}` : ""
-      ].filter(Boolean).join("\n\n");
+      const fullDescription = buildFacebookCaption(description, hashtags);
 
       const form = new FormData();
       form.append("title", title);
@@ -973,7 +992,7 @@
       const title = document.getElementById("fbImageTitle").value.trim();
       const description = document.getElementById("fbImageDescription").value.trim();
       const hashtags = document.getElementById("fbImageHashtags").value.trim();
-      const block = [title, description, hashtags].filter(Boolean).join("\n\n");
+      const block = [title, buildFacebookCaption(description, hashtags)].filter(Boolean).join("\n\n");
 
       if (!block) {
         alert("Nothing to copy yet.");
