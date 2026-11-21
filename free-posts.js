@@ -49,7 +49,7 @@
         "<a href=\"pricing.html\">Choose a plan to post again</a>";
     } else if (yt + tt + fb > 0) {
       el.innerHTML = "<span>🎁 <b>Free plan:</b> " + yt + " YouTube · " + tt + " TikTok · " + fb +
-        " Facebook posts left. No card needed.</span><span>Then a 7-day free trial.</span>";
+        " Facebook posts left.</span><span>No card needed. Your accounts stay connected, then a 7-day free trial.</span>";
     } else {
       el.innerHTML = "<span>You've used your free posts. Your setup is saved.</span>" +
         "<a href=\"pricing.html\">Start your 7-day free trial</a>";

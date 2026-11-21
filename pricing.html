@@ -34,7 +34,8 @@
     .lead { color:var(--muted); margin:0; line-height:1.65; }
     .notice { display:flex; gap:10px; align-items:flex-start; margin: 24px auto 30px; max-width:700px; padding:13px 15px; border:1px solid rgba(56, 189, 248, .34); border-radius:13px; color:#d9f2ff; background:rgba(14, 165, 233, .08); font-size:13px; line-height:1.45; }
     .notice strong { color:white; }
-    .plans { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; }
+    .plans { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:16px; }
+    @media (max-width:900px) { .plans { grid-template-columns:1fr; } }
     .plan { position:relative; min-height:315px; padding:24px; border:1px solid var(--border); border-radius:20px; background:linear-gradient(155deg, rgba(19,37,62,.98), rgba(11,25,43,.98)); }
     .plan.featured { border-color:rgba(74,222,128,.72); box-shadow:0 22px 55px rgba(16,185,129,.13); }
     .badge { position:absolute; top:16px; right:16px; border-radius:999px; padding:5px 9px; color:#052e16; background:var(--green); font-size:10px; font-weight:800; letter-spacing:.4px; }
@@ -90,7 +91,7 @@
     <section class="hero">
       <div class="eyebrow">Create once. Publish everywhere.</div>
       <h1>One workspace. Your next post.</h1>
-      <p class="lead">Compare MultiPost Pro plans. Eligible new subscribers can start a seven-day trial. Stripe shows the exact price and first payment date before web checkout; Google Play handles Android purchases.</p>
+      <p class="lead">Start on the Free plan: no card, 3 free posts on YouTube, TikTok and Facebook, and your accounts stay connected. Then try Pro free for seven days. Stripe shows the exact price and first payment date before web checkout; Google Play handles Android purchases.</p>
     </section>
 
     <div class="notice" role="status">
@@ -114,6 +115,20 @@
     </section>
 
     <section class="plans" aria-label="Subscription plans">
+      <article class="plan">
+        <h2>Free plan</h2>
+        <div class="price">£0 <small>/ forever</small></div>
+        <div class="saving">No card needed</div>
+        <ul class="features">
+          <li>3 free posts on YouTube, 3 on TikTok and 3 on Facebook, for life</li>
+          <li>1 workspace</li>
+          <li>Connect 1 YouTube, 1 Facebook Page and 1 TikTok account</li>
+          <li>AI titles, captions and hashtags (10 credits a month)</li>
+          <li>Your accounts stay connected, ready when you upgrade</li>
+        </ul>
+        <a class="stage-button" href="app.html" style="display:block;text-align:center;text-decoration:none">Start free</a>
+      </article>
+
       <article class="plan">
         <h2>Pro Monthly</h2>
         <div class="price">£9.99 <small>/ month</small></div>
