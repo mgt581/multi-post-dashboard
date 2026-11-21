@@ -1369,7 +1369,7 @@ Follow for daily trending content! \u{1F44F}
     }, "ensureBillingAccess");
     // Free before trial: a signed-in, email-verified user without a plan may
     // create one workspace and draft a few AI captions. Publishing stays paid.
-    const FREE_AI_CREDITS = 10;
+    const FREE_AI_CREDITS = 10; // lifetime, enough for the 3 free posts plus retries
     // Lapsed subscribers (canceled/expired) renew instead, and free places are
     // only created under the account's own ID, never an email alias.
     // allowLapsed: an ended trial or subscription keeps its saved workspace and
@@ -1435,13 +1435,13 @@ Follow for daily trending content! \u{1F44F}
         (user_id, request_id, input_hash, month_start, credits, status)
         SELECT ?, ?, ?, ?, ?, 'pending'
         WHERE ? + COALESCE((SELECT SUM(credits) FROM billing_ai_requests
-          WHERE user_id = ? AND month_start = ? AND status IN ('pending','completed')), 0) <= ?`)
-        .bind(userId, requestId, inputHash, monthStart, credits, credits, userId, monthStart, gate.free ? FREE_AI_CREDITS : 150).run();
+          WHERE user_id = ? AND month_start >= ? AND status IN ('pending','completed')), 0) <= ?`)
+        .bind(userId, requestId, inputHash, monthStart, credits, credits, userId, gate.free ? 0 : monthStart, gate.free ? FREE_AI_CREDITS : 150).run();
       if (!Number(reserved?.meta?.changes ?? reserved?.changes ?? 0)) {
         const previous = await env.DB.prepare("SELECT input_hash, status, result_json FROM billing_ai_requests WHERE user_id = ? AND request_id = ?")
           .bind(userId, requestId).first();
         if (!previous) {
-          const error = new Error(gate.free ? "You've used your free AI drafts this month. Start your 7-day free trial for more." : "Monthly AI credit allowance reached");
+          const error = new Error(gate.free ? "You've used your free AI captions. Start your 7-day free trial for more." : "Monthly AI credit allowance reached");
           error.statusCode = gate.free ? 402 : 429;
           throw error;
         }
@@ -1859,8 +1859,9 @@ Follow for daily trending content! \u{1F44F}
         const usageFb = await countDailyPosts(usageAliases, "facebook");
         const dailyTotal = usageYt.total;
         const aiMonth = aiMonthStart();
+        const freeAi = !evaluated.access && evaluated.enabled; // free plan: AI credits are lifetime, not monthly
         const aiUsed = await env.DB.prepare(`SELECT COALESCE(SUM(credits),0) AS count FROM billing_ai_requests
-          WHERE user_id = ? AND month_start = ? AND status IN ('pending','completed')`).bind(authenticatedIdentity.userId, aiMonth).first();
+          WHERE user_id = ? AND month_start >= ? AND status IN ('pending','completed')`).bind(authenticatedIdentity.userId, freeAi ? 0 : aiMonth).first();
         const publicationsThisMonth = await countMonthlyPublications([authenticatedIdentity.userId,
           ...(authenticatedIdentity.emailVerified && authenticatedIdentity.email ? [authenticatedIdentity.email] : []),
           ...(authenticatedIdentity.workspaceOwnerIds || [])]);

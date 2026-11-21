@@ -552,14 +552,15 @@ test('free before trial: one workspace, connections, 10 AI credits and 3 lifetim
     assert.equal(body.code, 'FREE_POSTS_USED');
     assert.match(body.error, /3 free YouTube posts/);
     assert.equal((await status()).free_posts.tiktok, 3, 'each platform has its own 3');
+    // Used in an earlier month: free AI captions are lifetime, so they don't come back.
     for (let n = 1; n <= 10; n++) sqlite.prepare(`INSERT INTO billing_ai_requests (user_id,request_id,input_hash,month_start,credits,status)
-      VALUES ('free-1',?,'h',?,1,'completed')`).run(`used-free-credit-${n}-xxxxxxxx`, monthStart());
+      VALUES ('free-1',?,'h',?,1,'completed')`).run(`used-free-credit-${n}-xxxxxxxx`, monthStart() - 40 * 86400);
     const draft = await post('/api/generate-seo', { user_id: 'free-1', topic: 'Retro football' });
     assert.equal(draft.status, 402);
-    assert.match((await draft.json()).error, /free AI drafts/);
+    assert.match((await draft.json()).error, /free AI captions/);
     const premium = await post('/api/generate-premium-seo', { user_id: 'free-1', topic: 'Retro football' });
     assert.equal(premium.status, 402, 'the post page AI button uses the same free credits');
-    assert.match((await premium.json()).error, /free AI drafts/);
+    assert.match((await premium.json()).error, /free AI captions/);
     sqlite.prepare('INSERT INTO folders (id,user_id,name) VALUES (99,?,?)').run('free-1', 'Hidden');
     const other = await post('/api/tiktok/init-upload', { title: 'x' }, { folder_id: '99', user_id: 'free-1' });
     assert.ok([402, 423].includes(other.status), 'only one free workspace');
