@@ -1470,7 +1470,9 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify({ success: false, error: "Missing user_id" }), { status: 400, headers: jsonHeaders });
         }
         // SEO is a web entitlement even if a caller spoofs the client_platform header.
-        const billingGate = await ensureBillingAccess(userId, "web", request, true);
+        let billingGate = await ensureBillingAccess(userId, "web", request, true);
+        // Free plan: the post page's AI button uses this route; free accounts draw on their free AI credits.
+        if (!billingGate.ok) billingGate = freeTierGate(billingGate, userId, false, true) || billingGate;
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }

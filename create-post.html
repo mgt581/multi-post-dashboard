@@ -1093,6 +1093,12 @@
       trialButton: trialCta,
       statusElement: billingStatusText
     });
+    if (freeDrafts) {
+      // Free plan: drafting is included, so don't show "choose a plan".
+      trialCta.hidden = true;
+      billingStatusText.textContent = "Free plan: AI captions (10 a month) and your free posts are included.";
+      billingStatusText.dataset.state = "active";
+    }
   }
 
   async function loadBillingStatus() {

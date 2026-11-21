@@ -557,6 +557,9 @@ test('free before trial: one workspace, connections, 10 AI credits and 3 lifetim
     const draft = await post('/api/generate-seo', { user_id: 'free-1', topic: 'Retro football' });
     assert.equal(draft.status, 402);
     assert.match((await draft.json()).error, /free AI drafts/);
+    const premium = await post('/api/generate-premium-seo', { user_id: 'free-1', topic: 'Retro football' });
+    assert.equal(premium.status, 402, 'the post page AI button uses the same free credits');
+    assert.match((await premium.json()).error, /free AI drafts/);
     sqlite.prepare('INSERT INTO folders (id,user_id,name) VALUES (99,?,?)').run('free-1', 'Hidden');
     const other = await post('/api/tiktok/init-upload', { title: 'x' }, { folder_id: '99', user_id: 'free-1' });
     assert.ok([402, 423].includes(other.status), 'only one free workspace');

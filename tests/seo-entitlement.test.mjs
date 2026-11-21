@@ -105,7 +105,8 @@ test("an unverified email cannot claim owner access", async () => {
       DB: makeDb({ user_id: "unverified-uid", subscription_status: "inactive" })
     };
     const response = await worker.fetch(seoRequest("unverified-uid", "Bearer unverified-token"), env);
-    assert.equal(response.status, 402);
+    // Refused either way: no owner access, and the free plan first needs a verified email.
+    assert.ok([402, 403].includes(response.status), String(response.status));
   } finally {
     globalThis.fetch = originalFetch;
   }
