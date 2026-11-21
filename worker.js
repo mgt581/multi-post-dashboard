@@ -1,3 +1,4 @@
+import { recordLifecycleUser, sendLifecycleEmails, unsubscribe as unsubscribeLifecycle } from "./lifecycle-emails.mjs";
 import { beginTikTokLink, consumeTikTokLink, saveTikTokConnection, tikTokPublishingAccount, disconnectTikTok, tikTokLinkCookie, matchesIdentity, ownedFolder } from "./tiktok-connections.mjs";
 import { evaluateFacebookVideoReadiness } from "./facebook-video-readiness.mjs";
 import { evaluateTikTokPublishStatus } from "./tiktok-publish-status.mjs";
@@ -42,6 +43,7 @@ var WORKER_VERSION = "2026-10-20-tiktok-chunk-count";
 var worker_default = {
   async scheduled(_event, env) {
     await reconcilePendingPublications(env);
+    try { await sendLifecycleEmails(env); } catch (error) { console.warn("Lifecycle emails failed", error?.message || error); }
   },
   async fetch(request, env) {
     const corsHeaders = {
@@ -539,7 +541,9 @@ Follow for daily trending content! \u{1F44F}
         const identity = {
           userId: String(user.localId).trim(),
           emailVerified: user.emailVerified === true,
-          email: String(user.email || "").trim().toLowerCase()
+          email: String(user.email || "").trim().toLowerCase(),
+          createdAt: Number(user.createdAt || 0),
+          displayName: String(user.displayName || "")
         };
         // A verified, explicitly configured owner may have separate Firebase
         // UIDs for Google and email/password. Bridge only those configured
@@ -1829,6 +1833,14 @@ Follow for daily trending content! \u{1F44F}
           return Response.json({ success: false, error: "Google Play purchase could not be verified" }, { status: 400, headers: corsHeaders });
         }
       }
+      if (url.pathname === "/api/unsubscribe" && (request.method === "GET" || request.method === "POST")) {
+        let done = false;
+        try { done = await unsubscribeLifecycle(env.DB, url.searchParams.get("u"), url.searchParams.get("t")); } catch (_) {}
+        if (request.method === "POST") return new Response(null, { status: done ? 200 : 400, headers: corsHeaders });
+        const message = done ? "You're unsubscribed. MultiPost won't send you these emails again." : "This unsubscribe link isn't valid any more.";
+        return new Response(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MultiPost emails</title><body style="font-family:system-ui;background:#0b1829;color:#e2e8f0;display:grid;place-items:center;min-height:90vh;margin:0;padding:16px;text-align:center"><div><h1 style="font-size:22px">${message}</h1><p><a style="color:#7dd3fc" href="${siteBaseUrl}">Back to MultiPost</a></p></div></body>`,
+          { status: done ? 200 : 400, headers: { "Content-Type": "text/html; charset=utf-8" } });
+      }
       if (url.pathname === "/api/billing/status" && request.method === "GET") {
         const userId = requireUser(url.searchParams.get("user_id"));
         if (!userId) {
@@ -1839,6 +1851,8 @@ Follow for daily trending content! \u{1F44F}
         if (!identityMatchesBillingUser(null, userId, authenticatedIdentity)) {
           return new Response(JSON.stringify({ success: false, error: "Authenticated account does not match this billing account" }), { status: 401, headers: jsonHeaders });
         }
+        // Free plan emails: remember verified accounts (never blocks billing status).
+        try { await recordLifecycleUser(env.DB, authenticatedIdentity); } catch (_) {}
         let row = await getBillingRowForIdentity(userId, authenticatedIdentity);
         row = await refreshBillingFromStripe(row);
         const playEntitlement = await getPlayEntitlement(authenticatedIdentity);
