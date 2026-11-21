@@ -520,3 +520,28 @@ test('Pro has no daily posting cap and gets 150 publications a month per entitle
     const late = await publish(); assert.notEqual(late.status, 429, '180 of 300 used: ' + await late.text());
   } finally { globalThis.fetch = original; sqlite.close(); }
 });
+
+test('free before trial: one workspace and 5 AI credits without a plan, but publishing still needs one', async () => {
+  const { sqlite, env } = fixture();
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ users: [{ localId: 'free-1', email: 'free@example.com', emailVerified: true }] });
+  const post = (path, body, extra = {}) => worker.fetch(new Request(`https://test.invalid${path}`, {
+    method: 'POST', headers: { ...headers, ...extra }, body: JSON.stringify(body) }), env);
+  try {
+    assert.equal((await post('/api/add-folder', { name: 'My brand', user_id: 'free@example.com' })).status, 402, 'never under an email alias');
+    assert.equal((await post('/api/add-folder', { name: 'My brand', user_id: 'free-1' })).status, 200);
+    assert.equal((await post('/api/add-folder', { name: 'Second', user_id: 'free-1' })).status, 429);
+    const folders = await (await worker.fetch(new Request('https://test.invalid/api/get-folders?user_id=free-1', { headers }), env)).json();
+    assert.deepEqual(folders.map(f => f.workspace_locked), [false]);
+    const upload = await post('/api/youtube/init-upload', { title: 'x', fileSize: 100 }, { folder_id: String(folders[0].id), user_id: 'free-1' });
+    assert.equal(upload.status, 402, 'publishing needs the trial');
+    for (let n = 1; n <= 5; n++) sqlite.prepare(`INSERT INTO billing_ai_requests (user_id,request_id,input_hash,month_start,credits,status)
+      VALUES ('free-1',?,'h',?,1,'completed')`).run(`used-free-credit-${n}-xxxxxxxx`, monthStart());
+    const draft = await post('/api/generate-seo', { user_id: 'free-1', topic: 'Retro football' });
+    assert.equal(draft.status, 402);
+    assert.match((await draft.json()).error, /free AI drafts/);
+    sqlite.prepare(`INSERT INTO billing_subscriptions (user_id,user_email,subscription_status) VALUES ('free-1','free@example.com','canceled')`).run();
+    sqlite.prepare('DELETE FROM folders').run();
+    assert.equal((await post('/api/add-folder', { name: 'Again', user_id: 'free-1' })).status, 402, 'lapsed subscribers renew instead');
+  } finally { globalThis.fetch = original; sqlite.close(); }
+});

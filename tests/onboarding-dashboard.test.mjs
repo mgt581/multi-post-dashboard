@@ -64,7 +64,7 @@ test('dashboard shows action steps from server data and escapes stored workspace
   assert.equal(vm.runInContext('safeImageUrl(`javascript:alert(1)`)', context), '');
 });
 
-test('accounts without a subscription are sent to the free trial before creating a workspace', () => {
+test('accounts without a subscription create one free workspace and are asked for the trial before publishing', () => {
   const elements = new Map();
   const get = id => {
     if (!elements.has(id)) elements.set(id, { innerHTML: '', textContent: '', hidden: false, replaceChildren() {}, append() {}, addEventListener() {}, querySelectorAll() { return []; }, close() {}, showModal() { this.opened = true; } });
@@ -81,13 +81,18 @@ test('accounts without a subscription are sent to the free trial before creating
 
   vm.runInContext('workspaceBilling = { enabled: true, access: false, status: "none" }; renderGettingStarted([])', context);
   assert.equal(get('onboardingProgress').textContent, '0 of 4');
-  assert.match(get('onboardingSteps').innerHTML, /Start your 7-day free trial.*settings\.html#billingCard/);
+  assert.match(get('onboardingSteps').innerHTML, /Connect your social accounts.*Start your 7-day free trial to publish.*settings\.html#billingCard.*Publish your first post/s);
+  assert.match(get('createWorkspaceButton').innerHTML, /Create Workspace/);
+  vm.runInContext('loadedFolders = []; createNewFolder()', context);
+  assert.equal(get('createBrandDialog').opened, true, 'the first workspace is free');
+  get('createBrandDialog').opened = false;
+  vm.runInContext('loadedFolders = [{id:1}]; renderGettingStarted(loadedFolders)', context);
   assert.match(get('createWorkspaceButton').innerHTML, /Start 7-day free trial/);
   vm.runInContext('createNewFolder()', context);
   assert.equal(location.href, 'settings.html#billingCard');
   assert.notEqual(get('createBrandDialog').opened, true);
 
-  vm.runInContext('workspaceBilling = { enabled: true, access: false, status: "expired" }; renderGettingStarted([])', context);
+  vm.runInContext('workspaceBilling = { enabled: true, access: false, status: "expired" }; renderGettingStarted([{id:1}])', context);
   assert.match(get('createWorkspaceButton').innerHTML, /Choose a plan/);
 
   vm.runInContext('workspaceBilling = { enabled: true, access: true, status: "trialing" }; renderGettingStarted([])', context);

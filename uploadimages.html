@@ -427,6 +427,25 @@
     const billingStatusText = document.getElementById("billingStatusText");
     let billingReady = false;
     let hasBillingAccess = false;
+
+    // Free before trial: drafting (AI captions, limited by the server) works
+    // without a plan; publishing asks for the trial. On the website the plans
+    // open in a new tab so this draft is kept.
+    let freeDrafts = false;
+    function askForTrialToPublish() {
+      const android = /MultiPostAndroid\//i.test(navigator.userAgent || "");
+      if (!confirm("Your post is ready. Start your 7-day free trial to publish it?")) return;
+      if (android) { location.href = "pricing.html"; return; }
+      window.open("pricing.html", "_blank");
+    }
+    function showFreeDraftBanner(banner) {
+      banner.classList.add("show");
+      banner.innerHTML = `
+        <div class="paywall-title">Drafting is free</div>
+        <div class="paywall-copy">Create your post and AI captions now. Start your 7-day free trial when you're ready to publish.</div>
+        <a class="paywall-link" href="pricing.html" target="_blank" rel="noopener">See plans</a>
+      `;
+    }
     let currentBilling = null;
     let billingRefreshTimer = null;
     let signedInUserEmail = "";
@@ -463,7 +482,7 @@
     function setLoading(btnId, isLoading, loadingText, normalText) {
       const btn = document.getElementById(btnId);
       if (!btn) return;
-      btn.disabled = isLoading || (btnId === "generateBtn" && !hasBillingAccess);
+      btn.disabled = isLoading || (btnId === "generateBtn" && !hasBillingAccess && !freeDrafts);
       btn.textContent = isLoading ? loadingText : normalText;
     }
 
@@ -506,13 +525,14 @@
       hasBillingAccess = enabled;
       const gen = document.getElementById("generateBtn");
       const up = document.getElementById("uploadBtn");
-      if (gen) gen.disabled = !enabled;
-      if (up) up.disabled = !enabled;
+      if (gen) gen.disabled = !enabled && !freeDrafts;
+      if (up) up.disabled = !enabled && !freeDrafts;
       if (enabled) {
         paywallBanner.classList.remove("show");
         paywallBanner.innerHTML = "";
         return;
       }
+      if (freeDrafts) return showFreeDraftBanner(paywallBanner);
       const detail = message && String(message).trim()
         ? String(message).trim()
         : "Start your 7 day free trial or upgrade in the Pricing page.";
@@ -529,7 +549,7 @@
       if (!currentBilling) return;
       renderBillingControls({
         billing: currentBilling,
-        generateButton: document.getElementById("generateBtn"),
+        generateButton: freeDrafts ? null : document.getElementById("generateBtn"),
         trialButton: trialCta,
         statusElement: billingStatusText
       });
@@ -554,11 +574,13 @@
         }
         if (billing.access) {
           billingReady = true;
+          freeDrafts = false;
           setPublishingEnabled(true);
           renderCurrentBilling();
           return;
         }
         billingReady = true;
+        freeDrafts = !["canceled", "expired"].includes(billing.status);
         setPublishingEnabled(false, "Unlock AI SEO generation with your 7-day free trial.");
         renderCurrentBilling();
       } catch (err) {
@@ -836,7 +858,7 @@
 
     async function generateImageSEO() {
       if (!billingReady) await loadBillingStatus();
-      if (!hasBillingAccess) {
+      if (!hasBillingAccess && !freeDrafts) {
         alert("Web publishing requires an active plan. Start your 7 day free trial in Pricing.");
         return;
       }
@@ -925,7 +947,7 @@
     async function uploadFacebookImagePost() {
       if (!billingReady) await loadBillingStatus();
       if (!hasBillingAccess) {
-        alert("Web publishing requires an active plan. Start your 7 day free trial in Pricing.");
+        askForTrialToPublish();
         return;
       }
       if (!ensureFolderContext()) return;

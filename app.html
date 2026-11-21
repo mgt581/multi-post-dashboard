@@ -392,10 +392,12 @@
       const firstPost = folders.some(folder => Number(folder.has_first_post || 0) > 0);
       const next = count ? `folder.html?id=${encodeURIComponent(folders[0].id)}` : "#create-workspace";
       const planNeeded = needsPlan();
+      // Free before trial: workspace, connections and AI drafts need no card.
+      // The trial is only asked for right before the first publish.
       const steps = [
-        ...(planNeeded ? [{ done: false, label: planNeeded.label, href: "settings.html#billingCard", action: planNeeded.action }] : []),
         { done: count > 0, label: "Create a workspace for your brand", href: "#create-workspace", action: "Create" },
         { done: connected, label: "Connect your social accounts", href: next, action: "Connect" },
+        ...(planNeeded ? [{ done: false, label: planNeeded.label + " to publish", href: "settings.html#billingCard", action: planNeeded.action }] : []),
         { done: firstPost, label: "Publish your first post", href: next, action: "Start" }
       ];
       const doneCount = steps.filter(s => s.done).length;
@@ -408,10 +410,10 @@
       document.querySelectorAll('#onboardingSteps a[href="#create-workspace"]').forEach(link =>
         link.addEventListener("click", event => { event.preventDefault(); createNewFolder(); })
       );
-      // Without a subscription the server refuses new workspaces, so the main
-      // button leads to the trial instead of a form that can only fail.
+      // Without a subscription the server allows one free workspace, so after
+      // that the main button leads to the trial instead of a form that can only fail.
       const button = document.getElementById("createWorkspaceButton");
-      if (button) button.innerHTML = planNeeded
+      if (button) button.innerHTML = planNeeded && count > 0
         ? `<i class="fa-solid fa-rocket" style="margin-right:8px;"></i> ${planNeeded.button}`
         : `<i class="fa-solid fa-plus" style="margin-right:8px;"></i> Create Workspace`;
     }
@@ -453,10 +455,41 @@
         else if (billing.status === "canceled" || billing.status === "expired") summary.textContent = "Your subscription has ended. Open Profile to renew or restore a purchase.";
         else summary.textContent = "Start your free trial to create workspaces and post.";
         renderGettingStarted();
+        continueFirstRun(billing);
       } catch (error) {
         workspaceBilling = null;
         summary.textContent = "Subscription status could not be checked. Your workspaces may still be visible.";
         setDashboardNotice(error.message || "Could not check billing. Please retry.", "billing");
+      }
+    }
+
+    // Skip the naming dialog on first run: a new user with no plan and no
+    // workspace, or someone arriving from a new trial (settings.html sends
+    // ?start=1), lands in a workspace called "My brand" (renamable later), so
+    // the next screen is "Connect socials".
+    let firstRunStarted = false;
+    async function continueFirstRun(billing) {
+      const params = new URLSearchParams(location.search);
+      const fromTrial = params.get("start") === "1";
+      const newFreeUser = billing?.enabled && !billing.access && !billing.owner_mode &&
+        !["canceled", "expired"].includes(billing.status) && loadedFolders.length === 0;
+      if ((!fromTrial && !newFreeUser) || firstRunStarted) return;
+      firstRunStarted = true;
+      if (fromTrial) history.replaceState(null, "", location.pathname + location.hash);
+      if (workspaceVerificationRequired) return;
+      if (loadedFolders.length) return openFolder(loadedFolders[0].id, loadedFolders[0].name);
+      try {
+        const res = await fetch(`${apiBase}/add-folder`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${await authUser.getIdToken()}` },
+          body: JSON.stringify({ name: "My brand", user_id: userScope })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || data.success === false) return;
+        await loadFolders();
+        if (loadedFolders.length) openFolder(loadedFolders[0].id, loadedFolders[0].name);
+      } catch (_) {
+        // Fall back to the normal Home screen and its Create Workspace button.
       }
     }
 
@@ -674,7 +707,7 @@
     }
 
     function createNewFolder() {
-      if (needsPlan()) {
+      if (needsPlan() && loadedFolders.length > 0) {
         location.href = "settings.html#billingCard";
         return;
       }

@@ -700,6 +700,25 @@
   ].filter(Boolean);
   let billingReady = false;
   let hasBillingAccess = false;
+
+  // Free before trial: drafting (AI captions, limited by the server) works
+  // without a plan; publishing asks for the trial. On the website the plans
+  // open in a new tab so this draft is kept.
+  let freeDrafts = false;
+  function askForTrialToPublish() {
+    const android = /MultiPostAndroid\//i.test(navigator.userAgent || "");
+    if (!confirm("Your post is ready. Start your 7-day free trial to publish it?")) return;
+    if (android) { location.href = "pricing.html"; return; }
+    window.open("pricing.html", "_blank");
+  }
+  function showFreeDraftBanner(banner) {
+    banner.classList.add("show");
+    banner.innerHTML = `
+      <div class="paywall-title">Drafting is free</div>
+      <div class="paywall-copy">Create your post and AI captions now. Start your 7-day free trial when you're ready to publish.</div>
+      <a class="paywall-link" href="pricing.html" target="_blank" rel="noopener">See plans</a>
+    `;
+  }
   let currentBilling = null;
   let billingRefreshTimer = null;
 
@@ -1011,7 +1030,7 @@
   }
 
   function setLoading(isLoading) {
-    generateBtn.disabled = isLoading || !hasBillingAccess;
+    generateBtn.disabled = isLoading || (!hasBillingAccess && !freeDrafts);
     generateBtn.textContent = isLoading
       ? "Generating trending SEO…"
       : "✨ Generate Trending SEO";
@@ -1038,15 +1057,16 @@
 
   function setPublishingEnabled(enabled, message = "") {
     hasBillingAccess = enabled;
-    generateBtn.disabled = !enabled;
+    generateBtn.disabled = !enabled && !freeDrafts;
     publishButtons.forEach((btn) => {
-      btn.disabled = !enabled;
+      btn.disabled = !enabled && !freeDrafts;
     });
     if (enabled) {
       paywallBanner.classList.remove("show");
       paywallBanner.innerHTML = "";
       return;
     }
+    if (freeDrafts) return showFreeDraftBanner(paywallBanner);
     const detail = message && String(message).trim()
       ? String(message).trim()
       : "Open Profile to review available plans and any eligible trial.";
@@ -1063,7 +1083,7 @@
     if (!currentBilling) return;
     renderBillingControls({
       billing: currentBilling,
-      generateButton: generateBtn,
+      generateButton: freeDrafts ? null : generateBtn,
       trialButton: trialCta,
       statusElement: billingStatusText
     });
@@ -1090,11 +1110,13 @@
       }
       if (billing.access) {
         billingReady = true;
+        freeDrafts = false;
         setPublishingEnabled(true);
         renderCurrentBilling();
         return;
       }
       billingReady = true;
+      freeDrafts = !["canceled", "expired"].includes(billing.status);
       setPublishingEnabled(false, "Open Profile to review available plans and any eligible trial.");
       renderCurrentBilling();
     } catch (err) {
@@ -1227,8 +1249,8 @@
   async function generateSEO() {
     await (window.seoImageProcessing || Promise.resolve());
     if (!billingReady) await loadBillingStatus();
-    if (!hasBillingAccess) {
-      alert("Publishing requires an active plan. Open Profile to review your options.");
+    if (!hasBillingAccess && !freeDrafts) {
+      alert("Your free AI drafts need a verified account. Open Profile to review your options.");
       return;
     }
     const prompt = document.getElementById("videoPrompt").value.trim();
@@ -1413,7 +1435,7 @@
     const btn = document.querySelector('button[onclick="publishYouTube()"]');
     if (!billingReady) await loadBillingStatus();
     if (!hasBillingAccess) {
-      alert("Publishing requires an active plan. Open Profile to review your options.");
+      askForTrialToPublish();
       return;
     }
 
@@ -1540,7 +1562,7 @@
     const btn = document.querySelector('button[onclick="publishTikTok()"]');
     if (!billingReady) await loadBillingStatus();
     if (!hasBillingAccess) {
-      alert("Publishing requires an active plan. Open Profile to review your options.");
+      askForTrialToPublish();
       return;
     }
 
@@ -1649,7 +1671,7 @@
     const btn = document.querySelector('button[onclick="publishFacebook()"]');
     if (!billingReady) await loadBillingStatus();
     if (!hasBillingAccess) {
-      alert("Publishing requires an active plan. Open Profile to review your options.");
+      askForTrialToPublish();
       return;
     }
 

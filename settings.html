@@ -654,6 +654,10 @@
       params.delete('billing'); params.delete('workspace');
       const rest = params.toString();
       history.replaceState(null, '', window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash);
+      // New trial or plan: go straight back to Home, which opens (or creates) the
+      // first workspace so the next step is connecting socials. The short delay
+      // lets the conversion requests above finish.
+      if (pro) setTimeout(() => { window.location.href = 'app.html?start=1'; }, 1500);
     }
 
     async function loadBillingStatus(user) {

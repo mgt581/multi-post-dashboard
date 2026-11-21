@@ -1136,7 +1136,8 @@ Follow for daily trending content! \u{1F44F}
         ORDER BY CASE WHEN c.priority IS NULL THEN 1 ELSE 0 END, c.priority ASC, f.id ASC`)
         .bind(identity.userId, ...aliases).all();
       const allowance = !evaluated.enabled || evaluated.owner ? results.length : evaluated.access
-        ? Math.max(0, Math.min(100, Number(evaluated.workspaceAllowance || 1))) : 0;
+        ? Math.max(0, Math.min(100, Number(evaluated.workspaceAllowance || 1)))
+        : ["canceled", "expired"].includes(evaluated.status) ? 0 : 1;
       return { ordered: results.map((item) => String(item.id)), active: new Set(results.slice(0, allowance).map((item) => String(item.id))) };
     }, "workspaceSelection");
     const countDailyPosts = /* @__PURE__ */ __name(async (userIds, platform) => {
@@ -1329,6 +1330,10 @@ Follow for daily trending content! \u{1F44F}
       return {
         ok: false,
         statusCode: 402,
+        // Not sent to the client: lets free-tier routes (first workspace, a few
+        // AI drafts) run without a subscription. Publishing still needs access.
+        identity: authenticatedIdentity,
+        evaluated,
         body: {
           success: false,
           error: "Active subscription required",
@@ -1341,6 +1346,20 @@ Follow for daily trending content! \u{1F44F}
         }
       };
     }, "ensureBillingAccess");
+    // Free before trial: a signed-in, email-verified user without a plan may
+    // create one workspace and draft a few AI captions. Publishing stays paid.
+    const FREE_AI_CREDITS = 5;
+    // Lapsed subscribers (canceled/expired) renew instead, and free places are
+    // only created under the account's own ID, never an email alias.
+    const freeTierGate = /* @__PURE__ */ __name((gate, requestedUserId) => {
+      if (gate.ok || gate.statusCode !== 402 || !gate.identity?.userId || !gate.evaluated?.enabled) return null;
+      if (["canceled", "expired"].includes(gate.evaluated.status)) return null;
+      if (String(requestedUserId || "") !== String(gate.identity.userId)) return null;
+      if (gate.identity.email && !gate.identity.emailVerified) {
+        return { ok: false, statusCode: 403, body: { success: false, code: "EMAIL_VERIFICATION_REQUIRED", error: "Verify your email address to start using MultiPost." } };
+      }
+      return { ok: true, free: true, row: null, identity: gate.identity, evaluated: { ...gate.evaluated, free: true, workspaceAllowance: 1 } };
+    }, "freeTierGate");
     const aiMonthStart = /* @__PURE__ */ __name(() => {
       const current = new Date();
       return Math.floor(Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), 1) / 1000);
@@ -1363,12 +1382,16 @@ Follow for daily trending content! \u{1F44F}
         (user_id, request_id, input_hash, month_start, credits, status)
         SELECT ?, ?, ?, ?, ?, 'pending'
         WHERE ? + COALESCE((SELECT SUM(credits) FROM billing_ai_requests
-          WHERE user_id = ? AND month_start = ? AND status IN ('pending','completed')), 0) <= 150`)
-        .bind(userId, requestId, inputHash, monthStart, credits, credits, userId, monthStart).run();
+          WHERE user_id = ? AND month_start = ? AND status IN ('pending','completed')), 0) <= ?`)
+        .bind(userId, requestId, inputHash, monthStart, credits, credits, userId, monthStart, gate.free ? FREE_AI_CREDITS : 150).run();
       if (!Number(reserved?.meta?.changes ?? reserved?.changes ?? 0)) {
         const previous = await env.DB.prepare("SELECT input_hash, status, result_json FROM billing_ai_requests WHERE user_id = ? AND request_id = ?")
           .bind(userId, requestId).first();
-        if (!previous) { const error = new Error("Monthly AI credit allowance reached"); error.statusCode = 429; throw error; }
+        if (!previous) {
+          const error = new Error(gate.free ? "You've used your free AI drafts this month. Start your 7-day free trial for more." : "Monthly AI credit allowance reached");
+          error.statusCode = gate.free ? 402 : 429;
+          throw error;
+        }
         if (previous.input_hash !== inputHash) { const error = new Error("Request ID was already used for different content"); error.statusCode = 409; throw error; }
         if (previous.status === "completed" && previous.result_json) return JSON.parse(previous.result_json);
         const error = new Error(previous.status === "pending" ? "Generation is already in progress" : "Previous generation failed; start a new request");
@@ -1493,7 +1516,8 @@ Follow for daily trending content! \u{1F44F}
         if (!name || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing name or user_id" }), { status: 400, headers: jsonHeaders });
         }
-        const billingGate = await ensureBillingAccess(userId, "web", request);
+        let billingGate = await ensureBillingAccess(userId, "web", request);
+        if (!billingGate.ok) billingGate = freeTierGate(billingGate, userId) || billingGate;
         if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         const allowance = billingGate.evaluated.reason === "owner_bypass" ? 1000 : billingGate.evaluated.workspaceAllowance || 1;
         const identity = billingGate.identity;
@@ -4499,7 +4523,8 @@ Follow for daily trending content! \u{1F44F}
         const payload = await request.json();
         const identity = await getFirebaseIdentity(request);
         const userId = requireUser(payload?.user_id || identity?.userId);
-        const billingGate = await ensureBillingAccess(userId, "web", request, true);
+        let billingGate = await ensureBillingAccess(userId, "web", request, true);
+        if (!billingGate.ok) billingGate = freeTierGate(billingGate, userId) || billingGate;
         if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         const sharedInput = await normalizeSeoInput(payload);
         if (!sharedInput.topic.trim() && !sharedInput.imageBase64) {
