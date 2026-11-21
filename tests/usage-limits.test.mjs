@@ -573,3 +573,18 @@ test('free before trial: one workspace, connections, 10 AI credits and 3 lifetim
       .find(f => String(f.id) === folderId).workspace_locked, false, 'the saved workspace stays unlocked');
   } finally { globalThis.fetch = original; sqlite.close(); }
 });
+
+test('free accounts can use an older workspace saved under their verified email', async () => {
+  const { sqlite, env } = fixture();
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ users: [{ localId: 'free-2', email: 'old@example.com', emailVerified: true }] });
+  try {
+    sqlite.prepare('INSERT INTO folders (id,user_id,name) VALUES (7,?,?)').run('old@example.com', 'Test');
+    const accounts = await worker.fetch(new Request('https://test.invalid/api/get-accounts?folder_id=7&user_id=old@example.com', { headers }), env);
+    assert.equal(accounts.status, 200, await accounts.clone().text());
+    const upload = await worker.fetch(new Request('https://test.invalid/api/youtube/init-upload', {
+      method: 'POST', headers: { ...headers, folder_id: '7', user_id: 'old@example.com' }, body: JSON.stringify({ title: 'x', fileSize: 100 }) }), env);
+    assert.notEqual(upload.status, 402);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) c FROM billing_publish_slots WHERE user_id = 'free-2'").get().c, 1, 'counted against the account ID');
+  } finally { globalThis.fetch = original; sqlite.close(); }
+});

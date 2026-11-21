@@ -1374,11 +1374,15 @@ Follow for daily trending content! \u{1F44F}
     // only created under the account's own ID, never an email alias.
     // allowLapsed: an ended trial or subscription keeps its saved workspace and
     // connections (view and reconnect), but gets no new free posts.
-    const freeTierGate = /* @__PURE__ */ __name((gate, requestedUserId, allowLapsed = false) => {
+    // Workspaces may be saved under the verified email instead of the UID, so
+    // existing setups accept those aliases; new free workspaces (add-folder) use
+    // the UID only. Usage is always counted against identity.userId.
+    const freeTierGate = /* @__PURE__ */ __name((gate, requestedUserId, allowLapsed = false, allowAliases = false) => {
       if (gate.ok || gate.statusCode !== 402 || !gate.identity?.userId || !gate.evaluated?.enabled) return null;
       const lapsed = ["canceled", "expired"].includes(gate.evaluated.status);
       if (lapsed && !allowLapsed) return null;
-      if (String(requestedUserId || "") !== String(gate.identity.userId)) return null;
+      if (allowAliases ? !matchesIdentity(requestedUserId, gate.identity)
+        : String(requestedUserId || "") !== String(gate.identity.userId)) return null;
       if (gate.identity.email && !gate.identity.emailVerified) {
         return { ok: false, statusCode: 403, body: { success: false, code: "EMAIL_VERIFICATION_REQUIRED", error: "Verify your email address to start using MultiPost." } };
       }
@@ -1390,7 +1394,7 @@ Follow for daily trending content! \u{1F44F}
     const ensureAccessOrFree = /* @__PURE__ */ __name(async (userId, platform, request2, requireAuthentication = false, requestedFolderId = null) => {
       const gate = await ensureBillingAccess(userId, platform, request2, requireAuthentication, requestedFolderId);
       if (gate.ok) return gate;
-      const free = freeTierGate(gate, userId, true);
+      const free = freeTierGate(gate, userId, true, true);
       if (!free || !free.ok) return free || gate;
       const folderId = requestedFolderId || request2.headers.get('folder_id') || new URL(request2.url).searchParams.get('folder_id');
       if (folderId && !(await workspaceSelection(free.identity, free.evaluated)).active.has(String(folderId))) {
@@ -4577,7 +4581,7 @@ Follow for daily trending content! \u{1F44F}
         const identity = await getFirebaseIdentity(request);
         const userId = requireUser(payload?.user_id || identity?.userId);
         let billingGate = await ensureBillingAccess(userId, "web", request, true);
-        if (!billingGate.ok) billingGate = freeTierGate(billingGate, userId) || billingGate;
+        if (!billingGate.ok) billingGate = freeTierGate(billingGate, userId, false, true) || billingGate;
         if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         const sharedInput = await normalizeSeoInput(payload);
         if (!sharedInput.topic.trim() && !sharedInput.imageBase64) {
