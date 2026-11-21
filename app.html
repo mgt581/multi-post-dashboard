@@ -392,13 +392,13 @@
       const firstPost = folders.some(folder => Number(folder.has_first_post || 0) > 0);
       const next = count ? `folder.html?id=${encodeURIComponent(folders[0].id)}` : "#create-workspace";
       const planNeeded = needsPlan();
-      // Free before trial: workspace, connections and AI drafts need no card.
-      // The trial is only asked for right before the first publish.
+      // Free before trial: workspace, connections, AI drafts and 3 posts per
+      // platform need no card. The trial comes after the free posts.
       const steps = [
         { done: count > 0, label: "Create a workspace for your brand", href: "#create-workspace", action: "Create" },
         { done: connected, label: "Connect your social accounts", href: next, action: "Connect" },
-        ...(planNeeded ? [{ done: false, label: planNeeded.label + " to publish", href: "settings.html#billingCard", action: planNeeded.action }] : []),
-        { done: firstPost, label: "Publish your first post", href: next, action: "Start" }
+        { done: firstPost, label: planNeeded && planNeeded.action === "Start" ? "Publish your first post (3 free on each platform)" : "Publish your first post", href: next, action: "Start" },
+        ...(planNeeded ? [{ done: false, label: planNeeded.label + (planNeeded.action === "Start" ? " to keep posting" : ""), href: "settings.html#billingCard", action: planNeeded.action }] : [])
       ];
       const doneCount = steps.filter(s => s.done).length;
       document.getElementById("onboardingProgress").textContent = `${doneCount} of ${steps.length}`;

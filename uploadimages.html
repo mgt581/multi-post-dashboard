@@ -428,7 +428,7 @@
     let billingReady = false;
     let hasBillingAccess = false;
 
-    // Free before trial: drafting (AI captions, limited by the server) works
+    // Free before trial: drafting and 3 posts per platform (limited by the server) work
     // without a plan; publishing asks for the trial. On the website the plans
     // open in a new tab so this draft is kept.
     let freeDrafts = false;
@@ -439,13 +439,18 @@
       window.open("pricing.html", "_blank");
     }
     function showFreeDraftBanner(banner) {
+      const left = currentBilling?.free_posts || {};
+      const total = ["youtube", "tiktok", "facebook"].reduce((sum, key) => sum + Number(left[key] || 0), 0);
       banner.classList.add("show");
-      banner.innerHTML = `
-        <div class="paywall-title">Drafting is free</div>
-        <div class="paywall-copy">Create your post and AI captions now. Start your 7-day free trial when you're ready to publish.</div>
+      banner.innerHTML = total > 0 ? `
+        <div class="paywall-title">Your free posts</div>
+        <div class="paywall-copy">Free to try: ${Number(left.youtube || 0)} YouTube, ${Number(left.tiktok || 0)} TikTok and ${Number(left.facebook || 0)} Facebook posts left. Then start your 7-day free trial to keep posting.</div>
         <a class="paywall-link" href="pricing.html" target="_blank" rel="noopener">See plans</a>
-      `;
-    }
+      ` : `
+        <div class="paywall-title">Your workspace is all set up</div>
+        <div class="paywall-copy">Your workspace and connected accounts are saved, and you can keep writing drafts. Choose a plan to start publishing again.</div>
+        <a class="paywall-link" href="pricing.html" target="_blank" rel="noopener">See plans</a>
+      `;    }
     let currentBilling = null;
     let billingRefreshTimer = null;
     let signedInUserEmail = "";
@@ -580,7 +585,7 @@
           return;
         }
         billingReady = true;
-        freeDrafts = !["canceled", "expired"].includes(billing.status);
+        freeDrafts = true; // drafts stay open; the server decides publishing
         setPublishingEnabled(false, "Unlock AI SEO generation with your 7-day free trial.");
         renderCurrentBilling();
       } catch (err) {
@@ -946,7 +951,7 @@
 
     async function uploadFacebookImagePost() {
       if (!billingReady) await loadBillingStatus();
-      if (!hasBillingAccess) {
+      if (!hasBillingAccess && !freeDrafts) {
         askForTrialToPublish();
         return;
       }

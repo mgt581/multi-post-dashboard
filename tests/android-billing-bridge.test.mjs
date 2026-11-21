@@ -40,6 +40,6 @@ test('Android 1.9.8 buys extra workspaces as standalone subscriptions, not Pro a
   assert.match(billing, /onMultiPostWorkspacePurchase/);
   assert.match(main, /"buyWorkspace" ->/);
   assert.match(main, /"manageWorkspace" ->/);
-  assert.match(gradle, /versionCode = 16/);
-  assert.match(gradle, /versionName = "1\.9\.8"/);
+  // Standalone workspace purchases shipped in 1.9.8 (16); later builds keep them.
+  assert.ok(Number(gradle.match(/versionCode = (\d+)/)[1]) >= 16);
 });

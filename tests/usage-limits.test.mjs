@@ -521,7 +521,7 @@ test('Pro has no daily posting cap and gets 150 publications a month per entitle
   } finally { globalThis.fetch = original; sqlite.close(); }
 });
 
-test('free before trial: one workspace and 5 AI credits without a plan, but publishing still needs one', async () => {
+test('free before trial: one workspace, connections, 10 AI credits and 3 lifetime posts per platform, then the trial', async () => {
   const { sqlite, env } = fixture();
   const original = globalThis.fetch;
   globalThis.fetch = async () => Response.json({ users: [{ localId: 'free-1', email: 'free@example.com', emailVerified: true }] });
@@ -533,15 +533,43 @@ test('free before trial: one workspace and 5 AI credits without a plan, but publ
     assert.equal((await post('/api/add-folder', { name: 'Second', user_id: 'free-1' })).status, 429);
     const folders = await (await worker.fetch(new Request('https://test.invalid/api/get-folders?user_id=free-1', { headers }), env)).json();
     assert.deepEqual(folders.map(f => f.workspace_locked), [false]);
-    const upload = await post('/api/youtube/init-upload', { title: 'x', fileSize: 100 }, { folder_id: String(folders[0].id), user_id: 'free-1' });
-    assert.equal(upload.status, 402, 'publishing needs the trial');
-    for (let n = 1; n <= 5; n++) sqlite.prepare(`INSERT INTO billing_ai_requests (user_id,request_id,input_hash,month_start,credits,status)
+    const folderId = String(folders[0].id);
+    const connect = await post('/api/auth/youtube', { folder_id: folderId, user_id: 'free-1' });
+    assert.notEqual(connect.status, 402, 'free accounts may connect platforms');
+    const status = async () => (await (await worker.fetch(new Request('https://test.invalid/api/billing/status?user_id=free-1', { headers }), env)).json()).billing;
+    assert.deepEqual((await status()).free_posts, { youtube: 3, tiktok: 3, facebook: 3 });
+    assert.equal((await status()).ai_credits.allowance, 10);
+    const upload = () => post('/api/youtube/init-upload', { title: 'x', fileSize: 100 }, { folder_id: folderId, user_id: 'free-1' });
+    assert.notEqual((await upload()).status, 402, 'a free post gets past billing');
+    sqlite.prepare("UPDATE billing_publish_slots SET status = 'completed', completed_at = strftime('%s','now') WHERE user_id = 'free-1'").run();
+    for (let n = 0; n < 2; n++) sqlite.prepare(`INSERT INTO billing_publish_slots (id,user_id,platform,month_start,status,completed_at)
+      VALUES (?, 'free-1', 'youtube', 0, 'completed', strftime('%s','now'))`).run(`done-${n}`);
+    sqlite.prepare(`INSERT INTO billing_publish_slots (id,user_id,platform,month_start,status,created_at)
+      VALUES ('stale', 'free-1', 'youtube', 0, 'pending', strftime('%s','now') - 7200)`).run();
+    assert.equal((await status()).free_posts.youtube, 0, 'a stale pending upload does not hold a place');
+    const used = await upload();
+    assert.equal(used.status, 402);
+    const body = await used.json();
+    assert.equal(body.code, 'FREE_POSTS_USED');
+    assert.match(body.error, /3 free YouTube posts/);
+    assert.equal((await status()).free_posts.tiktok, 3, 'each platform has its own 3');
+    for (let n = 1; n <= 10; n++) sqlite.prepare(`INSERT INTO billing_ai_requests (user_id,request_id,input_hash,month_start,credits,status)
       VALUES ('free-1',?,'h',?,1,'completed')`).run(`used-free-credit-${n}-xxxxxxxx`, monthStart());
     const draft = await post('/api/generate-seo', { user_id: 'free-1', topic: 'Retro football' });
     assert.equal(draft.status, 402);
     assert.match((await draft.json()).error, /free AI drafts/);
+    sqlite.prepare('INSERT INTO folders (id,user_id,name) VALUES (99,?,?)').run('free-1', 'Hidden');
+    const other = await post('/api/tiktok/init-upload', { title: 'x' }, { folder_id: '99', user_id: 'free-1' });
+    assert.ok([402, 423].includes(other.status), 'only one free workspace');
     sqlite.prepare(`INSERT INTO billing_subscriptions (user_id,user_email,subscription_status) VALUES ('free-1','free@example.com','canceled')`).run();
-    sqlite.prepare('DELETE FROM folders').run();
-    assert.equal((await post('/api/add-folder', { name: 'Again', user_id: 'free-1' })).status, 402, 'lapsed subscribers renew instead');
+    assert.notEqual((await post('/api/auth/youtube', { folder_id: folderId, user_id: 'free-1' })).status, 402, 'an ended plan keeps its workspace connections');
+    const accounts = await worker.fetch(new Request(`https://test.invalid/api/get-accounts?folder_id=${folderId}&user_id=free-1`, { headers }), env);
+    assert.equal(accounts.status, 200, 'an ended plan can still open its workspace');
+    const renew = await post('/api/tiktok/init-upload', { title: 'x' }, { folder_id: folderId, user_id: 'free-1' });
+    assert.equal(renew.status, 402);
+    assert.equal((await renew.json()).code, 'RENEW_TO_PUBLISH');
+    assert.deepEqual((await status()).free_posts, { youtube: 0, tiktok: 0, facebook: 0 });
+    assert.deepEqual((await (await worker.fetch(new Request('https://test.invalid/api/get-folders?user_id=free-1', { headers }), env)).json())
+      .find(f => String(f.id) === folderId).workspace_locked, false, 'the saved workspace stays unlocked');
   } finally { globalThis.fetch = original; sqlite.close(); }
 });

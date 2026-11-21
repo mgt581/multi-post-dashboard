@@ -1137,7 +1137,7 @@ Follow for daily trending content! \u{1F44F}
         .bind(identity.userId, ...aliases).all();
       const allowance = !evaluated.enabled || evaluated.owner ? results.length : evaluated.access
         ? Math.max(0, Math.min(100, Number(evaluated.workspaceAllowance || 1)))
-        : ["canceled", "expired"].includes(evaluated.status) ? 0 : 1;
+        : 1; // without a plan the first workspace stays open (saved, ready to publish on subscribing)
       return { ordered: results.map((item) => String(item.id)), active: new Set(results.slice(0, allowance).map((item) => String(item.id))) };
     }, "workspaceSelection");
     const countDailyPosts = /* @__PURE__ */ __name(async (userIds, platform) => {
@@ -1238,6 +1238,27 @@ Follow for daily trending content! \u{1F44F}
     const ensurePlanQuota = /* @__PURE__ */ __name(async (userId, platform, evaluated) => {
       if (!evaluated?.enabled || evaluated?.reason === "owner_bypass") {
         return { ok: true };
+      }
+      if (evaluated.free && evaluated.lapsed) {
+        return { ok: false, statusCode: 402, body: { success: false, code: "RENEW_TO_PUBLISH",
+          error: "Your workspace and connected accounts are saved. Choose a plan to publish again." } };
+      }
+      if (evaluated.free) {
+        const freeUser = evaluated.canonicalUserId || userId;
+        const freeSlot = crypto.randomUUID();
+        // Lifetime cap; a pending upload holds its place for 30 minutes.
+        const freeReserved = await env.DB.prepare(`INSERT INTO billing_publish_slots (id, user_id, platform, month_start, status)
+          SELECT ?, ?, ?, ?, 'pending' WHERE (SELECT COUNT(*) FROM billing_publish_slots WHERE user_id = ? AND platform = ?
+            AND (status = 'completed' OR (status = 'pending' AND created_at > strftime('%s','now') - 1800))) < ?`)
+          .bind(freeSlot, freeUser, platform, aiMonthStart(), freeUser, platform, FREE_POSTS_PER_PLATFORM).run();
+        if (!Number(freeReserved?.meta?.changes ?? freeReserved?.changes ?? 0)) {
+          const name = { youtube: "YouTube", tiktok: "TikTok", facebook: "Facebook" }[platform] || platform;
+          return { ok: false, statusCode: 402, body: { success: false, code: "FREE_POSTS_USED",
+            error: `You've used your ${FREE_POSTS_PER_PLATFORM} free ${name} posts. Start your 7-day free trial to keep posting.` } };
+        }
+        publicationSlotId = freeSlot;
+        publicationCanonicalUserId = freeUser;
+        return { ok: true, slotId: freeSlot };
       }
       const limits = evaluated?.plan?.limits || PLAN_LIMITS.pro;
       const monthlyAllowance = monthlyPublicationAllowance(evaluated);
@@ -1348,18 +1369,46 @@ Follow for daily trending content! \u{1F44F}
     }, "ensureBillingAccess");
     // Free before trial: a signed-in, email-verified user without a plan may
     // create one workspace and draft a few AI captions. Publishing stays paid.
-    const FREE_AI_CREDITS = 5;
+    const FREE_AI_CREDITS = 10;
     // Lapsed subscribers (canceled/expired) renew instead, and free places are
     // only created under the account's own ID, never an email alias.
-    const freeTierGate = /* @__PURE__ */ __name((gate, requestedUserId) => {
+    // allowLapsed: an ended trial or subscription keeps its saved workspace and
+    // connections (view and reconnect), but gets no new free posts.
+    const freeTierGate = /* @__PURE__ */ __name((gate, requestedUserId, allowLapsed = false) => {
       if (gate.ok || gate.statusCode !== 402 || !gate.identity?.userId || !gate.evaluated?.enabled) return null;
-      if (["canceled", "expired"].includes(gate.evaluated.status)) return null;
+      const lapsed = ["canceled", "expired"].includes(gate.evaluated.status);
+      if (lapsed && !allowLapsed) return null;
       if (String(requestedUserId || "") !== String(gate.identity.userId)) return null;
       if (gate.identity.email && !gate.identity.emailVerified) {
         return { ok: false, statusCode: 403, body: { success: false, code: "EMAIL_VERIFICATION_REQUIRED", error: "Verify your email address to start using MultiPost." } };
       }
-      return { ok: true, free: true, row: null, identity: gate.identity, evaluated: { ...gate.evaluated, free: true, workspaceAllowance: 1 } };
+      return { ok: true, free: true, row: null, identity: gate.identity, evaluated: { ...gate.evaluated, free: true, lapsed, workspaceAllowance: 1 } };
     }, "freeTierGate");
+    // Free taster: each account, once ever, may publish 3 posts to each platform
+    // (YouTube, TikTok, Facebook) from its one free workspace, then the trial.
+    const FREE_POSTS_PER_PLATFORM = 3;
+    const ensureAccessOrFree = /* @__PURE__ */ __name(async (userId, platform, request2, requireAuthentication = false, requestedFolderId = null) => {
+      const gate = await ensureBillingAccess(userId, platform, request2, requireAuthentication, requestedFolderId);
+      if (gate.ok) return gate;
+      const free = freeTierGate(gate, userId, true);
+      if (!free || !free.ok) return free || gate;
+      const folderId = requestedFolderId || request2.headers.get('folder_id') || new URL(request2.url).searchParams.get('folder_id');
+      if (folderId && !(await workspaceSelection(free.identity, free.evaluated)).active.has(String(folderId))) {
+        return { ok: false, statusCode: 402, body: { success: false, code: 'FREE_WORKSPACE_ONLY',
+          error: 'The free plan includes one workspace. Start your 7-day free trial to use more.' } };
+      }
+      free.evaluated.canonicalUserId = free.identity.userId;
+      free.evaluated.identityAliases = [free.identity.userId];
+      return free;
+    }, "ensureAccessOrFree");
+    const freePostsUsed = /* @__PURE__ */ __name(async (userId) => {
+      const { results } = await env.DB.prepare(`SELECT platform, COUNT(*) AS count FROM billing_publish_slots
+        WHERE user_id = ? AND (status = 'completed' OR (status = 'pending' AND created_at > strftime('%s','now') - 1800))
+        GROUP BY platform`).bind(String(userId)).all();
+      const used = { youtube: 0, tiktok: 0, facebook: 0 };
+      for (const row of results || []) used[row.platform] = Number(row.count || 0);
+      return used;
+    }, "freePostsUsed");
     const aiMonthStart = /* @__PURE__ */ __name(() => {
       const current = new Date();
       return Math.floor(Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), 1) / 1000);
@@ -1624,7 +1673,7 @@ Follow for daily trending content! \u{1F44F}
         const allowedOwners = [...new Set([identity.userId, ...(identity.emailVerified && identity.email ? [identity.email] : []), ...(identity.workspaceOwnerIds || [])])];
         const folder = await env.DB.prepare(`SELECT id, user_id FROM folders WHERE id = ? AND user_id IN (${sqlPlaceholders(allowedOwners)})`).bind(folder_id, ...allowedOwners).first();
         if (!folder) return new Response(JSON.stringify({ code: "WORKSPACE_ACCESS_DENIED", error: "This workspace belongs to a different Multi Post account. Sign in with the account used to create it." }), { status: 403, headers: jsonHeaders });
-        const folderGate = await ensureBillingAccess(folder.user_id, 'web', request, false, folder_id);
+        const folderGate = await ensureAccessOrFree(folder.user_id, 'web', request, false, folder_id);
         if (!folderGate.ok) return Response.json(folderGate.body, { status: folderGate.statusCode, headers: corsHeaders });
         const workspaceOwner = folder.user_id || userId;
         const userAliases = [workspaceOwner];
@@ -1842,7 +1891,11 @@ Follow for daily trending content! \u{1F44F}
             workspace_product_ids: playEntitlement?.access ? (playEntitlement.workspaceItems || []).map((item) => item.productId) : [],
             workspace_renewing_ids: playEntitlement?.access ? (playEntitlement.workspaceItems || []).filter((item) => item.renewing).map((item) => item.productId) : [],
             workspace_standalone_ids: playEntitlement?.access ? (playEntitlement.workspaceItems || []).filter((item) => item.standalone).map((item) => item.productId) : [],
-            ai_credits: { used: Number(aiUsed?.count || 0), allowance: 150 },
+            ai_credits: { used: Number(aiUsed?.count || 0), allowance: evaluated.access || !evaluated.enabled ? 150 : FREE_AI_CREDITS },
+            free_posts: !evaluated.access && evaluated.enabled
+              ? ["canceled", "expired"].includes(evaluated.status) ? { youtube: 0, tiktok: 0, facebook: 0 } : await (async () => { const used = await freePostsUsed(authenticatedIdentity.userId);
+                  return Object.fromEntries(Object.entries(used).map(([k, v]) => [k, Math.max(0, FREE_POSTS_PER_PLATFORM - v)])); })()
+              : null,
             publications: { used: publicationsThisMonth, allowance: monthlyPublicationAllowance(evaluated) },
             trial_days_default: stripeTrialDays,
             plan: {
@@ -2267,7 +2320,7 @@ Follow for daily trending content! \u{1F44F}
         if (!folderId || !userId) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), { status: 400, headers: jsonHeaders });
         }
-        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request), request, false, folderId);
+        const billingSnapshot = await ensureAccessOrFree(userId, getClientPlatform(request), request, false, folderId);
         if (!billingSnapshot.ok) return new Response(JSON.stringify(billingSnapshot.body), { status: billingSnapshot.statusCode, headers: jsonHeaders });
         if (!await ownedFolder(env.DB, folderId, userId)) return new Response(JSON.stringify({ error: "Workspace not found" }), { status: 404, headers: jsonHeaders });
         const linkGate = await ensureLinkingQuota({ userId, platform: "youtube", folderId, evaluated: billingSnapshot.evaluated });
@@ -2356,7 +2409,7 @@ Follow for daily trending content! \u{1F44F}
         const identity = await getFirebaseIdentity(request);
         if (!folderId || !userId || !matchesIdentity(userId, identity)) return new Response(JSON.stringify({ error: "Sign in again before connecting TikTok." }), { status: 401, headers: jsonHeaders });
         if (!await ownedFolder(env.DB, folderId, userId)) return new Response(JSON.stringify({ error: "Workspace not found" }), { status: 404, headers: jsonHeaders });
-        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request), request, true, folderId);
+        const billingSnapshot = await ensureAccessOrFree(userId, getClientPlatform(request), request, true, folderId);
         if (!billingSnapshot.ok) return new Response(JSON.stringify(billingSnapshot.body), { status: billingSnapshot.statusCode, headers: jsonHeaders });
         const linkGate = await ensureLinkingQuota({ userId, platform: "tiktok", folderId, evaluated: billingSnapshot.evaluated });
         if (!linkGate.ok) return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
@@ -2371,7 +2424,7 @@ Follow for daily trending content! \u{1F44F}
         const { folder_id: folderId, user_id: requestedUserId, refresh, return_to_app: returnToApp } = await request.json();
         const userId = requireUser(requestedUserId);
         if (!folderId || !userId) return Response.json({ error: "Missing folder_id or user_id" }, { status: 400, headers: jsonHeaders });
-        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request), request, false, folderId);
+        const billingSnapshot = await ensureAccessOrFree(userId, getClientPlatform(request), request, false, folderId);
         if (!billingSnapshot.ok) return Response.json(billingSnapshot.body, { status: billingSnapshot.statusCode, headers: jsonHeaders });
         if (!await ownedFolder(env.DB, folderId, userId)) return Response.json({ error: "Workspace not found" }, { status: 404, headers: jsonHeaders });
         const linkGate = await ensureLinkingQuota({ userId, platform: "facebook_page", folderId, evaluated: billingSnapshot.evaluated });
@@ -2875,7 +2928,7 @@ Follow for daily trending content! \u{1F44F}
             { status: 403, headers: jsonHeaders }
           );
         }
-        const billingSnapshot = await ensureBillingAccess(userId, getClientPlatform(request, body?.client_platform, null), request, false, folder_id);
+        const billingSnapshot = await ensureAccessOrFree(userId, getClientPlatform(request, body?.client_platform, null), request, false, folder_id);
         if (!billingSnapshot.ok) return new Response(JSON.stringify(billingSnapshot.body), { status: billingSnapshot.statusCode, headers: jsonHeaders });
         const linkGate = await ensureLinkingQuota({ userId, platform: "facebook_page", folderId: folder_id, evaluated: billingSnapshot.evaluated });
         if (!linkGate.ok) return new Response(JSON.stringify(linkGate.body), { status: linkGate.statusCode, headers: jsonHeaders });
@@ -2923,7 +2976,7 @@ Follow for daily trending content! \u{1F44F}
         if (!await ownedFolder(env.DB, folder_id, user_id)) {
           return Response.json({ success: false, error: "Workspace access denied" }, { status: 403, headers: corsHeaders });
         }
-        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        const billingGate = await ensureAccessOrFree(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
@@ -3104,7 +3157,7 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
-        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        const billingGate = await ensureAccessOrFree(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         if (!await ownedFolder(env.DB, folder_id, user_id)) {
           return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
@@ -3226,7 +3279,7 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
-        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        const billingGate = await ensureAccessOrFree(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
@@ -3427,7 +3480,7 @@ Follow for daily trending content! \u{1F44F}
         if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
           return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
         }
-        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        const billingGate = await ensureAccessOrFree(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
 
         if (!folder_id || !user_id) {
@@ -3632,7 +3685,7 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
-        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        const billingGate = await ensureAccessOrFree(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
@@ -3711,7 +3764,7 @@ Follow for daily trending content! \u{1F44F}
         if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
           return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
         }
-        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        const billingGate = await ensureAccessOrFree(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
@@ -3799,7 +3852,7 @@ Follow for daily trending content! \u{1F44F}
         if (!matchesIdentity(user_id, await getFirebaseIdentity(request)) || !await ownedFolder(env.DB, folder_id, user_id)) {
           return new Response(JSON.stringify({ error: "Workspace access denied" }), { status: 403, headers: jsonHeaders });
         }
-        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        const billingGate = await ensureAccessOrFree(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         if (!folder_id || !user_id) {
           return new Response(JSON.stringify({ success: false, error: "Missing folder_id or user_id" }), {
@@ -3956,7 +4009,7 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
-        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        const billingGate = await ensureAccessOrFree(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
@@ -4054,7 +4107,7 @@ Follow for daily trending content! \u{1F44F}
         if (!await ownedFolder(env.DB, folder_id, user_id)) {
           return Response.json({ success: false, error: "Workspace access denied" }, { status: 403, headers: corsHeaders });
         }
-        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        const billingGate = await ensureAccessOrFree(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
@@ -4250,7 +4303,7 @@ Follow for daily trending content! \u{1F44F}
             headers: jsonHeaders
           });
         }
-        const billingGate = await ensureBillingAccess(user_id, getClientPlatform(request), request);
+        const billingGate = await ensureAccessOrFree(user_id, getClientPlatform(request), request);
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }
@@ -4383,7 +4436,7 @@ Follow for daily trending content! \u{1F44F}
             (account && (String(account.folder_id) !== String(folder_id) || account.user_id !== billingUserId))) {
           return Response.json({ success: false, error: "Workspace access denied" }, { status: 403, headers: corsHeaders });
         }
-        const billingGate = await ensureBillingAccess(billingUserId, getClientPlatform(request, client_platform), request, false, folder_id);
+        const billingGate = await ensureAccessOrFree(billingUserId, getClientPlatform(request, client_platform), request, false, folder_id);
         if (!billingGate.ok) {
           return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         }

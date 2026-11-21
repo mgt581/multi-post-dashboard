@@ -81,7 +81,7 @@ test('accounts without a subscription create one free workspace and are asked fo
 
   vm.runInContext('workspaceBilling = { enabled: true, access: false, status: "none" }; renderGettingStarted([])', context);
   assert.equal(get('onboardingProgress').textContent, '0 of 4');
-  assert.match(get('onboardingSteps').innerHTML, /Connect your social accounts.*Start your 7-day free trial to publish.*settings\.html#billingCard.*Publish your first post/s);
+  assert.match(get('onboardingSteps').innerHTML, /Connect your social accounts.*Publish your first post \(3 free on each platform\).*Start your 7-day free trial to keep posting.*settings\.html#billingCard/s);
   assert.match(get('createWorkspaceButton').innerHTML, /Create Workspace/);
   vm.runInContext('loadedFolders = []; createNewFolder()', context);
   assert.equal(get('createBrandDialog').opened, true, 'the first workspace is free');
