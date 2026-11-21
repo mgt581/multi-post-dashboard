@@ -12,8 +12,8 @@ android {
         applicationId = "uk.co.multipostapp"
         minSdk = 24
         targetSdk = 36
-        versionCode = 16
-        versionName = "1.9.8"
+        versionCode = 17
+        versionName = "1.9.9"
     }
     buildTypes {
         release {
@@ -32,5 +32,8 @@ dependencies {
     implementation("com.google.android.gms:play-services-auth:21.4.0")
     implementation("com.android.billingclient:billing:9.1.0")
     implementation("androidx.webkit:webkit:1.15.0")
+    // Firebase pulls in DataStore 1.1.7, whose native lib was built with NDK r25c
+    // (Play warns it may crash on 16 KB page devices). 1.3.0 uses a current NDK.
+    implementation("androidx.datastore:datastore-preferences:1.3.0")
     implementation("androidx.browser:browser:1.8.0")
 }
