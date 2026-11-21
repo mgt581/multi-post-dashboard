@@ -1897,6 +1897,16 @@
   window.addEventListener("focus", () => {
     if (userScope) loadBillingStatus();
   });
+
+  // Refresh "free posts left" straight after each publish attempt.
+  ["publishYouTube", "publishTikTok", "publishFacebook"].forEach((name) => {
+    const original = window[name];
+    if (typeof original !== "function") return;
+    window[name] = async (...args) => {
+      try { return await original(...args); }
+      finally { setTimeout(() => { if (userScope) loadBillingStatus(); }, 1500); }
+    };
+  });
 </script>
 </body>
 </html>

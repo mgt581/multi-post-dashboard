@@ -1087,7 +1087,11 @@
     });
 
     window.generateImageSEO = generateImageSEO;
-    window.uploadFacebookImagePost = uploadFacebookImagePost;
+    // Refresh "free posts left" straight after each publish attempt.
+    window.uploadFacebookImagePost = async (...args) => {
+      try { return await uploadFacebookImagePost(...args); }
+      finally { setTimeout(() => { if (userScope) loadBillingStatus(); }, 1500); }
+    };
     window.copyFacebookImageText = copyFacebookImageText;
     window.saveReusableDefaults = saveReusableDefaults;
     window.goToVideoPage = goToVideoPage;
