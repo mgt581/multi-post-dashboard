@@ -213,6 +213,7 @@
     .nav-item i { font-size: 20px; }
   </style>
   <script src="meta-pixel.js" defer></script>
+  <script src="free-posts.js" defer></script>
 </head>
 <body>
   <div class="page">
@@ -671,6 +672,7 @@
         if (!res.ok || !out?.success) throw new Error(out?.error || "Failed to load billing");
         const billing = out.billing || {};
         currentBilling = billing;
+        window.mpFreePosts?.render(billing);
         if (!billing.enabled) {
           setBillingUi("Billing disabled", "Paywall is currently off. Enable WEB_BILLING_ENABLED in worker vars to enforce web billing.", "warn");
           return;

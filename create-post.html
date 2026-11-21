@@ -367,6 +367,7 @@
       .controls .btn { width: 100%; }
     }
   </style>
+  <script src="free-posts.js" defer></script>
 </head>
 <body>
   <div class="page">
@@ -1105,6 +1106,7 @@
       if (!res.ok || !out?.success) throw new Error(out?.error || "Failed to load billing status");
       const billing = out.billing || {};
       currentBilling = billing;
+      window.mpFreePosts?.render(billing);
       if (!billing.enabled) {
         billingReady = true;
         setPublishingEnabled(true);

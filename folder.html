@@ -179,6 +179,7 @@
     .fb-page-item-name { font-weight: 800; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .fb-page-item-sub  { font-size: 12px; color: var(--muted); margin-top: 2px; }
   </style>
+  <script src="free-posts.js" defer></script>
 </head>
 <body>
 
@@ -643,6 +644,13 @@
       localStorage.setItem("currentUserKey", userScope);
       initUI();
       await render();
+      // Free plan strip: show how many free posts this account has left.
+      try {
+        const token = await user.getIdToken();
+        const res = await fetch(`${apiBase}/billing/status?user_id=${encodeURIComponent(user.uid)}`, { headers: { Authorization: `Bearer ${token}` } });
+        const out = await res.json();
+        if (res.ok && out?.success) window.mpFreePosts?.render(out.billing);
+      } catch (_) {}
       const params = new URLSearchParams(window.location.search);
       if (params.has("tiktok_error")) {
         const status = document.getElementById("tiktokLinkStatus");

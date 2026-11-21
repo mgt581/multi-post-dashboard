@@ -172,6 +172,7 @@
     .nav-item.active { color: var(--accent-2); }
     .nav-item i { font-size: 20px; }
   </style>
+  <script src="free-posts.js" defer></script>
 </head>
 <body>
   <dialog id="createBrandDialog" aria-labelledby="createBrandTitle" style="max-width:440px;width:calc(100% - 32px);background:#0b1829;color:#e2e8f0;border:1px solid #334155;border-radius:16px;padding:24px;">
@@ -439,6 +440,7 @@
         if (!response.ok || !result.success) throw new Error(result.error || "Could not verify the subscription.");
         const billing = result.billing || {};
         workspaceBilling = billing;
+        window.mpFreePosts?.render(billing);
         if (!billing.enabled) summary.textContent = "Subscriptions are being set up. See Profile for access.";
         else if (billing.owner_mode) summary.textContent = "Owner account: access enabled.";
         else if (billing.access && billing.reason === "play_verified") {
