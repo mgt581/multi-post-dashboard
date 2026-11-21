@@ -80,9 +80,8 @@ test('workspace creation enforces one included place across UID and verified ema
     method: 'POST', headers, body: JSON.stringify({ name: 'Workspace', user_id })
   }), env);
   try {
-    assert.equal((await add('one@example.com')).status, 402, 'unpaid aliases never inherit a second billing row');
-    assert.equal((await add('uid-1')).status, 200);
-    assert.equal((await add('uid-1')).status, 429);
+    assert.equal((await add('one@example.com')).status, 200, 'the one included place may be named by the verified email');
+    assert.equal((await add('uid-1')).status, 429, 'the UID and email share that one place');
     sqlite.prepare(`INSERT INTO billing_play_purchases
       (user_id,token_hash,encrypted_token,product_id,base_plan_id,subscription_state,expiry_time,last_verified_at,workspace_quantity,workspace_expiry)
       VALUES ('uid-1','hash','encrypted','multipost_pro','monthly','SUBSCRIPTION_STATE_ACTIVE',?,?,2,?)`)
@@ -94,7 +93,7 @@ test('workspace creation enforces one included place across UID and verified ema
     assert.equal((await add('one@example.com')).status, 429, 'the same account cannot gain another place using its email');
     sqlite.prepare("UPDATE billing_play_purchases SET workspace_items_json = '[]' WHERE user_id = 'uid-1'").run();
     assert.equal((await add('uid-1')).status, 429);
-    assert.equal(sqlite.prepare("SELECT COUNT(*) count FROM folders WHERE user_id='uid-1'").get().count, 3);
+    assert.equal(sqlite.prepare("SELECT COUNT(*) count FROM folders WHERE user_id IN ('uid-1','one@example.com')").get().count, 3);
   } finally { globalThis.fetch = original; sqlite.close(); }
 });
 
@@ -528,9 +527,9 @@ test('free before trial: one workspace, connections, 10 AI credits and 3 lifetim
   const post = (path, body, extra = {}) => worker.fetch(new Request(`https://test.invalid${path}`, {
     method: 'POST', headers: { ...headers, ...extra }, body: JSON.stringify(body) }), env);
   try {
-    assert.equal((await post('/api/add-folder', { name: 'My brand', user_id: 'free@example.com' })).status, 402, 'never under an email alias');
     assert.equal((await post('/api/add-folder', { name: 'My brand', user_id: 'free-1' })).status, 200);
     assert.equal((await post('/api/add-folder', { name: 'Second', user_id: 'free-1' })).status, 429);
+    assert.equal((await post('/api/add-folder', { name: 'Third', user_id: 'free@example.com' })).status, 429, 'the email shares the one free place');
     const folders = await (await worker.fetch(new Request('https://test.invalid/api/get-folders?user_id=free-1', { headers }), env)).json();
     assert.deepEqual(folders.map(f => f.workspace_locked), [false]);
     const folderId = String(folders[0].id);
@@ -586,5 +585,17 @@ test('free accounts can use an older workspace saved under their verified email'
       method: 'POST', headers: { ...headers, folder_id: '7', user_id: 'old@example.com' }, body: JSON.stringify({ title: 'x', fileSize: 100 }) }), env);
     assert.notEqual(upload.status, 402);
     assert.equal(sqlite.prepare("SELECT COUNT(*) c FROM billing_publish_slots WHERE user_id = 'free-2'").get().c, 1, 'counted against the account ID');
+  } finally { globalThis.fetch = original; sqlite.close(); }
+});
+
+test('a free account can create its workspace from the dashboard, which names it by email', async () => {
+  const { sqlite, env } = fixture();
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ users: [{ localId: 'free-3', email: 'new@example.com', emailVerified: true }] });
+  try {
+    const res = await worker.fetch(new Request('https://test.invalid/api/add-folder', {
+      method: 'POST', headers, body: JSON.stringify({ name: 'My brand', user_id: 'new@example.com' }) }), env);
+    assert.equal(res.status, 200, await res.clone().text());
+    assert.equal(sqlite.prepare("SELECT COUNT(*) c FROM folders WHERE user_id = 'new@example.com'").get().c, 1);
   } finally { globalThis.fetch = original; sqlite.close(); }
 });

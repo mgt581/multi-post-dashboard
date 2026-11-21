@@ -710,7 +710,18 @@
 
     function createNewFolder() {
       if (needsPlan() && loadedFolders.length > 0) {
-        location.href = "settings.html#billingCard";
+        // Free plan: one workspace. Explain instead of jumping to Profile.
+        const trial = needsPlan().action === "Start";
+        const link = document.getElementById("workspaceLimitLink");
+        document.getElementById("workspaceLimitTitle").textContent = trial ? "The Free plan includes 1 workspace" : "Your plan has ended";
+        document.getElementById("workspaceLimitDescription").textContent = trial
+          ? "Your free workspace and connected accounts are ready to use. To add more workspaces, start your 7-day free trial."
+          : "Your workspace and connected accounts are saved. Choose a plan to add more workspaces and post again.";
+        link.hidden = false;
+        link.style.display = "block";
+        link.href = "settings.html#billingCard";
+        link.textContent = trial ? "Start 7-day free trial" : "Choose a plan";
+        document.getElementById("workspaceLimitDialog").showModal();
         return;
       }
       if (workspaceVerificationRequired) {

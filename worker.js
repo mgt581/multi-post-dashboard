@@ -1375,8 +1375,8 @@ Follow for daily trending content! \u{1F44F}
     // allowLapsed: an ended trial or subscription keeps its saved workspace and
     // connections (view and reconnect), but gets no new free posts.
     // Workspaces may be saved under the verified email instead of the UID, so
-    // existing setups accept those aliases; new free workspaces (add-folder) use
-    // the UID only. Usage is always counted against identity.userId.
+    // the free tier accepts the signed-in identity's aliases (UID, verified
+    // email). Usage is always counted against identity.userId.
     const freeTierGate = /* @__PURE__ */ __name((gate, requestedUserId, allowLapsed = false, allowAliases = false) => {
       if (gate.ok || gate.statusCode !== 402 || !gate.identity?.userId || !gate.evaluated?.enabled) return null;
       const lapsed = ["canceled", "expired"].includes(gate.evaluated.status);
@@ -1570,7 +1570,9 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify({ success: false, error: "Missing name or user_id" }), { status: 400, headers: jsonHeaders });
         }
         let billingGate = await ensureBillingAccess(userId, "web", request);
-        if (!billingGate.ok) billingGate = freeTierGate(billingGate, userId) || billingGate;
+        // The dashboard names workspaces by the verified email, so accept the
+        // signed-in identity's aliases; the free place is shared across them.
+        if (!billingGate.ok) billingGate = freeTierGate(billingGate, userId, false, true) || billingGate;
         if (!billingGate.ok) return new Response(JSON.stringify(billingGate.body), { status: billingGate.statusCode, headers: jsonHeaders });
         const allowance = billingGate.evaluated.reason === "owner_bypass" ? 1000 : billingGate.evaluated.workspaceAllowance || 1;
         const identity = billingGate.identity;

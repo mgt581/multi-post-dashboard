@@ -67,7 +67,7 @@ test('dashboard shows action steps from server data and escapes stored workspace
 test('accounts without a subscription create one free workspace and are asked for the trial before publishing', () => {
   const elements = new Map();
   const get = id => {
-    if (!elements.has(id)) elements.set(id, { innerHTML: '', textContent: '', hidden: false, replaceChildren() {}, append() {}, addEventListener() {}, querySelectorAll() { return []; }, close() {}, showModal() { this.opened = true; } });
+    if (!elements.has(id)) elements.set(id, { innerHTML: '', textContent: '', hidden: false, replaceChildren() {}, append() {}, addEventListener() {}, querySelectorAll() { return []; }, close() {}, showModal() { this.opened = true; }, style: {} });
     return elements.get(id);
   };
   const location = { hostname: 'multipostapp.co.uk', href: '' };
@@ -89,7 +89,9 @@ test('accounts without a subscription create one free workspace and are asked fo
   vm.runInContext('loadedFolders = [{id:1}]; renderGettingStarted(loadedFolders)', context);
   assert.match(get('createWorkspaceButton').innerHTML, /Start 7-day free trial/);
   vm.runInContext('createNewFolder()', context);
-  assert.equal(location.href, 'settings.html#billingCard');
+  assert.equal(get('workspaceLimitDialog').opened, true, 'explains the one free workspace');
+  assert.match(get('workspaceLimitTitle').textContent, /Free plan includes 1 workspace/);
+  assert.equal(get('workspaceLimitLink').href, 'settings.html#billingCard');
   assert.notEqual(get('createBrandDialog').opened, true);
 
   vm.runInContext('workspaceBilling = { enabled: true, access: false, status: "expired" }; renderGettingStarted([{id:1}])', context);
