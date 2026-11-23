@@ -89,6 +89,11 @@ async function send(env, row, kind, fetchImpl) {
       headers: { "List-Unsubscribe": `<${unsubscribeUrl(row)}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" }
     })
   });
+  if (!res.ok) {
+    let detail = "";
+    try { detail = (await res.text()).slice(0, 300); } catch (_) {}
+    console.warn(`Lifecycle email ${kind} not sent: Resend ${res.status} ${detail}`);
+  }
   return res.ok;
 }
 
@@ -122,7 +127,7 @@ export async function sendLifecycleEmails(env, { now = Math.floor(Date.now() / 1
     const claimed = await db.prepare(`UPDATE lifecycle_emails SET ${column} = ? WHERE user_id = ? AND ${column} IS NULL`).bind(now, row.user_id).run();
     if (!Number(claimed?.meta?.changes ?? claimed?.changes ?? 0)) continue;
     let ok = false;
-    try { ok = await send(env, row, kind, fetchImpl); } catch (_) { ok = false; }
+    try { ok = await send(env, row, kind, fetchImpl); } catch (error) { console.warn(`Lifecycle email ${kind} failed: ${error?.message || error}`); ok = false; }
     if (!ok) { await db.prepare(`UPDATE lifecycle_emails SET ${column} = NULL WHERE user_id = ?`).bind(row.user_id).run(); break; }
     sent++;
     if (gapMs) await pause(gapMs);
