@@ -100,7 +100,7 @@ async function send(env, row, kind, fetchImpl) {
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Runs from the cron. Sends at most `limit` emails per run, spaced out for Resend's rate limit.
-export async function sendLifecycleEmails(env, { now = Math.floor(Date.now() / 1000), fetchImpl = fetch, limit = 20, gapMs = 250 } = {}) {
+export async function sendLifecycleEmails(env, { now = Math.floor(Date.now() / 1000), fetchImpl = fetch, limit = 20, gapMs = 600 } = {}) {
   if (!env?.RESEND_API_KEY || !env?.DB || String(env.LIFECYCLE_EMAILS_ENABLED || "true") === "false") return { sent: 0 };
   const db = env.DB;
   const owners = String(env.BILLING_OWNER_EMAILS || env.OWNER_EMAILS || "").toLowerCase().split(/[\s,]+/).filter(Boolean);
