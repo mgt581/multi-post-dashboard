@@ -2,6 +2,7 @@
 //  1. Welcome: soon after sign-up (accounts created in the last 3 days only).
 //  2. Day 2 nudge: 48h after sign-up if the account has not posted yet.
 //  3. Free posts used: once any platform's 3 free posts are used.
+//  4. Win-back (one-off): rows marked winback_due = 1, for sign-ups from before the Free plan.
 // Nobody on a trial, a paid plan, or who unsubscribed is emailed. Each email is sent once.
 
 const DAY = 86400;
@@ -38,6 +39,10 @@ export function lifecycleEmail(kind, row) {
     nudge: {
       subject: "Your first post takes 2 minutes",
       text: `${hi}\n\nYou haven't used your free posts yet, so here's the quickest way:\n\n1. Open ${SITE}/app.html\n2. Connect one account (YouTube, TikTok or Facebook)\n3. Upload one video or image and let MultiPost write the caption\n4. Press Publish\n\nYou've got 3 free posts on each platform, no card needed.\n\nStuck on any step? Reply to this email and I'll help you myself.`
+    },
+    winback: {
+      subject: "MultiPost is now free to try, no card needed",
+      text: `${hi}\n\nYou signed up for MultiPost last week. Back then you had to start a trial before you could do anything, and I don't think that was fair.\n\nSo I've changed it. You now get 3 free posts on each of YouTube, TikTok and Facebook, with no card and no trial needed.\n\n1. Open ${SITE}/app.html (you're already signed up)\n2. Connect an account\n3. Upload a video or image. MultiPost writes the caption and hashtags for each platform\n4. Press Publish\n\nIf anything gets in your way, just reply to this email and I'll help you myself.`
     },
     free_used: {
       subject: "You've used your free posts: your setup is saved",
@@ -97,7 +102,8 @@ export async function sendLifecycleEmails(env, { now = Math.floor(Date.now() / 1
   const { results } = await db.prepare(`SELECT * FROM lifecycle_emails WHERE unsubscribed_at IS NULL AND (
       (welcome_sent_at IS NULL AND signed_up_at > ?)
       OR (nudge_sent_at IS NULL AND signed_up_at <= ? AND signed_up_at > ?)
-      OR free_used_sent_at IS NULL)
+      OR free_used_sent_at IS NULL
+      OR (winback_due = 1 AND winback_sent_at IS NULL))
     ORDER BY signed_up_at DESC LIMIT 200`).bind(now - 3 * DAY, now - 2 * DAY, now - 10 * DAY).all();
   let sent = 0;
   for (const row of results || []) {
@@ -106,11 +112,12 @@ export async function sendLifecycleEmails(env, { now = Math.floor(Date.now() / 1
     if (await hasAccess(db, row.user_id, String(row.email).toLowerCase())) continue;
     let kind = null;
     if (!row.free_used_sent_at && await freePostsUsedUp(db, row.user_id)) kind = "free_used";
+    else if (row.winback_due === 1 && !row.winback_sent_at) kind = await postsMade(db, row.user_id) === 0 ? "winback" : null;
     else if (!row.free_used_sent_at && !row.welcome_sent_at && row.signed_up_at > now - 3 * DAY) kind = "welcome";
     else if (!row.free_used_sent_at && !row.nudge_sent_at && row.welcome_sent_at && row.signed_up_at <= now - 2 * DAY && row.signed_up_at > now - 10 * DAY
       && await postsMade(db, row.user_id) === 0) kind = "nudge";
     if (!kind) continue;
-    const column = { welcome: "welcome_sent_at", nudge: "nudge_sent_at", free_used: "free_used_sent_at" }[kind];
+    const column = { welcome: "welcome_sent_at", nudge: "nudge_sent_at", free_used: "free_used_sent_at", winback: "winback_sent_at" }[kind];
     // Claim first so two overlapping cron runs can never send the same email twice.
     const claimed = await db.prepare(`UPDATE lifecycle_emails SET ${column} = ? WHERE user_id = ? AND ${column} IS NULL`).bind(now, row.user_id).run();
     if (!Number(claimed?.meta?.changes ?? claimed?.changes ?? 0)) continue;

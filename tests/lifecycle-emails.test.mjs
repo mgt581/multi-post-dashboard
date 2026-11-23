@@ -8,7 +8,7 @@ import { recordLifecycleUser, sendLifecycleEmails, lifecycleEmail, firstNameOf }
 const DAY = 86400;
 function fixture() {
   const sqlite = new DatabaseSync(':memory:');
-  for (const file of ['schema.sql', 'migrations/0009_play_subscriptions.sql', 'migrations/0012_publication_reservations.sql', 'migrations/0020_lifecycle_emails.sql']) {
+  for (const file of ['schema.sql', 'migrations/0009_play_subscriptions.sql', 'migrations/0012_publication_reservations.sql', 'migrations/0020_lifecycle_emails.sql', 'migrations/0021_lifecycle_winback.sql']) {
     sqlite.exec(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'));
   }
   const db = { prepare(sql) { let args = []; return {
@@ -81,4 +81,21 @@ test('first names are only used when they look like a name', () => {
   assert.equal(firstNameOf('<script>'), '');
   assert.equal(firstNameOf(''), '');
   assert.match(lifecycleEmail('welcome', { user_id: 'x', unsubscribe_token: 't', first_name: '' }).text, /^Hi there,/);
+});
+
+test('win-back goes once to marked rows that have not posted, and never adds a welcome or nudge', async () => {
+  const { sqlite, db } = fixture();
+  const now = 2_000_000_000;
+  const ins = sqlite.prepare("INSERT INTO lifecycle_emails (user_id,email,first_name,signed_up_at,unsubscribe_token,welcome_sent_at,nudge_sent_at,winback_due) VALUES (?,?,'',?,'tok',1,1,?)");
+  ins.run('stuck', 'stuck@example.com', now - 2.5 * DAY, 1);
+  ins.run('posted', 'posted@example.com', now - 2.5 * DAY, 1);
+  ins.run('unmarked', 'unmarked@example.com', now - 2.5 * DAY, null);
+  sqlite.prepare("INSERT INTO billing_publish_slots (id,user_id,platform,month_start,status) VALUES ('w1','posted','youtube',0,'completed')").run();
+  const env = { DB: db, RESEND_API_KEY: 'test' };
+  const m = mailer();
+  await sendLifecycleEmails(env, { now, fetchImpl: m.fetchImpl, gapMs: 0 });
+  await sendLifecycleEmails(env, { now: now + 300, fetchImpl: m.fetchImpl, gapMs: 0 });
+  assert.deepEqual(m.sent.map(e => [e.to[0], e.subject]), [['stuck@example.com', 'MultiPost is now free to try, no card needed']]);
+  assert.match(m.sent[0].text, /^Hi there,/);
+  assert.match(m.sent[0].text, /api\/unsubscribe\?u=stuck&t=tok/);
 });
