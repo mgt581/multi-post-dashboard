@@ -488,6 +488,8 @@ test('reconciler confirms provider success once, releases explicit failures, and
     assert.equal(sqlite.prepare("SELECT status FROM billing_publish_slots WHERE id='uncertain'").get().status, 'pending');
     assert.deepEqual(await reconcilePendingPublications(env, fetcher, now + 300), { scanned:1, completed:0, failed:0 });
     assert.equal(sqlite.prepare("SELECT COUNT(*) count FROM billing_usage_events WHERE event_type='publish_metered'").get().count, 1);
+    assert.equal((await reconcilePendingPublications(env, fetcher, now + 8 * 86400)).scanned, 0, 'stops retrying after 7 days');
+    assert.equal(sqlite.prepare("SELECT status FROM billing_publish_slots WHERE id='uncertain'").get().status, 'pending');
   } finally { sqlite.close(); }
 });
 

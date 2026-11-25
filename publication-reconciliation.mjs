@@ -12,7 +12,9 @@ export async function reconcilePendingPublications(env, fetcher = fetch, now = M
     JOIN upload_sessions u ON u.id = b.session_id
     WHERE s.status = 'pending' AND s.platform IN ('facebook', 'tiktok')
       AND u.video_id IS NOT NULL AND u.access_token IS NOT NULL
-    ORDER BY COALESCE(s.reconciled_at, 0), s.created_at LIMIT 30`).all();
+      AND s.created_at > ?
+    ORDER BY COALESCE(s.reconciled_at, 0), s.created_at LIMIT 30`).bind(now - 7 * 86400).all();
+  // After 7 days the providers no longer report status; leave those for manual review.
   let completed = 0;
   let failed = 0;
   for (const item of results) {
