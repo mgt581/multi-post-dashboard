@@ -543,7 +543,13 @@ Follow for daily trending content! \u{1F44F}
           emailVerified: user.emailVerified === true,
           email: String(user.email || "").trim().toLowerCase(),
           createdAt: Number(user.createdAt || 0),
-          displayName: String(user.displayName || "")
+          displayName: String(user.displayName || ""),
+          // With "multiple accounts per provider", Google users have no top-level
+          // email; their Google-verified address sits on the provider record.
+          // Used only for MultiPost's own emails, never for access decisions.
+          contactEmail: String(user.emailVerified === true && user.email ? user.email
+            : (user.providerUserInfo || []).find((p) => p?.providerId === "google.com" && p.email)?.email || "").trim().toLowerCase(),
+          contactName: String(user.displayName || (user.providerUserInfo || []).find((p) => p?.displayName)?.displayName || "")
         };
         // A verified, explicitly configured owner may have separate Firebase
         // UIDs for Google and email/password. Bridge only those configured
@@ -1852,7 +1858,7 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify({ success: false, error: "Authenticated account does not match this billing account" }), { status: 401, headers: jsonHeaders });
         }
         // Free plan emails: remember verified accounts (never blocks billing status).
-        try { await recordLifecycleUser(env.DB, authenticatedIdentity); } catch (_) {}
+        try { await recordLifecycleUser(env.DB, authenticatedIdentity); } catch (error) { console.warn("Lifecycle record failed", error?.message || error); }
         let row = await getBillingRowForIdentity(userId, authenticatedIdentity);
         row = await refreshBillingFromStripe(row);
         const playEntitlement = await getPlayEntitlement(authenticatedIdentity);

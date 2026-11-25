@@ -99,3 +99,11 @@ test('win-back goes once to marked rows that have not posted, and never adds a w
   assert.match(m.sent[0].text, /^Hi there,/);
   assert.match(m.sent[0].text, /api\/unsubscribe\?u=stuck&t=tok/);
 });
+
+test('Google sign-ups with no top-level email are recorded by their Google address', async () => {
+  const { sqlite, db } = fixture();
+  await recordLifecycleUser(db, { userId: 'g', email: '', emailVerified: false, contactEmail: 'g@gmail.com', contactName: 'Jo Bloggs', createdAt: Date.now() });
+  await recordLifecycleUser(db, { userId: 'none', email: '', emailVerified: false, contactEmail: '', createdAt: Date.now() });
+  const rows = sqlite.prepare('SELECT user_id, email, first_name FROM lifecycle_emails ORDER BY user_id').all();
+  assert.deepEqual(rows.map(r => [r.user_id, r.email, r.first_name]), [['g', 'g@gmail.com', 'Jo']]);
+});

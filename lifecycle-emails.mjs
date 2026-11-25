@@ -16,11 +16,12 @@ export function firstNameOf(displayName) {
 
 // Called with a verified Firebase identity whenever the app loads billing status.
 export async function recordLifecycleUser(db, identity) {
-  if (!identity?.userId || !identity.emailVerified || !identity.email) return;
+  const email = identity?.contactEmail || (identity?.emailVerified && identity.email) || "";
+  if (!identity?.userId || !email) return;
   const signedUpAt = Math.floor(Number(identity.createdAt || 0) / 1000) || Math.floor(Date.now() / 1000);
   const token = crypto.randomUUID().replace(/-/g, "");
   await db.prepare(`INSERT OR IGNORE INTO lifecycle_emails (user_id, email, first_name, signed_up_at, unsubscribe_token)
-    VALUES (?, ?, ?, ?, ?)`).bind(identity.userId, identity.email, firstNameOf(identity.displayName), signedUpAt, token).run();
+    VALUES (?, ?, ?, ?, ?)`).bind(identity.userId, email, firstNameOf(identity.contactName || identity.displayName), signedUpAt, token).run();
 }
 
 function unsubscribeUrl(row) {
