@@ -172,6 +172,7 @@
     .nav-item.active { color: var(--accent-2); }
     .nav-item i { font-size: 20px; }
   </style>
+  <script src="signup-source.js" defer></script>
   <script src="free-posts.js" defer></script>
   <script src="ios-install-tip.js" defer></script>
   <meta name="theme-color" content="#0b1829">
@@ -438,7 +439,8 @@
       const summary = document.getElementById("accountSummary");
       try {
         const token = await authUser.getIdToken();
-        const response = await fetch(`${apiBase}/billing/status?user_id=${encodeURIComponent(userScope)}`, {
+        const signupSource = (typeof window.mpSignupSource === "function" && window.mpSignupSource()) || "";
+        const response = await fetch(`${apiBase}/billing/status?user_id=${encodeURIComponent(userScope)}${signupSource ? `&src=${encodeURIComponent(signupSource)}` : ""}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         const result = await response.json();

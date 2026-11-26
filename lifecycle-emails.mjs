@@ -22,6 +22,28 @@ export async function recordLifecycleUser(db, identity) {
   const token = crypto.randomUUID().replace(/-/g, "");
   await db.prepare(`INSERT OR IGNORE INTO lifecycle_emails (user_id, email, first_name, signed_up_at, unsubscribe_token)
     VALUES (?, ?, ?, ?, ?)`).bind(identity.userId, email, firstNameOf(identity.contactName || identity.displayName), signedUpAt, token).run();
+  // Tag where they came from, once, and only for accounts created in the last day (a real new sign-up).
+  const source = cleanSource(identity.source);
+  if (source && signedUpAt > Math.floor(Date.now() / 1000) - DAY) {
+    try {
+      await db.prepare(`UPDATE lifecycle_emails SET signup_source = ? WHERE user_id = ? AND signup_source IS NULL`).bind(source, identity.userId).run();
+    } catch (error) { console.warn("Signup source not saved", error?.message || error); }
+  }
+}
+
+export function cleanSource(value) {
+  const s = String(value || "").trim().toLowerCase();
+  return /^[a-z0-9-]{1,30}$/.test(s) ? s : "";
+}
+
+// Counts one visit for a source (from a QR code or link with ?src=...), per UTC day.
+export async function recordSourceVisit(db, source, now = Date.now()) {
+  const clean = cleanSource(source);
+  if (!clean) return false;
+  const day = new Date(now).toISOString().slice(0, 10);
+  await db.prepare(`INSERT INTO source_visits (source, day, visits) VALUES (?, ?, 1)
+    ON CONFLICT(source, day) DO UPDATE SET visits = visits + 1`).bind(clean, day).run();
+  return true;
 }
 
 function unsubscribeUrl(row) {

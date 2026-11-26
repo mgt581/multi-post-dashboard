@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
 import worker from '../worker.js';
-import { recordLifecycleUser, sendLifecycleEmails, lifecycleEmail, firstNameOf } from '../lifecycle-emails.mjs';
+import { recordLifecycleUser, recordSourceVisit, sendLifecycleEmails, lifecycleEmail, firstNameOf } from '../lifecycle-emails.mjs';
 
 const DAY = 86400;
 function fixture() {
   const sqlite = new DatabaseSync(':memory:');
-  for (const file of ['schema.sql', 'migrations/0009_play_subscriptions.sql', 'migrations/0012_publication_reservations.sql', 'migrations/0020_lifecycle_emails.sql', 'migrations/0021_lifecycle_winback.sql']) {
+  for (const file of ['schema.sql', 'migrations/0009_play_subscriptions.sql', 'migrations/0012_publication_reservations.sql', 'migrations/0020_lifecycle_emails.sql', 'migrations/0021_lifecycle_winback.sql', 'migrations/0022_signup_source.sql']) {
     sqlite.exec(readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'));
   }
   const db = { prepare(sql) { let args = []; return {
@@ -106,4 +106,36 @@ test('Google sign-ups with no top-level email are recorded by their Google addre
   await recordLifecycleUser(db, { userId: 'none', email: '', emailVerified: false, contactEmail: '', createdAt: Date.now() });
   const rows = sqlite.prepare('SELECT user_id, email, first_name FROM lifecycle_emails ORDER BY user_id').all();
   assert.deepEqual(rows.map(r => [r.user_id, r.email, r.first_name]), [['g', 'g@gmail.com', 'Jo']]);
+});
+
+test('new sign-ups are tagged with their source once; old accounts and junk values are not', async () => {
+  const { sqlite, db } = fixture();
+  const base = { emailVerified: true, createdAt: Date.now() };
+  await recordLifecycleUser(db, { ...base, userId: 'card', email: 'c@example.com', source: 'Card' });
+  await recordLifecycleUser(db, { ...base, userId: 'card', email: 'c@example.com', source: 'facebook' });
+  await recordLifecycleUser(db, { ...base, userId: 'old', email: 'o@example.com', createdAt: Date.now() - 5 * DAY * 1000, source: 'card' });
+  await recordLifecycleUser(db, { ...base, userId: 'junk', email: 'j@example.com', source: '<script>' });
+  await recordLifecycleUser(db, { ...base, userId: 'none', email: 'n@example.com' });
+  const rows = Object.fromEntries(sqlite.prepare('SELECT user_id, signup_source s FROM lifecycle_emails').all().map(r => [r.user_id, r.s]));
+  assert.deepEqual(rows, { card: 'card', old: null, junk: null, none: null });
+});
+
+test('QR visits are counted per source per day through /api/visit', async () => {
+  const { sqlite, db } = fixture();
+  for (let i = 0; i < 3; i++) {
+    const res = await worker.fetch(new Request('https://test.invalid/api/visit?src=card', { method: 'POST' }), { DB: db });
+    assert.equal(res.status, 204);
+  }
+  await worker.fetch(new Request('https://test.invalid/api/visit?src=bad%20value', { method: 'POST' }), { DB: db });
+  assert.equal(await recordSourceVisit(db, 'card', Date.parse('2026-01-02T10:00:00Z')), true);
+  const rows = sqlite.prepare('SELECT source, visits FROM source_visits ORDER BY day').all().map(r => [r.source, r.visits]);
+  assert.deepEqual(rows, [['card', 1], ['card', 3]]);
+});
+
+test('the landing page saves ?src and the app sends it with billing status', () => {
+  const index = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const app = readFileSync(new URL('../app.html', import.meta.url), 'utf8');
+  assert.match(index, /signup-source\.js/);
+  assert.match(app, /signup-source\.js/);
+  assert.match(app, /&src=\$\{encodeURIComponent\(signupSource\)\}/);
 });

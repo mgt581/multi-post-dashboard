@@ -1,4 +1,4 @@
-import { recordLifecycleUser, sendLifecycleEmails, unsubscribe as unsubscribeLifecycle } from "./lifecycle-emails.mjs";
+import { recordLifecycleUser, recordSourceVisit, sendLifecycleEmails, unsubscribe as unsubscribeLifecycle } from "./lifecycle-emails.mjs";
 import { beginTikTokLink, consumeTikTokLink, saveTikTokConnection, tikTokPublishingAccount, disconnectTikTok, tikTokLinkCookie, matchesIdentity, ownedFolder } from "./tiktok-connections.mjs";
 import { evaluateFacebookVideoReadiness } from "./facebook-video-readiness.mjs";
 import { evaluateTikTokPublishStatus } from "./tiktok-publish-status.mjs";
@@ -1839,6 +1839,10 @@ Follow for daily trending content! \u{1F44F}
           return Response.json({ success: false, error: "Google Play purchase could not be verified" }, { status: 400, headers: corsHeaders });
         }
       }
+      if (url.pathname === "/api/visit" && request.method === "POST") {
+        try { await recordSourceVisit(env.DB, url.searchParams.get("src")); } catch (error) { console.warn("Source visit not counted", error?.message || error); }
+        return new Response(null, { status: 204, headers: corsHeaders });
+      }
       if (url.pathname === "/api/unsubscribe" && (request.method === "GET" || request.method === "POST")) {
         let done = false;
         try { done = await unsubscribeLifecycle(env.DB, url.searchParams.get("u"), url.searchParams.get("t")); } catch (_) {}
@@ -1858,7 +1862,7 @@ Follow for daily trending content! \u{1F44F}
           return new Response(JSON.stringify({ success: false, error: "Authenticated account does not match this billing account" }), { status: 401, headers: jsonHeaders });
         }
         // Free plan emails: remember verified accounts (never blocks billing status).
-        try { await recordLifecycleUser(env.DB, authenticatedIdentity); } catch (error) { console.warn("Lifecycle record failed", error?.message || error); }
+        try { await recordLifecycleUser(env.DB, authenticatedIdentity && { ...authenticatedIdentity, source: url.searchParams.get("src") }); } catch (error) { console.warn("Lifecycle record failed", error?.message || error); }
         let row = await getBillingRowForIdentity(userId, authenticatedIdentity);
         row = await refreshBillingFromStripe(row);
         const playEntitlement = await getPlayEntitlement(authenticatedIdentity);
