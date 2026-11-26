@@ -119,6 +119,12 @@
     .btn-reconnect { background: rgba(14,165,233,0.12); color: var(--accent-2); border: 1px solid var(--accent-2); font-size: 12px; padding: 6px 12px; }
     .btn-remove { background: rgba(244, 63, 94, 0.1); color: var(--error); border: 1px solid var(--error); }
 
+    .first-post-card { margin: 0 0 18px; padding: 18px; border-radius: 18px; border: 1px solid rgba(74,222,128,.55);
+      background: linear-gradient(135deg, rgba(22,163,74,.22), rgba(14,165,233,.18)); }
+    .first-post-card h3 { margin: 0 0 6px; font-size: 19px; }
+    .first-post-card p { margin: 0 0 14px; color: var(--muted); line-height: 1.5; font-size: 14px; }
+    .first-post-card a { display: block; text-align: center; padding: 14px; border-radius: 12px; font-weight: 800; color: #fff;
+      text-decoration: none; background: linear-gradient(110deg, #16a34a, #0ea5e9); font-size: 16px; }
     .btn-create-post {
       width: 100%; border: none; border-radius: 16px; padding: 16px;
       font-size: 16px; font-weight: 800; color: white;
@@ -211,6 +217,12 @@
       <h2>Current Workspace</h2>
       <p id="name">---</p>
       <span id="count" class="muted">Initializing...</span>
+    </div>
+
+    <div id="firstPostCard" class="first-post-card" hidden>
+      <h3 id="firstPostTitle">Next: make your first post</h3>
+      <p>Upload a video or image and MultiPost writes the title, caption and hashtags for each platform. Check it, then publish. Your free plan includes 3 posts on each platform.</p>
+      <a id="firstPostLink" href="publish-choice.html">Make my first post &rarr;</a>
     </div>
 
     <div id="accountList"></div>
@@ -433,6 +445,26 @@
       throw failure || new Error("Sign in again to load this workspace.");
     }
 
+    // After connecting an account, lead straight to the first post. Shown when an
+    // account was just connected, or a free account hasn't used any free posts.
+    let connectedCount = 0;
+    let justConnected = typeof location !== "undefined" && /(^|[?&])(youtube_connected|tiktok_connected)=/.test(location.search || "");
+    function updateFirstPostCard() {
+      const card = document.getElementById("firstPostCard");
+      const link = document.getElementById("firstPostLink");
+      const title = document.getElementById("firstPostTitle");
+      if (!card || !link || !title) return;
+      const left = window.mpBilling?.free_posts;
+      const noFreePostsUsed = !!left && ["youtube", "tiktok", "facebook"].every(k => Number(left[k]) >= 3);
+      const show = connectedCount > 0 && (justConnected || noFreePostsUsed);
+      link.href = document.getElementById("createPostLink")?.href || "publish-choice.html";
+      title.textContent = justConnected
+        ? "\u2705 Connected! Next: make your first post" : "Next: make your first post";
+      const wasHidden = card.hidden;
+      card.hidden = !show;
+      if (show && wasHidden && justConnected && card.scrollIntoView) card.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
     async function render() {
       const fId = getUrlParam("id") || getLS("activeFolderId");
       if (!fId || !userScope) return;
@@ -442,6 +474,8 @@
         const accounts = await fetchWorkspaceAccounts(fId);
         document.getElementById("workspaceAccessHelp").hidden = true;
         document.getElementById("count").innerText = `${accounts.length} total accounts connected`;
+        connectedCount = accounts.filter(a => ["youtube", "tiktok", "facebook_page"].includes(a.platform)).length;
+        updateFirstPostCard();
         listEl.innerHTML = Object.keys(allPlatforms).map(key => {
           const meta = allPlatforms[key];
           if (key === "facebook") return buildFacebookCard(meta, accounts);
@@ -585,6 +619,7 @@
         const data = await res.json();
         if (!data.success) throw new Error(data.error || "Failed to save page");
         closeFbModal();
+        justConnected = true;
         render();
       } catch (err) {
         if (listEl) listEl.innerHTML = `<p style="color:var(--error);text-align:center;">${escapeHTML(err.message)}</p>`;
@@ -653,7 +688,7 @@
         const token = await user.getIdToken();
         const res = await fetch(`${apiBase}/billing/status?user_id=${encodeURIComponent(user.uid)}`, { headers: { Authorization: `Bearer ${token}` } });
         const out = await res.json();
-        if (res.ok && out?.success) window.mpFreePosts?.render(out.billing);
+        if (res.ok && out?.success) { window.mpBilling = out.billing; window.mpFreePosts?.render(out.billing); updateFirstPostCard(); }
       } catch (_) {}
       const params = new URLSearchParams(window.location.search);
       if (params.has("tiktok_error")) {

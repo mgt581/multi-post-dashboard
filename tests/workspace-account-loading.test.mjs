@@ -35,3 +35,22 @@ test('network and backend failures do not fall back to another identity or folde
  let calls=0;const f=setup(async()=>{calls++;return Response.json({error:'Service unavailable'},{status:503});});
  await assert.rejects(f.run('fetchWorkspaceAccounts("A")'),/Service unavailable/);assert.equal(calls,1);
 });
+test('after connecting, the workspace shows a "make your first post" card until a free post is used', () => {
+ const {context, run} = setup(async () => ({}));
+ const els = {};
+ const el = id => els[id] || (els[id] = {hidden: true, textContent: '', href: ''});
+ el('createPostLink').href = 'publish-choice.html?folder_id=7';
+ context.document.getElementById = el;
+ run('connectedCount = 0; justConnected = false; window.mpBilling = {free_posts:{youtube:3,tiktok:3,facebook:3}}; updateFirstPostCard();');
+ assert.equal(els.firstPostCard.hidden, true, 'nothing connected yet');
+ run('connectedCount = 1; updateFirstPostCard();');
+ assert.equal(els.firstPostCard.hidden, false, 'connected, no free post used');
+ assert.equal(els.firstPostLink.href, 'publish-choice.html?folder_id=7');
+ run('window.mpBilling = {free_posts:{youtube:2,tiktok:3,facebook:3}}; updateFirstPostCard();');
+ assert.equal(els.firstPostCard.hidden, true, 'already posted');
+ run('justConnected = true; updateFirstPostCard();');
+ assert.equal(els.firstPostCard.hidden, false, 'just connected another account');
+ assert.match(els.firstPostTitle.textContent, /Connected! Next: make your first post/);
+ run('window.mpBilling = {free_posts:null}; justConnected = false; updateFirstPostCard();');
+ assert.equal(els.firstPostCard.hidden, true, 'paid accounts only see it right after connecting');
+});
